@@ -22,15 +22,15 @@ use crate::cross_server;
 use crate::dto::{
     local_tracks_max_updated_ms, ArtifactInputDto, EntityUserRatingDto, EntityUserRatingRefDto,
     FactInputDto, LibraryAdvancedSearchRequest, LibraryAdvancedSearchResponse,
-    LibraryCrossServerSearchResponse, LibraryLiveSearchRequest, LibraryLiveSearchResponse,
-    LibraryMainstageAlbumsRequest, LibraryMainstageAlbumsResponse, LibraryMostPlayedRequest,
-    LibraryMostPlayedResponse, LibraryScopeAlbumDetailRequest, LibraryScopeAlbumDetailResponse,
+    LibraryAlbumOverlayResolutionDto, LibraryCrossServerSearchResponse, LibraryEntitySourceDto,
+    LibraryLiveSearchRequest, LibraryLiveSearchResponse, LibraryMainstageAlbumsRequest,
+    LibraryMainstageAlbumsResponse, LibraryMostPlayedRequest, LibraryMostPlayedResponse,
+    LibraryResolveAlbumOverlayRequest, LibraryResolveEntitySourcesRequest,
+    LibraryScopeAlbumDetailRequest, LibraryScopeAlbumDetailResponse,
     LibraryScopeArtistDetailRequest, LibraryScopeArtistDetailResponse, LibraryScopeBrowseRequest,
     LibraryScopeBrowseResponse, LibraryScopeComposerDetailRequest,
     LibraryScopeComposerDetailResponse, LibraryScopeListRequest, LibraryScopeSearchRequest,
-    LibraryAlbumOverlayResolutionDto, LibraryEntitySourceDto,
-    LibraryResolveAlbumOverlayRequest, LibraryResolveEntitySourcesRequest, LibraryStatisticsDto,
-    LibraryStatisticsRequest, LibraryTrackDto, LibraryTracksEnvelope,
+    LibraryStatisticsDto, LibraryStatisticsRequest, LibraryTrackDto, LibraryTracksEnvelope,
     OfflinePathDto, PlaySessionDayDetailDto, PlaySessionHeatmapDayDto, PlaySessionInputDto,
     PlaySessionRecentDayDto, PlaySessionRecentTrackDto, PlaySessionYearBoundsDto,
     PlaySessionYearSummaryDto, PurgeReportDto, SyncJobDto, SyncStateDto, TrackArtifactDto,
@@ -568,12 +568,14 @@ pub async fn library_get_tracks_by_album(
 /// build `media/library/…` paths before a full sync has ingested the rows.
 // NOT specta-collected: takes a serde_json::Value arg — specta rc.25 can't export it. Stays hand-written on generate_handler!.
 #[tauri::command]
-pub fn library_upsert_songs_from_api(
+pub async fn library_upsert_songs_from_api(
     runtime: State<'_, LibraryRuntime>,
     server_id: String,
     songs: Vec<serde_json::Value>,
 ) -> Result<u32, String> {
-    upsert_songs_from_api(&runtime.store, &server_id, songs)
+    let _identity_guard = runtime.identity_mutation_guard().await;
+    let store = Arc::clone(&runtime.store);
+    library_spawn_blocking(move || upsert_songs_from_api(&store, &server_id, songs)).await
 }
 
 fn upsert_songs_from_api(
@@ -587,12 +589,21 @@ fn upsert_songs_from_api(
     if songs.is_empty() {
         return Ok(0);
     }
+    crate::navidrome_identity::assert_sync_ready(store, server_id)?;
     let synced_at = now_unix_ms();
     let repo = TrackRepository::new(store);
     let mut rows = Vec::with_capacity(songs.len());
-    for raw in songs {
+    let canonicalize = crate::navidrome_identity::transition_status(store, server_id)
+        .map(|status| status.state == "ready")
+        .unwrap_or(false);
+    for mut raw in songs {
+        if canonicalize {
+            crate::navidrome_identity::canonicalize_song_payload(&mut raw);
+        }
         let song: Song = serde_json::from_value(raw.clone()).map_err(|e| e.to_string())?;
-        rows.push(subsonic_song_to_track_row(server_id, &song, &raw, synced_at, None));
+        rows.push(subsonic_song_to_track_row(
+            server_id, &song, &raw, synced_at, None,
+        ));
     }
     repo.upsert_batch(&rows)?;
     Ok(rows.len() as u32)
@@ -1195,6 +1206,87 @@ pub async fn library_sync_bind_session(
     .await
 }
 
+#[tauri::command]
+#[specta::specta]
+pub fn library_identity_transition_status(
+    runtime: State<'_, LibraryRuntime>,
+    server_id: String,
+) -> Result<crate::navidrome_identity::IdentityTransitionDto, String> {
+    crate::navidrome_identity::transition_status(&runtime.store, &server_id)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn library_identity_transition_ack(
+    runtime: State<'_, LibraryRuntime>,
+    server_id: String,
+) -> Result<(), String> {
+    crate::navidrome_identity::acknowledge_frontend(&runtime.store, &server_id)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn library_identity_transition_probe(
+    runtime: State<'_, LibraryRuntime>,
+    http_registry: State<'_, Arc<ServerHttpRegistry>>,
+    server_id: String,
+    candidates: Vec<crate::navidrome_identity::IdentityProbeCandidateDto>,
+) -> Result<crate::navidrome_identity::IdentityTransitionDto, String> {
+    probe_identity_transition(&runtime, http_registry.as_ref(), &server_id, candidates).await
+}
+
+async fn probe_identity_transition(
+    runtime: &LibraryRuntime,
+    http_registry: &ServerHttpRegistry,
+    server_id: &str,
+    candidates: Vec<crate::navidrome_identity::IdentityProbeCandidateDto>,
+) -> Result<crate::navidrome_identity::IdentityTransitionDto, String> {
+    let session = runtime.get_session(server_id).ok_or_else(|| {
+        format!("no bound session for server `{server_id}` — call library_sync_bind_session first")
+    })?;
+    let subsonic = subsonic_client_with_registry(
+        Some(http_registry),
+        server_id,
+        session.base_url,
+        session.username,
+        session.password,
+    );
+    crate::navidrome_identity::ensure_transition_with_probe_candidates(
+        &runtime.store,
+        &subsonic,
+        server_id,
+        candidates,
+    )
+    .await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn library_identity_transition_run_native_migration(
+    runtime: State<'_, LibraryRuntime>,
+    server_id: String,
+) -> Result<crate::navidrome_identity::IdentityTransitionDto, String> {
+    run_identity_native_migration(&runtime, &server_id).await
+}
+
+async fn run_identity_native_migration(
+    runtime: &LibraryRuntime,
+    server_id: &str,
+) -> Result<crate::navidrome_identity::IdentityTransitionDto, String> {
+    let server_id = server_id.trim().to_string();
+    let _barrier = runtime
+        .cancel_and_drain_sync(None, Some(&server_id))
+        .await?;
+    let _identity_guard = runtime.identity_migration_guard().await;
+    let store = Arc::clone(&runtime.store);
+    let server_id_for_worker = server_id.clone();
+    library_spawn_blocking(move || {
+        crate::navidrome_identity::run_native_migration(&store, &server_id_for_worker)
+    })
+    .await?;
+    crate::navidrome_identity::transition_status(&runtime.store, &server_id)
+}
+
 async fn bind_sync_session_inner(
     runtime: &LibraryRuntime,
     http_registry: &ServerHttpRegistry,
@@ -1256,7 +1348,7 @@ async fn bind_sync_session_inner(
         bearer_token: tok,
     });
     let scope = library_scope.as_deref().unwrap_or_default();
-    probe_and_persist_with_timeout(
+    let probe = probe_and_persist_with_timeout(
         &runtime.store,
         &subsonic,
         navidrome_creds.as_ref(),
@@ -1267,6 +1359,11 @@ async fn bind_sync_session_inner(
     )
     .await
     .map_err(|e| format!("bind probe failed: {e}"))?;
+    if matches!(probe.server_info.server_type.as_deref(), Some("navidrome")) {
+        crate::navidrome_identity::ensure_transition(&runtime.store, &subsonic, &server_id)
+            .await
+            .map_err(|error| format!("canonical-ID readiness failed: {error}"))?;
+    }
     runtime.set_session(session)?;
     Ok(())
 }
@@ -1281,9 +1378,7 @@ pub async fn library_sync_clear_session(
 }
 
 async fn clear_sync_session(runtime: &LibraryRuntime, server_id: &str) -> Result<(), String> {
-    let _barrier = runtime
-        .cancel_and_drain_sync(None, Some(server_id))
-        .await?;
+    let _barrier = runtime.cancel_and_drain_sync(None, Some(server_id)).await?;
     runtime.clear_session(server_id);
     Ok(())
 }
@@ -1354,6 +1449,7 @@ async fn library_sync_start_inner(
     let session = runtime.get_session(&server_id).ok_or_else(|| {
         format!("no bound session for server `{server_id}` — call library_sync_bind_session first")
     })?;
+    crate::navidrome_identity::assert_sync_ready(&runtime.store, &server_id)?;
     let scope = library_scope
         .clone()
         .or(session.library_scope.clone())
@@ -1527,15 +1623,13 @@ async fn library_sync_start_inner(
         }
         // Wait for the runner to finish + emit sync-idle.
         let mut outcome = match runner_handle.await {
-            Ok(Ok(())) => {
-                LibrarySyncIdlePayload::ok(
-                    &server_id_for_emit,
-                    &scope_for_emit,
-                    &kind_for_emit,
-                    "foreground",
-                )
-                .with_job_id(&job_id_for_emit)
-            }
+            Ok(Ok(())) => LibrarySyncIdlePayload::ok(
+                &server_id_for_emit,
+                &scope_for_emit,
+                &kind_for_emit,
+                "foreground",
+            )
+            .with_job_id(&job_id_for_emit),
             Ok(Err(msg)) => LibrarySyncIdlePayload::err(
                 &server_id_for_emit,
                 &scope_for_emit,
@@ -1544,15 +1638,13 @@ async fn library_sync_start_inner(
                 &msg,
             )
             .with_job_id(&job_id_for_emit),
-            Err(join_err) if join_err.is_cancelled() => {
-                LibrarySyncIdlePayload::ok(
-                    &server_id_for_emit,
-                    &scope_for_emit,
-                    &kind_for_emit,
-                    "foreground",
-                )
-                .with_job_id(&job_id_for_emit)
-            }
+            Err(join_err) if join_err.is_cancelled() => LibrarySyncIdlePayload::ok(
+                &server_id_for_emit,
+                &scope_for_emit,
+                &kind_for_emit,
+                "foreground",
+            )
+            .with_job_id(&job_id_for_emit),
             Err(join_err) => LibrarySyncIdlePayload::err(
                 &server_id_for_emit,
                 &scope_for_emit,
@@ -1675,6 +1767,9 @@ pub fn patch_content_hash(
     runtime
         .store
         .with_conn("cmd.patch_content_hash", |conn| {
+            let track_id = crate::navidrome_identity::resolve_remapped_id_with_conn(
+                conn, server_id, "track", track_id,
+            )?;
             conn.execute(
                 "UPDATE track SET content_hash = ?3 \
                  WHERE server_id = ?1 AND id = ?2",
@@ -1723,6 +1818,9 @@ pub(crate) fn apply_track_patch(
     runtime
         .store
         .with_conn("cmd.patch_track", |conn| {
+            let track_id = crate::navidrome_identity::resolve_remapped_id_with_conn(
+                conn, server_id, "track", track_id,
+            )?;
             // One UPDATE per field present — keeps SQL simple and
             // matches the spec's per-field patch semantics.
             if let Some(v) = starred_at {
@@ -1997,6 +2095,14 @@ fn purge_server_data(
                 "DELETE FROM identity_invalidation WHERE server_id = ?1",
                 params![server_id],
             )?;
+            tx.execute(
+                "DELETE FROM entity_id_remap WHERE server_id = ?1",
+                params![server_id],
+            )?;
+            tx.execute(
+                "DELETE FROM server_identity_transition WHERE server_id = ?1",
+                params![server_id],
+            )?;
             tx.execute("DELETE FROM track WHERE server_id = ?1", params![server_id])?;
             tx.execute("DELETE FROM album WHERE server_id = ?1", params![server_id])?;
             tx.execute(
@@ -2173,6 +2279,12 @@ fn put_entity_user_ratings(
             if !valid_entity_user_rating_key(server_id, entity_kind, entity_id) {
                 continue;
             }
+            let entity_id = crate::navidrome_identity::resolve_remapped_id_with_conn(
+                &transaction,
+                server_id,
+                entity_kind,
+                entity_id,
+            )?;
             statement.execute(params![
                 server_id,
                 entity_kind,
@@ -2279,8 +2391,12 @@ mod tests {
                        VALUES ('{server_id}', '{artist_id}', 'fanart', 'hit', 1);
                       INSERT INTO library_tag_state(server_id, folders_hash, completed_at)
                         VALUES ('{server_id}', 'hash', 1);
-                      INSERT INTO library_tag_cursor(server_id, folders_hash, next_folder_id, updated_at)
-                        VALUES ('{server_id}', 'hash', 'folder-1', 1);
+                       INSERT INTO library_tag_cursor(server_id, folders_hash, next_folder_id, updated_at)
+                         VALUES ('{server_id}', 'hash', 'folder-1', 1);
+                       INSERT INTO server_identity_transition(server_id, canonical_version, state, detected_at)
+                         VALUES ('{server_id}', 1, 'legacy', 1);
+                       INSERT INTO entity_id_remap(server_id, entity_kind, old_id, new_id, remapped_at)
+                         VALUES ('{server_id}', 'track', 'old-{track_id}', '{track_id}', 1);
                      INSERT INTO entity_user_rating(server_id, entity_kind, entity_id, rating, fetched_at)
                        VALUES ('{server_id}', 'track', '{track_id}', 5, 1);
                      INSERT INTO album_browse_projection(
@@ -2356,6 +2472,39 @@ mod tests {
     }
 
     #[test]
+    fn api_song_upsert_is_blocked_while_identity_migration_is_pending() {
+        let store = LibraryStore::open_in_memory();
+        store
+            .with_conn("test.seed_transition", |conn| {
+                conn.execute(
+                    "INSERT INTO server_identity_transition(server_id, canonical_version, state, detected_at) \
+                     VALUES ('s1', 1, 'transition_detected', 1)",
+                    [],
+                )?;
+                Ok(())
+            })
+            .unwrap();
+
+        let error = upsert_songs_from_api(
+            &store,
+            "s1",
+            vec![serde_json::json!({
+                "id": "e3b7fc2ae9447bbec37a13bf916e3cf6",
+                "title": "Track",
+                "album": "Album",
+                "duration": 120
+            })],
+        )
+        .unwrap_err();
+
+        assert!(error.contains("migration is ready to run"));
+        let count = store
+            .with_read_conn(|conn| conn.query_row("SELECT COUNT(*) FROM track", [], |row| row.get::<_, i64>(0)))
+            .unwrap();
+        assert_eq!(count, 0);
+    }
+
+    #[test]
     fn patch_content_hash_sets_value_and_noops_on_absent_or_empty() {
         let store = Arc::new(LibraryStore::open_in_memory());
         TrackRepository::new(&store)
@@ -2383,6 +2532,56 @@ mod tests {
 
         patch_content_hash(&rt, "s1", "tr_1", "md5-playback").unwrap();
         assert_eq!(read(&store).as_deref(), Some("md5-playback"));
+    }
+
+    #[test]
+    fn patch_content_hash_ignores_inactive_alias_until_native_migration_commits() {
+        let store = Arc::new(LibraryStore::open_in_memory());
+        TrackRepository::new(&store)
+            .upsert_batch(&[make_row("s1", "old-track", "al_1", 1)])
+            .unwrap();
+        store
+            .with_conn("test.seed_alias", |conn| {
+                conn.execute(
+                    "INSERT INTO entity_id_remap(server_id, entity_kind, old_id, new_id, remapped_at, active) \
+                     VALUES ('s1', 'track', 'old-track', 'new-track', 1, 0)",
+                    [],
+                )?;
+                Ok(())
+            })
+            .unwrap();
+        let rt = runtime(store.clone());
+
+        patch_content_hash(&rt, "s1", "old-track", "before-migration").unwrap();
+        let legacy_hash = store
+            .with_read_conn(|conn| {
+                conn.query_row(
+                    "SELECT content_hash FROM track WHERE server_id = 's1' AND id = 'old-track'",
+                    [],
+                    |row| row.get::<_, Option<String>>(0),
+                )
+            })
+            .unwrap();
+        assert_eq!(legacy_hash.as_deref(), Some("before-migration"));
+
+        store
+            .with_conn("test.activate_alias", |conn| {
+                conn.execute("UPDATE track SET id = 'new-track' WHERE server_id = 's1'", [])?;
+                conn.execute("UPDATE entity_id_remap SET active = 1 WHERE server_id = 's1'", [])?;
+                Ok(())
+            })
+            .unwrap();
+        patch_content_hash(&rt, "s1", "old-track", "after-migration").unwrap();
+        let canonical_hash = store
+            .with_read_conn(|conn| {
+                conn.query_row(
+                    "SELECT content_hash FROM track WHERE server_id = 's1' AND id = 'new-track'",
+                    [],
+                    |row| row.get::<_, Option<String>>(0),
+                )
+            })
+            .unwrap();
+        assert_eq!(canonical_hash.as_deref(), Some("after-migration"));
     }
 
     #[test]
@@ -2572,6 +2771,44 @@ mod tests {
     }
 
     #[test]
+    fn entity_user_rating_late_write_resolves_canonical_id() {
+        let store = LibraryStore::open_in_memory();
+        store
+            .with_conn("test.seed_remap", |conn| {
+                conn.execute(
+                    "INSERT INTO entity_id_remap(server_id, entity_kind, old_id, new_id, remapped_at) \
+                     VALUES ('s1', 'album', 'old-album', 'new-album', 1)",
+                    [],
+                )?;
+                Ok(())
+            })
+            .unwrap();
+        put_entity_user_ratings(
+            &store,
+            &[EntityUserRatingDto {
+                server_id: "s1".into(),
+                entity_kind: "album".into(),
+                entity_id: "old-album".into(),
+                rating: 5,
+                fetched_at: 10,
+            }],
+            20,
+        )
+        .unwrap();
+
+        let entity_id = store
+            .with_read_conn(|conn| {
+                conn.query_row(
+                    "SELECT entity_id FROM entity_user_rating WHERE server_id = 's1'",
+                    [],
+                    |row| row.get::<_, String>(0),
+                )
+            })
+            .unwrap();
+        assert_eq!(entity_id, "new-album");
+    }
+
+    #[test]
     fn entity_user_rating_batch_limit_matches_spec_cap() {
         assert_eq!(ENTITY_USER_RATINGS_BATCH_LIMIT, 300);
     }
@@ -2688,6 +2925,104 @@ mod tests {
         assert_eq!(runtime.get_session("s1"), Some(previous));
     }
 
+    #[tokio::test(flavor = "multi_thread")]
+    async fn supplemental_identity_probe_does_not_require_navidrome_token() {
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/rest/getSong.view"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "subsonic-response": {
+                    "status": "failed",
+                    "error": { "code": 70, "message": "Song not found" }
+                }
+            })))
+            .expect(2)
+            .mount(&server)
+            .await;
+
+        let store = Arc::new(LibraryStore::open_in_memory());
+        store
+            .with_conn("test.seed_legacy_track", |conn| {
+                conn.execute(
+                    "INSERT INTO track(server_id,id,title,album,synced_at,raw_json) \
+                     VALUES ('s1','e3b7fc2ae9447bbec37a13bf916e3cf6','Track','Album',1,'{}')",
+                    [],
+                )?;
+                Ok(())
+            })
+            .unwrap();
+        let runtime = LibraryRuntime::new(store);
+        runtime
+            .set_session(SyncSession {
+                server_id: "s1".into(),
+                base_url: server.uri(),
+                username: "user".into(),
+                password: "password".into(),
+                navidrome_token: None,
+                library_scope: None,
+            })
+            .unwrap();
+
+        let status =
+            probe_identity_transition(&runtime, &ServerHttpRegistry::new(), "s1", Vec::new())
+                .await
+                .unwrap();
+
+        assert_eq!(status.state, "retryable");
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn explicit_native_migration_cancels_and_drains_foreground_sync() {
+        let store = Arc::new(LibraryStore::open_in_memory());
+        let old_track = "e3b7fc2ae9447bbec37a13bf916e3cf6";
+        store
+            .with_conn("test.seed_transition", |conn| {
+                conn.execute(
+                    "INSERT INTO track(server_id,id,title,album,synced_at,raw_json) \
+                     VALUES ('s1',?1,'Track','Album',1,'{}')",
+                    params![old_track],
+                )?;
+                conn.execute(
+                    "INSERT INTO server_identity_transition \
+                     (server_id, canonical_version, state, probe_old_id, probe_new_id, detected_at) \
+                     VALUES ('s1', 1, 'transition_detected', ?1, ?2, 1)",
+                    params![old_track, crate::navidrome_identity::canonical_id(old_track)],
+                )?;
+                Ok(())
+            })
+            .unwrap();
+        let runtime = Arc::new(LibraryRuntime::new(store));
+        let cancel = Arc::new(AtomicBool::new(false));
+        let done = Arc::new(tokio::sync::Notify::new());
+        let job_id = "identity-drain".to_string();
+        runtime
+            .install_current_job(CurrentJob {
+                job_id: job_id.clone(),
+                server_id: "s1".into(),
+                kind: "delta_sync".into(),
+                cancel: Arc::clone(&cancel),
+                abort_handle: None,
+                done: Arc::clone(&done),
+            })
+            .unwrap();
+        let runtime_for_job = Arc::clone(&runtime);
+        let job = tokio::spawn(async move {
+            while !cancel.load(Ordering::SeqCst) {
+                tokio::task::yield_now().await;
+            }
+            runtime_for_job.complete_current_job(&job_id, &done);
+        });
+
+        let status = run_identity_native_migration(&runtime, "s1").await.unwrap();
+
+        assert_eq!(status.state, "pending_frontend");
+        assert!(runtime.current_job().is_none());
+        job.await.unwrap();
+    }
+
     #[test]
     fn sync_outcome_treats_cancellation_as_silent_success() {
         // Cancellation (user cancel, or a newer sync_start superseding this
@@ -2767,6 +3102,8 @@ mod tests {
             ("artist_artwork_lookup", "server_id"),
             ("library_tag_state", "server_id"),
             ("library_tag_cursor", "server_id"),
+            ("server_identity_transition", "server_id"),
+            ("entity_id_remap", "server_id"),
             ("entity_user_rating", "server_id"),
             ("album_browse_projection", "server_id"),
             ("canonical_enrichment_link", "owner_server_id"),
@@ -2797,11 +3134,10 @@ mod tests {
                     |row| row.get(0),
                 )?;
                 assert_eq!(preserved_offline, 1);
-                let foreign_key_errors: i64 = conn.query_row(
-                    "SELECT COUNT(*) FROM pragma_foreign_key_check",
-                    [],
-                    |row| row.get(0),
-                )?;
+                let foreign_key_errors: i64 =
+                    conn.query_row("SELECT COUNT(*) FROM pragma_foreign_key_check", [], |row| {
+                        row.get(0)
+                    })?;
                 assert_eq!(foreign_key_errors, 0);
                 Ok(())
             })

@@ -88,6 +88,14 @@ describe('resumeInitialSyncIfIncomplete', () => {
     sessionMocks.syncAllServerHttpContexts.mockReset().mockResolvedValue(undefined);
     sessionMocks.libraryCoverClearFetchFailures.mockReset().mockResolvedValue(0);
     sessionMocks.libraryCoverBackfillRunFullPass.mockReset().mockResolvedValue(undefined);
+    onInvoke('library_identity_transition_status', () => ({
+      serverId: 'music.test/rest',
+      state: 'ready',
+      canonicalVersion: 1,
+      probeOldId: null,
+      probeNewId: null,
+      lastError: null,
+    }));
   });
 
   it('single-flights concurrent URL-key bootstraps and resumes the stranded sync once', async () => {

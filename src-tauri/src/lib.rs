@@ -1,12 +1,12 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-pub mod cli;
 mod benchmark;
+pub mod cli;
 mod cover_cache;
 mod lib_commands;
-mod library_identity_maintenance;
 pub(crate) mod library_analysis_backfill;
+mod library_identity_maintenance;
 pub mod theme_animation;
 pub(crate) mod theme_import;
 
@@ -187,6 +187,10 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             psysonic_library::commands::library_resolve_entity_sources,
             psysonic_library::commands::library_resolve_album_overlay,
             psysonic_library::commands::library_sync_bind_session,
+            psysonic_library::commands::library_identity_transition_status,
+            psysonic_library::commands::library_identity_transition_ack,
+            psysonic_library::commands::library_identity_transition_probe,
+            psysonic_library::commands::library_identity_transition_run_native_migration,
             psysonic_library::commands::library_sync_clear_session,
             psysonic_library::commands::library_set_playback_hint,
             psysonic_library::commands::library_get_playback_hint,
@@ -810,6 +814,21 @@ pub fn run() {
                                 {
                                     return;
                                 }
+                                if psysonic_library::navidrome_identity::assert_sync_ready(
+                                    &runtime.store,
+                                    &session.server_id,
+                                )
+                                .is_err()
+                                {
+                                    return;
+                                }
+                                let subsonic = psysonic_integration::subsonic::subsonic_client_with_registry(
+                                    Some(registry.as_ref()),
+                                    &session.server_id,
+                                    session.base_url.clone(),
+                                    session.username.clone(),
+                                    session.password.clone(),
+                                );
                                 let foreground_active = foreground_blocks_scheduler_session(
                                     runtime.current_job().as_ref(),
                                     &session.server_id,
@@ -826,13 +845,6 @@ pub fn run() {
                                     psysonic_library::sync::capability::CapabilityFlags::new(
                                         flags_bits,
                                     );
-                                let subsonic = psysonic_integration::subsonic::subsonic_client_with_registry(
-                                    Some(registry.as_ref()),
-                                    &session.server_id,
-                                    session.base_url.clone(),
-                                    session.username.clone(),
-                                    session.password.clone(),
-                                );
                                 let mut sched =
                                     psysonic_library::sync::scheduler::BackgroundScheduler::new(
                                         &runtime.store,
@@ -1044,10 +1056,17 @@ pub fn run() {
                         else {
                             return TrackEnrichmentPlan::default();
                         };
+                        let track_id = psysonic_library::navidrome_identity::resolve_remapped_id(
+                            &runtime.store,
+                            server_id,
+                            "track",
+                            track_id,
+                        )
+                        .unwrap_or_else(|_| track_id.to_string());
                         match psysonic_library::enrichment::plan_track_enrichment(
                             &runtime.store,
                             server_id,
-                            track_id,
+                            &track_id,
                             content_hash,
                             enrichment_now_unix_ms(),
                         ) {
@@ -1074,10 +1093,16 @@ pub fn run() {
                         else {
                             return Err("library runtime unavailable".into());
                         };
+                        let track_id = psysonic_library::navidrome_identity::resolve_remapped_id(
+                            &runtime.store,
+                            server_id,
+                            "track",
+                            track_id,
+                        )?;
                         psysonic_library::enrichment::store_track_enrichment_facts(
                             &runtime.store,
                             server_id,
-                            track_id,
+                            &track_id,
                             content_hash,
                             facts,
                             enrichment_now_unix_ms(),
@@ -1471,6 +1496,10 @@ pub fn run() {
             psysonic_library::commands::library_analysis_progress,
             psysonic_library::commands::library_count_live_tracks,
             psysonic_library::commands::library_sync_bind_session,
+            psysonic_library::commands::library_identity_transition_status,
+            psysonic_library::commands::library_identity_transition_ack,
+            psysonic_library::commands::library_identity_transition_probe,
+            psysonic_library::commands::library_identity_transition_run_native_migration,
             psysonic_library::commands::library_sync_clear_session,
             psysonic_library::commands::library_set_playback_hint,
             psysonic_library::commands::library_get_playback_hint,

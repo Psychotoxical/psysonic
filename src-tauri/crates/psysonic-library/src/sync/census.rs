@@ -39,6 +39,9 @@ use super::ingest_parallel::{
 };
 use super::mapping::album_track_rows;
 use super::now_unix_ms;
+use crate::navidrome_identity::{
+    resolve_unexpected_not_found, EntityKind, TargetedNotFoundOutcome,
+};
 use crate::repos::TrackRepository;
 use crate::store::LibraryStore;
 
@@ -321,7 +324,8 @@ impl<'a> AlbumCensusRunner<'a> {
         if phase.as_deref() != Some("ready") {
             return Ok(CensusReport::default());
         }
-        let local = local_album_inventory(self.store, &self.server_id).map_err(SyncError::Storage)?;
+        let local =
+            local_album_inventory(self.store, &self.server_id).map_err(SyncError::Storage)?;
         let mut report = CensusReport {
             local_albums: local.len(),
             ..CensusReport::default()
@@ -397,9 +401,7 @@ impl<'a> AlbumCensusRunner<'a> {
             .min(self.probe_cap.saturating_sub(to_remove_len));
         let mut spare = self.probe_cap.saturating_sub(to_remove_len + to_fill_len);
         let to_remove_len = to_remove_len + spare.min(removable.len() - to_remove_len);
-        spare = self
-            .probe_cap
-            .saturating_sub(to_remove_len + to_fill_len);
+        spare = self.probe_cap.saturating_sub(to_remove_len + to_fill_len);
         let to_fill_len = to_fill_len + spare.min(diff.missing_locally.len() - to_fill_len);
 
         let to_remove: Vec<String> = removable[..to_remove_len].to_vec();
@@ -418,8 +420,10 @@ impl<'a> AlbumCensusRunner<'a> {
                 break;
             }
             self.check_cancellation()?;
-            wait_while_bulk_paused(&self.budget, self.sleep_enabled, || self.check_cancellation())
-                .await?;
+            wait_while_bulk_paused(&self.budget, self.sleep_enabled, || {
+                self.check_cancellation()
+            })
+            .await?;
             sleep_request_gap(&self.budget, self.sleep_enabled).await;
             if self.deadline_reached() {
                 report.budget_exhausted = true;
@@ -435,13 +439,41 @@ impl<'a> AlbumCensusRunner<'a> {
                 break;
             };
             match result {
-                Err(SubsonicError::NotFound) => confirmed_gone.push(album_id.clone()),
+                Err(SubsonicError::NotFound) => {
+                    let Some(outcome) = self
+                        .await_before_deadline(resolve_unexpected_not_found(
+                            self.store,
+                            self.subsonic,
+                            &self.server_id,
+                            EntityKind::Album,
+                            album_id,
+                        ))
+                        .await
+                    else {
+                        report.budget_exhausted = true;
+                        report.deferred += to_remove.len() - index;
+                        break;
+                    };
+                    match outcome.map_err(SyncError::IdentityTransition)? {
+                        TargetedNotFoundOutcome::ConfirmedMissing => {
+                            confirmed_gone.push(album_id.clone());
+                        }
+                        TargetedNotFoundOutcome::TransitionDetected => {
+                            return Err(SyncError::IdentityTransition(
+                                "canonical-ID transition detected while verifying an album"
+                                    .to_string(),
+                            ));
+                        }
+                    }
+                }
                 Ok(_) => {}
                 // One album that could not be asked is one album left for the
                 // next pass, not a reason to throw away the removals already
                 // applied and the gap work still to come.
                 Err(other) => {
-                    crate::app_eprintln!("[library-sync] census could not confirm an album: {other}");
+                    crate::app_eprintln!(
+                        "[library-sync] census could not confirm an album: {other}"
+                    );
                     report.deferred += 1;
                 }
             }
@@ -471,8 +503,10 @@ impl<'a> AlbumCensusRunner<'a> {
                 break;
             }
             self.check_cancellation()?;
-            wait_while_bulk_paused(&self.budget, self.sleep_enabled, || self.check_cancellation())
-                .await?;
+            wait_while_bulk_paused(&self.budget, self.sleep_enabled, || {
+                self.check_cancellation()
+            })
+            .await?;
             sleep_request_gap(&self.budget, self.sleep_enabled).await;
             if self.deadline_reached() {
                 report.budget_exhausted = true;
@@ -518,8 +552,10 @@ impl<'a> AlbumCensusRunner<'a> {
                 return Ok(AlbumEnumeration::BudgetExhausted);
             }
             self.check_cancellation()?;
-            wait_while_bulk_paused(&self.budget, self.sleep_enabled, || self.check_cancellation())
-                .await?;
+            wait_while_bulk_paused(&self.budget, self.sleep_enabled, || {
+                self.check_cancellation()
+            })
+            .await?;
             sleep_request_gap(&self.budget, self.sleep_enabled).await;
             if self.deadline_reached() {
                 return Ok(AlbumEnumeration::BudgetExhausted);
@@ -644,7 +680,8 @@ impl<'a> AlbumCensusRunner<'a> {
     }
 
     fn deadline_reached(&self) -> bool {
-        self.deadline.is_some_and(|deadline| Instant::now() >= deadline)
+        self.deadline
+            .is_some_and(|deadline| Instant::now() >= deadline)
     }
 
     /// Bound the in-flight future as well as the gaps between requests. Without
@@ -675,6 +712,7 @@ enum AlbumEnumeration {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::navidrome_identity::{canonical_id, transition_status};
 
     fn entry(id: &str, songs: i64, duration: i64) -> AlbumInventoryEntry {
         AlbumInventoryEntry {
@@ -754,12 +792,20 @@ mod tests {
     fn the_cap_refuses_a_run_that_would_gut_the_library() {
         // 3000 of 12,746 albums is not a user deleting music between two
         // passes; it is an enumeration that went wrong.
-        assert!(!removal_is_within_cap(3_000, 12_746, CENSUS_REMOVAL_CAP_PERCENT));
+        assert!(!removal_is_within_cap(
+            3_000,
+            12_746,
+            CENSUS_REMOVAL_CAP_PERCENT
+        ));
     }
 
     #[test]
     fn the_cap_lets_an_ordinary_cleanup_through() {
-        assert!(removal_is_within_cap(30, 12_746, CENSUS_REMOVAL_CAP_PERCENT));
+        assert!(removal_is_within_cap(
+            30,
+            12_746,
+            CENSUS_REMOVAL_CAP_PERCENT
+        ));
         assert!(removal_is_within_cap(0, 0, CENSUS_REMOVAL_CAP_PERCENT));
     }
 
@@ -930,7 +976,10 @@ mod tests {
 
         assert!(report.budget_exhausted);
         assert!(report.enumeration_incomplete);
-        assert_eq!(report.deferred, 0, "the runner does not know a resumable backlog yet");
+        assert_eq!(
+            report.deferred, 0,
+            "the runner does not know a resumable backlog yet"
+        );
         assert_eq!(live_rows(&store, "al-1"), 1);
     }
 
@@ -1017,10 +1066,17 @@ mod tests {
         let store = LibraryStore::open_in_memory();
         mark_ready(&store);
         for index in 0..10 {
-            seed_album(&store, &format!("al-{index}"), &[&format!("t-{index}")], 100);
+            seed_album(
+                &store,
+                &format!("al-{index}"),
+                &[&format!("t-{index}")],
+                100,
+            );
         }
         // The server still lists nine of the ten.
-        let listed: Vec<_> = (0..9).map(|i| album_summary(&format!("al-{i}"), 1, 100)).collect();
+        let listed: Vec<_> = (0..9)
+            .map(|i| album_summary(&format!("al-{i}"), 1, 100))
+            .collect();
         mount_album_list(&server, listed).await;
         mount_album_gone(&server, "al-9").await;
 
@@ -1036,14 +1092,58 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread")]
+    async fn canonical_fallback_aborts_before_tombstoning_a_legacy_album() {
+        let server = MockServer::start().await;
+        let store = LibraryStore::open_in_memory();
+        mark_ready(&store);
+        let old = "00112233445566778899aabbccddeeff";
+        let new = canonical_id(old);
+        seed_album(&store, old, &["t-old"], 100);
+        for index in 0..9 {
+            seed_album(
+                &store,
+                &format!("al-{index}"),
+                &[&format!("t-{index}")],
+                100,
+            );
+        }
+        let listed: Vec<_> = (0..9)
+            .map(|index| album_summary(&format!("al-{index}"), 1, 100))
+            .collect();
+        mount_album_list(&server, listed).await;
+        mount_album_gone(&server, old).await;
+        mount_album_present(&server, &new, &["t-old"]).await;
+
+        let error = AlbumCensusRunner::new(&store, &test_subsonic(&server.uri()), "s1")
+            .with_sleep_disabled()
+            .run()
+            .await
+            .unwrap_err();
+
+        assert!(matches!(error, SyncError::IdentityTransition(_)));
+        assert_eq!(live_rows(&store, old), 1);
+        assert_eq!(
+            transition_status(&store, "s1").unwrap().state,
+            "transition_detected"
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
     async fn an_album_missing_from_the_page_run_but_still_there_is_not_touched() {
         let server = MockServer::start().await;
         let store = LibraryStore::open_in_memory();
         mark_ready(&store);
         for index in 0..10 {
-            seed_album(&store, &format!("al-{index}"), &[&format!("t-{index}")], 100);
+            seed_album(
+                &store,
+                &format!("al-{index}"),
+                &[&format!("t-{index}")],
+                100,
+            );
         }
-        let listed: Vec<_> = (0..9).map(|i| album_summary(&format!("al-{i}"), 1, 100)).collect();
+        let listed: Vec<_> = (0..9)
+            .map(|i| album_summary(&format!("al-{i}"), 1, 100))
+            .collect();
         mount_album_list(&server, listed).await;
         // The enumeration skipped it, but the album is alive and well.
         mount_album_present(&server, "al-9", &["t-9"]).await;
@@ -1087,7 +1187,12 @@ mod tests {
         let store = LibraryStore::open_in_memory();
         mark_ready(&store);
         for index in 0..20 {
-            seed_album(&store, &format!("al-{index}"), &[&format!("t-{index}")], 100);
+            seed_album(
+                &store,
+                &format!("al-{index}"),
+                &[&format!("t-{index}")],
+                100,
+            );
         }
         // Only one album survives the enumeration — nineteen of twenty exceeds
         // both the percentage cap and the small-library floor.
@@ -1113,7 +1218,12 @@ mod tests {
         let store = LibraryStore::open_in_memory();
         mark_ready(&store);
         for index in 0..20 {
-            seed_album(&store, &format!("al-{index:03}"), &[&format!("t-{index}")], 100);
+            seed_album(
+                &store,
+                &format!("al-{index:03}"),
+                &[&format!("t-{index}")],
+                100,
+            );
         }
         // Two removals and two gaps, against a cap of three.
         let mut listed: Vec<_> = (2..20)
@@ -1140,7 +1250,10 @@ mod tests {
             3,
             "a cap of three means three probes, not four"
         );
-        assert_eq!(report.deferred, 1, "the fourth candidate is named, not spent");
+        assert_eq!(
+            report.deferred, 1,
+            "the fourth candidate is named, not spent"
+        );
     }
 
     /// An album the server itself reports as empty can never produce a track
@@ -1182,7 +1295,12 @@ mod tests {
         let store = LibraryStore::open_in_memory();
         mark_ready(&store);
         for index in 0..100 {
-            seed_album(&store, &format!("al-{index:03}"), &[&format!("t-{index}")], 100);
+            seed_album(
+                &store,
+                &format!("al-{index:03}"),
+                &[&format!("t-{index}")],
+                100,
+            );
         }
         // Ten of a hundred are gone: well inside the removal cap, well above
         // the probe cap this run is given.
@@ -1201,9 +1319,15 @@ mod tests {
             .await
             .unwrap();
 
-        assert!(!report.removal_refused, "ten of a hundred is an ordinary cleanup");
+        assert!(
+            !report.removal_refused,
+            "ten of a hundred is an ordinary cleanup"
+        );
         assert_eq!(report.albums_removed, 3, "one run spends its cap and stops");
-        assert_eq!(report.deferred, 7, "the rest is named, not silently dropped");
+        assert_eq!(
+            report.deferred, 7,
+            "the rest is named, not silently dropped"
+        );
     }
 
     #[tokio::test(flavor = "multi_thread")]
@@ -1212,11 +1336,18 @@ mod tests {
         let store = LibraryStore::open_in_memory();
         mark_ready(&store);
         for index in 0..9 {
-            seed_album(&store, &format!("al-{index}"), &[&format!("t-{index}")], 100);
+            seed_album(
+                &store,
+                &format!("al-{index}"),
+                &[&format!("t-{index}")],
+                100,
+            );
         }
         // An album row with no live tracks behind it: nothing to tombstone.
         seed_album(&store, "al-stale", &[], 0);
-        let listed: Vec<_> = (0..9).map(|i| album_summary(&format!("al-{i}"), 1, 100)).collect();
+        let listed: Vec<_> = (0..9)
+            .map(|i| album_summary(&format!("al-{i}"), 1, 100))
+            .collect();
         mount_album_list(&server, listed).await;
         mount_album_gone(&server, "al-stale").await;
 
@@ -1407,9 +1538,11 @@ mod tests {
                     conn.query_row("SELECT raw_json FROM album WHERE id = 'al-2'", [], |row| {
                         row.get(0)
                     })?,
-                    conn.query_row("SELECT starred_at FROM album WHERE id = 'al-2'", [], |row| {
-                        row.get(0)
-                    })?,
+                    conn.query_row(
+                        "SELECT starred_at FROM album WHERE id = 'al-2'",
+                        [],
+                        |row| row.get(0),
+                    )?,
                     conn.query_row("SELECT title_sort FROM track WHERE id = 't-2'", [], |row| {
                         row.get(0)
                     })?,

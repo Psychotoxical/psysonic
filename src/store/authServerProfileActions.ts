@@ -6,12 +6,13 @@ import {
   invalidatePlaybackPreloads,
 } from './playbackEngineBridge';
 import { resolveServerIdForIndexKey } from '@/lib/server/serverLookup';
-import { serverProfileBaseUrl } from '@/lib/server/serverBaseUrl';
+import { serverIndexKeyForProfile, serverProfileBaseUrl } from '@/lib/server/serverBaseUrl';
 import { deriveLibraryBrowseServerIdsWithFallback } from '@/lib/library/libraryBrowseScope';
 import {
   emitMultiServerDebug,
   summarizeMultiServerProfiles,
 } from '@/lib/library/multiServerDebug';
+import { deactivateCanonicalNavidromeOwners } from '@/lib/server/navidromeCanonicalIds';
 
 type SetState = (
   partial: Partial<AuthState> | ((state: AuthState) => Partial<AuthState>),
@@ -97,6 +98,8 @@ export function createServerProfileActions(set: SetState, get: GetState): Pick<
 
     updateServer: (id, data) => {
       let addressesChanged = false;
+      const previous = get().servers.find(server => server.id === id);
+      const previousIndexKey = previous ? serverIndexKeyForProfile(previous) : null;
       set(s => {
         const prev = s.servers.find(srv => srv.id === id);
         const servers = s.servers.map(srv => srv.id === id ? { ...srv, ...data } : srv);
@@ -131,11 +134,16 @@ export function createServerProfileActions(set: SetState, get: GetState): Pick<
           subsonicServerIdentityByServer,
         };
       });
-      if (addressesChanged) void invalidatePlaybackPreloads().catch(() => {});
+      if (addressesChanged) {
+        deactivateCanonicalNavidromeOwners([id, previousIndexKey ?? '']);
+        void invalidatePlaybackPreloads().catch(() => {});
+      }
     },
 
     removeServer: (id) => {
       const serversBeforeRemoval = get().servers;
+      const removed = serversBeforeRemoval.find(server => server.id === id);
+      const removedIndexKey = removed ? serverIndexKeyForProfile(removed) : null;
       // queueServerId is the canonical index key (B1); resolve the
       // canonical id back to a server UUID before comparing so a profile
       // delete still clears the matching queue binding.
@@ -193,6 +201,12 @@ export function createServerProfileActions(set: SetState, get: GetState): Pick<
       if (serverAddressSetsChanged(serversBeforeRemoval, get().servers)) {
         void invalidatePlaybackPreloads().catch(() => {});
       }
+      deactivateCanonicalNavidromeOwners([
+        id,
+        removedIndexKey && !get().servers.some(
+          server => serverIndexKeyForProfile(server) === removedIndexKey,
+        ) ? removedIndexKey : '',
+      ]);
     },
 
     setServers: (servers) => {

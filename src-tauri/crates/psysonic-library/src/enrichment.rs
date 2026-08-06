@@ -34,7 +34,10 @@ pub fn plan_track_enrichment(
     let facts = repo.get(
         server_id,
         track_id,
-        &ENRICHMENT_KINDS.iter().map(|s| s.to_string()).collect::<Vec<_>>(),
+        &ENRICHMENT_KINDS
+            .iter()
+            .map(|s| s.to_string())
+            .collect::<Vec<_>>(),
         now,
     )?;
 
@@ -42,7 +45,13 @@ pub fn plan_track_enrichment(
         let mut need_moods = !fact_current(&facts, "moods", content_hash);
         if OXIMEDIA_MOOD_TAGS_ENABLED {
             if !mood_tags_current(&facts, content_hash)
-                && !backfill_mood_tags_from_stored_facts(store, server_id, track_id, content_hash, now)?
+                && !backfill_mood_tags_from_stored_facts(
+                    store,
+                    server_id,
+                    track_id,
+                    content_hash,
+                    now,
+                )?
                 && !need_moods
             {
                 need_moods = true;
@@ -209,7 +218,8 @@ fn mood_tags_need_va_refresh(facts: &[crate::dto::TrackFactDto], content_hash: &
         .filter(|f| {
             f.fact_kind == "mood_tag"
                 && f.source_kind == OXIMEDIA_ENRICHMENT_SOURCE_KIND
-                && f.source_id.starts_with(&format!("{OXIMEDIA_ENRICHMENT_SOURCE_ID}:"))
+                && f.source_id
+                    .starts_with(&format!("{OXIMEDIA_ENRICHMENT_SOURCE_ID}:"))
                 && f.content_hash.as_deref() == Some(content_hash)
         })
         .filter_map(|f| f.value_text.clone())
@@ -231,6 +241,9 @@ fn replace_mood_tag_facts(
     let like_prefix = format!("{OXIMEDIA_ENRICHMENT_SOURCE_ID}:%");
     store
         .with_conn("enrichment.mood_tags_clear", |conn| {
+            let track_id = crate::navidrome_identity::resolve_remapped_id_with_conn(
+                conn, server_id, "track", track_id,
+            )?;
             conn.execute(
                 "DELETE FROM track_fact \
                  WHERE server_id = ?1 AND track_id = ?2 \
@@ -253,12 +266,7 @@ fn replace_mood_tag_facts(
         if !mood_groups::is_oximedia_mood_tag(tag) {
             continue;
         }
-        repo.put(
-            server_id,
-            track_id,
-            &mood_tag_fact(tag, content_hash),
-            now,
-        )?;
+        repo.put(server_id, track_id, &mood_tag_fact(tag, content_hash), now)?;
     }
     Ok(())
 }
@@ -282,11 +290,7 @@ fn is_oximedia_primary_fact(f: &crate::dto::TrackFactDto) -> bool {
     f.source_kind == OXIMEDIA_ENRICHMENT_SOURCE_KIND && f.source_id == OXIMEDIA_ENRICHMENT_SOURCE_ID
 }
 
-fn fact_current(
-    facts: &[crate::dto::TrackFactDto],
-    fact_kind: &str,
-    content_hash: &str,
-) -> bool {
+fn fact_current(facts: &[crate::dto::TrackFactDto], fact_kind: &str, content_hash: &str) -> bool {
     facts.iter().any(|f| {
         is_oximedia_primary_fact(f)
             && f.fact_kind == fact_kind
@@ -298,7 +302,8 @@ fn mood_tags_current(facts: &[crate::dto::TrackFactDto], content_hash: &str) -> 
     facts.iter().any(|f| {
         f.fact_kind == "mood_tag"
             && f.source_kind == OXIMEDIA_ENRICHMENT_SOURCE_KIND
-            && f.source_id.starts_with(&format!("{OXIMEDIA_ENRICHMENT_SOURCE_ID}:"))
+            && f.source_id
+                .starts_with(&format!("{OXIMEDIA_ENRICHMENT_SOURCE_ID}:"))
             && f.content_hash.as_deref() == Some(content_hash)
     })
 }
@@ -428,7 +433,14 @@ mod tests {
     fn plan_refreshes_stale_quadrant_mood_tags_when_valence_arousal_present() {
         let store = LibraryStore::open_in_memory();
         seed_track(&store, "s1", "t1");
-        put_analysis_fact(&store, "moods", "abc", None, None, Some(r#"{"happy":0.9,"excited":0.8}"#));
+        put_analysis_fact(
+            &store,
+            "moods",
+            "abc",
+            None,
+            None,
+            Some(r#"{"happy":0.9,"excited":0.8}"#),
+        );
         put_analysis_fact(&store, "valence", "abc", None, Some(0.55), None);
         put_analysis_fact(&store, "arousal", "abc", None, Some(0.42), None);
         let repo = FactRepository::new(&store);
@@ -468,7 +480,14 @@ mod tests {
     fn plan_backfills_mood_tags_from_valence_arousal_over_quadrant_moods_json() {
         let store = LibraryStore::open_in_memory();
         seed_track(&store, "s1", "t1");
-        put_analysis_fact(&store, "moods", "abc", None, None, Some(r#"{"happy":0.9,"excited":0.8}"#));
+        put_analysis_fact(
+            &store,
+            "moods",
+            "abc",
+            None,
+            None,
+            Some(r#"{"happy":0.9,"excited":0.8}"#),
+        );
         put_analysis_fact(&store, "valence", "abc", None, Some(0.55), None);
         put_analysis_fact(&store, "arousal", "abc", None, Some(0.42), None);
         let plan = plan_track_enrichment(&store, "s1", "t1", "abc", 2).unwrap();
@@ -615,7 +634,9 @@ mod tests {
         let repo = FactRepository::new(&store);
         let rows = repo.get("s1", "t1", &[], 20).unwrap();
         assert_eq!(rows.len(), 1);
-        assert!(rows.iter().any(|r| r.fact_kind == "bpm" && r.value_int == Some(128)));
+        assert!(rows
+            .iter()
+            .any(|r| r.fact_kind == "bpm" && r.value_int == Some(128)));
         assert!(!rows.iter().any(|r| r.fact_kind == "valence"));
         assert!(!rows.iter().any(|r| r.fact_kind == "arousal"));
     }

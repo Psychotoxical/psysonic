@@ -24,6 +24,9 @@ use psysonic_integration::subsonic::{SubsonicClient, SubsonicError};
 
 use super::backoff::{jitter_salt, with_jitter, Backoff};
 use super::error::SyncError;
+use crate::navidrome_identity::{
+    resolve_unexpected_not_found, EntityKind, TargetedNotFoundOutcome,
+};
 use crate::repos::TrackRepository;
 use crate::store::LibraryStore;
 
@@ -131,8 +134,27 @@ impl<'a> TombstoneReconciler<'a> {
                     alive_ids.push(id);
                 }
                 Err(SyncError::NotFound) => {
-                    deleted_ids.push(id);
-                    report.deleted = report.deleted.saturating_add(1);
+                    match resolve_unexpected_not_found(
+                        self.store,
+                        self.subsonic,
+                        &self.server_id,
+                        EntityKind::Track,
+                        &id,
+                    )
+                    .await
+                    .map_err(SyncError::IdentityTransition)?
+                    {
+                        TargetedNotFoundOutcome::ConfirmedMissing => {
+                            deleted_ids.push(id);
+                            report.deleted = report.deleted.saturating_add(1);
+                        }
+                        TargetedNotFoundOutcome::TransitionDetected => {
+                            return Err(SyncError::IdentityTransition(
+                                "canonical-ID transition detected while verifying a track"
+                                    .to_string(),
+                            ));
+                        }
+                    }
                 }
                 Err(other) => return Err(other),
             }
@@ -325,6 +347,7 @@ fn is_retryable(e: &SyncError) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::navidrome_identity::{canonical_id, transition_status};
     use crate::repos::{TrackRepository, TrackRow};
     use psysonic_integration::subsonic::{SubsonicClient, SubsonicCredentials};
     use serde_json::json;
@@ -481,6 +504,102 @@ mod tests {
             .unwrap();
         assert_eq!(a_deleted, 0);
         assert_eq!(b_deleted, 1);
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn canonical_fallback_aborts_before_tombstoning_a_legacy_track() {
+        let server = MockServer::start().await;
+        let old = "e3b7fc2ae9447bbec37a13bf916e3cf6";
+        let new = canonical_id(old);
+        Mock::given(wm_method("GET"))
+            .and(wm_path("/rest/getSong.view"))
+            .and(query_param("id", old))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "subsonic-response": {
+                    "status": "failed",
+                    "error": { "code": 70, "message": "Song not found" }
+                }
+            })))
+            .expect(1)
+            .mount(&server)
+            .await;
+        Mock::given(wm_method("GET"))
+            .and(wm_path("/rest/getSong.view"))
+            .and(query_param("id", new.as_str()))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "subsonic-response": {
+                    "status": "ok",
+                    "song": { "id": new, "title": "Still here" }
+                }
+            })))
+            .expect(1)
+            .mount(&server)
+            .await;
+        let store = LibraryStore::open_in_memory();
+        seed_track(&store, old, 1);
+
+        let error = TombstoneReconciler::new(&store, &test_subsonic(&server.uri()), "s1")
+            .with_sleep_disabled()
+            .reconcile_chunk(10)
+            .await
+            .unwrap_err();
+
+        assert!(matches!(error, SyncError::IdentityTransition(_)));
+        let deleted: i64 = store
+            .with_read_conn(|conn| {
+                conn.query_row(
+                    "SELECT deleted FROM track WHERE server_id = 's1' AND id = ?1",
+                    rusqlite::params![old],
+                    |row| row.get(0),
+                )
+            })
+            .unwrap();
+        assert_eq!(deleted, 0);
+        assert_eq!(
+            transition_status(&store, "s1").unwrap().state,
+            "transition_detected"
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn legacy_track_is_tombstoned_when_both_old_and_canonical_ids_are_missing() {
+        let server = MockServer::start().await;
+        let old = "00112233445566778899aabbccddeeff";
+        let new = canonical_id(old);
+        for id in [old, new.as_str()] {
+            Mock::given(wm_method("GET"))
+                .and(wm_path("/rest/getSong.view"))
+                .and(query_param("id", id))
+                .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                    "subsonic-response": {
+                        "status": "failed",
+                        "error": { "code": 70, "message": "Song not found" }
+                    }
+                })))
+                .expect(1)
+                .mount(&server)
+                .await;
+        }
+        let store = LibraryStore::open_in_memory();
+        seed_track(&store, old, 1);
+
+        let report = TombstoneReconciler::new(&store, &test_subsonic(&server.uri()), "s1")
+            .with_sleep_disabled()
+            .reconcile_chunk(10)
+            .await
+            .unwrap();
+
+        assert_eq!(report.deleted, 1);
+        let deleted: i64 = store
+            .with_read_conn(|conn| {
+                conn.query_row(
+                    "SELECT deleted FROM track WHERE server_id = 's1' AND id = ?1",
+                    rusqlite::params![old],
+                    |row| row.get(0),
+                )
+            })
+            .unwrap();
+        assert_eq!(deleted, 1);
     }
 
     // ── reconcile_chunk respects budget and ordering ─────────────────

@@ -18,6 +18,7 @@ import {
   reconcileEphemeralCache,
 } from '@/lib/cache/ephemeralTierReconcile';
 import { canonicalQueueServerKey } from '@/lib/server/serverIndexKey';
+import { canonicalizeConfirmedNavidromeId } from '@/lib/server/navidromeCanonicalIds';
 
 export type LocalPlaybackTier = 'ephemeral' | 'library' | 'favorite-auto';
 
@@ -121,29 +122,51 @@ export const useLocalPlaybackStore = create<LocalPlaybackState>()(
       entries: {},
 
       getEntry: (trackId, serverIndexKey) =>
-        get().entries[localPlaybackEntryKey(serverIndexKey, trackId)] ?? null,
+        get().entries[localPlaybackEntryKey(
+          serverIndexKey,
+          canonicalizeConfirmedNavidromeId(serverIndexKey, trackId),
+        )] ?? null,
 
       getLocalUrl: (trackId, serverIndexKey, tier) => {
-        const e = get().entries[localPlaybackEntryKey(serverIndexKey, trackId)];
+        const e = get().entries[localPlaybackEntryKey(
+          serverIndexKey,
+          canonicalizeConfirmedNavidromeId(serverIndexKey, trackId),
+        )];
         if (!e?.localPath) return null;
         if (tier && e.tier !== tier) return null;
         return `psysonic-local://${e.localPath}`;
       },
 
       hasLocalBytes: (trackId, serverIndexKey) =>
-        !!get().entries[localPlaybackEntryKey(serverIndexKey, trackId)]?.localPath,
+        !!get().entries[localPlaybackEntryKey(
+          serverIndexKey,
+          canonicalizeConfirmedNavidromeId(serverIndexKey, trackId),
+        )]?.localPath,
 
       isPinned: (trackId, serverIndexKey) =>
-        get().entries[localPlaybackEntryKey(serverIndexKey, trackId)]?.tier === 'library',
+        get().entries[localPlaybackEntryKey(
+          serverIndexKey,
+          canonicalizeConfirmedNavidromeId(serverIndexKey, trackId),
+        )]?.tier === 'library',
 
       upsertEntry: (entry) => {
         const now = Date.now();
-        const key = localPlaybackEntryKey(entry.serverIndexKey, entry.trackId);
+        const trackId = canonicalizeConfirmedNavidromeId(entry.serverIndexKey, entry.trackId);
+        const pinSource = entry.pinSource ? {
+          ...entry.pinSource,
+          sourceId: canonicalizeConfirmedNavidromeId(
+            entry.serverIndexKey,
+            entry.pinSource.sourceId,
+          ),
+        } : undefined;
+        const key = localPlaybackEntryKey(entry.serverIndexKey, trackId);
         set(s => ({
           entries: {
             ...s.entries,
             [key]: {
               ...entry,
+              trackId,
+              pinSource,
               cachedAt: entry.cachedAt ?? now,
               lastPlayedAt: entry.lastPlayedAt ?? (entry.tier === 'ephemeral' ? now : entry.lastPlayedAt),
             },
@@ -152,6 +175,7 @@ export const useLocalPlaybackStore = create<LocalPlaybackState>()(
       },
 
       touchPlayed: (trackId, serverIndexKey) => {
+        trackId = canonicalizeConfirmedNavidromeId(serverIndexKey, trackId);
         const key = localPlaybackEntryKey(serverIndexKey, trackId);
         set(s => {
           const e = s.entries[key];
@@ -166,6 +190,7 @@ export const useLocalPlaybackStore = create<LocalPlaybackState>()(
       },
 
       removeEntry: (trackId, serverIndexKey, reason = 'explicit-remove') => {
+        trackId = canonicalizeConfirmedNavidromeId(serverIndexKey, trackId);
         const key = localPlaybackEntryKey(serverIndexKey, trackId);
         set(s => {
           const next = { ...s.entries };

@@ -12,7 +12,7 @@ use tauri::Manager;
 ///
 /// Migration checklist (wiring, data backfill, open/swap path):
 /// psysonic-workdocs `ai/agent-rules/08-library-db-migrations.md`.
-pub const LIBRARY_DB_SCHEMA_VERSION: i64 = 26;
+pub const LIBRARY_DB_SCHEMA_VERSION: i64 = 27;
 
 /// One-time data repair after migration 014 (`artist.name_sort`).
 pub(crate) const ARTIST_NAME_SORT_RECONCILE_ID: &str = "artist_name_sort_reconcile_v1";
@@ -89,6 +89,9 @@ pub(crate) const MIGRATION_025_IDENTITY_INVALIDATION: &str =
 /// Version 26: resumable cursor for bounded post-sync library tagging.
 pub(crate) const MIGRATION_026_LIBRARY_TAG_CURSOR: &str =
     include_str!("../migrations/026_library_tag_cursor.sql");
+/// Version 27: durable Navidrome canonical-ID transition state and entity remap journal.
+pub(crate) const MIGRATION_027_NAVIDROME_CANONICAL_IDS: &str =
+    include_str!("../migrations/027_navidrome_canonical_ids.sql");
 
 /// Embedded migrations. Ordered ascending by `version`; the runner sorts
 /// defensively before applying so the source order can stay readable.
@@ -109,6 +112,7 @@ const MIGRATIONS: &[(i64, &str)] = &[
     (24, MIGRATION_024_COMPOSER_BROWSE_PROJECTION),
     (25, MIGRATION_025_IDENTITY_INVALIDATION),
     (26, MIGRATION_026_LIBRARY_TAG_CURSOR),
+    (27, MIGRATION_027_NAVIDROME_CANONICAL_IDS),
 ];
 
 /// Idempotent repair — also runs after the migration runner on every open so
@@ -1150,13 +1154,14 @@ fn reconcile_ready_rows_with_ingest_cursors(conn: &Connection) -> rusqlite::Resu
 
     let tx = conn.unchecked_transaction()?;
     for (server_id, library_scope, raw_cursor) in candidates {
-        let has_ingest_cursor = raw_cursor.as_deref().is_some_and(|raw| {
-            match serde_json::from_str::<serde_json::Value>(raw) {
-                Ok(serde_json::Value::Object(cursor)) => !cursor.is_empty(),
-                Ok(serde_json::Value::Null) => false,
-                Ok(_) | Err(_) => true,
-            }
-        });
+        let has_ingest_cursor =
+            raw_cursor.as_deref().is_some_and(|raw| {
+                match serde_json::from_str::<serde_json::Value>(raw) {
+                    Ok(serde_json::Value::Object(cursor)) => !cursor.is_empty(),
+                    Ok(serde_json::Value::Null) => false,
+                    Ok(_) | Err(_) => true,
+                }
+            });
         if !has_ingest_cursor {
             continue;
         }
@@ -2126,7 +2131,10 @@ mod tests {
         assert_eq!(trigger_count, 3);
         assert_eq!(fts_matches, 1, "open repair rebuilds missed FTS rows");
         assert_eq!(cursor, "{}", "ready rows cannot retain ingest cursors");
-        assert_eq!(local_count, 2, "repair refreshes the persisted count snapshot");
+        assert_eq!(
+            local_count, 2,
+            "repair refreshes the persisted count snapshot"
+        );
         reopened
             .verify_operational_schema()
             .expect("reopened database satisfies backup-import health checks");

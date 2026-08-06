@@ -3,7 +3,7 @@ import type { GenreTagsInspectDto, ScopeBrowseProjectionInspectDto } from '@/lib
 import type { MigrationInspectReport, MigrationProgressEvent } from '@/lib/api/migration';
 
 export type MigrationPhase = 'idle' | 'inspecting' | 'running' | 'completed' | 'error';
-export type MigrationStep = 'serverIndex' | 'genreTags' | 'scopeBrowseProjection';
+export type MigrationStep = 'serverIndex' | 'genreTags' | 'scopeBrowseProjection' | 'canonicalIds';
 
 export interface GenreTagsProgressEvent {
   done: number;

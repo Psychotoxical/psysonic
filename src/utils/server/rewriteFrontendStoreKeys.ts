@@ -43,7 +43,7 @@ function matchCompositeKey(key: string, mappings: Mapping[]): (Mapping & { suffi
   return { ...matched, suffix: key.slice(matched.legacyId.length + 1) };
 }
 
-function mergeOfflineAlbum(
+export function mergeOfflineAlbum(
   existing: OfflineAlbumMeta,
   incoming: OfflineAlbumMeta,
   serverId: string,
@@ -62,13 +62,17 @@ const LOCAL_PLAYBACK_TIER_PRIORITY: Record<LocalPlaybackTier, number> = {
   library: 2,
 };
 
-function mergeLocalPlaybackEntry(
+export function mergeLocalPlaybackEntry(
   existing: LocalPlaybackEntry,
   incoming: LocalPlaybackEntry,
   serverIndexKey: string,
 ): LocalPlaybackEntry {
   const incomingWins =
-    LOCAL_PLAYBACK_TIER_PRIORITY[incoming.tier] > LOCAL_PLAYBACK_TIER_PRIORITY[existing.tier];
+    LOCAL_PLAYBACK_TIER_PRIORITY[incoming.tier] > LOCAL_PLAYBACK_TIER_PRIORITY[existing.tier]
+    || (
+      LOCAL_PLAYBACK_TIER_PRIORITY[incoming.tier] === LOCAL_PLAYBACK_TIER_PRIORITY[existing.tier]
+      && incoming.cachedAt > existing.cachedAt
+    );
   const winner = incomingWins ? incoming : existing;
   const other = incomingWins ? existing : incoming;
   return {

@@ -73,6 +73,10 @@ export const commands = {
 	libraryResolveEntitySources: (request: LibraryResolveEntitySourcesRequest) => typedError<LibraryEntitySourceDto[], string>(__TAURI_INVOKE("library_resolve_entity_sources", { request })),
 	libraryResolveAlbumOverlay: (request: LibraryResolveAlbumOverlayRequest) => typedError<LibraryAlbumOverlayResolutionDto[], string>(__TAURI_INVOKE("library_resolve_album_overlay", { request })),
 	librarySyncBindSession: (serverId: string, baseUrl: string, username: string, password: string, libraryScope: string | null) => typedError<null, string>(__TAURI_INVOKE("library_sync_bind_session", { serverId, baseUrl, username, password, libraryScope })),
+	libraryIdentityTransitionStatus: (serverId: string) => typedError<IdentityTransitionDto, string>(__TAURI_INVOKE("library_identity_transition_status", { serverId })),
+	libraryIdentityTransitionAck: (serverId: string) => typedError<null, string>(__TAURI_INVOKE("library_identity_transition_ack", { serverId })),
+	libraryIdentityTransitionProbe: (serverId: string, candidates: IdentityProbeCandidateDto[]) => typedError<IdentityTransitionDto, string>(__TAURI_INVOKE("library_identity_transition_probe", { serverId, candidates })),
+	libraryIdentityTransitionRunNativeMigration: (serverId: string) => typedError<IdentityTransitionDto, string>(__TAURI_INVOKE("library_identity_transition_run_native_migration", { serverId })),
 	librarySyncClearSession: (serverId: string) => typedError<null, string>(__TAURI_INVOKE("library_sync_clear_session", { serverId })),
 	librarySetPlaybackHint: (hint: string) => typedError<null, string>(__TAURI_INVOKE("library_set_playback_hint", { hint })),
 	libraryGetPlaybackHint: () => typedError<string, string>(__TAURI_INVOKE("library_get_playback_hint")),
@@ -1051,6 +1055,20 @@ export type IcyMetadata = {
 	icy_url: string | null,
 	/**  Value of the `icy-description` response header. */
 	icy_description: string | null,
+};
+
+export type IdentityProbeCandidateDto = {
+	entityKind: string,
+	id: string,
+};
+
+export type IdentityTransitionDto = {
+	serverId: string,
+	state: string,
+	canonicalVersion: number,
+	probeOldId: string | null,
+	probeNewId: string | null,
+	lastError: string | null,
 };
 
 export type ImportedThemeAsset = {

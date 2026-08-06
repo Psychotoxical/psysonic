@@ -7,6 +7,7 @@ import {
   useDeviceSyncStore,
   type DeviceSyncSource,
 } from './deviceSyncStore';
+import { activateCanonicalNavidromeOwners } from '@/lib/server/navidromeCanonicalIds';
 
 const sourceA: DeviceSyncSource = {
   type: 'album',
@@ -80,17 +81,22 @@ describe('deviceSyncStore ownership', () => {
   });
 
   it('preserves ownerless v0 selections until a server is explicitly selected', () => {
-    const legacy = { type: 'album' as const, id: 'legacy', name: 'Legacy' };
+    const legacy = {
+      type: 'album' as const,
+      id: 'f47ac10b-58cc-4372-a567-0e02b2c3d479',
+      name: 'Legacy',
+    };
     const migrated = migrateDeviceSyncPersistedState({ sources: [legacy] });
     expect(migrated.sources).toEqual([]);
     expect(migrated.legacySources).toEqual([legacy]);
 
     useDeviceSyncStore.setState(migrated);
+    activateCanonicalNavidromeOwners([sourceA.serverIndexKey]);
     useDeviceSyncStore.getState().addSource(sourceA);
 
     expect(useDeviceSyncStore.getState().legacySources).toEqual([]);
     expect(useDeviceSyncStore.getState().sources).toEqual([
-      { ...legacy, serverIndexKey: sourceA.serverIndexKey },
+      { ...legacy, id: '7rke2SAWaicSeSYzkhww6R', serverIndexKey: sourceA.serverIndexKey },
       sourceA,
     ]);
   });

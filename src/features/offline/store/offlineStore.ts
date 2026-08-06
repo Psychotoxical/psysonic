@@ -28,6 +28,7 @@ import {
   type OfflinePinTask,
 } from '@/features/offline/utils/offlinePinQueue';
 import { ownedEntityKey } from '@/lib/util/ownedEntityKey';
+import { canonicalizeConfirmedNavidromeId } from '@/lib/server/navidromeCanonicalIds';
 
 /** @deprecated Metadata lives in the library index; kept for type-compat during transition. */
 export interface OfflineTrackMeta {
@@ -93,7 +94,6 @@ async function runOfflinePinDownload(task: OfflinePinTask): Promise<void> {
   cancelledDownloads.delete(cancelKey);
 
   const CONCURRENCY = 8;
-  const trackIds = songs.map(s => s.id);
   const jobStore = useOfflineJobStore;
   const downloadId = `${serverId}-${albumId}-${Date.now()}`;
   const serverIndexKey = serverIndexKeyForOffline(serverId);
@@ -109,28 +109,61 @@ async function runOfflinePinDownload(task: OfflinePinTask): Promise<void> {
     }
   }
 
+  // The server may have completed its ID migration while this task was waiting
+  // on storage. Resolve IDs immediately before the first durable/network write.
+  const activeAlbumId = canonicalizeConfirmedNavidromeId(serverIndexKey, albumId);
+  const activeSongs = songs.map(song => ({
+    ...song,
+    id: canonicalizeConfirmedNavidromeId(serverIndexKey, song.id),
+    albumId: canonicalizeConfirmedNavidromeId(serverIndexKey, song.albumId),
+    artistId: song.artistId
+      ? canonicalizeConfirmedNavidromeId(serverIndexKey, song.artistId)
+      : song.artistId,
+    coverArt: song.coverArt
+      ? canonicalizeConfirmedNavidromeId(serverIndexKey, song.coverArt)
+      : song.coverArt,
+    artists: song.artists?.map(artist => ({
+      ...artist,
+      id: artist.id ? canonicalizeConfirmedNavidromeId(serverIndexKey, artist.id) : artist.id,
+    })),
+    albumArtists: song.albumArtists?.map(artist => ({
+      ...artist,
+      id: artist.id ? canonicalizeConfirmedNavidromeId(serverIndexKey, artist.id) : artist.id,
+    })),
+    contributors: song.contributors?.map(contributor => ({
+      ...contributor,
+      artist: {
+        ...contributor.artist,
+        id: contributor.artist.id
+          ? canonicalizeConfirmedNavidromeId(serverIndexKey, contributor.artist.id)
+          : contributor.artist.id,
+      },
+    })),
+  }));
+  const activeTrackIds = activeSongs.map(song => song.id);
+
   useOfflineStore.setState(state => ({
     albums: {
       ...state.albums,
-      [`${serverIndexKey}:${albumId}`]: {
-        id: albumId,
+      [`${serverIndexKey}:${activeAlbumId}`]: {
+        id: activeAlbumId,
         serverId: serverIndexKey,
         name: albumName,
         artist: albumArtist,
         coverArt,
         year,
-        trackIds,
+        trackIds: activeTrackIds,
         type,
       },
     },
   }));
 
-  await libraryUpsertSongsFromApi(libraryServerId, songs).catch(() => {});
+  await libraryUpsertSongsFromApi(libraryServerId, activeSongs).catch(() => {});
 
   const lp = useLocalPlaybackStore.getState();
-  const pendingSongs = pendingOfflinePinSongs(songs, serverId);
+  const pendingSongs = pendingOfflinePinSongs(activeSongs, serverId);
   if (pendingSongs.length === 0) {
-    for (const song of songs) {
+    for (const song of activeSongs) {
       const prev = findLocalPlaybackEntry(song.id, serverId);
       if (!prev) continue;
       lp.upsertEntry({
@@ -141,17 +174,17 @@ async function runOfflinePinDownload(task: OfflinePinTask): Promise<void> {
       });
     }
     jobStore.setState(state => ({
-      jobs: state.jobs.filter(j => j.albumId !== albumId || (j.serverId && j.serverId !== serverId)),
+      jobs: state.jobs.filter(j => j.albumId !== activeAlbumId || (j.serverId && j.serverId !== serverId)),
     }));
     return;
   }
 
   jobStore.setState(state => ({
     jobs: [
-      ...state.jobs.filter(j => j.albumId !== albumId || (j.serverId && j.serverId !== serverId)),
+      ...state.jobs.filter(j => j.albumId !== activeAlbumId || (j.serverId && j.serverId !== serverId)),
       ...pendingSongs.map((s, i) => ({
         trackId: s.id,
-        albumId,
+        albumId: activeAlbumId,
         albumName,
         trackTitle: s.title,
         trackIndex: i,
@@ -167,7 +200,7 @@ async function runOfflinePinDownload(task: OfflinePinTask): Promise<void> {
     if (cancelledDownloads.has(cancelKey)) {
       cancelledDownloads.delete(cancelKey);
       jobStore.setState(state => ({
-        jobs: state.jobs.filter(j => j.albumId !== albumId || (j.serverId && j.serverId !== serverId)),
+        jobs: state.jobs.filter(j => j.albumId !== activeAlbumId || (j.serverId && j.serverId !== serverId)),
       }));
       clearOfflineCancel({ downloadId }).catch(() => {});
       return;
@@ -178,7 +211,7 @@ async function runOfflinePinDownload(task: OfflinePinTask): Promise<void> {
 
     jobStore.setState(state => ({
       jobs: state.jobs.map(j =>
-        j.albumId === albumId && (!j.serverId || j.serverId === serverId) && batchIds.has(j.trackId)
+        j.albumId === activeAlbumId && (!j.serverId || j.serverId === serverId) && batchIds.has(j.trackId)
           ? { ...j, status: 'downloading' }
           : j,
       ),
@@ -248,7 +281,7 @@ async function runOfflinePinDownload(task: OfflinePinTask): Promise<void> {
     const resultMap = new Map(results.map(r => [r.song.id, r]));
     jobStore.setState(state => ({
       jobs: state.jobs.map(j => {
-        if (j.albumId !== albumId || (j.serverId && j.serverId !== serverId)) return j;
+        if (j.albumId !== activeAlbumId || (j.serverId && j.serverId !== serverId)) return j;
         const r = resultMap.get(j.trackId);
         if (!r) return j;
         if (r.error === 'CANCELLED') return j;
@@ -261,7 +294,7 @@ async function runOfflinePinDownload(task: OfflinePinTask): Promise<void> {
   setTimeout(() => {
     jobStore.setState(state => ({
       jobs: state.jobs.filter(
-        j => j.albumId !== albumId
+        j => j.albumId !== activeAlbumId
           || (j.serverId && j.serverId !== serverId)
           || (j.status !== 'done' && j.status !== 'error'),
       ),

@@ -13,31 +13,105 @@ struct ScopedTable {
 }
 
 const LIBRARY_TABLES: &[ScopedTable] = &[
-    ScopedTable { table: "track_extension", column: "server_id" },
-    ScopedTable { table: "track_fact", column: "server_id" },
-    ScopedTable { table: "track_artifact", column: "server_id" },
-    ScopedTable { table: "track_canonical_link", column: "server_id" },
-    ScopedTable { table: "track_id_history", column: "server_id" },
-    ScopedTable { table: "play_session", column: "server_id" },
-    ScopedTable { table: "track_offline", column: "server_id" },
-    ScopedTable { table: "track_genre", column: "server_id" },
-    ScopedTable { table: "artist_artwork_lookup", column: "server_id" },
-    ScopedTable { table: "library_tag_state", column: "server_id" },
-    ScopedTable { table: "library_tag_cursor", column: "server_id" },
-    ScopedTable { table: "entity_user_rating", column: "server_id" },
-    ScopedTable { table: "album_browse_projection", column: "server_id" },
-    ScopedTable { table: "composer_album_projection", column: "server_id" },
-    ScopedTable { table: "canonical_enrichment_link", column: "owner_server_id" },
-    ScopedTable { table: "track", column: "server_id" },
-    ScopedTable { table: "album", column: "server_id" },
-    ScopedTable { table: "artist", column: "server_id" },
-    ScopedTable { table: "sync_state", column: "server_id" },
+    ScopedTable {
+        table: "track_extension",
+        column: "server_id",
+    },
+    ScopedTable {
+        table: "track_fact",
+        column: "server_id",
+    },
+    ScopedTable {
+        table: "track_artifact",
+        column: "server_id",
+    },
+    ScopedTable {
+        table: "track_canonical_link",
+        column: "server_id",
+    },
+    ScopedTable {
+        table: "track_id_history",
+        column: "server_id",
+    },
+    ScopedTable {
+        table: "play_session",
+        column: "server_id",
+    },
+    ScopedTable {
+        table: "track_offline",
+        column: "server_id",
+    },
+    ScopedTable {
+        table: "track_genre",
+        column: "server_id",
+    },
+    ScopedTable {
+        table: "artist_artwork_lookup",
+        column: "server_id",
+    },
+    ScopedTable {
+        table: "library_tag_state",
+        column: "server_id",
+    },
+    ScopedTable {
+        table: "library_tag_cursor",
+        column: "server_id",
+    },
+    ScopedTable {
+        table: "server_identity_transition",
+        column: "server_id",
+    },
+    ScopedTable {
+        table: "entity_id_remap",
+        column: "server_id",
+    },
+    ScopedTable {
+        table: "entity_user_rating",
+        column: "server_id",
+    },
+    ScopedTable {
+        table: "album_browse_projection",
+        column: "server_id",
+    },
+    ScopedTable {
+        table: "composer_album_projection",
+        column: "server_id",
+    },
+    ScopedTable {
+        table: "canonical_enrichment_link",
+        column: "owner_server_id",
+    },
+    ScopedTable {
+        table: "track",
+        column: "server_id",
+    },
+    ScopedTable {
+        table: "album",
+        column: "server_id",
+    },
+    ScopedTable {
+        table: "artist",
+        column: "server_id",
+    },
+    ScopedTable {
+        table: "sync_state",
+        column: "server_id",
+    },
 ];
 
 const ANALYSIS_TABLES: &[ScopedTable] = &[
-    ScopedTable { table: "analysis_track", column: "server_id" },
-    ScopedTable { table: "waveform_cache", column: "server_id" },
-    ScopedTable { table: "loudness_cache", column: "server_id" },
+    ScopedTable {
+        table: "analysis_track",
+        column: "server_id",
+    },
+    ScopedTable {
+        table: "waveform_cache",
+        column: "server_id",
+    },
+    ScopedTable {
+        table: "loudness_cache",
+        column: "server_id",
+    },
 ];
 
 fn migration_lock() -> &'static Mutex<()> {
@@ -259,12 +333,13 @@ fn run_internal(
         }
     }
     if paths.analysis_v2.exists() {
-        let switch_result =
-            if let Some(cache) = app.try_state::<psysonic_analysis::analysis_cache::AnalysisCache>() {
-                cache.swap_database_file(&paths.analysis_active, &paths.analysis_v2)
-            } else {
-                switch_file(&paths.analysis_active, &paths.analysis_v2).map(Some)
-            };
+        let switch_result = if let Some(cache) =
+            app.try_state::<psysonic_analysis::analysis_cache::AnalysisCache>()
+        {
+            cache.swap_database_file(&paths.analysis_active, &paths.analysis_v2)
+        } else {
+            switch_file(&paths.analysis_active, &paths.analysis_v2).map(Some)
+        };
         match switch_result {
             Ok(backup) => analysis_backup = backup,
             Err(err) => {
@@ -562,7 +637,7 @@ fn purge_unknown_rows(
             &format!("DELETE FROM {} WHERE {} <> ''", table.table, table.column),
             [],
         )
-            .map_err(|e| e.to_string())?;
+        .map_err(|e| e.to_string())?;
         return Ok(());
     }
     let placeholders = std::iter::repeat_n("?", known.len())
@@ -590,9 +665,11 @@ fn sum_table_rows(conn: &Connection, tables: &[ScopedTable]) -> Result<u64, Stri
     let mut total = 0_u64;
     for table in tables {
         let rows: i64 = conn
-            .query_row(&format!("SELECT COUNT(*) FROM {}", table.table), [], |row| {
-                row.get(0)
-            })
+            .query_row(
+                &format!("SELECT COUNT(*) FROM {}", table.table),
+                [],
+                |row| row.get(0),
+            )
             .map_err(|e| e.to_string())?;
         total = total.saturating_add(rows.max(0) as u64);
     }
@@ -726,7 +803,11 @@ fn restore_backup(backup: &Path, active: &Path) -> Result<(), String> {
     Ok(())
 }
 
-fn health_check(app: &AppHandle, library_active: &Path, analysis_active: &Path) -> Result<(), String> {
+fn health_check(
+    app: &AppHandle,
+    library_active: &Path,
+    analysis_active: &Path,
+) -> Result<(), String> {
     if library_active.exists() {
         if let Some(runtime) = app.try_state::<psysonic_library::LibraryRuntime>() {
             runtime.store.verify_operational_schema()?;
@@ -798,23 +879,41 @@ mod tests {
         let conn = Connection::open_in_memory().expect("in-memory sqlite");
         for migration in [
             include_str!("../../../crates/psysonic-library/migrations/001_initial.sql"),
-            include_str!("../../../crates/psysonic-library/migrations/012_track_genre_legacy_repair.sql"),
-            include_str!("../../../crates/psysonic-library/migrations/013_artist_artwork_lookup.sql"),
+            include_str!(
+                "../../../crates/psysonic-library/migrations/012_track_genre_legacy_repair.sql"
+            ),
+            include_str!(
+                "../../../crates/psysonic-library/migrations/013_artist_artwork_lookup.sql"
+            ),
             include_str!("../../../crates/psysonic-library/migrations/014_artist_name_sort.sql"),
             include_str!("../../../crates/psysonic-library/migrations/015_replay_gain_peak.sql"),
             include_str!("../../../crates/psysonic-library/migrations/016_multi_library_scope.sql"),
             include_str!("../../../crates/psysonic-library/migrations/017_library_tag_state.sql"),
             include_str!("../../../crates/psysonic-library/migrations/018_artist_synced_index.sql"),
-            include_str!("../../../crates/psysonic-library/migrations/019_mainstage_feed_indexes.sql"),
-            include_str!("../../../crates/psysonic-library/migrations/020_scope_browse_projection.sql"),
+            include_str!(
+                "../../../crates/psysonic-library/migrations/019_mainstage_feed_indexes.sql"
+            ),
+            include_str!(
+                "../../../crates/psysonic-library/migrations/020_scope_browse_projection.sql"
+            ),
             include_str!("../../../crates/psysonic-library/migrations/021_scope_browse_tracks.sql"),
             include_str!("../../../crates/psysonic-library/migrations/022_artist_name_fold.sql"),
-            include_str!("../../../crates/psysonic-library/migrations/023_starred_browse_indexes.sql"),
-            include_str!("../../../crates/psysonic-library/migrations/024_composer_browse_projection.sql"),
-            include_str!("../../../crates/psysonic-library/migrations/025_identity_invalidation.sql"),
+            include_str!(
+                "../../../crates/psysonic-library/migrations/023_starred_browse_indexes.sql"
+            ),
+            include_str!(
+                "../../../crates/psysonic-library/migrations/024_composer_browse_projection.sql"
+            ),
+            include_str!(
+                "../../../crates/psysonic-library/migrations/025_identity_invalidation.sql"
+            ),
             include_str!("../../../crates/psysonic-library/migrations/026_library_tag_cursor.sql"),
+            include_str!(
+                "../../../crates/psysonic-library/migrations/027_navidrome_canonical_ids.sql"
+            ),
         ] {
-            conn.execute_batch(migration).expect("apply library migration");
+            conn.execute_batch(migration)
+                .expect("apply library migration");
         }
         conn.execute_batch("PRAGMA foreign_keys = ON;")
             .expect("enable foreign keys");
@@ -849,9 +948,13 @@ mod tests {
                VALUES ('legacy-a', 'artist-1', 'fanart', 'hit', 1);
               INSERT INTO library_tag_state(server_id, folders_hash, completed_at)
                 VALUES ('legacy-a', 'hash', 1);
-              INSERT INTO library_tag_cursor(server_id, folders_hash, next_folder_id, updated_at)
-                VALUES ('legacy-a', 'hash', 'folder-1', 1);
-             INSERT INTO entity_user_rating(server_id, entity_kind, entity_id, rating, fetched_at)
+               INSERT INTO library_tag_cursor(server_id, folders_hash, next_folder_id, updated_at)
+                 VALUES ('legacy-a', 'hash', 'folder-1', 1);
+               INSERT INTO server_identity_transition(server_id, canonical_version, state, detected_at)
+                 VALUES ('legacy-a', 1, 'legacy', 1);
+               INSERT INTO entity_id_remap(server_id, entity_kind, old_id, new_id, remapped_at)
+                 VALUES ('legacy-a', 'track', 'old-track', 'track-1', 1);
+              INSERT INTO entity_user_rating(server_id, entity_kind, entity_id, rating, fetched_at)
                VALUES ('legacy-a', 'track', 'track-1', 5, 1);
               INSERT INTO album_browse_projection(
                server_id, library_id, album_id, name, song_count, duration_sec, synced_at, representative_track_id
@@ -880,8 +983,13 @@ mod tests {
 
         let known_legacy_ids = vec!["legacy-a".to_string()];
         let known_index_keys = vec!["idx-a".to_string()];
-        let unknown = count_unknown_rows(&conn, TEST_TRACK_TABLE, &known_legacy_ids, &known_index_keys)
-            .expect("unknown count");
+        let unknown = count_unknown_rows(
+            &conn,
+            TEST_TRACK_TABLE,
+            &known_legacy_ids,
+            &known_index_keys,
+        )
+        .expect("unknown count");
         assert_eq!(unknown, 1);
     }
 
@@ -923,9 +1031,15 @@ mod tests {
 
         let known_legacy_ids = vec!["legacy-a".to_string()];
         let known_index_keys = vec!["idx-a".to_string()];
-        let legacy = count_rows_in(&conn, TEST_TRACK_TABLE, &known_legacy_ids).expect("legacy count");
-        let unknown = count_unknown_rows(&conn, TEST_TRACK_TABLE, &known_legacy_ids, &known_index_keys)
-            .expect("unknown count");
+        let legacy =
+            count_rows_in(&conn, TEST_TRACK_TABLE, &known_legacy_ids).expect("legacy count");
+        let unknown = count_unknown_rows(
+            &conn,
+            TEST_TRACK_TABLE,
+            &known_legacy_ids,
+            &known_index_keys,
+        )
+        .expect("unknown count");
         assert_eq!(legacy, 0);
         assert_eq!(unknown, 1);
     }
@@ -946,8 +1060,13 @@ mod tests {
 
         let known_legacy_ids = vec!["legacy-a".to_string()];
         let known_index_keys = vec!["idx-a".to_string()];
-        purge_unknown_rows(&conn, TEST_TRACK_TABLE, &known_legacy_ids, &known_index_keys)
-            .expect("purge unknown rows");
+        purge_unknown_rows(
+            &conn,
+            TEST_TRACK_TABLE,
+            &known_legacy_ids,
+            &known_index_keys,
+        )
+        .expect("purge unknown rows");
 
         let remaining: i64 = conn
             .query_row("SELECT COUNT(*) FROM track", [], |row| row.get(0))

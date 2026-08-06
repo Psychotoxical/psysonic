@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { resolveStorageServerIndexKey } from '@/lib/server/serverIndexKey';
+import { canonicalizeConfirmedNavidromeId } from '@/lib/server/navidromeCanonicalIds';
 
 export interface DeviceSyncSource {
   type: 'album' | 'playlist' | 'artist';
@@ -65,10 +66,18 @@ export function deviceSyncSourcesFromManifest(
   const sources = manifest.sources.flatMap(source => {
     if (isDeviceSyncSource(source)) {
       const serverIndexKey = resolveStorageServerIndexKey(source.serverIndexKey);
-      return serverIndexKey ? [{ ...source, serverIndexKey }] : [];
+      return serverIndexKey ? [{
+        ...source,
+        serverIndexKey,
+        id: canonicalizeConfirmedNavidromeId(serverIndexKey, source.id),
+      }] : [];
     }
     return isLegacyDeviceSyncSource(source) && fallbackOwner
-      ? [{ ...source, serverIndexKey: fallbackOwner }]
+      ? [{
+        ...source,
+        serverIndexKey: fallbackOwner,
+        id: canonicalizeConfirmedNavidromeId(fallbackOwner, source.id),
+      }]
       : [];
   });
   const owner = deviceSyncOwnerKey(sources);
@@ -131,12 +140,18 @@ export const useDeviceSyncStore = create<DeviceSyncState>()(
 
       addSource: (source) =>
         set((s) => {
+          source = {
+            ...source,
+            id: canonicalizeConfirmedNavidromeId(source.serverIndexKey, source.id),
+          };
           const owner = deviceSyncOwnerKey(s.sources);
           const key = deviceSyncSourceKey(source);
           if (!source.serverIndexKey || (owner && owner !== source.serverIndexKey)) return s;
+          const recoveredOwner = owner ?? source.serverIndexKey;
           const recovered = s.legacySources.map(legacy => ({
             ...legacy,
-            serverIndexKey: owner ?? source.serverIndexKey,
+            serverIndexKey: recoveredOwner,
+            id: canonicalizeConfirmedNavidromeId(recoveredOwner, legacy.id),
           }));
           const nextSources = [...s.sources, ...recovered];
           return {

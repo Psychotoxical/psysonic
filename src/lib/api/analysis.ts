@@ -49,6 +49,12 @@ export interface AnalysisDeleteServerReportDto {
   loudness: number;
 }
 
+export async function analysisClearServerCache(serverId: string): Promise<void> {
+  const indexKey = serverIndexKeyForId(serverId);
+  const res = await commands.analysisDeleteAllForServer(indexKey);
+  if (res.status === 'error') throw new Error(res.error);
+}
+
 function serverIndexKeyForId(serverId: string): string {
   const server = useAuthStore.getState().servers.find(s => s.id === serverId);
   if (!server) return serverId;

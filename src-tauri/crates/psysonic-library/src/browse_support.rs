@@ -9,12 +9,12 @@ use crate::dto::CatalogYearBoundsDto;
 use crate::dto::GenreAlbumCountDto;
 use crate::dto::LibraryAlbumDto;
 use crate::runtime::LibraryRuntime;
-use crate::store::LibraryStore;
-use crate::sync::mapping::format_iso_ms_z;
 use crate::search::{
     library_scope_in_sql, library_scope_sargable_equals_sql, normalized_library_scopes,
     push_library_scope_binds,
 };
+use crate::store::LibraryStore;
+use crate::sync::mapping::format_iso_ms_z;
 
 #[derive(Debug, Clone, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
@@ -56,8 +56,7 @@ pub(crate) fn overlay_album_starred_at_rows(
     albums: &mut [LibraryAlbumDto],
 ) {
     for album in albums.iter_mut() {
-        album.starred_at =
-            read_album_starred_at(conn, &album.server_id, &album.id).unwrap_or(None);
+        album.starred_at = read_album_starred_at(conn, &album.server_id, &album.id).unwrap_or(None);
     }
 }
 
@@ -93,7 +92,10 @@ pub(crate) fn overlay_album_artist_links(
     for album in albums.iter_mut() {
         let owner = stmt
             .query_row(params![album.server_id, album.id], |r| {
-                Ok((r.get::<_, Option<String>>(0)?, r.get::<_, Option<String>>(1)?))
+                Ok((
+                    r.get::<_, Option<String>>(0)?,
+                    r.get::<_, Option<String>>(1)?,
+                ))
             })
             .optional()
             .unwrap_or(None);
@@ -104,7 +106,11 @@ pub(crate) fn overlay_album_artist_links(
         // album-artist tag only answers whether this album has an album-artist credit
         // at all. A card crediting the track performer therefore keeps its own id.
         let tagged = album_artist.is_some_and(|value| !value.trim().is_empty());
-        let credit = if tagged { album.artist.as_deref() } else { None };
+        let credit = if tagged {
+            album.artist.as_deref()
+        } else {
+            None
+        };
         album.artist_id =
             pick_album_group_artist_id(album.artist_id.take(), credit, album_artist_id);
     }
@@ -158,13 +164,16 @@ pub(crate) fn apply_album_patch(
     runtime
         .store
         .with_conn("browse.patch_album", |conn| {
+            let album_id = crate::navidrome_identity::resolve_remapped_id_with_conn(
+                conn, server_id, "album", album_id,
+            )?;
             if let Some(v) = starred_at {
                 conn.execute(
                     "UPDATE album SET starred_at = ?3 \
                      WHERE server_id = ?1 AND id = ?2",
                     params![server_id, album_id, v],
                 )?;
-                sync_album_raw_json_starred(conn, server_id, album_id, v)?;
+                sync_album_raw_json_starred(conn, server_id, &album_id, v)?;
             }
             Ok(())
         })
@@ -239,6 +248,15 @@ pub(crate) fn reconcile_album_stars(
             let placeholders = std::iter::repeat_n("?", starred.len())
                 .collect::<Vec<_>>()
                 .join(", ");
+            let starred = starred
+                .iter()
+                .map(|item| {
+                    crate::navidrome_identity::resolve_remapped_id_with_conn(
+                        conn, server_id, "album", &item.id,
+                    )
+                    .map(|id| (id, item.starred_at))
+                })
+                .collect::<rusqlite::Result<Vec<_>>>()?;
             let clear_sql = format!(
                 "UPDATE album SET starred_at = NULL \
                  WHERE server_id = ?1 AND starred_at IS NOT NULL \
@@ -246,18 +264,15 @@ pub(crate) fn reconcile_album_stars(
             );
             let mut clear_params: Vec<rusqlite::types::Value> =
                 vec![rusqlite::types::Value::Text(server_id.to_string())];
-            for item in starred {
-                clear_params.push(rusqlite::types::Value::Text(item.id.clone()));
+            for (id, _) in &starred {
+                clear_params.push(rusqlite::types::Value::Text(id.clone()));
             }
-            conn.execute(
-                &clear_sql,
-                rusqlite::params_from_iter(clear_params.iter()),
-            )?;
-            for item in starred {
+            conn.execute(&clear_sql, rusqlite::params_from_iter(clear_params.iter()))?;
+            for (id, starred_at) in starred {
                 conn.execute(
                     "UPDATE album SET starred_at = ?3 \
-                     WHERE server_id = ?1 AND id = ?2",
-                    params![server_id, item.id, item.starred_at],
+                      WHERE server_id = ?1 AND id = ?2",
+                    params![server_id, id, starred_at],
                 )?;
             }
             Ok(())
@@ -650,6 +665,47 @@ mod tests {
         assert!(old.is_none());
         assert_eq!(keep, Some(99));
         assert!(new.is_none());
+    }
+
+    #[test]
+    fn reconcile_album_stars_resolves_late_legacy_ids() {
+        let store = Arc::new(LibraryStore::open_in_memory());
+        store
+            .with_conn("test.seed_album_remap", |conn| {
+                conn.execute(
+                    "INSERT INTO album(server_id, id, name, synced_at, raw_json) \
+                     VALUES ('s1', 'new-album', 'Album', 1, '{}')",
+                    [],
+                )?;
+                conn.execute(
+                    "INSERT INTO entity_id_remap(server_id, entity_kind, old_id, new_id, remapped_at) \
+                     VALUES ('s1', 'album', 'old-album', 'new-album', 1)",
+                    [],
+                )?;
+                Ok(())
+            })
+            .unwrap();
+
+        reconcile_album_stars(
+            &runtime(store.clone()),
+            "s1",
+            &[StarredAlbumReconcileItem {
+                id: "old-album".into(),
+                starred_at: 99,
+            }],
+        )
+        .unwrap();
+
+        let starred_at = store
+            .with_read_conn(|conn| {
+                conn.query_row(
+                    "SELECT starred_at FROM album WHERE server_id = 's1' AND id = 'new-album'",
+                    [],
+                    |row| row.get::<_, Option<i64>>(0),
+                )
+            })
+            .unwrap();
+        assert_eq!(starred_at, Some(99));
     }
 
     #[test]

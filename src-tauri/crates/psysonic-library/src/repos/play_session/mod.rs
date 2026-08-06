@@ -11,16 +11,14 @@ use std::collections::HashMap;
 use rusqlite::{params, OptionalExtension};
 
 use crate::dto::{
-    PlaySessionDayDetailDto, PlaySessionDayTrackDto, PlaySessionDayTotalsDto,
+    PlaySessionDayDetailDto, PlaySessionDayTotalsDto, PlaySessionDayTrackDto,
     PlaySessionHeatmapDayDto, PlaySessionInputDto, PlaySessionRecentDayDto,
     PlaySessionRecentTrackDto, PlaySessionYearBoundsDto, PlaySessionYearSummaryDto,
 };
 use crate::store::LibraryStore;
 
 use cluster::{count_listening_sessions, PlaySpan};
-use completion::{
-    completion_from_position, effective_duration_sec, MIN_LISTENED_SEC,
-};
+use completion::{completion_from_position, effective_duration_sec, MIN_LISTENED_SEC};
 
 fn map_play_session_track_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<PlaySessionDayTrackDto> {
     Ok(PlaySessionDayTrackDto {
@@ -90,11 +88,17 @@ impl<'a> PlaySessionRepository<'a> {
 
         self.store
             .with_conn("play_session.insert", |conn| {
+                let track_id = crate::navidrome_identity::resolve_remapped_id_with_conn(
+                    conn,
+                    &input.server_id,
+                    "track",
+                    &input.track_id,
+                )?;
                 let duration_sec: i64 = conn
                     .query_row(
                         "SELECT duration_sec FROM track \
                          WHERE server_id = ?1 AND id = ?2 AND deleted = 0",
-                        params![input.server_id, input.track_id],
+                        params![input.server_id, track_id],
                         |row| row.get(0),
                     )
                     .optional()?
@@ -111,7 +115,7 @@ impl<'a> PlaySessionRepository<'a> {
                      VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
                     params![
                         input.server_id,
-                        input.track_id,
+                        track_id,
                         input.started_at_ms,
                         input.listened_sec,
                         input.position_max_sec,

@@ -11,6 +11,7 @@ import { useAuthStore } from '@/store/authStore';
 import { useMigrationStore } from '@/store/migrationStore';
 import { serverIndexKeyFromUrl } from '@/lib/server/serverIndexKey';
 import { rewriteFrontendStoreKeys } from '@/utils/server/rewriteFrontendStoreKeys';
+import { retryCanonicalIdentityMigration } from '@/utils/server/reconcileCanonicalEntityIds';
 
 const MIGRATION_DONE_FLAG = 'psysonic-server-key-migration-v1';
 let migrationInFlight: Promise<void> | null = null;
@@ -207,6 +208,10 @@ export function retryGenreTagsMigration(): void {
 
 export function retryBlockingMigration(): void {
   const step = useMigrationStore.getState().step;
+  if (step === 'canonicalIds') {
+    retryCanonicalIdentityMigration();
+    return;
+  }
   if (step === 'genreTags') {
     retryGenreTagsMigration();
     return;

@@ -28,6 +28,11 @@ interface PlaylistStore {
 let playlistFetchGeneration = 0;
 let playlistMutationGeneration = 0;
 
+export function invalidatePlaylistRequestsForIdentityTransition(): void {
+  playlistFetchGeneration += 1;
+  playlistMutationGeneration += 1;
+}
+
 interface PlaylistPersistedState {
   recentIds?: string[];
   playlists?: SubsonicPlaylist[];
@@ -118,8 +123,10 @@ export const usePlaylistStore = create<PlaylistStore>()(
         }
       },
       createPlaylist: async (name: string, songIds: string[] | undefined, serverId: string) => {
+        const generation = playlistMutationGeneration;
         try {
           const playlist = { ...await apiCreatePlaylist(name, songIds, serverId), serverId };
+          if (generation !== playlistMutationGeneration) return null;
           playlistMutationGeneration += 1;
           const key = ownedEntityKey(playlist);
           set((s) => ({

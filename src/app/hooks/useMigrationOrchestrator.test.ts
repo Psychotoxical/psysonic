@@ -10,6 +10,7 @@ const libraryGenreTagsRunMock = vi.fn();
 const libraryScopeBrowseProjectionInspectMock = vi.fn();
 const libraryScopeBrowseProjectionRunMock = vi.fn();
 const rewriteFrontendStoreKeysMock = vi.fn(async (_servers: unknown) => undefined);
+const retryCanonicalIdentityMigrationMock = vi.fn();
 
 vi.mock('@tauri-apps/api/event', () => ({
   listen: vi.fn(async () => () => {}),
@@ -31,7 +32,14 @@ vi.mock('@/utils/server/rewriteFrontendStoreKeys', () => ({
   rewriteFrontendStoreKeys: (servers: unknown) => rewriteFrontendStoreKeysMock(servers),
 }));
 
-import { useMigrationOrchestrator } from '@/app/hooks/useMigrationOrchestrator';
+vi.mock('@/utils/server/reconcileCanonicalEntityIds', () => ({
+  retryCanonicalIdentityMigration: () => retryCanonicalIdentityMigrationMock(),
+}));
+
+import {
+  retryBlockingMigration,
+  useMigrationOrchestrator,
+} from '@/app/hooks/useMigrationOrchestrator';
 
 const DONE_FLAG = 'psysonic-server-key-migration-v1';
 const REAL_MIGRATION_TEST_OVERRIDE = '__PSYSONIC_REAL_MIGRATION_TEST__';
@@ -49,6 +57,7 @@ describe('useMigrationOrchestrator', () => {
     libraryScopeBrowseProjectionInspectMock.mockResolvedValue({ needed: false, totalTracks: 0, doneTracks: 0 });
     libraryScopeBrowseProjectionRunMock.mockResolvedValue(undefined);
     rewriteFrontendStoreKeysMock.mockClear();
+    retryCanonicalIdentityMigrationMock.mockReset();
     localStorage.clear();
     useAuthStore.setState({
       servers: [
@@ -70,6 +79,14 @@ describe('useMigrationOrchestrator', () => {
       lastError: null,
     });
     (globalThis as Record<string, unknown>)[REAL_MIGRATION_TEST_OVERRIDE] = true;
+  });
+
+  it('routes canonical-ID retries to the canonical migration flow', () => {
+    useMigrationStore.setState({ step: 'canonicalIds', phase: 'error' });
+
+    retryBlockingMigration();
+
+    expect(retryCanonicalIdentityMigrationMock).toHaveBeenCalledTimes(1);
   });
 
   afterEach(() => {

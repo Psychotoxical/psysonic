@@ -129,8 +129,11 @@ impl<'a> ArtifactRepository<'a> {
         sql.push_str(" ORDER BY fetched_at DESC LIMIT 1");
 
         let mut stmt = conn.prepare(&sql)?;
-        stmt.query_row(rusqlite::params_from_iter(bound.iter()), row_to_artifact_dto)
-            .optional()
+        stmt.query_row(
+            rusqlite::params_from_iter(bound.iter()),
+            row_to_artifact_dto,
+        )
+        .optional()
     }
 
     /// E3 readiness: is there a valid (non-expired, non-`not_found`) lyrics
@@ -182,6 +185,9 @@ impl<'a> ArtifactRepository<'a> {
 
         self.store
             .with_conn("artifact.put", |conn| {
+                let track_id = crate::navidrome_identity::resolve_remapped_id_with_conn(
+                    conn, server_id, "track", track_id,
+                )?;
                 conn.execute(
                     UPSERT_ARTIFACT,
                     params![
@@ -246,12 +252,7 @@ mod tests {
     use std::thread;
     use std::time::Duration;
 
-    fn artifact(
-        kind: &str,
-        format: &str,
-        source_kind: &str,
-        source_id: &str,
-    ) -> ArtifactInputDto {
+    fn artifact(kind: &str, format: &str, source_kind: &str, source_id: &str) -> ArtifactInputDto {
         ArtifactInputDto {
             artifact_kind: kind.into(),
             format: format.into(),
@@ -284,8 +285,13 @@ mod tests {
         let store = LibraryStore::open_in_memory();
         seed_track(&store, "s1", "t1");
         let repo = ArtifactRepository::new(&store);
-        repo.put("s1", "t1", &artifact("lyrics", "plain", "lrclib", "lrclib"), 100)
-            .unwrap();
+        repo.put(
+            "s1",
+            "t1",
+            &artifact("lyrics", "plain", "lrclib", "lrclib"),
+            100,
+        )
+        .unwrap();
         let got = repo
             .get("s1", "t1", "lyrics", None, None, None, 200)
             .unwrap()
@@ -304,11 +310,15 @@ mod tests {
         repo.put("s1", "t1", &a, 100).unwrap();
 
         // read at t=200 → expired, dropped + treated as a miss.
-        let got = repo.get("s1", "t1", "lyrics", None, None, None, 200).unwrap();
+        let got = repo
+            .get("s1", "t1", "lyrics", None, None, None, 200)
+            .unwrap();
         assert!(got.is_none());
 
         let total: i64 = store
-            .with_conn("misc", |c| c.query_row("SELECT COUNT(*) FROM track_artifact", [], |r| r.get(0)))
+            .with_conn("misc", |c| {
+                c.query_row("SELECT COUNT(*) FROM track_artifact", [], |r| r.get(0))
+            })
             .unwrap();
         assert_eq!(total, 0, "expired row deleted, not just filtered");
     }
@@ -318,7 +328,12 @@ mod tests {
         let store = Arc::new(LibraryStore::open_in_memory());
         seed_track(&store, "s1", "t1");
         ArtifactRepository::new(&store)
-            .put("s1", "t1", &artifact("lyrics", "plain", "lrclib", "lrclib"), 100)
+            .put(
+                "s1",
+                "t1",
+                &artifact("lyrics", "plain", "lrclib", "lrclib"),
+                100,
+            )
             .unwrap();
         let (writer_started_tx, writer_started_rx) = mpsc::channel();
         let (release_writer_tx, release_writer_rx) = mpsc::channel();
@@ -370,7 +385,10 @@ mod tests {
             .get("s1", "t1", "lyrics", None, None, None, 500)
             .unwrap()
             .expect("negative-cache row still live");
-        assert!(got.not_found, "caller sees the cached miss instead of refetching");
+        assert!(
+            got.not_found,
+            "caller sees the cached miss instead of refetching"
+        );
     }
 
     #[test]
@@ -379,10 +397,21 @@ mod tests {
         let live = LibraryStore::open_in_memory();
         seed_track(&live, "s1", "t1");
         let repo = ArtifactRepository::new(&live);
-        assert!(!repo.lyrics_cached("s1", "t1", 200).unwrap(), "no row → not cached");
-        repo.put("s1", "t1", &artifact("lyrics", "plain", "lrclib", "lrclib"), 100)
-            .unwrap();
-        assert!(repo.lyrics_cached("s1", "t1", 200).unwrap(), "live row → cached");
+        assert!(
+            !repo.lyrics_cached("s1", "t1", 200).unwrap(),
+            "no row → not cached"
+        );
+        repo.put(
+            "s1",
+            "t1",
+            &artifact("lyrics", "plain", "lrclib", "lrclib"),
+            100,
+        )
+        .unwrap();
+        assert!(
+            repo.lyrics_cached("s1", "t1", 200).unwrap(),
+            "live row → cached"
+        );
 
         let neg = LibraryStore::open_in_memory();
         seed_track(&neg, "s1", "t1");
@@ -414,10 +443,20 @@ mod tests {
         let store = LibraryStore::open_in_memory();
         seed_track(&store, "s1", "t1");
         let repo = ArtifactRepository::new(&store);
-        repo.put("s1", "t1", &artifact("lyrics", "plain", "lrclib", "lrclib"), 1)
-            .unwrap();
-        repo.put("s1", "t1", &artifact("lyrics", "plain", "netease", "netease"), 2)
-            .unwrap();
+        repo.put(
+            "s1",
+            "t1",
+            &artifact("lyrics", "plain", "lrclib", "lrclib"),
+            1,
+        )
+        .unwrap();
+        repo.put(
+            "s1",
+            "t1",
+            &artifact("lyrics", "plain", "netease", "netease"),
+            2,
+        )
+        .unwrap();
 
         // source_id without source_kind must bind correctly (running indices).
         let got = repo
@@ -432,10 +471,20 @@ mod tests {
         let store = LibraryStore::open_in_memory();
         seed_track(&store, "s1", "t1");
         let repo = ArtifactRepository::new(&store);
-        repo.put("s1", "t1", &artifact("lyrics", "plain", "lrclib", "lrclib"), 1)
-            .unwrap();
-        repo.put("s1", "t1", &artifact("lyrics", "plain", "netease", "netease"), 9)
-            .unwrap();
+        repo.put(
+            "s1",
+            "t1",
+            &artifact("lyrics", "plain", "lrclib", "lrclib"),
+            1,
+        )
+        .unwrap();
+        repo.put(
+            "s1",
+            "t1",
+            &artifact("lyrics", "plain", "netease", "netease"),
+            9,
+        )
+        .unwrap();
         let got = repo
             .get("s1", "t1", "lyrics", None, None, None, 10)
             .unwrap()
@@ -461,7 +510,8 @@ mod tests {
         let repo = ArtifactRepository::new(&store);
         let mut big = artifact("lyrics", "plain", "user", "user");
         big.content_text = Some("x".repeat(MAX_ARTIFACT_BYTES + 1));
-        repo.put("s1", "t1", &big, 1).expect("user import bypasses the cap");
+        repo.put("s1", "t1", &big, 1)
+            .expect("user import bypasses the cap");
     }
 
     #[test]
@@ -469,16 +519,26 @@ mod tests {
         let store = LibraryStore::open_in_memory();
         seed_track(&store, "s1", "t1");
         let repo = ArtifactRepository::new(&store);
-        repo.put("s1", "t1", &artifact("lyrics", "plain", "lrclib", "lrclib"), 1)
-            .unwrap();
+        repo.put(
+            "s1",
+            "t1",
+            &artifact("lyrics", "plain", "lrclib", "lrclib"),
+            1,
+        )
+        .unwrap();
         let mut updated = artifact("lyrics", "plain", "lrclib", "lrclib");
         updated.content_text = Some("new words".into());
         repo.put("s1", "t1", &updated, 2).unwrap();
         let count: i64 = store
-            .with_conn("misc", |c| c.query_row("SELECT COUNT(*) FROM track_artifact", [], |r| r.get(0)))
+            .with_conn("misc", |c| {
+                c.query_row("SELECT COUNT(*) FROM track_artifact", [], |r| r.get(0))
+            })
             .unwrap();
         assert_eq!(count, 1, "same (kind, source, format) updates in place");
-        let got = repo.get("s1", "t1", "lyrics", None, None, None, 3).unwrap().unwrap();
+        let got = repo
+            .get("s1", "t1", "lyrics", None, None, None, 3)
+            .unwrap()
+            .unwrap();
         assert_eq!(got.content_text.as_deref(), Some("new words"));
     }
 }

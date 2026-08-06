@@ -9,8 +9,8 @@
 
 pub mod advanced_search;
 mod advanced_search_mood;
-pub mod album_overlay;
 pub mod album_compilation_filter;
+pub mod album_overlay;
 pub mod analysis_backfill;
 pub mod analysis_backfill_policy;
 pub mod artist_artwork;
@@ -40,6 +40,7 @@ pub mod lossless_formats;
 pub mod mainstage_browse;
 pub mod mood_groups;
 pub mod most_played;
+pub mod navidrome_identity;
 pub mod orphan_cleanup;
 pub mod payload;
 #[cfg(test)]

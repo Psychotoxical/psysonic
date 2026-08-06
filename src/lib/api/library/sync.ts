@@ -15,6 +15,29 @@ import type {
   FactInputDto,
 } from './dto';
 
+export interface IdentityTransitionDto {
+  serverId: string;
+  state:
+    | 'unseen'
+    | 'awaiting_supplemental_probe'
+    | 'no_legacy_ids'
+    | 'legacy'
+    | 'retryable'
+    | 'transition_detected'
+    | 'pending_frontend'
+    | 'ready'
+    | 'blocked';
+  canonicalVersion: number;
+  probeOldId: string | null;
+  probeNewId: string | null;
+  lastError: string | null;
+}
+
+export interface IdentityProbeCandidateDto {
+  entityKind: 'album' | 'track';
+  id: string;
+}
+
 export async function librarySyncBindSession(args: {
   serverId: string;
   baseUrl: string;
@@ -37,6 +60,40 @@ export async function librarySyncClearSession(serverId: string): Promise<void> {
   const indexKey = serverIndexKeyForId(serverId);
   const res = await commands.librarySyncClearSession(indexKey);
   if (res.status === 'error') throw new Error(res.error);
+}
+
+export async function libraryIdentityTransitionStatus(
+  serverId: string,
+): Promise<IdentityTransitionDto> {
+  const indexKey = serverIndexKeyForId(serverId);
+  const res = await commands.libraryIdentityTransitionStatus(indexKey);
+  if (res.status === 'error') throw new Error(res.error);
+  return res.data as IdentityTransitionDto;
+}
+
+export async function libraryIdentityTransitionAck(serverId: string): Promise<void> {
+  const indexKey = serverIndexKeyForId(serverId);
+  const res = await commands.libraryIdentityTransitionAck(indexKey);
+  if (res.status === 'error') throw new Error(res.error);
+}
+
+export async function libraryIdentityTransitionProbe(
+  serverId: string,
+  candidates: IdentityProbeCandidateDto[],
+): Promise<IdentityTransitionDto> {
+  const indexKey = serverIndexKeyForId(serverId);
+  const res = await commands.libraryIdentityTransitionProbe(indexKey, candidates);
+  if (res.status === 'error') throw new Error(res.error);
+  return res.data as IdentityTransitionDto;
+}
+
+export async function libraryIdentityTransitionRunNativeMigration(
+  serverId: string,
+): Promise<IdentityTransitionDto> {
+  const indexKey = serverIndexKeyForId(serverId);
+  const res = await commands.libraryIdentityTransitionRunNativeMigration(indexKey);
+  if (res.status === 'error') throw new Error(res.error);
+  return res.data as IdentityTransitionDto;
 }
 
 export async function libraryGetPlaybackHint(): Promise<PlaybackHint> {

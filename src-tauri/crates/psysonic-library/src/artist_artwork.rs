@@ -59,6 +59,12 @@ pub fn upsert_artist_artwork(
     updated_at: i64,
 ) -> Result<(), String> {
     store.with_conn_mut("artist_artwork.upsert", |conn| {
+        let artist_id = crate::navidrome_identity::resolve_remapped_id_with_conn(
+            conn,
+            server_id,
+            "artist",
+            artist_id,
+        )?;
         conn.execute(
             "INSERT INTO artist_artwork_lookup
                  (server_id, artist_id, surface_kind, mbid, mbid_source, status, provider, updated_at)
@@ -142,5 +148,40 @@ mod tests {
         // Clear-per-server removes it.
         assert_eq!(clear_artist_artwork_for_server(&store, "srv").unwrap(), 1);
         assert!(get_artist_artwork(&store, "srv", "ar-1", sk).unwrap().is_none());
+    }
+
+    #[test]
+    fn late_upsert_resolves_artist_identity_remap() {
+        let store = LibraryStore::open_in_memory();
+        store
+            .with_conn("test.seed_remap", |conn| {
+                conn.execute(
+                    "INSERT INTO entity_id_remap(server_id, entity_kind, old_id, new_id, remapped_at) \
+                     VALUES ('srv', 'artist', 'old-artist', 'new-artist', 1)",
+                    [],
+                )?;
+                Ok(())
+            })
+            .unwrap();
+
+        upsert_artist_artwork(
+            &store,
+            "srv",
+            "old-artist",
+            "fanart",
+            None,
+            None,
+            "no_mbid",
+            None,
+            1000,
+        )
+        .unwrap();
+
+        assert!(get_artist_artwork(&store, "srv", "old-artist", "fanart")
+            .unwrap()
+            .is_none());
+        assert!(get_artist_artwork(&store, "srv", "new-artist", "fanart")
+            .unwrap()
+            .is_some());
     }
 }

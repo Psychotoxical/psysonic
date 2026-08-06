@@ -93,6 +93,10 @@ pub struct LibraryRuntime {
     /// Scheduler ticks take shared access; destructive operations take exclusive
     /// access after draining the relevant foreground job.
     sync_activity: Arc<RwLock<()>>,
+    /// Non-sync writers that prepare ID-bearing rows before taking SQLite's writer
+    /// lock hold shared access. Canonical-ID migration takes exclusive access so a
+    /// prepared legacy row cannot be committed after the remap transaction.
+    identity_mutation: Arc<RwLock<()>>,
     /// Top-crate scheduler tick task watches this flag; set true on
     /// app shutdown / library index disabled.
     pub scheduler_cancel: Arc<AtomicBool>,
@@ -112,6 +116,7 @@ impl LibraryRuntime {
             current_job: Mutex::new(None),
             sync_lifecycle: Arc::new(AsyncMutex::new(())),
             sync_activity: Arc::new(RwLock::new(())),
+            identity_mutation: Arc::new(RwLock::new(())),
             scheduler_cancel: Arc::new(AtomicBool::new(false)),
             live_search_epoch: AtomicU64::new(0),
             analysis_progress_cache: Mutex::new(HashMap::new()),
@@ -249,6 +254,14 @@ impl LibraryRuntime {
     /// Shared scheduler access held for the full write-capable tick.
     pub async fn sync_activity_guard(&self) -> OwnedRwLockReadGuard<()> {
         Arc::clone(&self.sync_activity).read_owned().await
+    }
+
+    pub async fn identity_mutation_guard(&self) -> OwnedRwLockReadGuard<()> {
+        Arc::clone(&self.identity_mutation).read_owned().await
+    }
+
+    pub async fn identity_migration_guard(&self) -> OwnedRwLockWriteGuard<()> {
+        Arc::clone(&self.identity_mutation).write_owned().await
     }
 
     /// Snapshot all bound sessions — used by the scheduler tick task
@@ -582,6 +595,31 @@ mod tests {
             .unwrap();
         assert!(acquired.load(Ordering::SeqCst));
         drop(barrier);
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn identity_migration_waits_for_prepared_non_sync_writer() {
+        let runtime = Arc::new(LibraryRuntime::new(Arc::new(LibraryStore::open_in_memory())));
+        let writer = runtime.identity_mutation_guard().await;
+        let acquired = Arc::new(AtomicBool::new(false));
+        let acquired_for_task = Arc::clone(&acquired);
+        let runtime_for_task = Arc::clone(&runtime);
+        let task = tokio::spawn(async move {
+            let guard = runtime_for_task.identity_migration_guard().await;
+            acquired_for_task.store(true, Ordering::SeqCst);
+            guard
+        });
+
+        tokio::time::sleep(Duration::from_millis(20)).await;
+        assert!(!acquired.load(Ordering::SeqCst));
+        drop(writer);
+
+        let migration = tokio::time::timeout(Duration::from_secs(1), task)
+            .await
+            .expect("identity migration stayed blocked")
+            .unwrap();
+        assert!(acquired.load(Ordering::SeqCst));
+        drop(migration);
     }
 
     #[tokio::test(flavor = "multi_thread")]

@@ -9,6 +9,7 @@ import { useMediaAndWindowBridge } from '@/app/tauriBridge/useMediaAndWindowBrid
 import { usePlayerSnapshotPublisher } from '@/app/tauriBridge/usePlayerSnapshotPublisher';
 import { useLibraryDevSyncLog } from '@/app/tauriBridge/useLibraryDevSyncLog';
 import { useCoverArtBridge } from '@/app/tauriBridge/useCoverArtBridge';
+import { useLibraryIdentityBridge } from '@/app/tauriBridge/useLibraryIdentityBridge';
 
 /**
  * Single mount point for everything that bridges Rust ↔ React in the main
@@ -37,6 +38,7 @@ export function TauriEventBridge() {
   usePlayerSnapshotPublisher();
   useLibraryDevSyncLog();
   useCoverArtBridge();
+  useLibraryIdentityBridge();
 
   return null;
 }

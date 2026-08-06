@@ -22,6 +22,7 @@ import {
 } from '@/lib/api/coverCache';
 import { libraryDevEnabled, logLibraryStatus, logLibrarySync, timed } from './libraryDevLog';
 import { publishServerConnectionStatus } from '@/lib/network/serverReachability';
+import { reconcileCanonicalEntityIds } from '@/utils/server/reconcileCanonicalEntityIds';
 
 export type BindServerResult = 'bound' | 'offline' | 'error';
 
@@ -109,6 +110,7 @@ async function bindIndexedServerOnce(
       username: server.username,
       password: server.password,
     });
+    await reconcileCanonicalEntityIds(server, serverIndexKey);
     if (libraryDevEnabled()) {
       const { result: status, ms } = await timed(() => libraryGetStatus(serverIndexKey));
       logLibrarySync({

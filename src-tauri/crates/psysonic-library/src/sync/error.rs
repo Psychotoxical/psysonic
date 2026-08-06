@@ -30,11 +30,13 @@ pub enum SyncError {
     /// Persistence layer (SQLite) failure.
     Storage(String),
 
+    /// Canonical-ID evidence changed while sync was validating a locally live
+    /// entity. The caller must stop destructive work until reconciliation runs.
+    IdentityTransition(String),
+
     /// Strategy is enumerated but not implemented for v1
     /// (currently only `S3`).
-    StrategyUnsupported {
-        strategy: &'static str,
-    },
+    StrategyUnsupported { strategy: &'static str },
 
     /// Cancellation token tripped — caller asked us to abort.
     /// Cursor stays where it was so the next run resumes the batch.
@@ -57,6 +59,7 @@ impl fmt::Display for SyncError {
             Self::NotFound => write!(f, "subsonic: not found (code 70)"),
             Self::Navidrome(m) => write!(f, "navidrome: {m}"),
             Self::Storage(m) => write!(f, "storage: {m}"),
+            Self::IdentityTransition(m) => write!(f, "identity transition: {m}"),
             Self::StrategyUnsupported { strategy } => {
                 write!(f, "ingest strategy not supported: {strategy}")
             }
@@ -107,7 +110,11 @@ mod tests {
 
     #[test]
     fn subsonic_api_error_carries_code_through() {
-        let e: SyncError = SubsonicError::Api { code: 40, message: "bad creds".into() }.into();
+        let e: SyncError = SubsonicError::Api {
+            code: 40,
+            message: "bad creds".into(),
+        }
+        .into();
         match e {
             SyncError::Subsonic { code, message } => {
                 assert_eq!(code, 40);
@@ -119,7 +126,8 @@ mod tests {
 
     #[test]
     fn http_status_collapses_into_transport() {
-        let e: SyncError = SubsonicError::HttpStatus(reqwest::StatusCode::SERVICE_UNAVAILABLE).into();
+        let e: SyncError =
+            SubsonicError::HttpStatus(reqwest::StatusCode::SERVICE_UNAVAILABLE).into();
         assert!(matches!(e, SyncError::Transport(ref m) if m.contains("503")));
     }
 
