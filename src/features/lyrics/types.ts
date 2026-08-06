@@ -5,7 +5,7 @@
  * close a cycle).
  */
 
-export type LyricsSource = 'server' | 'lrclib' | 'netease' | 'embedded' | 'lyricsplus';
+export type LyricsSource = 'server' | 'lrclib' | 'netease' | 'embedded';
 
 /** One timed line of lyrics. `time` is seconds. */
 export interface LrcLine {

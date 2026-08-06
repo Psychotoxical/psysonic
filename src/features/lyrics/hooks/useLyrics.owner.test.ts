@@ -39,7 +39,6 @@ beforeEach(() => {
   useAuthStore.setState({
     activeServerId: 'srv-active',
     servers: [],
-    youLyPlusEnabled: false,
     lyricsSources: [
       { id: 'server', enabled: true },
       { id: 'lrclib', enabled: false },

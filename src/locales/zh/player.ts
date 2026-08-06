@@ -65,7 +65,6 @@ export const player = {
   lyricsSourceServer: '来源：服务器',
   lyricsSourceLrclib: '来源：LRCLIB',
   lyricsSourceNetease: '来源：网易云',
-  lyricsSourceLyricsplus: '来源：YouLyPlus',
   showDuration: '显示时长',
   showRemainingTime: '显示剩余时间',
   sourceFailureTitle: '无法播放 {{title}}',

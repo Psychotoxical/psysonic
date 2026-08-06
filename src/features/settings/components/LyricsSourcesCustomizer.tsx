@@ -21,8 +21,6 @@ export function LyricsSourcesCustomizer() {
   const { t } = useTranslation();
   const lyricsSources = useAuthStore(useShallow(s => s.lyricsSources));
   const setLyricsSources = useAuthStore(s => s.setLyricsSources);
-  const youLyPlusEnabled = useAuthStore(s => s.youLyPlusEnabled);
-  const setYouLyPlusEnabled = useAuthStore(s => s.setYouLyPlusEnabled);
   const lyricsStaticOnly = useAuthStore(s => s.lyricsStaticOnly);
   const setLyricsStaticOnly = useAuthStore(s => s.setLyricsStaticOnly);
   const sourcesRef = useRef(lyricsSources);
@@ -43,19 +41,9 @@ export function LyricsSourcesCustomizer() {
 
   return (
     <>
-      {/* YouLyPlus (karaoke) — independent toggle. When on it is tried first and
-          the enabled sources below act as fallback; when off only those sources
-          are used. YouLyPlus off + every source off = lyrics fully disabled. */}
-      <SettingsToggle
-        label={t('settings.lyricsYouLyPlus')}
-        desc={t('settings.lyricsYouLyPlusDesc')}
-        checked={youLyPlusEnabled}
-        onChange={setYouLyPlusEnabled}
-      />
-
       <SettingsSubCard style={{ margin: '0.85rem 0' }}>
         <SettingsField
-          desc={youLyPlusEnabled ? t('settings.lyricsSourcesFallbackHint') : t('settings.lyricsSourcesPrimaryHint')}
+          desc={t('settings.lyricsSourcesPrimaryHint')}
           note={t('settings.lyricsServerWordSyncHint')}
         >
           <div ref={setContainer} onMouseMove={onMouseMove}>

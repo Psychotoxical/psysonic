@@ -107,7 +107,6 @@ export const useAuthStore = create<AuthState>()(
       lyricsServerFirst: true,
       enableNeteaselyrics: false,
       lyricsSources: DEFAULT_LYRICS_SOURCES,
-      youLyPlusEnabled: false,
       lyricsStaticOnly: false,
       sidebarLyricsStyle: 'classic',
       showFullscreenLyrics: true,

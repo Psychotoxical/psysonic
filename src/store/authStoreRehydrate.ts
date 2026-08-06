@@ -66,15 +66,29 @@ export function computeAuthStoreRehydration(state: AuthState): Partial<AuthState
     }
   } catch { /* ignore */ }
 
-  // Migrate legacy `lyricsMode` ('standard' | 'lyricsplus') → `youLyPlusEnabled`
-  // (one-time). Existing users keep YouLyPlus on iff they were on lyricsplus
-  // mode; the legacy field is then stripped so it doesn't sit as cruft.
-  let youLyPlusMigrated: { youLyPlusEnabled?: boolean } = {};
+  // The YouLyPlus option was removed (issue #1386): every host of its backend is
+  // gone and the upstream project cannot fund a replacement. Anyone who relied on
+  // it would silently end up without lyrics, so switch them to LRCLIB — but only
+  // when no other source is enabled, so a deliberate selection stays untouched.
+  // Both the field and the even older `lyricsMode` flag are stripped afterwards.
   const legacyLyricsMode = (state as { lyricsMode?: unknown }).lyricsMode;
-  if (legacyLyricsMode === 'lyricsplus' || legacyLyricsMode === 'standard') {
-    youLyPlusMigrated = { youLyPlusEnabled: legacyLyricsMode === 'lyricsplus' };
-  }
+  const hadYouLyPlus =
+    (state as { youLyPlusEnabled?: unknown }).youLyPlusEnabled === true ||
+    legacyLyricsMode === 'lyricsplus';
   delete (state as { lyricsMode?: unknown }).lyricsMode;
+  delete (state as { youLyPlusEnabled?: unknown }).youLyPlusEnabled;
+
+  let youLyPlusRetired: { lyricsSources?: LyricsSourceConfig[] } = {};
+  if (hadYouLyPlus) {
+    const current =
+      lyricsSourcesMigrated.lyricsSources ??
+      (state as { lyricsSources?: LyricsSourceConfig[] }).lyricsSources;
+    if (Array.isArray(current) && !current.some(s => s.enabled)) {
+      youLyPlusRetired = {
+        lyricsSources: current.map(s => (s.id === 'lrclib' ? { ...s, enabled: true } : s)),
+      };
+    }
+  }
 
   // One-time: older builds could persist smooth=false as the default. Force smooth on once
   // so updates do not leave users on discrete scrolling; after this flag exists, only an
@@ -356,7 +370,7 @@ export function computeAuthStoreRehydration(state: AuthState): Partial<AuthState
       (state as { autodjOverlapCapSec?: unknown }).autodjOverlapCapSec,
     ),
     ...lyricsSourcesMigrated,
-    ...youLyPlusMigrated,
+    ...youLyPlusRetired,
     ...wheelSmoothOneTime,
     ...seekbarStyleMigrated,
     ...windowButtonStyleMigrated,

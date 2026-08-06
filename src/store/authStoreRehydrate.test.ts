@@ -116,16 +116,54 @@ describe('computeAuthStoreRehydration — lyrics', () => {
     localStorage.clear();
   });
 
-  it('migrates legacy lyricsMode "lyricsplus" → youLyPlusEnabled true', () => {
+  // The removed YouLyPlus option (issue #1386) was the only lyrics source for
+  // some users. Retiring it must not leave them without lyrics.
+  it('enables LRCLIB for a user who only had YouLyPlus on', () => {
     const base = useAuthStore.getState();
-    const patch = computeAuthStoreRehydration({ ...base, lyricsMode: 'lyricsplus' } as AuthState);
-    expect(patch.youLyPlusEnabled).toBe(true);
+    const patch = computeAuthStoreRehydration({
+      ...base,
+      youLyPlusEnabled: true,
+      lyricsSources: [
+        { id: 'server', enabled: false },
+        { id: 'lrclib', enabled: false },
+        { id: 'netease', enabled: false },
+      ],
+    } as unknown as AuthState);
+    expect(patch.lyricsSources).toEqual([
+      { id: 'server', enabled: false },
+      { id: 'lrclib', enabled: true },
+      { id: 'netease', enabled: false },
+    ]);
   });
 
-  it('migrates legacy lyricsMode "standard" → youLyPlusEnabled false', () => {
+  it('does the same for the even older lyricsMode "lyricsplus" flag', () => {
     const base = useAuthStore.getState();
-    const patch = computeAuthStoreRehydration({ ...base, lyricsMode: 'standard' } as AuthState);
-    expect(patch.youLyPlusEnabled).toBe(false);
+    const patch = computeAuthStoreRehydration({
+      ...base,
+      lyricsMode: 'lyricsplus',
+      lyricsSources: [
+        { id: 'server', enabled: false },
+        { id: 'lrclib', enabled: false },
+        { id: 'netease', enabled: false },
+      ],
+    } as unknown as AuthState);
+    expect(patch.lyricsSources?.find(s => s.id === 'lrclib')?.enabled).toBe(true);
+  });
+
+  it('leaves a deliberate source selection untouched', () => {
+    const base = useAuthStore.getState();
+    const patch = computeAuthStoreRehydration({
+      ...base,
+      youLyPlusEnabled: true,
+      lyricsSources: [
+        { id: 'server', enabled: true },
+        { id: 'lrclib', enabled: false },
+        { id: 'netease', enabled: false },
+      ],
+    } as unknown as AuthState);
+    // Nothing to rescue — the user still has a working source, so the patch must
+    // not carry `lyricsSources` at all (absent = left as the user set it).
+    expect(patch.lyricsSources).toBeUndefined();
   });
 
   it('fresh install (no persisted state) keeps every source off — issue #810', () => {

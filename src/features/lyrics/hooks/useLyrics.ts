@@ -1,12 +1,10 @@
 import { getLyricsBySongId } from '@/lib/api/subsonicLyrics';
 import type { Track } from '@/lib/media/trackTypes';
 import { useEffect, useState } from 'react';
-import { useShallow } from 'zustand/react/shallow';
 import { commands } from '@/generated/bindings';
 import { fetchLyrics } from '@/features/lyrics/api/lrclib';
 import { parseEnhancedLrc, parseLrc } from '@/features/lyrics/utils/lrc';
 import { fetchNeteaselyrics } from '@/features/lyrics/api/netease';
-import { fetchLyricsPlus, hasWordSync } from '@/features/lyrics/api/lyricsplus';
 import { useAuthStore } from '@/store/authStore';
 import { useOfflineStore } from '@/features/offline';
 import { useHotCacheStore } from '@/features/playback/store/hotCacheStore';
@@ -32,12 +30,9 @@ export interface UseLyricsResult {
 }
 
 export function useLyrics(currentTrack: Track | null): UseLyricsResult {
-  const { lyricsSources, youLyPlusEnabled } = useAuthStore(useShallow(s => ({
-    lyricsSources: s.lyricsSources,
-    youLyPlusEnabled: s.youLyPlusEnabled,
-  })));
-  // Lyrics are fully off when YouLyPlus is off and no source is enabled.
-  const lyricsActive = youLyPlusEnabled || lyricsSources.some(s => s.enabled);
+  const lyricsSources = useAuthStore(s => s.lyricsSources);
+  // Lyrics are fully off when no source is enabled.
+  const lyricsActive = lyricsSources.some(s => s.enabled);
   const ownerServerKey = currentTrack ? playbackCacheKeyForTrack(currentTrack) : '';
   const ownerServerId = currentTrack ? playbackProfileIdForTrack(currentTrack) : '';
   const cacheKey = currentTrack ? lyricsCacheKey(ownerServerKey, currentTrack.id) : '';
@@ -53,7 +48,7 @@ export function useLyrics(currentTrack: Track | null): UseLyricsResult {
   useEffect(() => {
     if (!currentTrack) return;
 
-    // Lyrics fully disabled (YouLyPlus off + every source off): fetch nothing,
+    // Lyrics fully disabled (every source off): fetch nothing,
     // show nothing — not even embedded/cache (issue #810). LyricsPane surfaces
     // the "no sources selected" hint.
     if (!lyricsActive) {
@@ -188,51 +183,6 @@ export function useLyrics(currentTrack: Track | null): UseLyricsResult {
       }
     };
 
-    /**
-     * lyricsplus (YouLyPlus). Silent miss → caller falls back to the standard
-     * pipeline. Only consumed when `youLyPlusEnabled`.
-     */
-    const fetchLyricsPlusFn = async (): Promise<boolean> => {
-      try {
-        const result = await fetchLyricsPlus({
-          title: currentTrack.title,
-          artist: currentTrack.artist ?? '',
-          album: currentTrack.album ?? undefined,
-          durationSec: currentTrack.duration ?? undefined,
-        });
-        if (!result || result.lyrics.length === 0) return false;
-
-        const hasWords = hasWordSync(result);
-        const syncedLines: LrcLine[] = result.lyrics
-          .map(l => ({ time: l.time / 1000, text: l.text }))
-          .sort((a, b) => a.time - b.time);
-
-        const wordLines: WordLyricsLine[] | null = hasWords
-          ? result.lyrics.map(l => ({
-              time: l.time / 1000,
-              duration: l.duration / 1000,
-              text: l.text,
-              words: (l.syllabus ?? []).map(w => ({
-                text: w.text,
-                time: w.time / 1000,
-                duration: w.duration / 1000,
-              })),
-            }))
-          : null;
-
-        store({
-          syncedLines: syncedLines.length > 0 ? syncedLines : null,
-          wordLines,
-          plainLyrics: null,
-          source: 'lyricsplus',
-          notFound: false,
-        });
-        return true;
-      } catch {
-        return false;
-      }
-    };
-
     const fetchFns: Record<string, () => Promise<boolean>> = {
       server: fetchServer,
       lrclib: fetchLrclibFn,
@@ -245,24 +195,13 @@ export function useLyrics(currentTrack: Track | null): UseLyricsResult {
       if (await fetchEmbedded()) return;
 
       // L2: IndexedDB — re-hydrates RAM cache without a network roundtrip.
-      // Skip for 'lyricsplus' mode since the persisted entry might be from
-      // the standard pipeline (no word-level sync) and the user explicitly
-      // wants a fresh lyricsplus attempt.
-      if (!youLyPlusEnabled) {
-        const persisted = await getCachedLyrics(cacheKey);
-        if (cancelled) return;
-        if (persisted) {
-          // Don't re-write to L2 (it's already there); just hydrate RAM + UI.
-          lyricsCache.set(cacheKey, persisted);
-          applyEntry(persisted);
-          return;
-        }
-      }
-
-      // YouLyPlus on: try lyricsplus first, silent fallback to enabled sources.
-      if (youLyPlusEnabled) {
-        if (cancelled) return;
-        if (await fetchLyricsPlusFn()) return;
+      const persisted = await getCachedLyrics(cacheKey);
+      if (cancelled) return;
+      if (persisted) {
+        // Don't re-write to L2 (it's already there); just hydrate RAM + UI.
+        lyricsCache.set(cacheKey, persisted);
+        applyEntry(persisted);
+        return;
       }
 
       // Standard pipeline — try enabled sources in user-defined order.
@@ -277,7 +216,7 @@ export function useLyrics(currentTrack: Track | null): UseLyricsResult {
     })();
 
     return () => { cancelled = true; };
-  }, [cacheKey, currentTrack?.id, lyricsSources, ownerServerId, ownerServerKey, youLyPlusEnabled]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [cacheKey, currentTrack?.id, lyricsSources, ownerServerId, ownerServerKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return { syncedLines, wordLines, plainLyrics, source, loading, notFound };
 }

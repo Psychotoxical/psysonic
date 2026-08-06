@@ -64,7 +64,6 @@ export const player = {
   lyricsSourceServer: 'Источник: Сервер',
   lyricsSourceLrclib: 'Источник: LRCLIB',
   lyricsSourceNetease: 'Источник: Netease',
-  lyricsSourceLyricsplus: 'Источник: YouLyPlus',
   fsLyricsToggle: 'Текст в полноэкранном режиме',
   showDuration: 'Показать длительность',
   showRemainingTime: 'Показать оставшееся время',
