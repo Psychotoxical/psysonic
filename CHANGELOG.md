@@ -138,6 +138,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Home, Albums, Artists, New Releases, Lossless Albums and Search reuse bounded local results instead of repeating large scoped reads while routes mount, paginate or restore their session.
 * Browse pages coordinate cover traffic and background catalogue work more carefully, so the first useful content appears before non-visible enrichment and prefetch work.
 
+### Navidrome canonical IDs — migrate existing libraries safely
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1393](https://github.com/Psychotoxical/psysonic/pull/1393)**
+
+* When a Navidrome server switches artist, album, track and music-folder IDs to its canonical format, Psysonic detects the live server behaviour and pauses sync behind a visible migration screen instead of creating duplicate library rows or broken references.
+* The migration preserves playback queues, offline files, Device Sync sources, music-folder selections and playlist folders, while derived caches rebuild with the new IDs. Interrupted work resumes safely, and errors remain retryable without exposing a half-migrated library.
+
 ## Fixed
 
 ### Cross-server ownership — IDs no longer collide or drift to the active server
