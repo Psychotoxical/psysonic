@@ -25,13 +25,13 @@ use super::super::engine::PlaybackHttpHeaders;
 use super::super::state::PreloadedTrack;
 use super::{
     AnalysisSeedHoldGuard, RADIO_YIELD_MS, TRACK_READ_TIMEOUT_SECS, TRACK_STREAM_MAX_RECONNECTS,
-    TRACK_STREAM_PROMOTE_MAX_BYTES,
+    TRACK_STREAM_PROMOTE_MAX_BYTES, StreamDownloadControl,
 };
 use crate::analysis_dispatch::{
     analysis_priority_for_app, dispatch_track_analysis_bytes, resolve_server_id_for_app,
     spawn_track_analysis_file, TrackAnalysisDispatchOptions, TrackAnalysisOrigin,
 };
-use crate::helpers::{install_stream_completed_spill, write_stream_spill_file};
+use crate::helpers::{install_stream_completed_spill_if, write_stream_spill_file};
 use crate::state::StreamCompletedSpill;
 
 /// Minimum bytes fetched per on-demand Range request. A seek often triggers a
@@ -606,7 +606,7 @@ pub(crate) async fn ranged_download_task(
     initial_response: reqwest::Response,
     buf: Arc<Mutex<Vec<u8>>>,
     downloaded_to: Arc<AtomicUsize>,
-    done: Arc<AtomicBool>,
+    download_control: Arc<StreamDownloadControl>,
     promote_cache_slot: Arc<Mutex<Option<PreloadedTrack>>>,
     spill_cache_slot: Arc<Mutex<Option<StreamCompletedSpill>>>,
     normalization_engine: Arc<AtomicU32>,
@@ -625,6 +625,7 @@ pub(crate) async fn ranged_download_task(
     tail_ready: Arc<AtomicBool>,
     tail_filled_from: Arc<AtomicU64>,
 ) {
+    let done = download_control.done.clone();
     let total_size = buf.lock().unwrap().len();
     let dl_started = Instant::now();
     let mut last_partial_loudness_emit = Instant::now() - Duration::from_secs(5);
@@ -737,6 +738,9 @@ pub(crate) async fn ranged_download_task(
     if matches!(outcome, RangedHttpLoopOutcome::Superseded) {
         return;
     }
+    if download_control.fallback_succeeded() {
+        return;
+    }
 
     if downloaded < total_size {
         crate::app_eprintln!(
@@ -746,6 +750,8 @@ pub(crate) async fn ranged_download_task(
             dl_started.elapsed().as_secs_f64(),
             cache_track_id
         );
+        download_control.mark_ended_without_reusable_bytes();
+        return;
     } else {
         crate::app_deprintln!(
             "[stream] dl done: {} / {} bytes in {:.2}s",
@@ -757,7 +763,7 @@ pub(crate) async fn ranged_download_task(
 
     if downloaded == total_size && total_size > 0 {
         if total_size <= TRACK_STREAM_PROMOTE_MAX_BYTES {
-            if super::container_hint_is_mp4(format_hint.as_deref()) {
+            let invalid_mp4 = if super::container_hint_is_mp4(format_hint.as_deref()) {
                 let guard = buf.lock().unwrap();
                 if !super::isobmff_buffer_looks_complete(&guard) {
                     super::log_isobmff_buffer_diagnostic(
@@ -765,13 +771,23 @@ pub(crate) async fn ranged_download_task(
                         format_hint.as_deref(),
                         "ranged-dl-complete-incomplete",
                     );
+                    true
                 } else if super::mp4_suspect_zero_holes(&guard) {
                     super::log_isobmff_buffer_diagnostic(
                         &guard,
                         format_hint.as_deref(),
                         "ranged-dl-complete-zero-holes",
                     );
+                    true
+                } else {
+                    false
                 }
+            } else {
+                false
+            };
+            if invalid_mp4 {
+                download_control.mark_ended_without_reusable_bytes();
+                return;
             }
             if let Some(ref tid) = cache_track_id {
                 crate::app_deprintln!(
@@ -789,7 +805,20 @@ pub(crate) async fn ranged_download_task(
                     t_clone.elapsed().as_millis()
                 );
             }
-            if let Some(track_id) = cache_track_id {
+            let analysis_input = cache_track_id.clone().map(|track_id| (track_id, data.clone()));
+            {
+                let mut slot = promote_cache_slot.lock().unwrap();
+                if gen_arc.load(Ordering::SeqCst) != gen
+                    || download_control.fallback_succeeded()
+                {
+                    return;
+                }
+                *slot = Some(PreloadedTrack { url: url.clone(), data });
+            }
+            crate::app_deprintln!("[stream] promoted to stream_completed_cache for replay");
+            if let Some((track_id, analysis_data)) = analysis_input
+                .filter(|_| download_control.claim_downloader_analysis())
+            {
                 let sid = resolve_server_id_for_app(&app, server_id.as_deref());
                 let priority = analysis_priority_for_app(&app, &sid, &track_id, None);
                 let guard = (gen, gen_arc.clone());
@@ -798,7 +827,7 @@ pub(crate) async fn ranged_download_task(
                     TrackAnalysisOrigin::StreamDownloadComplete,
                     &sid,
                     &track_id,
-                    data.clone(),
+                    analysis_data,
                     Some(&url),
                     TrackAnalysisDispatchOptions {
                         priority,
@@ -813,11 +842,6 @@ pub(crate) async fn ranged_download_task(
                     }
                 }
             }
-            if gen_arc.load(Ordering::SeqCst) != gen {
-                return;
-            }
-            *promote_cache_slot.lock().unwrap() = Some(PreloadedTrack { url, data });
-            crate::app_deprintln!("[stream] promoted to stream_completed_cache for replay");
         } else if let Some(track_id) = cache_track_id.clone() {
             if gen_arc.load(Ordering::SeqCst) != gen {
                 return;
@@ -827,7 +851,11 @@ pub(crate) async fn ranged_download_task(
                 if gen_arc.load(Ordering::SeqCst) != gen {
                     return;
                 }
-                write_stream_spill_file(&app, &track_id, &spill_bytes)
+                write_stream_spill_file(
+                    &app,
+                    &format!("{track_id}-ranged-{gen}"),
+                    &spill_bytes,
+                )
             };
             match spill_result {
                 Ok(path) => {
@@ -842,19 +870,31 @@ pub(crate) async fn ranged_download_task(
                         return;
                     }
                     let spill_stream_url = url.clone();
-                    install_stream_completed_spill(&spill_cache_slot, url, path.clone());
+                    if !install_stream_completed_spill_if(
+                        &spill_cache_slot,
+                        url,
+                        path.clone(),
+                        || {
+                            gen_arc.load(Ordering::SeqCst) == gen
+                                && !download_control.fallback_succeeded()
+                        },
+                    ) {
+                        return;
+                    }
                     let sid = resolve_server_id_for_app(&app, server_id.as_deref());
                     let priority = analysis_priority_for_app(&app, &sid, &track_id, None);
-                    spawn_track_analysis_file(
-                        app.clone(),
-                        TrackAnalysisOrigin::StreamSpillFile,
-                        sid,
-                        track_id,
-                        path,
-                        Some(spill_stream_url), // spilled HTTP bytes keep stream provenance
-                        priority,
-                        Some((gen, gen_arc.clone())),
-                    );
+                    if download_control.claim_downloader_analysis() {
+                        spawn_track_analysis_file(
+                            app.clone(),
+                            TrackAnalysisOrigin::StreamSpillFile,
+                            sid,
+                            track_id,
+                            path,
+                            Some(spill_stream_url), // spilled HTTP bytes keep stream provenance
+                            priority,
+                            Some((gen, gen_arc.clone())),
+                        );
+                    }
                 }
                 Err(e) => {
                     crate::app_eprintln!(
@@ -862,8 +902,11 @@ pub(crate) async fn ranged_download_task(
                         track_id,
                         e
                     );
+                    download_control.mark_ended_without_reusable_bytes();
                 }
             }
+        } else {
+            download_control.mark_ended_without_reusable_bytes();
         }
     }
 }

@@ -101,6 +101,7 @@ fn resolve_cached_play_input(engine: &AudioEngine, url: &str) -> Option<PlayInpu
             reader: Box::new(LocalFileSource { file, len }),
             format_hint: url_format_hint(url),
             tag: "LocalFile[hi-res-blend]",
+            download_control: None,
             random_access: true,
             mp4_probe_gate: None,
         });

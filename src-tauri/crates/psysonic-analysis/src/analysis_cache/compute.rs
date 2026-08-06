@@ -327,6 +327,12 @@ fn format_hint_from_bytes(bytes: &[u8]) -> Option<String> {
     if bytes.len() >= 12 && bytes[0..4] == *b"RIFF" && bytes[8..12] == *b"WAVE" {
         return Some("wav".into());
     }
+    if bytes.len() >= 12
+        && bytes[0..4] == *b"FORM"
+        && (bytes[8..12] == *b"AIFF" || bytes[8..12] == *b"AIFC")
+    {
+        return Some("aiff".into());
+    }
     let scan = bytes.len().min(4096).saturating_sub(4);
     for i in 0..=scan {
         if bytes[i..i + 4] == *b"ftyp" {
@@ -954,6 +960,28 @@ mod tests {
         out
     }
 
+    fn build_mono_pcm16_aiff(samples: &[i16]) -> Vec<u8> {
+        let data_size = (samples.len() * 2) as u32;
+        let form_size = 4 + (8 + 18) + (8 + 8 + data_size);
+        let mut out = Vec::with_capacity((form_size + 8) as usize);
+        out.extend_from_slice(b"FORM");
+        out.extend_from_slice(&form_size.to_be_bytes());
+        out.extend_from_slice(b"AIFFCOMM");
+        out.extend_from_slice(&18u32.to_be_bytes());
+        out.extend_from_slice(&1u16.to_be_bytes());
+        out.extend_from_slice(&(samples.len() as u32).to_be_bytes());
+        out.extend_from_slice(&16u16.to_be_bytes());
+        out.extend_from_slice(&[0x40, 0x0e, 0xac, 0x44, 0, 0, 0, 0, 0, 0]);
+        out.extend_from_slice(b"SSND");
+        out.extend_from_slice(&(8 + data_size).to_be_bytes());
+        out.extend_from_slice(&0u32.to_be_bytes());
+        out.extend_from_slice(&0u32.to_be_bytes());
+        for sample in samples {
+            out.extend_from_slice(&sample.to_be_bytes());
+        }
+        out
+    }
+
     /// Generate a 1-second 440 Hz sine wave at -6 dBFS as a Vec<i16>.
     fn sine_440_at_minus_6db(sample_rate: u32, secs: f32) -> Vec<i16> {
         let n = (sample_rate as f32 * secs) as usize;
@@ -977,6 +1005,16 @@ mod tests {
             (43_900..=44_300).contains(&frames),
             "expected ~44100 frames, got {frames}"
         );
+    }
+
+    #[test]
+    fn count_mono_frames_decodes_synthetic_aiff_without_external_hint() {
+        let aiff = build_mono_pcm16_aiff(&sine_440_at_minus_6db(44_100, 1.0));
+        assert_eq!(format_hint_from_bytes(&aiff), Some("aiff".into()));
+        let (frames, hint) =
+            count_mono_frames_from_audio_bytes(&aiff, None).expect("AIFF decode must succeed");
+        assert!((43_900..=44_300).contains(&frames), "expected ~44100 frames, got {frames}");
+        assert_eq!(hint, Some(44_100));
     }
 
     #[test]

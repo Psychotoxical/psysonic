@@ -17,6 +17,7 @@ mod ranged_http;
 mod reader;
 mod track_stream;
 
+use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
 use std::sync::{Arc, Mutex};
 
 pub(crate) use mp4::{
@@ -40,6 +41,13 @@ pub(crate) fn container_hint_is_ogg(hint: Option<&str>) -> bool {
         "ogg" | "oga" | "ogx" | "opus" | "spx"
     )
 }
+
+/// AIFF permits chunks in any order. Symphonia must keep seekability during
+/// probing so it can scan past `SSND`, find `COMM`, then return to the audio.
+pub(crate) fn container_hint_is_aiff(hint: Option<&str>) -> bool {
+    let Some(h) = hint else { return false };
+    matches!(h.to_ascii_lowercase().as_str(), "aiff" | "aif" | "aifc")
+}
 pub(crate) use local_file::LocalFileSource;
 pub(crate) use radio::{RadioLiveState, RadioSharedFlags, radio_download_task};
 pub(crate) use ranged_http::{OnDemand, RangedHttpSource, ranged_download_task};
@@ -47,6 +55,61 @@ pub(crate) use reader::AudioStreamReader;
 pub(crate) use track_stream::track_download_task;
 
 pub(crate) type AnalysisSeedHold = Arc<Mutex<Option<(String, u64)>>>;
+
+/// Shared ownership state between an HTTP downloader and a full-buffer fallback.
+pub(crate) struct StreamDownloadControl {
+    pub(crate) done: Arc<AtomicBool>,
+    analysis_owner: AtomicU8,
+    fallback_succeeded: AtomicBool,
+    ended_without_reusable_bytes: AtomicBool,
+}
+
+impl StreamDownloadControl {
+    pub(crate) fn new() -> Arc<Self> {
+        Arc::new(Self {
+            done: Arc::new(AtomicBool::new(false)),
+            analysis_owner: AtomicU8::new(0),
+            fallback_succeeded: AtomicBool::new(false),
+            ended_without_reusable_bytes: AtomicBool::new(false),
+        })
+    }
+
+    pub(crate) fn claim_downloader_analysis(&self) -> bool {
+        self.analysis_owner
+            .compare_exchange(0, 1, Ordering::SeqCst, Ordering::SeqCst)
+            .is_ok()
+    }
+
+    pub(crate) fn mark_fallback_succeeded(&self) {
+        self.fallback_succeeded.store(true, Ordering::SeqCst);
+    }
+
+    pub(crate) fn request_fallback_analysis(&self) {
+        let _ = self
+            .analysis_owner
+            .compare_exchange(0, 2, Ordering::SeqCst, Ordering::SeqCst);
+    }
+
+    pub(crate) fn claim_fallback_analysis(&self) -> bool {
+        self.analysis_owner
+            .compare_exchange(2, 3, Ordering::SeqCst, Ordering::SeqCst)
+            .is_ok()
+    }
+
+    pub(crate) fn fallback_succeeded(&self) -> bool {
+        self.fallback_succeeded.load(Ordering::SeqCst)
+    }
+
+    pub(crate) fn mark_ended_without_reusable_bytes(&self) {
+        self.ended_without_reusable_bytes
+            .store(true, Ordering::SeqCst);
+        self.done.store(true, Ordering::SeqCst);
+    }
+
+    pub(crate) fn ended_without_reusable_bytes(&self) -> bool {
+        self.ended_without_reusable_bytes.load(Ordering::SeqCst)
+    }
+}
 
 /// Keeps HTTP backfill from downloading the same original while a playback
 /// stream is already collecting bytes that will seed analysis on completion.
@@ -185,6 +248,48 @@ pub(crate) async fn wait_for_ranged_mp4_probe_ready(gate: &RangedMp4ProbeGate) -
 
 /// Sleep interval when ring buffer is empty (prevents CPU spin).
 pub(crate) const RADIO_YIELD_MS: u64 = 2;
+
+#[cfg(test)]
+mod container_hint_tests {
+    use super::*;
+
+    #[test]
+    fn recognises_all_aiff_extensions() {
+        assert!(container_hint_is_aiff(Some("AIFF")));
+        assert!(container_hint_is_aiff(Some("aif")));
+        assert!(container_hint_is_aiff(Some("aifc")));
+        assert!(!container_hint_is_aiff(Some("wav")));
+    }
+}
+
+#[cfg(test)]
+mod stream_download_control_tests {
+    use super::*;
+
+    #[test]
+    fn analysis_has_one_owner_and_fallback_state_is_shared() {
+        let control = StreamDownloadControl::new();
+        control.request_fallback_analysis();
+        assert!(!control.claim_downloader_analysis());
+        assert!(control.claim_fallback_analysis());
+        assert!(!control.claim_fallback_analysis());
+        assert!(!control.fallback_succeeded());
+        assert!(!control.ended_without_reusable_bytes());
+        control.mark_fallback_succeeded();
+        assert!(control.fallback_succeeded());
+        control.mark_ended_without_reusable_bytes();
+        assert!(control.ended_without_reusable_bytes());
+        assert!(control.done.load(Ordering::SeqCst));
+    }
+
+    #[test]
+    fn downloader_claim_prevents_late_fallback_claim() {
+        let control = StreamDownloadControl::new();
+        assert!(control.claim_downloader_analysis());
+        control.request_fallback_analysis();
+        assert!(!control.claim_fallback_analysis());
+    }
+}
 
 #[cfg(test)]
 mod analysis_seed_hold_tests {

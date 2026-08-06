@@ -244,6 +244,9 @@ pub(crate) struct SizedDecoder {
 impl SizedDecoder {
     pub(crate) fn new(data: Vec<u8>, format_hint: Option<&str>, hi_res: bool) -> Result<Self, String> {
         let data_len = data.len() as u64;
+        let sniffed_hint = crate::helpers::sniff_stream_format_extension(&data);
+        let format_hint = format_hint.or(sniffed_hint.as_deref());
+        let gate_hint = sniffed_hint.as_deref().or(format_hint);
         let source = SizedCursorSource {
             inner: Cursor::new(data),
             len: data_len,
@@ -252,12 +255,13 @@ impl SizedDecoder {
         // seekability during probe (same as `new_streaming`) so preview does not
         // read the entire in-memory file before the first sample.
         //
-        // Exception: Ogg (Vorbis/Opus/…) must stay seekable through the probe,
-        // otherwise its demuxer never records `phys_byte_range_end` and the first
-        // seek panics (see `container_hint_is_ogg`). This source is fully
-        // in-memory, so the trailing-metadata scan it re-enables is free.
-        let gate_needed = !crate::stream::container_hint_is_mp4(format_hint)
-            && !crate::stream::container_hint_is_ogg(format_hint);
+        // Exception: Ogg (Vorbis/Opus/…) and AIFF must stay seekable through the
+        // probe. Ogg records its physical byte range there; AIFF permits `SSND`
+        // before `COMM` and must scan then seek back. This source is fully
+        // in-memory, so the trailing scan these exceptions enable is free.
+        let gate_needed = !crate::stream::container_hint_is_mp4(gate_hint)
+            && !crate::stream::container_hint_is_ogg(gate_hint)
+            && !crate::stream::container_hint_is_aiff(gate_hint);
         let probe_seek_gate = gate_needed.then(|| Arc::new(AtomicBool::new(false)));
         let media: Box<dyn MediaSource> = match &probe_seek_gate {
             Some(gate) => Box::new(ProbeSeekGate {
@@ -420,17 +424,17 @@ impl SizedDecoder {
         // MP4 keeps seekability (its demuxer needs it to find `moov`; tail is
         // prefetched separately).
         //
-        // Ogg also keeps seekability through the probe, but only on random-access
-        // sources: its demuxer records `phys_byte_range_end` during the probe and
-        // panics on the first seek otherwise (see `container_hint_is_ogg`). On a
-        // local file the stream-end scan is cheap; on a progressive ranged stream
-        // it would force a full download, so there we keep the gate and accept
-        // that seeking is a no-op (the panic itself is contained in `try_seek`).
+        // Ogg and AIFF also keep seekability through the probe on random-access
+        // sources. Ogg records its physical byte range there; AIFF may need to
+        // scan past `SSND` to find `COMM`, then seek back. Local files, Hot Cache,
+        // and ranged sources with on-demand fetches all make those seeks cheap.
+        // Legacy non-seekable AIFF retries from completed full-buffer bytes.
         let stream_len = media.byte_len();
-        let ogg_needs_seekable_probe =
-            source_random_access && crate::stream::container_hint_is_ogg(format_hint);
+        let random_access_needs_seekable_probe = source_random_access
+            && (crate::stream::container_hint_is_ogg(format_hint)
+                || crate::stream::container_hint_is_aiff(format_hint));
         let gate_needed = !crate::stream::container_hint_is_mp4(format_hint)
-            && !ogg_needs_seekable_probe;
+            && !random_access_needs_seekable_probe;
         let probe_seek_gate = gate_needed.then(|| Arc::new(AtomicBool::new(false)));
         let media: Box<dyn MediaSource> = match &probe_seek_gate {
             Some(gate) => Box::new(ProbeSeekGate { inner: media, seekable: gate.clone() }),
@@ -1132,6 +1136,57 @@ mod tests {
         build_mono_pcm16_wav(&samples, sample_rate)
     }
 
+    fn build_mono_pcm16_aiff(
+        samples: &[i16],
+        form: &[u8; 4],
+        sound_before_common: bool,
+    ) -> Vec<u8> {
+        let data_size = (samples.len() * 2) as u32;
+        let mut common = Vec::with_capacity(if form == b"AIFC" { 24 } else { 18 });
+        common.extend_from_slice(&1u16.to_be_bytes());
+        common.extend_from_slice(&(samples.len() as u32).to_be_bytes());
+        common.extend_from_slice(&16u16.to_be_bytes());
+        common.extend_from_slice(&[0x40, 0x0e, 0xac, 0x44, 0, 0, 0, 0, 0, 0]);
+        if form == b"AIFC" {
+            common.extend_from_slice(b"NONE");
+            common.extend_from_slice(&[0, 0]);
+        }
+
+        let mut sound = Vec::with_capacity((8 + data_size) as usize);
+        sound.extend_from_slice(&0u32.to_be_bytes());
+        sound.extend_from_slice(&0u32.to_be_bytes());
+        for sample in samples {
+            sound.extend_from_slice(&sample.to_be_bytes());
+        }
+
+        let mut body = Vec::new();
+        body.extend_from_slice(form);
+        let mut append_chunk = |id: &[u8; 4], data: &[u8]| {
+            body.extend_from_slice(id);
+            body.extend_from_slice(&(data.len() as u32).to_be_bytes());
+            body.extend_from_slice(data);
+            if !data.len().is_multiple_of(2) {
+                body.push(0);
+            }
+        };
+        if form == b"AIFC" {
+            append_chunk(b"FVER", &0xa280_5140u32.to_be_bytes());
+        }
+        if sound_before_common {
+            append_chunk(b"SSND", &sound);
+            append_chunk(b"COMM", &common);
+        } else {
+            append_chunk(b"COMM", &common);
+            append_chunk(b"SSND", &sound);
+        }
+
+        let mut out = Vec::with_capacity(body.len() + 8);
+        out.extend_from_slice(b"FORM");
+        out.extend_from_slice(&(body.len() as u32).to_be_bytes());
+        out.extend_from_slice(&body);
+        out
+    }
+
     #[test]
     fn sized_decoder_constructs_from_synthetic_wav() {
         let wav = synthetic_wav_bytes(0.5);
@@ -1169,6 +1224,52 @@ mod tests {
         assert_eq!(decoder.spec.channels().count(), 1);
         // Live streams report no total duration.
         assert!(decoder.total_duration.is_none());
+    }
+
+    #[test]
+    fn new_streaming_decodes_synthetic_aiff() {
+        let aiff = build_mono_pcm16_aiff(&[16_384; 64], b"AIFF", false);
+        let mut decoder =
+            SizedDecoder::new_streaming(seekable_source(aiff), Some("aiff"), "test-stream", true)
+                .expect("streaming AIFF decode setup");
+        assert_eq!(decoder.spec.rate(), 44_100);
+        assert_eq!(decoder.spec.channels().count(), 1);
+        let sample = decoder.next().expect("AIFF should yield decoded PCM");
+        assert!((sample - 0.5).abs() < 0.01, "decoded sample was {sample}");
+    }
+
+    #[test]
+    fn random_access_stream_decodes_aiff_with_sound_before_common() {
+        let aiff = build_mono_pcm16_aiff(&[16_384; 64], b"AIFF", true);
+        let mut decoder =
+            SizedDecoder::new_streaming(seekable_source(aiff), Some("aif"), "hot-cache", true)
+                .expect("seekable AIFF should allow chunks in either order");
+        assert!(decoder.next().is_some());
+    }
+
+    #[test]
+    fn hintless_sized_decoder_decodes_aiff_with_sound_before_common() {
+        let aiff = build_mono_pcm16_aiff(&[16_384; 64], b"AIFF", true);
+        let mut decoder = SizedDecoder::new(aiff, None, false)
+            .expect("hintless in-memory AIFF should be sniffed before the seek gate");
+        assert!(decoder.next().is_some());
+    }
+
+    #[test]
+    fn misleading_hint_does_not_hide_seekability_for_sniffed_aiff() {
+        let aiff = build_mono_pcm16_aiff(&[16_384; 64], b"AIFF", true);
+        let mut decoder = SizedDecoder::new(aiff, Some("view"), false)
+            .expect("AIFF magic should control the seek gate despite a misleading URL tail");
+        assert!(decoder.next().is_some());
+    }
+
+    #[test]
+    fn sized_decoder_decodes_uncompressed_aifc() {
+        let aifc = build_mono_pcm16_aiff(&[16_384; 64], b"AIFC", false);
+        let mut decoder =
+            SizedDecoder::new(aifc, Some("aifc"), false).expect("AIFC decode setup");
+        let sample = decoder.next().expect("AIFC should yield decoded PCM");
+        assert!((sample - 0.5).abs() < 0.01, "decoded sample was {sample}");
     }
 
     #[test]

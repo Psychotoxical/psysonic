@@ -780,9 +780,7 @@ pub async fn audio_chain_preload(
     // Always 0 unless hi-res gapless blend resampling is active.
     let blend_rate = hi_res_blend::blend_rate_hz(hi_res_enabled, hi_res_enabled, hi_res_crossfade_resample_hz);
     let target_rate: u32 = blend_rate.unwrap_or(0);
-    let format_hint = url.rsplit('.').next()
-        .and_then(|ext| ext.split('?').next())
-        .map(|s| s.to_lowercase());
+    let format_hint = url_format_hint(&url);
     let built = build_source(
         (*raw_bytes).clone(),
         duration_hint,

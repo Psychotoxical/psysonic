@@ -227,7 +227,8 @@ async fn open_preview_decoder(
         );
         let buf = Arc::new(Mutex::new(vec![0u8; total_usize]));
         let downloaded_to = Arc::new(AtomicUsize::new(0));
-        let done = Arc::new(AtomicBool::new(false));
+        let download_control = super::stream::StreamDownloadControl::new();
+        let done = download_control.done.clone();
         let playback_armed = Arc::new(AtomicBool::new(false));
         let tail_ready = Arc::new(AtomicBool::new(false));
         let tail_filled_from = Arc::new(AtomicU64::new(0));
@@ -250,7 +251,7 @@ async fn open_preview_decoder(
             response,
             buf.clone(),
             downloaded_to.clone(),
-            done.clone(),
+            download_control,
             state.stream_completed_cache.clone(),
             state.stream_completed_spill.clone(),
             state.normalization_engine.clone(),
