@@ -248,20 +248,6 @@ pub(crate) struct SizedDecoder {
     consecutive_decode_errors: usize,
 }
 
-/// How far a failed seek got, and therefore what the source state owes the
-/// layers that only follow on success (`CountingSource`, `transport_commands`).
-#[derive(Debug, PartialEq, Eq)]
-enum SeekFailureDisposition {
-    /// The demuxer never moved: the previous position is still the truth.
-    NoOp,
-    /// The demuxer landed on the requested packet and only the fine-positioning
-    /// inside it was lost. Report success so every layer commits to one position.
-    CommitToTarget,
-    /// The demuxer moved but a contained panic left its state undefined. Drop the
-    /// stale buffer and report the failure — this source is not a valid position.
-    Abort,
-}
-
 /// Codecs whose encoder delay and end padding live in container metadata that
 /// Symphonia parses and can apply itself.
 ///
@@ -784,8 +770,12 @@ impl SizedDecoder {
         if !buffer.is_empty() || superseded.is_some_and(|guard| guard.is_superseded()) {
             return Ok((spec, buffer));
         }
+        // The wording is load-bearing: `is_stream_probe_failure_with_full_buffer_retry`
+        // (`source_build.rs`) matches on "end of stream" to decide whether a ranged
+        // start may wait for the full download and retry from bytes. A message that
+        // misses it turns a recoverable partial stream into a hard playback error.
         Err(format!(
-            "{source_tag}: {reason} before any audio could be decoded"
+            "{source_tag}: end of stream before any audio could be decoded ({reason})"
         ))
     }
 
@@ -806,24 +796,6 @@ impl SizedDecoder {
     /// `build_source` uses it to skip its manual `iTunSMPB` trim (no double-trim).
     pub(crate) fn applies_builtin_gapless(&self) -> bool {
         self.builtin_gapless
-    }
-
-    /// What a failed seek owes the layers above it.
-    ///
-    /// Split out for the same reason as `refined_offset_frames`: the interesting
-    /// case cannot be produced through a fixture. Measured on `lame_sine_22050`
-    /// with a reader that fails on demand — a failure before the demuxer's own
-    /// seek reads leaves it in place (true no-op), and granting it a single read
-    /// pulls the whole 4.6 KB file into the `MediaSourceStream` buffer, after
-    /// which refinement needs no I/O at all and cannot fail. There is no fixture
-    /// window between the two, so the decision is tested here and the wiring to it
-    /// is stated as uncovered rather than papered over.
-    fn seek_failure_disposition(demuxer_moved: bool, panicked: bool) -> SeekFailureDisposition {
-        match (demuxer_moved, panicked) {
-            (false, _) => SeekFailureDisposition::NoOp,
-            (true, false) => SeekFailureDisposition::CommitToTarget,
-            (true, true) => SeekFailureDisposition::Abort,
-        }
     }
 
     /// Frames to skip inside the buffer that was actually decoded.
@@ -1082,20 +1054,11 @@ impl Source for SizedDecoder {
         // reads in `refine_position`, which can hit the same broken demuxer state —
         // and surface it as a recoverable `SeekError` so the engine stays alive
         // (the seek becomes a no-op rather than killing playback).
-        // Set once the demuxer has actually moved, and read again after the unwind.
-        // Everything above this point is a true no-op on failure; everything after
-        // it leaves the source at the new position, and the layers outside only
-        // follow on success — `CountingSource::try_seek` updates its counter on
-        // `Ok`, `transport_commands` returns before touching `seek_offset` on
-        // `Err`. Without this distinction a failure after the demuxer moved would
-        // report "nothing happened" while playback continued somewhere else.
-        let demuxer_moved = AtomicBool::new(false);
         let seek_outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             let seek_res = self
                 .format
                 .seek(SeekMode::Accurate, SeekTo::Time { time, track_id: None })
                 .map_err(|e| e.to_string())?;
-            demuxer_moved.store(true, Ordering::Relaxed);
             // Symphonia requires this: "A decoder must be reset when the next packet
             // is discontinuous with respect to the last decoded packet. Most notably,
             // this occurs after a seek." For MP3 the carried-over state is the bit
@@ -1107,44 +1070,26 @@ impl Source for SizedDecoder {
             Ok::<(), String>(())
         }));
 
-        let (failure, panicked) = match seek_outcome {
+        // A failure after `format.seek` has already moved the demuxer leaves the
+        // source at the new position while `CountingSource` and
+        // `transport_commands` keep the old one — they only update on `Ok`. That
+        // split is pre-existing and unchanged here: a fix for it was built and
+        // withdrawn in review, because committing to the target left the buffer
+        // empty and `current_span_len()` then reports `Some(0)`, which is the
+        // silent-source failure this whole change exists to remove. It needs its
+        // own pass, not a correction inside a seam fix.
+        match seek_outcome {
             Ok(Ok(())) => {
                 self.current_frame_offset += to_skip;
-                return Ok(());
+                Ok(())
             }
-            Ok(Err(e)) => (e, false),
-            Err(_panic) => ("seek panicked inside the demuxer (contained)".to_string(), true),
-        };
-
-        // A contained demuxer panic leaves symphonia's internal state undefined —
-        // that source is not trustworthy enough to report as a landed position,
-        // even though it has moved. Refinement failing on its own is different:
-        // the demuxer sits at the requested packet and only the fine-positioning
-        // inside it was lost, at most one packet (~26 ms) of error. Committing to
-        // that is what keeps the counter, the transport timestamp and the audio on
-        // one position; reporting failure would strand them on three.
-        match Self::seek_failure_disposition(demuxer_moved.load(Ordering::Relaxed), panicked) {
-            SeekFailureDisposition::NoOp => {}
-            // The stale buffer holds audio decoded *before* the seek. Once the
-            // demuxer has moved, replaying it would emit the old position as if
-            // the seek had landed there, so it goes in both moved cases.
-            SeekFailureDisposition::CommitToTarget => {
-                self.buffer.clear();
-                self.current_frame_offset = 0;
-                crate::app_eprintln!(
-                    "[psysonic] seek refinement failed after the demuxer moved, committing to the target: {failure}"
-                );
-                return Ok(());
-            }
-            SeekFailureDisposition::Abort => {
-                self.buffer.clear();
-                self.current_frame_offset = 0;
-            }
+            Ok(Err(e)) => Err(rodio::source::SeekError::Other(std::sync::Arc::new(
+                std::io::Error::other(e),
+            ))),
+            Err(_panic) => Err(rodio::source::SeekError::Other(std::sync::Arc::new(
+                std::io::Error::other("seek panicked inside the demuxer (contained)"),
+            ))),
         }
-
-        Err(rodio::source::SeekError::Other(std::sync::Arc::new(
-            std::io::Error::other(failure),
-        )))
     }
 }
 

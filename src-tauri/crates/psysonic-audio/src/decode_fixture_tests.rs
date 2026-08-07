@@ -596,6 +596,15 @@ fn a_superseded_read_ends_quietly_while_a_truncated_one_is_an_error() {
         err.contains("before any audio could be decoded"),
         "expected the end-of-media arm, got: {err}"
     );
+    // A ranged start that dies before the first decodable packet is recoverable:
+    // `is_stream_probe_failure_with_full_buffer_retry` (`source_build.rs`) waits
+    // for the full download and retries from bytes — but it decides on the message
+    // text, and only "end of stream" reaches it from here. Dropping the token turns
+    // a retryable stream into a hard playback error.
+    assert!(
+        err.contains("end of stream"),
+        "the message must keep the token the full-buffer retry matches on, got: {err}"
+    );
 }
 
 #[test]
@@ -716,25 +725,14 @@ fn a_read_failure_before_the_demuxer_moves_stays_a_true_no_op() {
     assert!(!ok, "a seek that never moved the demuxer must report failure");
     assert_eq!(before, after, "a no-op seek must leave the decoded buffer alone");
 
-    // The gegenprobe, and the reason the interesting branch has no fixture test:
-    // granting a single read pulls the whole 4.6 KB fixture into the
-    // MediaSourceStream buffer, so refinement reads nothing further and cannot
-    // fail. Between "seek fails" and "everything succeeds" there is no window.
+    // The counter-check: granting a single read pulls the whole 4.6 KB fixture
+    // into the MediaSourceStream buffer, so refinement reads nothing further and
+    // cannot fail. Between "seek fails" and "everything succeeds" there is no
+    // window — which is why a failure *after* the demuxer moved has no fixture
+    // test, and is left alone here rather than fixed blind.
     let (ok, _, after) = seek_with_read_failure_after(1);
     assert!(ok, "one granted read must let the whole seek through");
     assert_eq!(after, 1152, "a landed seek installs a freshly decoded packet");
-}
-
-#[test]
-fn seek_failure_disposition_follows_how_far_the_seek_got() {
-    use SeekFailureDisposition::*;
-    // Nothing moved — including a panic raised before the demuxer seek returned.
-    assert_eq!(SizedDecoder::seek_failure_disposition(false, false), NoOp);
-    assert_eq!(SizedDecoder::seek_failure_disposition(false, true), NoOp);
-    // Moved, refinement lost: commit, so counter/timestamp/audio share a position.
-    assert_eq!(SizedDecoder::seek_failure_disposition(true, false), CommitToTarget);
-    // Moved, but symphonia's state is undefined after a contained panic.
-    assert_eq!(SizedDecoder::seek_failure_disposition(true, true), Abort);
 }
 
 #[test]
