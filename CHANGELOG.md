@@ -379,6 +379,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * AIFF, AIF and AIFC tracks now play from servers, local files and playback caches, including files whose metadata appears after their audio data.
 * Servers without byte-range support now fall back to a complete download instead of leaving the track unable to start.
 
+### Internet radio — keep homepage URLs when editing stations
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1397](https://github.com/Psychotoxical/psysonic/pull/1397)**, reported by [@vt100-music](https://github.com/vt100-music)
+
+* Homepage URLs supplied by Navidrome no longer disappear from station cards or the edit form after saving or reloading the station.
+
 ## [1.50.0]
 
 ## Added
