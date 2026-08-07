@@ -633,13 +633,20 @@ impl SizedDecoder {
         // `duration_secs - position()`) would otherwise start the fade against a
         // source that ends ~48 ms earlier and cut it mid-curve. Radio and the
         // non-seekable fallback keep `None`: their frame count cannot be trusted.
+        // A zero frame count is not a duration. Containers report one routinely:
+        // symphonia's MP3 demuxer sets `num_frames(0)` when a Xing header claims
+        // the FRAMES field but leaves it empty, which is what a server-side
+        // transcode writes for a stream it cannot seek. Passing that on would arm
+        // `try_seek`'s `seek_beyond_end` clamp against zero and send every scrub
+        // back to the start.
         let total_duration = source_random_access
             .then(|| {
                 track.time_base.zip(track.num_frames).and_then(|(base, frames)| {
                     Timestamp::try_from(frames).ok().and_then(|ts| base.calc_time(ts))
                 })
             })
-            .flatten();
+            .flatten()
+            .filter(|t| t.as_secs_f64() > 0.0);
         // Same decision as `new`, restricted to random-access sources.
         //
         // `source_random_access` is true for local files *and* for the ranged-HTTP
@@ -805,13 +812,6 @@ impl SizedDecoder {
         self.builtin_gapless
     }
 
-    /// Frames to skip inside the buffer that was actually decoded.
-    ///
-    /// Split out because the retry loop below is hard to drive from a test: a decode
-    /// failure exactly on the seek target depends on how the decoder reacts to a
-    /// specific corruption. The arithmetic is the part the retry changed, so it is
-    /// tested directly.
-    ///
     /// Refine position after a coarse seek — decode packets until we reach the
     /// exact requested timestamp.
     fn refine_position(
@@ -841,9 +841,9 @@ impl SizedDecoder {
             samples_to_pass -= candidate.dur.get();
         };
 
-        // Carried out of the loop because the retry below decodes a *later*
-        // packet, and the offset has to belong to the packet the buffer came from.
-        let mut packet_trim_start = packet.trim_start.get();
+        // Belongs to the packet the buffer came from; a retry decodes a later one
+        // and discards the value, so it is only read on the straight-through path.
+        let packet_trim_start = packet.trim_start.get();
         let mut retried = false;
         let mut decoded = self.decoder.decode(&packet);
         for _ in 0..DECODE_MAX_RETRIES {
@@ -855,7 +855,6 @@ impl SizedDecoder {
                     None => break,
                 };
                 retried = true;
-                packet_trim_start = p.trim_start.get();
                 decoded = self.decoder.decode(&p);
             }
         }
@@ -871,10 +870,17 @@ impl SizedDecoder {
         // A retry lands on a packet the target sits at or before — the selection
         // loop only breaks on a packet longer than what is left to skip — so the
         // remainder is spent and the new packet is entered at its start.
+        //
+        // The subtraction is gated on the decoder actually trimming: the Ogg
+        // demuxer fills `trim_start` with the Opus pre-skip regardless, but with
+        // `gapless(false)` those frames stay in the buffer, and taking them off
+        // the offset would land the seek up to 80 ms early.
         let offset_frames = if retried {
             0
-        } else {
+        } else if self.builtin_gapless {
             samples_to_pass.saturating_sub(packet_trim_start)
+        } else {
+            samples_to_pass
         };
 
         let decoded = decoded.map_err(|e| format!("refine decode: {e}"))?;
@@ -882,32 +888,12 @@ impl SizedDecoder {
         self.buffer = Self::make_buffer(&decoded);
         self.current_frame_offset = offset_frames as usize * self.spec.channels().count();
 
-        // Trimming can empty a packet outright — an MPEG-2 Layer III frame holds
-        // 576 samples, fewer than a typical encoder delay — and an empty buffer
-        // makes `current_span_len()` report `Some(0)`, which rodio's resampling
-        // wrapper reads as end-of-source. Refill, but bounded: this runs on the
-        // output-callback thread, where a read into a not-yet-downloaded region
-        // blocks. Anything beyond these attempts is left to `next()`, which
-        // refills on its own schedule.
-        for _ in 0..DECODE_MAX_RETRIES {
-            if !self.buffer.is_empty() {
-                break;
-            }
-            let Some(packet) = self
-                .format
-                .next_packet()
-                .map_err(|e| format!("refine fill: {e}"))?
-            else {
-                break;
-            };
-            if let Ok(decoded) = self.decoder.decode(&packet) {
-                self.spec = decoded.spec().clone();
-                self.buffer = Self::make_buffer(&decoded);
-                // The offset belonged to the packet that came back empty; this is
-                // a different one and is entered at its start.
-                self.current_frame_offset = 0;
-            }
-        }
+        // A packet that trimming emptied needs no special handling here:
+        // `current_span_len()` reports "unknown" rather than zero for an empty
+        // buffer, so the source is not mistaken for finished, and `next()` reads
+        // past it on its own. Refilling on this thread was tried and removed — it
+        // put a blocking read on rodio's output callback and could still end with
+        // an empty buffer, which is what it existed to prevent.
         Ok(())
     }
 }
@@ -980,6 +966,16 @@ impl Source for SizedDecoder {
         // then pulls that many samples, so a value that shrinks with every
         // consumed sample truncates the span and drops audio — measurably, in
         // three of the fixture tests.
+        //
+        // An empty buffer is "length unknown", not "length zero". Gapless
+        // trimming can empty a packet outright, and `Some(0)` is what rodio's
+        // resampling wrapper reads as end-of-source — the silent track of issue
+        // #1373's own fix. `next()` keeps reading past such a packet, so the
+        // source is not finished; saying so here is what makes that true for
+        // every caller instead of only for the ones that call `next()` first.
+        if self.buffer.is_empty() {
+            return None;
+        }
         Some(self.buffer.len())
     }
 
