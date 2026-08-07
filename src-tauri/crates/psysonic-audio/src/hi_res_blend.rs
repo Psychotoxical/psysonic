@@ -103,6 +103,8 @@ fn resolve_cached_play_input(engine: &AudioEngine, url: &str) -> Option<PlayInpu
             tag: "LocalFile[hi-res-blend]",
             random_access: true,
             mp4_probe_gate: None,
+            // A file on disk cannot be superseded mid-read.
+            superseded: None,
         });
     }
 

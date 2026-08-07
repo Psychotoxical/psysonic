@@ -277,7 +277,7 @@ fn decoded_frames_streaming(
     let len = data.len() as u64;
     let media: Box<dyn MediaSource> =
         Box::new(SizedCursorSource { inner: Cursor::new(data), len });
-    let decoder = SizedDecoder::new_streaming(media, format_hint, "test-stream", random_access)
+    let decoder = SizedDecoder::new_streaming(media, format_hint, "test-stream", random_access, None)
         .expect("fixture must decode as a stream");
 
     let (eq_gains, eq_enabled, eq_pre_gain, playback_rate, done_flag, sample_counter) =
@@ -334,18 +334,26 @@ fn progressive_mp3_stream_keeps_previous_behaviour() {
     );
 }
 
-/// A source that serves `head` bytes and then fails every further read, to model
-/// a range read dying mid-stream rather than a stream ending cleanly.
+/// A source that serves `head` bytes and then stops, to model a range read dying
+/// mid-stream rather than a stream ending cleanly.
+///
+/// `quiet_eof` picks how it stops: `false` is a hard transport error, `true` is
+/// the `Ok(0)` that every on-demand reader returns once its generation moved —
+/// the one the stream layer reaches on a track skip or a preview hover-away.
 struct FailAfterSource {
     inner: Cursor<Vec<u8>>,
     head: u64,
     total: u64,
+    quiet_eof: bool,
 }
 
 impl Read for FailAfterSource {
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
         let pos = self.inner.position();
         if pos >= self.head {
+            if self.quiet_eof {
+                return Ok(0);
+            }
             return Err(std::io::Error::new(
                 std::io::ErrorKind::ConnectionReset,
                 "range read failed",
@@ -391,9 +399,10 @@ fn a_failing_read_is_an_error_not_an_empty_track() {
         inner: Cursor::new(data),
         head,
         total,
+        quiet_eof: false,
     });
 
-    let err = match SizedDecoder::new_streaming(media, Some("mp3"), "test-stream", true) {
+    let err = match SizedDecoder::new_streaming(media, Some("mp3"), "test-stream", true, None) {
         Ok(_) => panic!("a failing read must not construct a decoder"),
         Err(e) => e,
     };
@@ -549,6 +558,183 @@ fn reported_duration_matches_the_frames_actually_delivered() {
         reported_frames, delivered,
         "reported duration is {reported_frames} frames but the source yields {delivered}"
     );
+}
+
+#[test]
+fn a_superseded_read_ends_quietly_while_a_truncated_one_is_an_error() {
+    // Both runs use identical bytes and an identical cut-off. The only variable
+    // is whether the generation moved — which is the point: a reader that has
+    // been superseded answers `Ok(0)`, exactly like a stream that ran out, so
+    // the error kind alone can never tell a skip from a broken file.
+    fn build(guard: Option<crate::stream::GenerationGuard>) -> Result<SizedDecoder, String> {
+        let data = MPEG2_SINE_MP3.to_vec();
+        let total = data.len() as u64;
+        // Past the probe, inside the initialization loop — the fixture's first
+        // packet is trimmed away entirely, so the buffer there is still empty.
+        let head = (total / 16).max(1);
+        let media: Box<dyn MediaSource> = Box::new(FailAfterSource {
+            inner: Cursor::new(data),
+            head,
+            total,
+            quiet_eof: true,
+        });
+        SizedDecoder::new_streaming(media, Some("mp3"), "test-stream", true, guard)
+    }
+
+    // The generation moved: the user skipped or hovered away. Abandoned, not broken.
+    let gen_arc = Arc::new(AtomicU64::new(7));
+    let decoder = build(Some(crate::stream::GenerationGuard { gen: 6, gen_arc: gen_arc.clone() }))
+        .expect("a superseded read must not be reported as a broken stream");
+    assert!(decoder.buffer.is_empty(), "an abandoned build carries no audio");
+
+    // Same bytes, same cut-off, generation unchanged: this stream is truncated.
+    let err = match build(Some(crate::stream::GenerationGuard { gen: 7, gen_arc })) {
+        Ok(_) => panic!("a truncated stream must reach the player's error path"),
+        Err(e) => e,
+    };
+    assert!(
+        err.contains("before any audio could be decoded"),
+        "expected the end-of-media arm, got: {err}"
+    );
+}
+
+#[test]
+fn a_built_streaming_source_reports_what_it_delivers_not_the_server_hint() {
+    // The test above proves the *decoder* reports the trimmed length. This one
+    // covers the production decision on top of it: `build_streaming_source` is
+    // free to discard that value in favour of the server hint, and every consumer
+    // of `BuiltSource::duration_secs` — the crossfade scheduler among them — sees
+    // only what the builder chose.
+    //
+    // The hint is 1.5 s against a 0.5 s fixture, which is further off than a real
+    // one: the server duration is whole seconds (`sync/mapping.rs` rounds it), so
+    // in production it misses by at most half a second. The builder only consults
+    // the hint above 1.0 s, though, and the fixture is shorter than that — a
+    // truthful hint would take the decoder's branch even without this change and
+    // the assertion could not fail. Tracks that short were never affected.
+    let _globals = crate::spectrum::tests::lock_globals();
+    let data = LAME_SINE_MP3.to_vec();
+    let len = data.len() as u64;
+    let media: Box<dyn MediaSource> =
+        Box::new(SizedCursorSource { inner: Cursor::new(data), len });
+    let decoder = SizedDecoder::new_streaming(media, Some("mp3"), "test-stream", true, None)
+        .expect("fixture must decode as a seekable stream");
+    assert!(
+        decoder.applies_builtin_gapless(),
+        "fixture must be the trimmed case, otherwise this asserts nothing"
+    );
+    let rate = decoder.sample_rate().get() as f64;
+
+    let (eq_gains, eq_enabled, eq_pre_gain, playback_rate, done_flag, sample_counter) =
+        default_source_args();
+    let built = build_streaming_source(
+        decoder,
+        1.5,
+        eq_gains,
+        eq_enabled,
+        eq_pre_gain,
+        playback_rate,
+        done_flag,
+        Duration::ZERO,
+        sample_counter,
+        0,
+        None,
+    )
+    .expect("build_streaming_source must succeed for the LAME fixture");
+
+    let BuiltSource { source, duration_secs, output_channels, .. } = built;
+    let reported_frames = (duration_secs * rate).round() as u64;
+    let delivered_frames = source.count() as u64 / output_channels as u64;
+    assert_eq!(
+        reported_frames, delivered_frames,
+        "built source claims {reported_frames} frames but yields {delivered_frames}"
+    );
+}
+
+struct FailOnDemandSource {
+    inner: Cursor<Vec<u8>>,
+    len: u64,
+    fail: Arc<AtomicBool>,
+    /// Reads still granted after `fail` is armed. Lets a test place the failure
+    /// after the demuxer's own seek reads instead of on top of them.
+    grace: Arc<AtomicU64>,
+}
+
+impl Read for FailOnDemandSource {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        if self.fail.load(Ordering::Relaxed) {
+            if self.grace.load(Ordering::Relaxed) == 0 {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::ConnectionReset,
+                    "read failed after the seek",
+                ));
+            }
+            self.grace.fetch_sub(1, Ordering::Relaxed);
+        }
+        self.inner.read(buf)
+    }
+}
+
+impl Seek for FailOnDemandSource {
+    fn seek(&mut self, pos: std::io::SeekFrom) -> std::io::Result<u64> {
+        self.inner.seek(pos)
+    }
+}
+
+impl MediaSource for FailOnDemandSource {
+    fn is_seekable(&self) -> bool { true }
+    fn byte_len(&self) -> Option<u64> { Some(self.len) }
+}
+
+/// Seek once against a reader that starts failing after `grace_reads` further
+/// reads, and report `(seek succeeded, buffer before, buffer after)`.
+fn seek_with_read_failure_after(grace_reads: u64) -> (bool, usize, usize) {
+    let data = LAME_SINE_MP3.to_vec();
+    let len = data.len() as u64;
+    let fail = Arc::new(AtomicBool::new(false));
+    let media: Box<dyn MediaSource> = Box::new(FailOnDemandSource {
+        inner: Cursor::new(data),
+        len,
+        fail: fail.clone(),
+        grace: Arc::new(AtomicU64::new(grace_reads)),
+    });
+    let mut decoder = SizedDecoder::new_streaming(media, Some("mp3"), "test-stream", true, None)
+        .expect("fixture must decode as a seekable stream");
+    let before = decoder.buffer.len();
+    fail.store(true, Ordering::Relaxed);
+    let ok = decoder.try_seek(Duration::from_millis(250)).is_ok();
+    (ok, before, decoder.buffer.len())
+}
+
+#[test]
+fn a_read_failure_before_the_demuxer_moves_stays_a_true_no_op() {
+    // The failing half: the demuxer cannot complete its own seek reads, so
+    // nothing moved and the previous position is still valid. The stale buffer
+    // has to survive — clearing it here would silence audio that is still
+    // correct, and the layers above keep their old counter on `Err`.
+    let (ok, before, after) = seek_with_read_failure_after(0);
+    assert!(!ok, "a seek that never moved the demuxer must report failure");
+    assert_eq!(before, after, "a no-op seek must leave the decoded buffer alone");
+
+    // The gegenprobe, and the reason the interesting branch has no fixture test:
+    // granting a single read pulls the whole 4.6 KB fixture into the
+    // MediaSourceStream buffer, so refinement reads nothing further and cannot
+    // fail. Between "seek fails" and "everything succeeds" there is no window.
+    let (ok, _, after) = seek_with_read_failure_after(1);
+    assert!(ok, "one granted read must let the whole seek through");
+    assert_eq!(after, 1152, "a landed seek installs a freshly decoded packet");
+}
+
+#[test]
+fn seek_failure_disposition_follows_how_far_the_seek_got() {
+    use SeekFailureDisposition::*;
+    // Nothing moved — including a panic raised before the demuxer seek returned.
+    assert_eq!(SizedDecoder::seek_failure_disposition(false, false), NoOp);
+    assert_eq!(SizedDecoder::seek_failure_disposition(false, true), NoOp);
+    // Moved, refinement lost: commit, so counter/timestamp/audio share a position.
+    assert_eq!(SizedDecoder::seek_failure_disposition(true, false), CommitToTarget);
+    // Moved, but symphonia's state is undefined after a contained panic.
+    assert_eq!(SizedDecoder::seek_failure_disposition(true, true), Abort);
 }
 
 #[test]

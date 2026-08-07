@@ -248,6 +248,20 @@ pub(crate) struct SizedDecoder {
     consecutive_decode_errors: usize,
 }
 
+/// How far a failed seek got, and therefore what the source state owes the
+/// layers that only follow on success (`CountingSource`, `transport_commands`).
+#[derive(Debug, PartialEq, Eq)]
+enum SeekFailureDisposition {
+    /// The demuxer never moved: the previous position is still the truth.
+    NoOp,
+    /// The demuxer landed on the requested packet and only the fine-positioning
+    /// inside it was lost. Report success so every layer commits to one position.
+    CommitToTarget,
+    /// The demuxer moved but a contained panic left its state undefined. Drop the
+    /// stale buffer and report the failure — this source is not a valid position.
+    Abort,
+}
+
 /// Codecs whose encoder delay and end padding live in container metadata that
 /// Symphonia parses and can apply itself.
 ///
@@ -511,14 +525,20 @@ impl SizedDecoder {
     /// non-seekable streaming fallback pass `false`.
     ///
     /// Note that "streaming" here is about the *reader*, not the feature: ranged
-    /// HTTP passes `true` (`play_input.rs`) and is therefore trimmed, and buffered
-    /// preview does not come through this constructor at all — it decodes from
-    /// bytes via [`Self::new`], which trims independently of this flag.
+    /// HTTP passes `true` (`play_input.rs`) and is therefore trimmed. Buffered
+    /// preview decodes from bytes via [`Self::new`] and trims independently of
+    /// this flag, but the *ranged* preview path does come through here
+    /// (`preview.rs`, tag `preview-stream`) with `false`.
+    ///
+    /// `superseded` carries the reader's own playback generation where one
+    /// exists. Without it an abandoned read and a truncated stream look the same
+    /// at end-of-media; see [`crate::stream::GenerationGuard`].
     pub(crate) fn new_streaming(
         media: Box<dyn MediaSource>,
         format_hint: Option<&str>,
         source_tag: &str,
         source_random_access: bool,
+        superseded: Option<crate::stream::GenerationGuard>,
     ) -> Result<Self, String> {
         // For non-MP4 progressive streams, hide seekability during the probe so
         // Symphonia 0.6 skips its trailing-metadata scan (which would seek to EOF
@@ -665,21 +685,27 @@ impl SizedDecoder {
         let (spec, buffer) = loop {
             let packet = match format.next_packet() {
                 Ok(Some(p)) => p,
-                // `Ok(None)` is the only clean end of media. Reaching it before any
-                // packet decoded to audio means the stream ended empty, which is a
-                // construction failure — not a zero-length track the player should
-                // try to play.
-                Ok(None) => break Self::spec_and_buffer_at_eof(decoder.last_decoded()),
+                // `Ok(None)` is symphonia 0.6's clean end of media.
+                Ok(None) => break Self::buffer_at_end_of_media(
+                    decoder.last_decoded(),
+                    source_tag,
+                    superseded.as_ref(),
+                    "stream ended",
+                )?,
                 // A reader running out of bytes ends a finite stream the same way
                 // `Ok(None)` does — `new` treats it that way too, and the two
                 // constructors must not disagree about what EOF means for identical
-                // bytes. A superseded ranged/radio read surfaces here as well
-                // (`Ok(0)` on a track skip), which is an abandoned build, not a
-                // failure worth reporting.
+                // bytes. Which of the two situations this is now depends on the
+                // generation, not on the error kind.
                 Err(symphonia::core::errors::Error::IoError(ref io))
                     if io.kind() == std::io::ErrorKind::UnexpectedEof =>
                 {
-                    break Self::spec_and_buffer_at_eof(decoder.last_decoded());
+                    break Self::buffer_at_end_of_media(
+                        decoder.last_decoded(),
+                        source_tag,
+                        superseded.as_ref(),
+                        "reader ran out of bytes",
+                    )?;
                 }
                 // Anything else is a real read failure (range read reset, timeout,
                 // malformed stream). Surfacing it lets the caller retry; folding it
@@ -722,15 +748,41 @@ impl SizedDecoder {
     /// and a reader running out of bytes are the same situation and must stay in
     /// lockstep.
     ///
-    /// An empty result is deliberately *not* an error. A superseded read returns
-    /// `Ok(0)` the moment the generation counter moves (`ranged_http.rs`,
-    /// `stream/reader.rs`), which surfaces here as end-of-media with nothing
-    /// decoded — an abandoned build, not a failure. Reporting it would turn an
-    /// ordinary track skip or preview hover into a user-visible playback error on
-    /// the paths that do not suppress it. A genuinely broken read is a different
-    /// arm and still propagates.
+    /// Note that an empty result is not decided here — see
+    /// [`Self::buffer_at_end_of_media`], which is where the streaming constructor
+    /// tells an abandoned build from a truncated stream.
     fn spec_and_buffer_at_eof(last: GenericAudioBufferRef<'_>) -> (AudioSpec, Vec<f32>) {
         (last.spec().clone(), Self::make_buffer(&last))
+    }
+
+    /// End of media during initialization: an abandoned build, or a failure.
+    ///
+    /// Reaching this with something decoded is ordinary — a short stream ends
+    /// after its first packets. Reaching it with *nothing* decoded is not, and
+    /// the reason decides what happens:
+    ///
+    /// * the read was superseded — the user skipped the track or moved off the
+    ///   hovered row, and the reader answered with `Ok(0)`. Nothing is wrong;
+    ///   reporting it turns an ordinary skip into a playback error on the paths
+    ///   that do not suppress toasts (measured, and the reason an earlier
+    ///   unconditional version of this had to be reverted).
+    /// * no generation moved — the stream is truncated or broken. Symphonia 0.6
+    ///   reserves `Ok(None)` for clean end-of-media and calls everything else
+    ///   unrecoverable, so handing back a zero-length source would let the player
+    ///   present silence as a successfully opened track instead of retrying.
+    fn buffer_at_end_of_media(
+        last: GenericAudioBufferRef<'_>,
+        source_tag: &str,
+        superseded: Option<&crate::stream::GenerationGuard>,
+        reason: &str,
+    ) -> Result<(AudioSpec, Vec<f32>), String> {
+        let (spec, buffer) = Self::spec_and_buffer_at_eof(last);
+        if !buffer.is_empty() || superseded.is_some_and(|guard| guard.is_superseded()) {
+            return Ok((spec, buffer));
+        }
+        Err(format!(
+            "{source_tag}: {reason} before any audio could be decoded"
+        ))
     }
 
     #[inline]
@@ -750,6 +802,24 @@ impl SizedDecoder {
     /// `build_source` uses it to skip its manual `iTunSMPB` trim (no double-trim).
     pub(crate) fn applies_builtin_gapless(&self) -> bool {
         self.builtin_gapless
+    }
+
+    /// What a failed seek owes the layers above it.
+    ///
+    /// Split out for the same reason as `refined_offset_frames`: the interesting
+    /// case cannot be produced through a fixture. Measured on `lame_sine_22050`
+    /// with a reader that fails on demand — a failure before the demuxer's own
+    /// seek reads leaves it in place (true no-op), and granting it a single read
+    /// pulls the whole 4.6 KB file into the `MediaSourceStream` buffer, after
+    /// which refinement needs no I/O at all and cannot fail. There is no fixture
+    /// window between the two, so the decision is tested here and the wiring to it
+    /// is stated as uncovered rather than papered over.
+    fn seek_failure_disposition(demuxer_moved: bool, panicked: bool) -> SeekFailureDisposition {
+        match (demuxer_moved, panicked) {
+            (false, _) => SeekFailureDisposition::NoOp,
+            (true, false) => SeekFailureDisposition::CommitToTarget,
+            (true, true) => SeekFailureDisposition::Abort,
+        }
     }
 
     /// Frames to skip inside the buffer that was actually decoded.
@@ -1008,11 +1078,20 @@ impl Source for SizedDecoder {
         // reads in `refine_position`, which can hit the same broken demuxer state —
         // and surface it as a recoverable `SeekError` so the engine stays alive
         // (the seek becomes a no-op rather than killing playback).
+        // Set once the demuxer has actually moved, and read again after the unwind.
+        // Everything above this point is a true no-op on failure; everything after
+        // it leaves the source at the new position, and the layers outside only
+        // follow on success — `CountingSource::try_seek` updates its counter on
+        // `Ok`, `transport_commands` returns before touching `seek_offset` on
+        // `Err`. Without this distinction a failure after the demuxer moved would
+        // report "nothing happened" while playback continued somewhere else.
+        let demuxer_moved = AtomicBool::new(false);
         let seek_outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             let seek_res = self
                 .format
                 .seek(SeekMode::Accurate, SeekTo::Time { time, track_id: None })
                 .map_err(|e| e.to_string())?;
+            demuxer_moved.store(true, Ordering::Relaxed);
             // Symphonia requires this: "A decoder must be reset when the next packet
             // is discontinuous with respect to the last decoded packet. Most notably,
             // this occurs after a seek." For MP3 the carried-over state is the bit
@@ -1024,18 +1103,44 @@ impl Source for SizedDecoder {
             Ok::<(), String>(())
         }));
 
-        match seek_outcome {
+        let (failure, panicked) = match seek_outcome {
             Ok(Ok(())) => {
                 self.current_frame_offset += to_skip;
-                Ok(())
+                return Ok(());
             }
-            Ok(Err(e)) => Err(rodio::source::SeekError::Other(std::sync::Arc::new(
-                std::io::Error::other(e),
-            ))),
-            Err(_panic) => Err(rodio::source::SeekError::Other(std::sync::Arc::new(
-                std::io::Error::other("seek panicked inside the demuxer (contained)"),
-            ))),
+            Ok(Err(e)) => (e, false),
+            Err(_panic) => ("seek panicked inside the demuxer (contained)".to_string(), true),
+        };
+
+        // A contained demuxer panic leaves symphonia's internal state undefined —
+        // that source is not trustworthy enough to report as a landed position,
+        // even though it has moved. Refinement failing on its own is different:
+        // the demuxer sits at the requested packet and only the fine-positioning
+        // inside it was lost, at most one packet (~26 ms) of error. Committing to
+        // that is what keeps the counter, the transport timestamp and the audio on
+        // one position; reporting failure would strand them on three.
+        match Self::seek_failure_disposition(demuxer_moved.load(Ordering::Relaxed), panicked) {
+            SeekFailureDisposition::NoOp => {}
+            // The stale buffer holds audio decoded *before* the seek. Once the
+            // demuxer has moved, replaying it would emit the old position as if
+            // the seek had landed there, so it goes in both moved cases.
+            SeekFailureDisposition::CommitToTarget => {
+                self.buffer.clear();
+                self.current_frame_offset = 0;
+                crate::app_eprintln!(
+                    "[psysonic] seek refinement failed after the demuxer moved, committing to the target: {failure}"
+                );
+                return Ok(());
+            }
+            SeekFailureDisposition::Abort => {
+                self.buffer.clear();
+                self.current_frame_offset = 0;
+            }
         }
+
+        Err(rodio::source::SeekError::Other(std::sync::Arc::new(
+            std::io::Error::other(failure),
+        )))
     }
 }
 
@@ -1121,6 +1226,38 @@ pub(crate) struct BuiltSource {
     pub(crate) fadeout_samples: Arc<AtomicU64>,
 }
 
+/// Duration the built source will actually deliver.
+///
+/// The server hint is whole seconds — `sync/mapping.rs` rounds the API value
+/// before it reaches the local index — so it sits up to half a second either
+/// side of the real length. It is still the better number for a VBR MP3, whose
+/// container duration is an estimate.
+///
+/// Encoder-gap trimming changes that for one class of stream: once the decoder
+/// removes delay and padding, its own frame count *is* what comes out, and the
+/// crossfade schedules its fade against exactly that value (`commands.rs`:
+/// `remaining = duration_secs - position()`). Preferring the hint there hands
+/// the scheduler a length the source will not reach.
+///
+/// Deliberately narrow: only the decoder-owned trim is covered. `build_source`'s
+/// manual `iTunSMPB` trim shortens the stream too, but it has done so since the
+/// gapless parser landed and its duration is not this change's to fix.
+fn effective_source_duration(decoder: &SizedDecoder, duration_hint: f64) -> f64 {
+    let decoded = decoder
+        .total_duration()
+        .map(|d| d.as_secs_f64())
+        .filter(|d| *d > 0.0);
+    if decoder.applies_builtin_gapless() {
+        if let Some(decoded) = decoded {
+            return decoded;
+        }
+    }
+    if duration_hint > 1.0 {
+        return duration_hint;
+    }
+    decoded.unwrap_or(duration_hint)
+}
+
 /// Build a fully-prepared playback source:
 ///   decode → trim → resample → EQ → fade-in → triggered-fade-out → notify → count
 ///
@@ -1157,15 +1294,7 @@ pub(crate) fn build_source(
     // (MP3/Xing-LAME) — trimming both would cut real audio off the track.
     let manual_trim = !decoder.applies_builtin_gapless();
 
-    // Determine effective duration.
-    // Prefer hint from Subsonic API (reliable) over decoder (unreliable for VBR MP3).
-    let effective_dur = if duration_hint > 1.0 {
-        duration_hint
-    } else {
-        decoder.total_duration()
-            .map(|d| d.as_secs_f64())
-            .unwrap_or(duration_hint)
-    };
+    let effective_dur = effective_source_duration(&decoder, duration_hint);
 
     // Apply encoder-delay trim and optional end-padding trim,
     // then resample to the canonical target rate if needed.
@@ -1261,15 +1390,7 @@ pub(crate) fn build_streaming_source(
     let channels = decoder.channels();
     let resolved_format = Some(decoder.codec_info().clone());
 
-    // For streaming starts prefer server-provided duration when available.
-    let effective_dur = if duration_hint > 1.0 {
-        duration_hint
-    } else {
-        decoder
-            .total_duration()
-            .map(|d| d.as_secs_f64())
-            .unwrap_or(duration_hint)
-    };
+    let effective_dur = effective_source_duration(&decoder, duration_hint);
 
     let converted = decoder;
     let dyn_src: DynSource = if target_rate > 0 && sample_rate.get() != target_rate {
@@ -1477,7 +1598,7 @@ mod tests {
     fn new_streaming_constructs_from_synthetic_wav() {
         let wav = synthetic_wav_bytes(0.5);
         let decoder =
-            SizedDecoder::new_streaming(seekable_source(wav), Some("wav"), "test-stream", true)
+            SizedDecoder::new_streaming(seekable_source(wav), Some("wav"), "test-stream", true, None)
                 .expect("streaming WAV decode setup");
         assert_eq!(decoder.spec.rate(), 44_100);
         assert_eq!(decoder.spec.channels().count(), 1);
@@ -1491,7 +1612,7 @@ mod tests {
         // An open-ended one does not: its frame count cannot be trusted.
         let wav = synthetic_wav_bytes(0.5);
         let live =
-            SizedDecoder::new_streaming(seekable_source(wav), Some("wav"), "test-stream", false)
+            SizedDecoder::new_streaming(seekable_source(wav), Some("wav"), "test-stream", false, None)
                 .expect("streaming WAV decode setup");
         assert!(
             live.total_duration.is_none(),
@@ -1506,6 +1627,7 @@ mod tests {
             None,
             "test-stream",
             true,
+            None,
         );
         assert!(result.is_err());
     }

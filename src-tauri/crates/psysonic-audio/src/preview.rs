@@ -287,8 +287,20 @@ async fn open_preview_decoder(
             on_demand: None,
         };
         let hint = stream_hint.clone();
+        // Preview runs on its own generation: hovering away bumps `preview_gen`
+        // and the reader answers `Ok(0)`, which must stay a quiet abandon.
+        let preview_guard = crate::stream::GenerationGuard {
+            gen,
+            gen_arc: state.preview_gen.clone(),
+        };
         let decoder = tokio::task::spawn_blocking(move || {
-            SizedDecoder::new_streaming(Box::new(reader), hint.as_deref(), "preview-stream", false)
+            SizedDecoder::new_streaming(
+                Box::new(reader),
+                hint.as_deref(),
+                "preview-stream",
+                false,
+                Some(preview_guard),
+            )
         })
         .await
         .map_err(|e| format!("preview: decoder thread: {e}"))??;

@@ -124,8 +124,15 @@ pub async fn audio_play_radio(
     if state.generation.load(Ordering::SeqCst) != gen { return Ok(()); }
 
     let hint_clone = fmt_hint.clone();
+    let radio_guard = crate::stream::GenerationGuard { gen, gen_arc: state.generation.clone() };
     let decoder = tokio::task::spawn_blocking(move || {
-        SizedDecoder::new_streaming(Box::new(reader), hint_clone.as_deref(), "radio", false)
+        SizedDecoder::new_streaming(
+            Box::new(reader),
+            hint_clone.as_deref(),
+            "radio",
+            false,
+            Some(radio_guard),
+        )
     })
     .await
     .map_err(|e| e.to_string())??;
