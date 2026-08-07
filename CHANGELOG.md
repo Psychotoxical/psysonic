@@ -366,6 +366,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * The service behind this option no longer has a single working server, and its operator states publicly that a replacement cannot be funded, so the option has been removed rather than left pointing at dead addresses. If it was the only lyrics source you had switched on, LRCLIB is enabled for you automatically.
 * Word-by-word highlighting is unaffected: it also comes from lyrics embedded in your files and from Navidrome 0.63+.
 
+### AIFF playback — streamed and cached files play reliably
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1396](https://github.com/Psychotoxical/psysonic/pull/1396)**
+
+* AIFF, AIF and AIFC tracks now play from servers, local files and playback caches, including files whose metadata appears after their audio data.
+* Servers without byte-range support now fall back to a complete download instead of leaving the track unable to start.
+
 ## [1.50.0]
 
 ## Added
