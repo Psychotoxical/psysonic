@@ -212,6 +212,7 @@ const CONTRIBUTOR_ENTRIES = [
       'Multi-server scope recovery and redacted selectable-depth diagnostics for reachability, music folders, and New Releases (PR #1331)',
       'Cover pipeline — Navidrome per-disc art in queue, playbar and Who is listening?; All Albums warm no longer creates mf-* album dirs (PR #1336)',
       'Performance benchmark CLI and faster scoped library browsing (PR #1382)',
+      'AIFF/AIF/AIFC playback across streamed, cached, and local sources (PR #1396)',
     ],
   },
   {
@@ -520,6 +521,13 @@ const CONTRIBUTOR_ENTRIES = [
     since: '1.51.0',
     contributions: [
       'MangoWM tiling window manager detection (PR #1380)',
+    ],
+  },
+  {
+    github: 'RdrSeraphim',
+    since: '1.51.0',
+    contributions: [
+      'Internet radio metadata — preserve UTF-8 titles with Latin-1 fallback (PR #1389)',
     ],
   },
 ] as const;

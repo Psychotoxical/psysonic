@@ -9,6 +9,8 @@
 //! N = 0 → no metadata this block.  Metadata bytes are stripped so only
 //! pure audio reaches the ring buffer and Symphonia never sees text bytes.
 
+use psysonic_core::icy::IcyMetadataBlock;
+
 #[allow(clippy::enum_variant_names)]
 pub(crate) enum IcyState {
     /// Forwarding audio bytes; `remaining` counts down to the next boundary.
@@ -84,29 +86,13 @@ pub(crate) struct IcyMeta {
 }
 
 /// Extract `StreamTitle` and `StreamUrl` from a raw ICY metadata block.
-/// Tolerates null padding and non-UTF-8 bytes (lossy conversion).
+/// Tolerates null padding and decodes valid UTF-8 with a Latin-1 fallback.
 fn parse_icy_meta(raw: &[u8]) -> Option<IcyMeta> {
-    let s = String::from_utf8_lossy(raw);
-    let s = s.trim_end_matches('\0');
-
-    const TITLE_TAG: &str = "StreamTitle='";
-    let title_start = s.find(TITLE_TAG)? + TITLE_TAG.len();
-    let title_rest = &s[title_start..];
-    // find (not rfind) — rfind would skip past StreamUrl and corrupt the title
-    let title_end = title_rest.find("';")?;
-    let title = title_rest[..title_end].trim().to_string();
-    if title.is_empty() {
-        return None;
-    }
-
-    const URL_TAG: &str = "StreamUrl='";
-    let stream_url = s.find(URL_TAG).map(|pos| {
-        let rest = &s[pos + URL_TAG.len()..];
-        let end = rest.find("';").unwrap_or(rest.len());
-        rest[..end].trim().to_string()
-    }).unwrap_or_default();
-
-    Some(IcyMeta { title, is_ad: stream_url == "0" })
+    let metadata = IcyMetadataBlock::parse(raw);
+    Some(IcyMeta {
+        title: metadata.stream_title()?.to_string(),
+        is_ad: metadata.stream_url() == Some("0"),
+    })
 }
 
 #[cfg(test)]
@@ -156,11 +142,9 @@ mod tests {
 
     #[test]
     fn parse_tolerates_non_utf8_bytes() {
-        // Latin-1 0xA9 (©) — String::from_utf8_lossy replaces with U+FFFD
-        // and trim() leaves the title intact.
         let raw = b"StreamTitle='\xA9 Track';StreamUrl='x';";
         let m = parse_icy_meta(raw).unwrap();
-        assert!(m.title.contains("Track"));
+        assert_eq!(m.title, "\u{00a9} Track");
     }
 
     #[test]

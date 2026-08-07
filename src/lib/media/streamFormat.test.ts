@@ -29,9 +29,10 @@ describe('isStreamTranscoded', () => {
     expect(isStreamTranscoded('ogg', 'opus')).toBe(false);
   });
 
-  it('normalizes pcm_* decoder names against wav', () => {
+  it('normalizes pcm_* decoder names against PCM containers', () => {
     expect(isStreamTranscoded('wav', 'pcm_s16le')).toBe(false);
     expect(isStreamTranscoded('wav', 'pcm_f32le')).toBe(false);
+    expect(isStreamTranscoded('aifc', 'pcm_alaw')).toBe(false);
   });
 
   it('is conservative for unknown suffix / missing codec', () => {

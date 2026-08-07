@@ -18,7 +18,7 @@ tokio = { version = "1", features = ["rt", "time", "sync"] }
 reqwest = { version = "0.13", default-features = false, features = ["stream", "json", "rustls", "blocking", "gzip", "brotli"] }
 futures-util = "0.3"
 rodio = { version = "0.22", default-features = false, features = ["playback"] }
-symphonia = { version = "0.6", default-features = false, features = ["flac", "mp3", "pcm", "aac", "alac", "isomp4", "vorbis", "ogg", "wav", "adpcm", "all-meta"] }
+symphonia = { version = "0.6", default-features = false, features = ["flac", "mp3", "pcm", "aac", "alac", "isomp4", "vorbis", "ogg", "wav", "aiff", "adpcm", "all-meta"] }
 symphonia-adapter-libopus = "0.3"
 ringbuf = "0.5"
 biquad = "0.6"

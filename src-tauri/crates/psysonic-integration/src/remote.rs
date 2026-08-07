@@ -1,3 +1,4 @@
+use psysonic_core::icy::IcyMetadataBlock;
 use psysonic_core::user_agent::subsonic_wire_user_agent;
 
 pub const RADIO_PAGE_SIZE: u32 = 25;
@@ -250,30 +251,8 @@ pub async fn fetch_icy_metadata(url: String) -> Result<IcyMetadata, String> {
     let meta_end   = (meta_start + meta_len).min(buf.len());
     let meta_bytes = &buf[meta_start..meta_end];
 
-    // ICY metadata is Latin-1 encoded; convert to a Rust String lossily.
-    let meta_str: String = meta_bytes
-        .iter()
-        .map(|&b| if b == 0 { '\0' } else { b as char })
-        .collect::<String>();
-
-    // Parse StreamTitle='...' — value ends at the next unescaped single-quote.
-    let stream_title = meta_str
-        .split("StreamTitle='")
-        .nth(1)
-        .and_then(|s| {
-            // Find closing quote that is NOT preceded by a backslash.
-            let mut prev = '\0';
-            let mut end = s.len();
-            for (i, c) in s.char_indices() {
-                if c == '\'' && prev != '\\' {
-                    end = i;
-                    break;
-                }
-                prev = c;
-            }
-            let title = s[..end].trim().to_string();
-            if title.is_empty() { None } else { Some(title) }
-        });
+    let metadata = IcyMetadataBlock::parse(meta_bytes);
+    let stream_title = metadata.stream_title().map(str::to_owned);
 
     Ok(IcyMetadata { stream_title, icy_name, icy_genre, icy_url, icy_description })
 }
@@ -458,7 +437,7 @@ pub async fn maloja_request(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use wiremock::matchers::{method, path as wm_path};
+    use wiremock::matchers::{header, method, path as wm_path};
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
     // ── parse_pls_stream_url ──────────────────────────────────────────────────
@@ -523,6 +502,36 @@ mod tests {
     fn parse_m3u_returns_none_for_relative_paths() {
         let m3u = "track.mp3\n";
         assert!(parse_m3u_stream_url(m3u).is_none());
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn fetch_icy_metadata_preserves_utf8() {
+        let server = MockServer::start().await;
+        let title = "TimJamFer - \u{ff59}\u{ff4f}\u{ff55} \
+                     \u{84b8}\u{6c17}\u{30bd}\u{30d5}\u{30c8} \
+                     \u{d55c}\u{ae00}";
+        let metadata = format!("StreamTitle='{title}';StreamUrl='';");
+        let padded_len = metadata.len().div_ceil(16) * 16;
+        let mut body = b"AAAA".to_vec();
+        body.push((padded_len / 16) as u8);
+        body.extend_from_slice(metadata.as_bytes());
+        body.resize(5 + padded_len, 0);
+
+        Mock::given(method("GET"))
+            .and(wm_path("/stream"))
+            .and(header("icy-metadata", "1"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .insert_header("icy-metaint", "4")
+                    .set_body_bytes(body),
+            )
+            .mount(&server)
+            .await;
+
+        let result = fetch_icy_metadata(format!("{}/stream", server.uri()))
+            .await
+            .expect("ICY metadata request should succeed");
+        assert_eq!(result.stream_title.as_deref(), Some(title));
     }
 
     // ── resolve_playlist_url ──────────────────────────────────────────────────

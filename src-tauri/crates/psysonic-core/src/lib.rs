@@ -6,6 +6,7 @@
 
 pub mod server_http;
 pub mod cover_cache_layout;
+pub mod icy;
 pub mod log_sanitize;
 pub mod media_layout;
 pub mod logging;

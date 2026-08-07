@@ -18,7 +18,8 @@ use super::analysis_dispatch::{
 use super::engine::{audio_http_client, AudioEngine, PlaybackHttpHeaders};
 use super::helpers::{
     content_type_to_hint, fetch_data, format_hint_from_content_disposition,
-    normalize_stream_suffix_for_hint, sniff_stream_format_extension,
+    normalize_audio_extension_for_hint, normalize_stream_suffix_for_hint,
+    sniff_stream_format_extension,
     same_playback_target,
     STREAM_FORMAT_SNIFF_PROBE_BYTES,
 };
@@ -40,6 +41,7 @@ pub(crate) enum PlayInput {
         reader: Box<dyn MediaSource>,
         format_hint: Option<String>,
         tag: &'static str,
+        download_control: Option<Arc<super::stream::StreamDownloadControl>>,
         /// Source can cheaply seek to EOF (local file). Drives whether Ogg keeps
         /// seekability through the probe so its seek path does not panic.
         random_access: bool,
@@ -54,6 +56,7 @@ pub(crate) enum PlayInput {
     Streaming {
         reader: AudioStreamReader,
         format_hint: Option<String>,
+        download_control: Arc<super::stream::StreamDownloadControl>,
         superseded: Option<super::stream::GenerationGuard>,
     },
 }
@@ -216,6 +219,7 @@ fn open_local_file_input(
         reader: Box::new(reader),
         format_hint: local_hint,
         tag: "local-file",
+        download_control: None,
         random_access: true,
         mp4_probe_gate: None,
         superseded: None,
@@ -268,6 +272,7 @@ async fn open_ranged_or_streaming_input(
         .and_then(|v| v.to_str().ok())
         .is_some_and(|v| v.to_ascii_lowercase().contains("bytes"));
     let total_size = response.content_length();
+    let ranged_total_size = total_size.filter(|&total| total > 0);
 
     if stream_hint.is_none() && supports_range {
         if let Some(total_u64) = total_size.filter(|&t| t > 0) {
@@ -302,7 +307,7 @@ async fn open_ranged_or_streaming_input(
         }
     }
 
-    if let (true, Some(total), true) = (supports_range, total_size, stream_hint.is_some()) {
+    if let (true, Some(total), true) = (supports_range, ranged_total_size, stream_hint.is_some()) {
         let total_usize = total as usize;
         crate::app_deprintln!(
             "[stream] RangedHttpSource selected — total={} KB, hint={:?}",
@@ -311,7 +316,8 @@ async fn open_ranged_or_streaming_input(
         );
         let buf = Arc::new(Mutex::new(vec![0u8; total_usize]));
         let downloaded_to = Arc::new(AtomicUsize::new(0));
-        let done = Arc::new(AtomicBool::new(false));
+        let download_control = super::stream::StreamDownloadControl::new();
+        let done = download_control.done.clone();
         state.stream_playback_armed.store(false, Ordering::SeqCst);
         let playback_armed = state.stream_playback_armed.clone();
         let tail_ready = Arc::new(AtomicBool::new(false));
@@ -345,7 +351,7 @@ async fn open_ranged_or_streaming_input(
             response,
             buf.clone(),
             downloaded_to.clone(),
-            done.clone(),
+            download_control.clone(),
             state.stream_completed_cache.clone(),
             state.stream_completed_spill.clone(),
             state.normalization_engine.clone(),
@@ -392,6 +398,7 @@ async fn open_ranged_or_streaming_input(
             reader: Box::new(reader),
             format_hint: stream_hint,
             tag: "ranged-stream",
+            download_control: Some(download_control),
             superseded: Some(super::stream::GenerationGuard {
                 gen: ctx.gen,
                 gen_arc: state.generation.clone(),
@@ -415,7 +422,8 @@ async fn open_ranged_or_streaming_input(
         .clamp(TRACK_STREAM_MIN_BUF_CAPACITY, TRACK_STREAM_MAX_BUF_CAPACITY);
     let rb = HeapRb::<u8>::new(buffer_cap);
     let (prod, cons) = rb.split();
-    let done = Arc::new(AtomicBool::new(false));
+    let download_control = super::stream::StreamDownloadControl::new();
+    let done = download_control.done.clone();
     state.stream_playback_armed.store(false, Ordering::SeqCst);
     let playback_armed = state.stream_playback_armed.clone();
     let analysis_seed_hold = super::stream::AnalysisSeedHoldGuard::arm(
@@ -431,8 +439,9 @@ async fn open_ranged_or_streaming_input(
         ctx.url.to_string(),
         response,
         prod,
-        done.clone(),
+        download_control.clone(),
         state.stream_completed_cache.clone(),
+        state.stream_completed_spill.clone(),
         ctx.cache_id_for_tasks.map(|s| s.to_string()),
         ctx.server_id.map(|s| s.to_string()),
         analysis_seed_hold,
@@ -456,6 +465,7 @@ async fn open_ranged_or_streaming_input(
     Ok(Some(PlayInput::Streaming {
         reader,
         format_hint: stream_hint,
+        download_control,
         superseded: Some(super::stream::GenerationGuard {
             gen: ctx.gen,
             gen_arc: state.generation.clone(),
@@ -470,16 +480,7 @@ async fn open_ranged_or_streaming_input(
 pub(crate) fn url_format_hint(url: &str) -> Option<String> {
     url.split('?').next()
         .and_then(|path| path.rsplit('.').next())
-        .filter(|ext| {
-            (1..=5).contains(&ext.len())
-                && ext.chars().all(|c| c.is_ascii_alphanumeric())
-                && matches!(
-                    ext.to_ascii_lowercase().as_str(),
-                    "mp3" | "flac" | "ogg" | "oga" | "opus" | "m4a" | "mp4"
-                    | "aac" | "wav" | "wave" | "ape" | "wv" | "webm" | "mka"
-                )
-        })
-        .map(|s| s.to_lowercase())
+        .and_then(normalize_audio_extension_for_hint)
 }
 
 /// The `maxBitRate` cap (kbps) a `stream.view` URL was opened with, if any.
@@ -497,7 +498,15 @@ pub(crate) fn url_stream_cap_kbps(url: &str) -> Option<u32> {
 
 #[cfg(test)]
 mod url_param_tests {
-    use super::url_stream_cap_kbps;
+    use super::{url_format_hint, url_stream_cap_kbps};
+
+    #[test]
+    fn extracts_aiff_format_hint_from_url_path() {
+        assert_eq!(
+            url_format_hint("https://s.example/music/track.AIFF?token=x"),
+            Some("aiff".into()),
+        );
+    }
 
     #[test]
     fn parses_max_bit_rate_from_stream_url() {

@@ -359,6 +359,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Playing a continuous album in MP3 no longer inserts a short silence at every track change. Two adjacent tracks now join exactly where they were split, for files whose encoder recorded the gap in the file header — which is what the common MP3 encoders write.
 * Root cause: MP3 encoders add a few milliseconds of silence to the beginning and end of every file. Psysonic played that silence instead of skipping it, which put roughly 50 ms of it into each track boundary. Unchanged: internet radio, playback from servers that cannot serve range requests, and files that carry only an iTunes-style tag instead of that header when they are played from disk or streamed.
 
+### Internet radio — keep non-Latin track titles readable
+
+**By [@RdrSeraphim](https://github.com/RdrSeraphim), PR [#1389](https://github.com/Psychotoxical/psysonic/pull/1389)**
+
+* ICY track metadata sent as UTF-8 now displays Japanese, Korean and wide-width Latin text correctly instead of mojibake. Legacy Latin-1 titles remain readable in both the player and system now-playing metadata.
+
 ### Linux — internet radio no longer blanks the window
 
 **By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1390](https://github.com/Psychotoxical/psysonic/pull/1390)**
@@ -372,6 +378,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * The service behind this option no longer has a single working server, and its operator states publicly that a replacement cannot be funded, so the option has been removed rather than left pointing at dead addresses. If it was the only lyrics source you had switched on, LRCLIB is enabled for you automatically.
 * Word-by-word highlighting is unaffected: it also comes from lyrics embedded in your files and from Navidrome 0.63+.
+
+### AIFF playback — streamed and cached files play reliably
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1396](https://github.com/Psychotoxical/psysonic/pull/1396)**
+
+* AIFF, AIF and AIFC tracks now play from servers, local files and playback caches, including files whose metadata appears after their audio data.
+* Servers without byte-range support now fall back to a complete download instead of leaving the track unable to start.
+
+### Internet radio — keep homepage URLs when editing stations
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1397](https://github.com/Psychotoxical/psysonic/pull/1397)**, reported by [@vt100-music](https://github.com/vt100-music)
+
+* Homepage URLs supplied by Navidrome no longer disappear from station cards or the edit form after saving or reloading the station.
 
 ## [1.50.0]
 

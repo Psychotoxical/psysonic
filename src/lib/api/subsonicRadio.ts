@@ -7,12 +7,20 @@ import { shouldAttemptSubsonicForServer } from '@/lib/network/subsonicNetworkGua
 import { findServerByIdOrIndexKey } from '@/lib/server/serverLookup';
 import { connectBaseUrlForServer } from '@/lib/server/serverEndpoint';
 
+type InternetRadioStationResponse = InternetRadioStation & {
+  homePageUrl?: string;
+};
+
 type InternetRadioResponse = {
-  internetRadioStations?: { internetRadioStation?: InternetRadioStation[] };
+  internetRadioStations?: { internetRadioStation?: InternetRadioStationResponse[] };
 };
 
 function radioStationsFromResponse(data: InternetRadioResponse): InternetRadioStation[] {
-  return data.internetRadioStations?.internetRadioStation ?? [];
+  return (data.internetRadioStations?.internetRadioStation ?? []).map(({ homePageUrl, ...station }) => (
+    homePageUrl && station.homepageUrl === undefined
+      ? { ...station, homepageUrl: homePageUrl }
+      : station
+  ));
 }
 
 export async function getInternetRadioStations(): Promise<InternetRadioStation[]> {
