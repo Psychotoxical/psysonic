@@ -234,9 +234,6 @@ pub(crate) struct SizedDecoder {
     /// Interleaved f32 samples of the currently decoded packet.
     buffer: Vec<f32>,
     spec: AudioSpec,
-    /// The audio track packets are read from. Packets belonging to any other
-    /// track (an embedded cover-art video stream, for instance) are skipped.
-    track_id: u32,
     /// Real decoded format (codec/rate/depth) for the now-playing UI badge.
     codec_info: ResolvedCodecInfo,
     /// Whether Symphonia's own encoder-gap trimming is active for this stream.
@@ -493,7 +490,6 @@ impl SizedDecoder {
             total_duration,
             buffer,
             spec,
-            track_id,
             codec_info,
             builtin_gapless,
             consecutive_decode_errors: 0,
@@ -702,7 +698,18 @@ impl SizedDecoder {
                 // into EOF would hand the player a silent track instead — and with
                 // gapless trimming a fully trimmed first packet leaves the buffer
                 // empty, so that silence would look like a valid decode.
-                Err(e) => return Err(format!("{source_tag}: could not read audio data: {e}")),
+                //
+                // Same wording constraint as the end-of-media arm above: a stall
+                // that happens one packet after a successful probe is just as
+                // recoverable as one during it, and
+                // `is_stream_probe_failure_with_full_buffer_retry` decides on the
+                // text alone.
+                Err(e) => {
+                    return Err(format!(
+                        "{source_tag}: end of stream before any audio could be decoded \
+                         (could not read audio data: {e})"
+                    ))
+                }
             };
             if packet.track_id != track_id { continue; }
             match decoder.decode(&packet) {
@@ -728,7 +735,7 @@ impl SizedDecoder {
                 Err(e) => return Err(format!("{source_tag}: decode error: {e}")),
             }
         };
-        Ok(SizedDecoder { decoder, current_frame_offset: 0, format, total_duration, buffer, spec, track_id, codec_info, builtin_gapless, consecutive_decode_errors: 0 })
+        Ok(SizedDecoder { decoder, current_frame_offset: 0, format, total_duration, buffer, spec, codec_info, builtin_gapless, consecutive_decode_errors: 0 })
     }
 
     /// Turn the decoder's last buffer into the initial `(spec, buffer)` pair when
@@ -805,19 +812,6 @@ impl SizedDecoder {
     /// specific corruption. The arithmetic is the part the retry changed, so it is
     /// tested directly.
     ///
-    /// `discarded_durs` holds the untrimmed length of every packet the retry loop
-    /// threw away, and `trim_start` belongs to the packet whose buffer is kept.
-    fn refined_offset_frames(
-        samples_to_pass: u64,
-        discarded_durs: &[u64],
-        trim_start: u64,
-    ) -> u64 {
-        discarded_durs
-            .iter()
-            .fold(samples_to_pass, |left, dur| left.saturating_sub(*dur))
-            .saturating_sub(trim_start)
-    }
-
     /// Refine position after a coarse seek — decode packets until we reach the
     /// exact requested timestamp.
     fn refine_position(
@@ -835,16 +829,11 @@ impl SizedDecoder {
                 .map_err(|e| format!("refine seek: {e}"))?
             {
                 Some(p) => p,
-                // EOF while refining — nothing more to skip. The buffer still holds
-                // samples decoded *before* the seek, and `try_seek` has already
-                // reset the decoder they came from. Replaying them would emit audio
-                // from the old position as if the seek had landed there, so drop
-                // them and let the iterator end cleanly.
-                None => {
-                    self.buffer.clear();
-                    self.current_frame_offset = 0;
-                    return Ok(());
-                }
+                // EOF while refining — nothing more to skip. The buffer is left
+                // as it is: emptying it here would make `current_span_len()`
+                // report `Some(0)`, which rodio's resampling wrapper reads as
+                // end-of-source.
+                None => return Ok(()),
             };
             if candidate.dur.get() > samples_to_pass {
                 break candidate;
@@ -852,13 +841,10 @@ impl SizedDecoder {
             samples_to_pass -= candidate.dur.get();
         };
 
-        // The offset below is derived from the packet the buffer actually came
-        // from, so both values have to travel with the retry loop: a retry decodes
-        // a *later* packet, and using the failed packet's trim (or its position)
-        // would place the seek somewhere it never landed.
-        let mut packet_dur = packet.dur.get();
+        // Carried out of the loop because the retry below decodes a *later*
+        // packet, and the offset has to belong to the packet the buffer came from.
         let mut packet_trim_start = packet.trim_start.get();
-        let mut discarded_durs: Vec<u64> = Vec::new();
+        let mut retried = false;
         let mut decoded = self.decoder.decode(&packet);
         for _ in 0..DECODE_MAX_RETRIES {
             if decoded.is_err() {
@@ -868,11 +854,7 @@ impl SizedDecoder {
                     Some(p) => p,
                     None => break,
                 };
-                // The discarded packet's frames are gone; the target now sits at
-                // or before the start of this one (the selection loop above only
-                // breaks on a packet longer than what is left to skip).
-                discarded_durs.push(packet_dur);
-                packet_dur = p.dur.get();
+                retried = true;
                 packet_trim_start = p.trim_start.get();
                 decoded = self.decoder.decode(&p);
             }
@@ -885,28 +867,32 @@ impl SizedDecoder {
         // packet — a seek to the start of a trimmed MP3 used to lose the remainder
         // of its first frame. `trim_end` needs no handling here: it shortens the
         // buffer at the back, which the offset never reaches.
-        let offset_frames =
-            Self::refined_offset_frames(samples_to_pass, &discarded_durs, packet_trim_start);
+        //
+        // A retry lands on a packet the target sits at or before — the selection
+        // loop only breaks on a packet longer than what is left to skip — so the
+        // remainder is spent and the new packet is entered at its start.
+        let offset_frames = if retried {
+            0
+        } else {
+            samples_to_pass.saturating_sub(packet_trim_start)
+        };
 
-        {
-            let decoded = decoded.map_err(|e| format!("refine decode: {e}"))?;
-            self.spec = decoded.spec().clone();
-            self.buffer = Self::make_buffer(&decoded);
-            self.current_frame_offset = offset_frames as usize * self.spec.channels().count();
-        }
+        let decoded = decoded.map_err(|e| format!("refine decode: {e}"))?;
+        self.spec = decoded.spec().clone();
+        self.buffer = Self::make_buffer(&decoded);
+        self.current_frame_offset = offset_frames as usize * self.spec.channels().count();
 
-        // Landing on a packet that gapless trimming emptied is not the end of the
-        // stream. Leaving the buffer empty makes `current_span_len()` report
-        // `Some(0)`, which rodio's resampling wrapper reads as end-of-source — the
-        // track would go silent from the seek onwards. Same rule as both
-        // constructors and `next()`; the offset is spent once we move on.
-        // Bounded like every other decode loop in this file: this one runs on
-        // rodio's output callback thread, where an unbounded read of a damaged or
-        // not-yet-downloaded region would stall playback instead of failing fast.
-        // The offset stays untouched — it was never spent on a packet that carried
-        // no frames, and once it points past the buffer `next()` refills normally.
-        let mut fill_errors = 0usize;
-        while self.buffer.is_empty() {
+        // Trimming can empty a packet outright — an MPEG-2 Layer III frame holds
+        // 576 samples, fewer than a typical encoder delay — and an empty buffer
+        // makes `current_span_len()` report `Some(0)`, which rodio's resampling
+        // wrapper reads as end-of-source. Refill, but bounded: this runs on the
+        // output-callback thread, where a read into a not-yet-downloaded region
+        // blocks. Anything beyond these attempts is left to `next()`, which
+        // refills on its own schedule.
+        for _ in 0..DECODE_MAX_RETRIES {
+            if !self.buffer.is_empty() {
+                break;
+            }
             let Some(packet) = self
                 .format
                 .next_packet()
@@ -914,23 +900,12 @@ impl SizedDecoder {
             else {
                 break;
             };
-            if packet.track_id != self.track_id {
-                continue;
-            }
-            match self.decoder.decode(&packet) {
-                Ok(decoded) => {
-                    self.spec = decoded.spec().clone();
-                    self.buffer = Self::make_buffer(&decoded);
-                }
-                Err(symphonia::core::errors::Error::DecodeError(_)) => {
-                    fill_errors += 1;
-                    if fill_errors >= MAX_CONSECUTIVE_DECODE_ERRORS {
-                        return Err(
-                            "refine fill: too many consecutive decode errors after seek".into()
-                        );
-                    }
-                }
-                Err(e) => return Err(format!("refine fill: {e}")),
+            if let Ok(decoded) = self.decoder.decode(&packet) {
+                self.spec = decoded.spec().clone();
+                self.buffer = Self::make_buffer(&decoded);
+                // The offset belonged to the packet that came back empty; this is
+                // a different one and is entered at its start.
+                self.current_frame_offset = 0;
             }
         }
         Ok(())

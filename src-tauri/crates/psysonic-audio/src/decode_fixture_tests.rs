@@ -522,23 +522,6 @@ fn mp3_decode_throughput() {
 }
 
 #[test]
-fn refined_offset_accounts_for_packets_dropped_by_a_retry() {
-    // Straight-through: only the kept packet's own trim comes off. This is the
-    // only case with a non-zero result.
-    assert_eq!(SizedDecoder::refined_offset_frames(500, &[], 100), 400);
-
-    // Every retry collapses to zero, and that is a property of the caller rather
-    // than of the arithmetic: the selection loop only breaks on a packet whose
-    // duration *exceeds* what is left to skip, so the first discarded duration
-    // always covers the remainder. Cases where it does not (`[300]` against 500
-    // to skip) cannot occur and are deliberately not asserted — they would pin
-    // behaviour that never runs.
-    assert_eq!(SizedDecoder::refined_offset_frames(500, &[1152], 0), 0);
-    assert_eq!(SizedDecoder::refined_offset_frames(500, &[1152], 64), 0);
-    assert_eq!(SizedDecoder::refined_offset_frames(2000, &[2304, 1152], 0), 0);
-}
-
-#[test]
 fn reported_duration_matches_the_frames_actually_delivered() {
     // Crossfade schedules the fade-out from the reported duration
     // (`commands.rs`: `remaining = duration_secs - position()`), so a source that
