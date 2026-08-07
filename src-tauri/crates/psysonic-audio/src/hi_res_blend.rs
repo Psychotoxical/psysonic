@@ -12,6 +12,7 @@ use super::engine::AudioEngine;
 use super::playback_rate::raw_counter_samples_for_content_position;
 use super::play_input::{url_format_hint, PlayInput};
 use super::source_build::{build_playback_source_with_probe_fallback, BuildSourceArgs, PlaybackSource};
+use super::state::install_current_source_done;
 use super::stream::LocalFileSource;
 
 const BLEND_44100: u32 = 44_100;
@@ -323,6 +324,14 @@ pub(crate) async fn rebuild_current_track_at_blend_rate(
         ),
         Ordering::Relaxed,
     );
+    if !install_current_source_done(
+        &state.current_source_done,
+        &state.generation,
+        gen,
+        done_flag,
+    ) {
+        return Ok(());
+    }
 
     crate::app_deprintln!(
         "[hi-res-blend] gapless realigned current track at {blend_rate} Hz from {:.2}s",

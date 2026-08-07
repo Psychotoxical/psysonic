@@ -28,6 +28,7 @@ use super::source_build::{
     build_playback_source_with_probe_fallback, BuildSourceArgs, PlaybackSource,
 };
 use super::sink_swap::{swap_in_new_sink, SinkSwapInputs};
+use super::state::install_current_source_done;
 use super::progress_task::spawn_progress_task;
 use super::stream::LocalFileSource;
 
@@ -266,6 +267,14 @@ pub(crate) async fn try_resume_after_device_change(
         app.emit("audio:format", ev).ok();
     }
 
+    if !install_current_source_done(
+        &engine.current_source_done,
+        &engine.generation,
+        gen,
+        done_flag,
+    ) {
+        return false;
+    }
     let analysis_app = app.clone();
     spawn_progress_task(
         gen,
@@ -275,7 +284,7 @@ pub(crate) async fn try_resume_after_device_change(
         engine.crossfade_enabled.clone(),
         engine.crossfade_secs.clone(),
         engine.autodj_suppress_autocrossfade.clone(),
-        done_flag,
+        engine.current_source_done.clone(),
         app.clone(),
         Some(analysis_app),
         engine.samples_played.clone(),

@@ -20,6 +20,7 @@ use super::sources::{
     CountingSource, DynSource, EqSource, EqualPowerFadeIn, NotifyingSource,
     PriorityBoostSource, TriggeredFadeOut,
 };
+use super::state::install_current_source_done;
 use super::stream::{
     radio_download_task, AudioStreamReader, RadioLiveState, RadioSharedFlags,
     RADIO_BUF_CAPACITY, RADIO_READ_TIMEOUT_SECS,
@@ -178,6 +179,14 @@ pub async fn audio_play_radio(
     app.emit("audio:playing", 0.0f64).ok();
 
     state.stream_playback_armed.store(true, Ordering::SeqCst);
+    if !install_current_source_done(
+        &state.current_source_done,
+        &state.generation,
+        gen,
+        done_flag,
+    ) {
+        return Ok(());
+    }
     spawn_progress_task(
         gen,
         state.generation.clone(),
@@ -186,7 +195,7 @@ pub async fn audio_play_radio(
         state.crossfade_enabled.clone(),
         state.crossfade_secs.clone(),
         state.autodj_suppress_autocrossfade.clone(),
-        done_flag,
+        state.current_source_done.clone(),
         app,
         None,
         state.samples_played.clone(),

@@ -34,6 +34,7 @@ pitch_shift = "2.1"
 libc = "0.2"
 
 [target.'cfg(target_os = "linux")'.dependencies]
+alsa = "0.11"
 zbus = { version = "5.16", default-features = false, features = ["blocking-api", "async-io"] }
 
 [target.'cfg(windows)'.dependencies]

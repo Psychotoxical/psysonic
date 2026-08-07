@@ -122,6 +122,7 @@ pub fn audio_stop(state: State<'_, AudioEngine>, app: AppHandle) {
     *state.current_analysis_track_id.lock().unwrap() = None;
     *state.current_playback_server_id.lock().unwrap() = None;
     *state.chained_info.lock().unwrap() = None;
+    *state.current_source_done.lock().unwrap() = None;
     // Keep `stream_completed_cache`: natural track end often calls `audio_stop` when the
     // queue is exhausted; clearing here dropped the full ranged buffer and forced a
     // re-download on replay. The slot is only consumed on `take`/overwrite for another URL.

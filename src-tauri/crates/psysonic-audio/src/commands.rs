@@ -26,7 +26,7 @@ use super::playback_rate::{preserve_pitch_will_run, raw_counter_samples_for_cont
 use super::preview::preview_clear_for_new_main_playback;
 use super::progress_task::spawn_progress_task;
 use super::sources::CancellableSource;
-use super::state::{ChainedInfo, PreloadedTrack};
+use super::state::{install_current_source_done, ChainedInfo, PreloadedTrack};
 
 // ─── Commands ─────────────────────────────────────────────────────────────────
 
@@ -614,6 +614,14 @@ pub async fn audio_play(
     }
 
     // ── Progress + ended detection ────────────────────────────────────────────
+    if !install_current_source_done(
+        &state.current_source_done,
+        &state.generation,
+        gen,
+        done_flag,
+    ) {
+        return Ok(());
+    }
     let analysis_app = app.clone();
     spawn_progress_task(
         gen,
@@ -623,7 +631,7 @@ pub async fn audio_play(
         state.crossfade_enabled.clone(),
         state.crossfade_secs.clone(),
         state.autodj_suppress_autocrossfade.clone(),
-        done_flag,
+        state.current_source_done.clone(),
         app,
         Some(analysis_app),
         state.samples_played.clone(),
@@ -795,6 +803,8 @@ pub async fn audio_chain_preload(
         format_hint.as_deref(),
         hi_res_enabled,
     ).map_err(|e| e.to_string())?;
+    let output_rate = built.output_rate;
+    let output_channels = built.output_channels;
     let source = built.source;
     let duration_secs = built.duration_secs;
 
@@ -884,6 +894,8 @@ pub async fn audio_chain_preload(
         generation: snapshot.generation,
         raw_bytes,
         resolved_format: built.resolved_format,
+        output_rate,
+        output_channels,
         duration_secs,
         replay_gain_linear: gain_linear,
         base_volume: volume.clamp(0.0, 1.0),

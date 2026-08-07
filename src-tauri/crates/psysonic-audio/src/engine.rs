@@ -6,7 +6,7 @@ use std::time::{Duration, Instant};
 use rodio::Player;
 use tauri::Manager;
 
-use super::state::{ChainedInfo, PreloadedTrack, StreamCompletedSpill};
+use super::state::{ChainedInfo, CurrentSourceDone, PreloadedTrack, StreamCompletedSpill};
 
 /// Reply channel handed back to the audio-stream thread once an open finishes.
 pub type StreamOpenReply =
@@ -86,6 +86,9 @@ pub struct AudioEngine {
     /// Info about the next-up chained track (gapless mode).
     /// The progress task reads this when `current_source_done` fires.
     pub(crate) chained_info: Arc<Mutex<Option<ChainedInfo>>>,
+    /// Generation-qualified completion flag for the currently active source.
+    /// Replaced when Hi-Res realignment rebuilds a source in-place.
+    pub(crate) current_source_done: CurrentSourceDone,
     /// Atomic sample counter — incremented by CountingSource in the audio thread.
     /// Progress task reads this for drift-free position tracking.
     pub samples_played: Arc<AtomicU64>,
@@ -183,6 +186,35 @@ fn finalize_mixer_device_sink(mut handle: rodio::MixerDeviceSink) -> Arc<rodio::
     handle
 }
 
+fn open_stream_with_verified_rate(
+    device: &rodio::cpal::Device,
+    config: &rodio::cpal::SupportedStreamConfig,
+) -> Option<(Arc<rodio::MixerDeviceSink>, u32)> {
+    let requested_rate = config.sample_rate();
+    #[cfg(target_os = "linux")]
+    let actual_rate = crate::alsa_rate::negotiated_output_rate(device, config)?;
+    #[cfg(not(target_os = "linux"))]
+    let actual_rate = requested_rate;
+
+    #[cfg(target_os = "linux")]
+    if actual_rate != requested_rate {
+        crate::app_eprintln!(
+            "[psysonic] ALSA negotiated {actual_rate} Hz for requested {requested_rate} Hz; using the negotiated mixer rate"
+        );
+    }
+
+    let builder = rodio::DeviceSinkBuilder::from_device(device.clone()).ok()?;
+    #[cfg(target_os = "linux")]
+    let builder = builder.with_supported_config(config);
+    let handle = builder
+        .with_sample_rate(
+            std::num::NonZeroU32::new(actual_rate).unwrap_or(std::num::NonZeroU32::MIN),
+        )
+        .open_stream()
+        .ok()?;
+    Some((finalize_mixer_device_sink(handle), actual_rate))
+}
+
 /// Returns `(stream_handle, actual_sample_rate)`.
 fn open_stream_for_device_and_rate(device_name: Option<&str>, desired_rate: u32) -> (Arc<rodio::MixerDeviceSink>, u32) {
     use rodio::cpal::traits::{DeviceTrait, HostTrait};
@@ -239,50 +271,60 @@ fn open_stream_for_device_and_rate(device_name: Option<&str>, desired_rate: u32)
             if let Ok(supported) = device.supported_output_configs() {
                 let configs: Vec<_> = supported.collect();
 
-                // 1. Exact rate match — prefer more channels (stereo > mono).
+                // 1. Exact rate match, using CPAL's normal format/channel preference.
                 let exact = configs.iter()
                     .filter(|c| {
                         c.min_sample_rate() <= desired_rate
                             && desired_rate <= c.max_sample_rate()
                     })
-                    .max_by_key(|c| c.channels());
+                    .max_by(|a, b| a.cmp_default_heuristics(b));
 
-                if exact.is_some() {
-                    if let Ok(handle) = rodio::DeviceSinkBuilder::from_device(device.clone())
-                        .and_then(|b| b.with_sample_rate(std::num::NonZeroU32::new(desired_rate).unwrap_or(std::num::NonZeroU32::MIN)).open_stream())
+                if let Some(cfg) = exact {
+                    let config = (*cfg).with_sample_rate(desired_rate);
+                    if let Some((handle, actual_rate)) =
+                        open_stream_with_verified_rate(&device, &config)
                     {
-                        crate::app_eprintln!("[psysonic] audio stream opened at {} Hz (exact)", desired_rate);
-                        return (finalize_mixer_device_sink(handle), desired_rate);
+                        crate::app_eprintln!(
+                            "[psysonic] audio stream opened at {} Hz (wanted {} Hz)",
+                            actual_rate,
+                            desired_rate
+                        );
+                        return (handle, actual_rate);
                     }
                 }
 
                 // 2. No exact match — use the highest supported rate.
                 let best = configs.iter()
-                    .max_by_key(|c| c.max_sample_rate());
+                    .max_by(|a, b| {
+                        a.max_sample_rate()
+                            .cmp(&b.max_sample_rate())
+                            .then_with(|| a.cmp_default_heuristics(b))
+                    });
 
                 if let Some(cfg) = best {
-                    let rate = cfg.max_sample_rate();
-                    if let Ok(handle) = rodio::DeviceSinkBuilder::from_device(device.clone())
-                        .and_then(|b| b.with_sample_rate(std::num::NonZeroU32::new(rate).unwrap_or(std::num::NonZeroU32::MIN)).open_stream())
+                    let config = (*cfg).with_max_sample_rate();
+                    if let Some((handle, actual_rate)) =
+                        open_stream_with_verified_rate(&device, &config)
                     {
                         crate::app_eprintln!(
                             "[psysonic] audio stream opened at {} Hz (highest, wanted {})",
-                            rate, desired_rate
+                            actual_rate, desired_rate
                         );
-                        return (finalize_mixer_device_sink(handle), rate);
+                        return (handle, actual_rate);
                     }
                 }
             }
         }
 
         // 3. Device default.
-        if let Ok(handle) = rodio::DeviceSinkBuilder::from_device(device.clone()).and_then(|b| b.open_stream()) {
-            let rate = device
-                .default_output_config()
-                .map(|c| c.sample_rate())
-                .unwrap_or(44100);
-            crate::app_eprintln!("[psysonic] audio stream opened at {} Hz (device default)", rate);
-            return (finalize_mixer_device_sink(handle), rate);
+        if let Ok(config) = device.default_output_config() {
+            if let Some((handle, rate)) = open_stream_with_verified_rate(&device, &config) {
+                crate::app_eprintln!(
+                    "[psysonic] audio stream opened at {} Hz (device default)",
+                    rate
+                );
+                return (handle, rate);
+            }
         }
     }
 
@@ -502,6 +544,7 @@ pub fn create_engine() -> (AudioEngine, std::thread::JoinHandle<()>) {
         normalization_target_lufs: Arc::new(AtomicU32::new((-16.0f32).to_bits())),
         loudness_pre_analysis_attenuation_db: Arc::new(AtomicU32::new((-4.5f32).to_bits())),
         chained_info: Arc::new(Mutex::new(None)),
+        current_source_done: Arc::new(Mutex::new(None)),
         samples_played: Arc::new(AtomicU64::new(0)),
         current_sample_rate: Arc::new(AtomicU32::new(0)),
         current_channels: Arc::new(AtomicU32::new(2)),
@@ -540,6 +583,7 @@ pub fn stop_audio_engine(app: &tauri::AppHandle) {
     let engine = app.state::<AudioEngine>();
     engine.generation.fetch_add(1, Ordering::SeqCst);
     *engine.chained_info.lock().unwrap() = None;
+    *engine.current_source_done.lock().unwrap() = None;
     drop(engine.radio_state.lock().unwrap().take());
     let mut cur = engine.current.lock().unwrap();
     if let Some(sink) = cur.sink.take() { sink.stop(); }

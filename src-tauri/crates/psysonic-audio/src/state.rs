@@ -1,6 +1,29 @@
 //! Small shared structs for preload / gapless chain metadata.
-use std::sync::atomic::{AtomicBool, AtomicU64};
-use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::{Arc, Mutex};
+
+/// Completion signal for the source currently owned by a playback generation.
+/// Hi-Res realignment may replace the source without incrementing generation,
+/// so the progress task must resolve this slot dynamically instead of retaining
+/// the flag created by the original `audio_play` call.
+pub(crate) type CurrentSourceDone = Arc<Mutex<Option<(u64, Arc<AtomicBool>)>>>;
+
+/// Publish a source completion flag only while its playback generation remains
+/// current. Holding the slot lock across the generation check prevents a late
+/// resume/rebuild from overwriting a newer play's flag.
+pub(crate) fn install_current_source_done(
+    slot: &CurrentSourceDone,
+    generation: &AtomicU64,
+    expected_generation: u64,
+    done: Arc<AtomicBool>,
+) -> bool {
+    let mut current = slot.lock().unwrap();
+    if generation.load(Ordering::SeqCst) != expected_generation {
+        return false;
+    }
+    *current = Some((expected_generation, done));
+    true
+}
 
 pub(crate) struct PreloadedTrack {
     pub(crate) url: String,
@@ -31,6 +54,9 @@ pub(crate) struct ChainedInfo {
     /// Real decoded format of the chained successor, for the `audio:format`
     /// event emitted at the gapless transition.
     pub(crate) resolved_format: Option<crate::decode::ResolvedCodecInfo>,
+    /// Actual source shape after any blend-rate resampling.
+    pub(crate) output_rate: u32,
+    pub(crate) output_channels: u16,
     pub(crate) duration_secs: f64,
     pub(crate) replay_gain_linear: f32,
     pub(crate) base_volume: f32,
@@ -42,4 +68,28 @@ pub(crate) struct ChainedInfo {
     /// Atomic sample counter for this chained source (swapped into
     /// samples_played on transition).
     pub(crate) sample_counter: Arc<AtomicU64>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn stale_generation_cannot_replace_current_source_completion() {
+        let generation = AtomicU64::new(2);
+        let current_done = Arc::new(AtomicBool::new(false));
+        let slot = Arc::new(Mutex::new(Some((2, current_done.clone()))));
+
+        assert!(!install_current_source_done(
+            &slot,
+            &generation,
+            1,
+            Arc::new(AtomicBool::new(false)),
+        ));
+
+        let guard = slot.lock().unwrap();
+        let (slot_generation, slot_done) = guard.as_ref().unwrap();
+        assert_eq!(*slot_generation, 2);
+        assert!(Arc::ptr_eq(slot_done, &current_done));
+    }
 }
