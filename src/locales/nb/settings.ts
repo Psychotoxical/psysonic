@@ -77,6 +77,7 @@ export const settings = {
   serverFailed: 'Tilkobling mislyktes.',
   serverUrlRequired: 'Serveradresse er påkrevd.',
   serverUsernameRequired: 'Brukernavn er påkrevd.',
+  serverDuplicate: 'En tilkobling med denne serveradressen og dette brukernavnet finnes allerede.',
   serverConnectFailedReason: 'Kunne ikke koble til: {{reason}}',
   testBtn: 'Test tilkobling',
   testingBtn: 'Tester…',

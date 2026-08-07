@@ -77,6 +77,7 @@ export const settings = {
   serverFailed: 'Verbinding mislukt.',
   serverUrlRequired: 'Serveradres is verplicht.',
   serverUsernameRequired: 'Gebruikersnaam is verplicht.',
+  serverDuplicate: 'Er bestaat al een verbinding met dit serveradres en deze gebruikersnaam.',
   serverConnectFailedReason: 'Kan geen verbinding maken: {{reason}}',
   testBtn: 'Verbinding testen',
   testingBtn: 'Testen…',

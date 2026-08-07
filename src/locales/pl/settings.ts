@@ -78,6 +78,7 @@ export const settings = {
   serverFailed: 'Połączenie nieudane.',
   serverUrlRequired: 'Adres serwera jest wymagany.',
   serverUsernameRequired: 'Nazwa użytkownika jest wymagana.',
+  serverDuplicate: 'Połączenie z tym adresem serwera i nazwą użytkownika już istnieje.',
   serverConnectFailedReason: 'Nie można połączyć: {{reason}}',
   testBtn: 'Sprawdź połączenie',
   testingBtn: 'Sprawdzanie…',

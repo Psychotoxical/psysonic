@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   librarySyncClearSession: vi.fn(),
   libraryDeleteServerData: vi.fn(),
   onPersisted: vi.fn(),
+  showToast: vi.fn(),
 }));
 
 vi.mock('@/lib/library/hooks/useLibraryIndexSync', () => ({
@@ -44,6 +45,10 @@ vi.mock('@/lib/server/syncServerHttpContext', () => ({
 vi.mock('@/lib/api/library', () => ({
   librarySyncClearSession: mocks.librarySyncClearSession,
   libraryDeleteServerData: mocks.libraryDeleteServerData,
+}));
+
+vi.mock('@/lib/dom/toast', () => ({
+  showToast: mocks.showToast,
 }));
 
 vi.mock('@/lib/server/serverEndpoint', () => ({
@@ -124,8 +129,35 @@ vi.mock('@/features/settings/components/AddServerForm', () => ({
         save-edit
       </button>
       <button type="button" onClick={onDelete}>delete-edit</button>
+      <button type="button" onClick={() => onSave({
+        name: editingServer.name,
+        url: 'https://a.test/',
+        username: 'user',
+        password: editingServer.password,
+      })}>
+        save-edit-duplicate
+      </button>
     </>
-  ) : null,
+  ) : (
+    <>
+      <button type="button" onClick={() => onSave({
+        name: 'Duplicate',
+        url: 'https://a.test/',
+        username: 'user',
+        password: 'password',
+      })}>
+        save-add-duplicate
+      </button>
+      <button type="button" onClick={() => onSave({
+        name: 'Other user',
+        url: 'https://a.test/',
+        username: 'other',
+        password: 'password',
+      })}>
+        save-add-other-user
+      </button>
+    </>
+  ),
 }));
 
 import { ServersTab } from './ServersTab';
@@ -146,6 +178,7 @@ beforeEach(() => {
   mocks.clearServerHttpContext.mockReset().mockResolvedValue(undefined);
   mocks.invalidateReachableEndpointCache.mockReset();
   mocks.onPersisted.mockReset();
+  mocks.showToast.mockReset();
   mocks.librarySyncClearSession.mockReset().mockResolvedValue(undefined);
   mocks.libraryDeleteServerData.mockReset().mockResolvedValue(undefined);
   useAuthStore.setState({
@@ -154,6 +187,65 @@ beforeEach(() => {
     servers: [{
       id: 'a', name: 'A', url: 'https://a.test', username: 'user', password: 'old-password',
     }],
+  });
+});
+
+describe('ServersTab duplicate server login validation', () => {
+  it('blocks adding an existing URL and username before connecting', async () => {
+    const user = userEvent.setup();
+    const view = renderWithProviders(<ServersTab initialInvite={null} />);
+
+    await user.click(view.container.querySelector('#settings-add-server-btn')!);
+    await user.click(screen.getByRole('button', { name: 'save-add-duplicate' }));
+
+    expect(mocks.pingWithCredentialsForProfile).not.toHaveBeenCalled();
+    expect(useAuthStore.getState().servers).toHaveLength(1);
+    expect(mocks.showToast).toHaveBeenCalledWith(
+      expect.stringMatching(/already exists/i),
+      5000,
+      'error',
+    );
+  });
+
+  it('blocks editing another profile to an existing URL and username', async () => {
+    useAuthStore.setState({
+      servers: [
+        ...useAuthStore.getState().servers,
+        { id: 'b', name: 'B', url: 'https://b.test', username: 'other', password: 'password' },
+      ],
+    });
+    const user = userEvent.setup();
+    const view = renderWithProviders(<ServersTab initialInvite={null} />);
+
+    await user.click(view.container.querySelector('#settings-edit-server-b')!);
+    await user.click(screen.getByRole('button', { name: 'save-edit-duplicate' }));
+
+    expect(useAuthStore.getState().servers.find(server => server.id === 'b')).toMatchObject({
+      url: 'https://b.test',
+      username: 'other',
+    });
+    expect(mocks.ensureConnectUrlResolved).not.toHaveBeenCalled();
+  });
+
+  it('allows the same URL for a different username', async () => {
+    mocks.pingWithCredentialsForProfile.mockResolvedValue({
+      ok: true,
+      type: 'navidrome',
+      serverVersion: '0.56.0',
+      openSubsonic: true,
+    });
+    const user = userEvent.setup();
+    const view = renderWithProviders(<ServersTab initialInvite={null} />);
+
+    await user.click(view.container.querySelector('#settings-add-server-btn')!);
+    await user.click(screen.getByRole('button', { name: 'save-add-other-user' }));
+
+    await waitFor(() => expect(useAuthStore.getState().servers).toHaveLength(2));
+    expect(useAuthStore.getState().servers[1]).toMatchObject({
+      url: 'https://a.test/',
+      username: 'other',
+    });
+    expect(mocks.showToast).not.toHaveBeenCalled();
   });
 });
 
