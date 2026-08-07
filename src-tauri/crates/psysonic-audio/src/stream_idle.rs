@@ -177,6 +177,7 @@ mod tests {
         AudioEngine {
             stream_handle: Arc::new(Mutex::new(None)),
             stream_sample_rate: Arc::new(AtomicU32::new(0)),
+            stream_requested_rate: Arc::new(AtomicU32::new(0)),
             device_default_rate: 48_000,
             stream_thread_tx,
             selected_device: Arc::new(Mutex::new(None)),

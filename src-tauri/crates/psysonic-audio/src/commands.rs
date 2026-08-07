@@ -399,9 +399,13 @@ pub async fn audio_play(
     }
 
     let current_stream_rate = state.stream_sample_rate.load(Ordering::Relaxed);
+    let current_requested_rate = state.stream_requested_rate.load(Ordering::Relaxed);
     let outgoing_blend: Option<OutgoingBlendSnapshot> =
         if let Some(blend) = blend_rate {
-            if crossfade_enabled && current_stream_rate > 0 && current_stream_rate != blend {
+            if crossfade_enabled
+                && current_requested_rate > 0
+                && current_requested_rate != blend
+            {
                 hi_res_blend::capture_outgoing_blend_snapshot(
                     &state,
                     outgoing_fade_secs,
@@ -433,7 +437,8 @@ pub async fn audio_play(
         } else {
             state.device_default_rate // restore device default
         };
-        let needs_switch = target_rate > 0 && target_rate != current_stream_rate;
+        let needs_switch =
+            super::engine::stream_rate_needs_switch(target_rate, current_requested_rate);
         if needs_switch {
             let dev = state.selected_device.lock().unwrap().clone();
             match super::engine::open_output_stream_blocking(
@@ -816,8 +821,9 @@ pub async fn audio_chain_preload(
     // Hi-res gapless: resample the chained track to the blend rate and realign
     // the output stream when its Hz differs from the current track.
     let stream_rate = state.stream_sample_rate.load(Ordering::Relaxed);
+    let requested_stream_rate = state.stream_requested_rate.load(Ordering::Relaxed);
     if let Some(br) = blend_rate {
-        if stream_rate > 0 && stream_rate != br {
+        if super::engine::stream_rate_needs_switch(br, requested_stream_rate) {
             if let Some(snap) = hi_res_blend::capture_outgoing_blend_snapshot(&state, 0.0, 0.0) {
                 hi_res_blend::detach_current_sink_for_blend_reopen(&state);
                 let dev = state.selected_device.lock().unwrap().clone();
@@ -859,10 +865,12 @@ pub async fn audio_chain_preload(
         }
     } else {
         let next_rate = if hi_res_enabled { built.output_rate } else { 44_100 };
-        if hi_res_enabled && stream_rate > 0 && next_rate != stream_rate {
+        if hi_res_enabled
+            && super::engine::stream_rate_needs_switch(next_rate, requested_stream_rate)
+        {
             crate::app_eprintln!(
                 "[psysonic] gapless chain skipped: next track rate {} Hz ≠ stream {} Hz",
-                next_rate, stream_rate
+                next_rate, requested_stream_rate
             );
             restore_chain_preload_if_current(&state, snapshot, &url, &raw_bytes);
             return Ok(());

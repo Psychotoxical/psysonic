@@ -39,7 +39,7 @@ pub(crate) async fn reopen_output_stream(
         return false;
     };
 
-    let rate = engine.stream_sample_rate.load(Ordering::Relaxed);
+    let rate = engine.stream_requested_rate.load(Ordering::Relaxed);
     let open_rate = if rate > 0 {
         rate
     } else {

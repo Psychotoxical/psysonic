@@ -147,7 +147,7 @@ pub async fn audio_set_device(
 ) -> Result<(), String> {
     *state.selected_device.lock().unwrap() = device_name.clone();
 
-    let rate = state.stream_sample_rate.load(Ordering::Relaxed);
+    let rate = state.stream_requested_rate.load(Ordering::Relaxed);
     let open_rate = if rate > 0 {
         rate
     } else {

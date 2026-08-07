@@ -27,8 +27,11 @@ pub enum StreamThreadMsg {
 
 pub struct AudioEngine {
     pub stream_handle: Arc<std::sync::Mutex<Option<Arc<rodio::MixerDeviceSink>>>>,
-    /// Sample rate the output stream was last opened at (updated on every re-open).
+    /// Actual mixer/device rate selected by the output backend.
     pub stream_sample_rate: Arc<AtomicU32>,
+    /// Last rate requested by playback mode. Kept separate from the negotiated
+    /// rate so ALSA coercion does not trigger another reopen on every track.
+    pub stream_requested_rate: Arc<AtomicU32>,
     /// The rate the device was opened at on cold start — used to restore the
     /// stream when Hi-Res is toggled off while a hi-res rate is active.
     pub device_default_rate: u32,
@@ -205,7 +208,9 @@ fn open_stream_with_verified_rate(
 
     let builder = rodio::DeviceSinkBuilder::from_device(device.clone()).ok()?;
     #[cfg(target_os = "linux")]
-    let builder = builder.with_supported_config(config);
+    let builder = builder
+        .with_channels(std::num::NonZeroU16::new(config.channels())?)
+        .with_sample_format(config.sample_format());
     let handle = builder
         .with_sample_rate(
             std::num::NonZeroU32::new(actual_rate).unwrap_or(std::num::NonZeroU32::MIN),
@@ -213,6 +218,40 @@ fn open_stream_with_verified_rate(
         .open_stream()
         .ok()?;
     Some((finalize_mixer_device_sink(handle), actual_rate))
+}
+
+#[cfg(target_os = "linux")]
+fn open_verified_device_fallback(
+    device: &rodio::cpal::Device,
+) -> Option<(Arc<rodio::MixerDeviceSink>, u32)> {
+    use rodio::cpal::traits::DeviceTrait;
+
+    if let Ok(config) = device.default_output_config() {
+        if let Some(opened) = open_stream_with_verified_rate(device, &config) {
+            return Some(opened);
+        }
+    }
+
+    let mut ranges: Vec<_> = device.supported_output_configs().ok()?.collect();
+    ranges.sort_by(|a, b| b.cmp_default_heuristics(a));
+    for range in ranges {
+        let min_rate = range.min_sample_rate();
+        let max_rate = range.max_sample_rate();
+        let mut rates = vec![max_rate];
+        if (min_rate..=max_rate).contains(&44_100) {
+            rates.push(44_100);
+        }
+        rates.push(min_rate);
+        rates.dedup();
+
+        for rate in rates {
+            let config = range.with_sample_rate(rate);
+            if let Some(opened) = open_stream_with_verified_rate(device, &config) {
+                return Some(opened);
+            }
+        }
+    }
+    None
 }
 
 /// Returns `(stream_handle, actual_sample_rate)`.
@@ -316,7 +355,16 @@ fn open_stream_for_device_and_rate(device_name: Option<&str>, desired_rate: u32)
             }
         }
 
-        // 3. Device default.
+        // 3. Device fallback configurations.
+        #[cfg(target_os = "linux")]
+        if let Some((handle, rate)) = open_verified_device_fallback(&device) {
+            crate::app_eprintln!(
+                "[psysonic] audio stream opened at {} Hz (verified device fallback)",
+                rate
+            );
+            return (handle, rate);
+        }
+        #[cfg(not(target_os = "linux"))]
         if let Ok(config) = device.default_output_config() {
             if let Some((handle, rate)) = open_stream_with_verified_rate(&device, &config) {
                 crate::app_eprintln!(
@@ -328,16 +376,50 @@ fn open_stream_for_device_and_rate(device_name: Option<&str>, desired_rate: u32)
         }
     }
 
-    // 4. Last resort: system default.
-    crate::app_eprintln!("[psysonic] audio stream falling back to system default");
-    let handle = rodio::DeviceSinkBuilder::open_default_sink()
-        .expect("cannot open any audio output device");
-    let rate = rodio::cpal::default_host()
-        .default_output_device()
-        .and_then(|d| d.default_output_config().ok())
-        .map(|c| c.sample_rate())
-        .unwrap_or(44100);
-    (finalize_mixer_device_sink(handle), rate)
+    // 4. Verified system-default and alternate-device fallbacks. Do not call
+    // Rodio's broad fallback here: on ALSA it would bypass negotiated-rate
+    // verification and could reintroduce pitch/speed distortion.
+    #[cfg(target_os = "linux")]
+    {
+        if let Some(default_device) = host.default_output_device() {
+            if let Some((handle, rate)) = open_verified_device_fallback(&default_device) {
+                crate::app_eprintln!(
+                    "[psysonic] audio stream opened at {} Hz (verified system default)",
+                    rate
+                );
+                return (handle, rate);
+            }
+        }
+        if let Ok(devices) = host.output_devices() {
+            for fallback_device in devices.filter(|device| {
+                device
+                    .description()
+                    .map(|description| description.driver() != Some("null"))
+                    .unwrap_or(false)
+            }) {
+                if let Some((handle, rate)) = open_verified_device_fallback(&fallback_device) {
+                    crate::app_eprintln!(
+                        "[psysonic] audio stream opened at {} Hz (verified alternate device)",
+                        rate
+                    );
+                    return (handle, rate);
+                }
+            }
+        }
+        panic!("cannot open any verified audio output device")
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        crate::app_eprintln!("[psysonic] audio stream falling back to system default");
+        let handle = rodio::DeviceSinkBuilder::open_default_sink()
+            .expect("cannot open any audio output device");
+        let rate = host
+            .default_output_device()
+            .and_then(|device| device.default_output_config().ok())
+            .map(|config| config.sample_rate())
+            .unwrap_or(44_100);
+        (finalize_mixer_device_sink(handle), rate)
+    }
 }
 
 fn probe_device_default_rate() -> u32 {
@@ -350,7 +432,7 @@ fn probe_device_default_rate() -> u32 {
         .unwrap_or(44_100)
 }
 
-/// Open the output stream (blocking). Updates `stream_handle` and `stream_sample_rate`.
+/// Open the output stream (blocking). Updates requested and negotiated rates.
 pub(crate) fn open_output_stream_blocking(
     engine: &AudioEngine,
     desired_rate: u32,
@@ -378,6 +460,9 @@ pub(crate) fn open_output_stream_blocking(
     engine
         .stream_sample_rate
         .store(actual_rate, std::sync::atomic::Ordering::Relaxed);
+    engine
+        .stream_requested_rate
+        .store(rate, std::sync::atomic::Ordering::Relaxed);
     *engine.stream_handle.lock().unwrap() = Some(handle.clone());
     Ok(handle)
 }
@@ -389,7 +474,9 @@ pub(crate) fn ensure_output_stream_open(
     if let Some(handle) = engine.stream_handle.lock().unwrap().clone() {
         return Ok(handle);
     }
-    let rate = engine.stream_sample_rate.load(std::sync::atomic::Ordering::Relaxed);
+    let rate = engine
+        .stream_requested_rate
+        .load(std::sync::atomic::Ordering::Relaxed);
     let open_rate = if rate > 0 {
         rate
     } else {
@@ -501,6 +588,7 @@ pub fn create_engine() -> (AudioEngine, std::thread::JoinHandle<()>) {
     let engine = AudioEngine {
         stream_handle: Arc::new(std::sync::Mutex::new(None)),
         stream_sample_rate: Arc::new(AtomicU32::new(0)),
+        stream_requested_rate: Arc::new(AtomicU32::new(0)),
         device_default_rate,
         stream_thread_tx,
         selected_device: Arc::new(Mutex::new(None)),
@@ -562,6 +650,26 @@ pub fn create_engine() -> (AudioEngine, std::thread::JoinHandle<()>) {
 
     (engine, thread)
 }
+
+pub(crate) fn stream_rate_needs_switch(target_rate: u32, current_requested_rate: u32) -> bool {
+    target_rate > 0 && target_rate != current_requested_rate
+}
+
+#[cfg(test)]
+mod stream_rate_tests {
+    use super::stream_rate_needs_switch;
+
+    #[test]
+    fn negotiated_rate_difference_does_not_reopen_same_request() {
+        // ALSA may negotiate 48 kHz for a 44.1 kHz request. Reopen decisions
+        // compare the next target with the prior request, not with that 48 kHz
+        // actual rate, so the same mode stays on the existing stream.
+        assert!(!stream_rate_needs_switch(44_100, 44_100));
+        assert!(stream_rate_needs_switch(96_000, 44_100));
+        assert!(!stream_rate_needs_switch(0, 44_100));
+    }
+}
+
 /// `analysis_enqueue_seed_from_url` should bail while this track's HTTP playback
 /// buffer is still filling — playback will seed on completion with the same bytes.
 pub fn playback_analysis_backfill_should_defer(engine: &AudioEngine, track_id: &str) -> bool {
