@@ -357,7 +357,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 **By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1388](https://github.com/Psychotoxical/psysonic/pull/1388)**
 
 * Playing a continuous album in MP3 no longer inserts a short silence at every track change. Two adjacent tracks now join exactly where they were split, for files whose encoder recorded the gap in the file header — which is what the common MP3 encoders write.
-* Root cause: MP3 encoders add a few milliseconds of silence to the beginning and end of every file. Psysonic played that silence instead of skipping it, which put roughly 75 ms of it into each track boundary. Unchanged: internet radio, playback from servers that cannot serve range requests, and files that carry only an iTunes-style tag instead of that header when they are played from disk or streamed.
+* Root cause: MP3 encoders add a few milliseconds of silence to the beginning and end of every file. Psysonic played that silence instead of skipping it, which put roughly 50 ms of it into each track boundary. Unchanged: internet radio, playback from servers that cannot serve range requests, and files that carry only an iTunes-style tag instead of that header when they are played from disk or streamed.
 
 ### Linux — internet radio no longer blanks the window
 

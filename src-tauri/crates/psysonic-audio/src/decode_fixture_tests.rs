@@ -397,16 +397,14 @@ fn a_failing_read_is_an_error_not_an_empty_track() {
         Ok(_) => panic!("a failing read must not construct a decoder"),
         Err(e) => e,
     };
-    // The point is that construction *fails* rather than yielding a silent track.
-    // Which stage notices is not pinned down: the cut-off sits past the probe
-    // today, but probe read-ahead and the stream buffer size are both outside
-    // this test's control, so a shift there must not turn into a red test without
-    // a production change.
+    // Pinned to the initialization loop on purpose: a probe failure would prove
+    // nothing about the arm under test, since the probe rejected truncated input
+    // before this change too. If probe read-ahead ever shifts far enough to
+    // swallow the cut-off, this fails loudly and the cut-off gets retuned —
+    // preferable to an assertion that also passes on the old behaviour.
     assert!(
-        err.contains("could not read audio data")
-            || err.contains("ended before any audio")
-            || err.contains("format probe failed"),
-        "error should name the read failure, got: {err}"
+        err.contains("could not read audio data"),
+        "the read failure must surface from initialization, got: {err}"
     );
 }
 
@@ -516,21 +514,19 @@ fn mp3_decode_throughput() {
 
 #[test]
 fn refined_offset_accounts_for_packets_dropped_by_a_retry() {
-    // Straight-through: only the kept packet's own trim comes off.
+    // Straight-through: only the kept packet's own trim comes off. This is the
+    // only case with a non-zero result.
     assert_eq!(SizedDecoder::refined_offset_frames(500, &[], 100), 400);
 
-    // A retry moved to a later packet. The selection loop only breaks on a
-    // packet longer than what is left to skip, so the discarded duration always
-    // covers the remainder and the new packet is entered at its start.
+    // Every retry collapses to zero, and that is a property of the caller rather
+    // than of the arithmetic: the selection loop only breaks on a packet whose
+    // duration *exceeds* what is left to skip, so the first discarded duration
+    // always covers the remainder. Cases where it does not (`[300]` against 500
+    // to skip) cannot occur and are deliberately not asserted — they would pin
+    // behaviour that never runs.
     assert_eq!(SizedDecoder::refined_offset_frames(500, &[1152], 0), 0);
-
-    // Using the failed packet's trim instead of the retried one's is the bug
-    // this guards: with the discarded packet accounted for, a later trim cannot
-    // push the offset back into a buffer that no longer contains those frames.
-    assert_eq!(SizedDecoder::refined_offset_frames(500, &[300], 50), 150);
-
-    // Two failures in a row.
-    assert_eq!(SizedDecoder::refined_offset_frames(2000, &[576, 576], 0), 848);
+    assert_eq!(SizedDecoder::refined_offset_frames(500, &[1152], 64), 0);
+    assert_eq!(SizedDecoder::refined_offset_frames(2000, &[2304, 1152], 0), 0);
 }
 
 #[test]
