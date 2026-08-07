@@ -383,12 +383,19 @@ impl SizedDecoder {
         // decision below.
         let (track_delay, track_padding) = (track.delay, track.padding);
         // Encoder-delay-aware total duration (timebase units → Time).
+        //
+        // Zero is not a duration — see the same filter in `new_streaming`. A Xing
+        // header that declares the FRAMES field and leaves it empty yields
+        // `num_frames = Some(0)`, and `try_seek`'s seek-past-end clamp would then
+        // send every scrub back to the start. The bytes path reaches this through
+        // buffered playback, preview and the full-buffer retry.
         let total_duration = track
             .time_base
             .zip(track.num_frames)
             .and_then(|(base, frames)| {
                 Timestamp::try_from(frames).ok().and_then(|ts| base.calc_time(ts))
-            });
+            })
+            .filter(|t| t.as_secs_f64() > 0.0);
 
         let audio_params = track
             .codec_params
@@ -829,11 +836,17 @@ impl SizedDecoder {
                 .map_err(|e| format!("refine seek: {e}"))?
             {
                 Some(p) => p,
-                // EOF while refining — nothing more to skip. The buffer is left
-                // as it is: emptying it here would make `current_span_len()`
-                // report `Some(0)`, which rodio's resampling wrapper reads as
-                // end-of-source.
-                None => return Ok(()),
+                // EOF while refining — nothing more to skip. The buffer still
+                // holds samples decoded *before* the seek, and the demuxer has
+                // moved; replaying them would emit audio from the old position
+                // after the seek reported success. Dropping them is safe now that
+                // an empty buffer reports `Some(1)` rather than `Some(0)`: the
+                // source is not mistaken for finished, and `next()` refills it.
+                None => {
+                    self.buffer.clear();
+                    self.current_frame_offset = 0;
+                    return Ok(());
+                }
             };
             if candidate.dur.get() > samples_to_pass {
                 break candidate;
@@ -967,14 +980,22 @@ impl Source for SizedDecoder {
         // consumed sample truncates the span and drops audio — measurably, in
         // three of the fixture tests.
         //
-        // An empty buffer is "length unknown", not "length zero". Gapless
-        // trimming can empty a packet outright, and `Some(0)` is what rodio's
-        // resampling wrapper reads as end-of-source — the silent track of issue
-        // #1373's own fix. `next()` keeps reading past such a packet, so the
-        // source is not finished; saying so here is what makes that true for
-        // every caller instead of only for the ones that call `next()` first.
+        // Gapless trimming can empty a packet outright, and `Some(0)` is what
+        // rodio's resampling wrapper reads as end-of-source — the silent track
+        // that issue #1373's own fix would otherwise introduce. `next()` keeps
+        // reading past such a packet, so the source is not finished.
+        //
+        // `None` is not the way to say that: rodio 0.22 reads it as an *infinite*
+        // span (`UniformSourceIterator::bootstrap` builds `Take { n: None }`,
+        // `uniform.rs:55`), and since it only re-bootstraps when that `Take` runs
+        // out, the sample-rate and channel converters would stay pinned to
+        // whatever spec was current while the buffer happened to be empty. A
+        // stream that changes rate or channel count later would play the rest at
+        // the wrong pitch. `Some(1)` says "not finished, ask again": one sample is
+        // pulled — which refills the buffer — and the span ends immediately, so
+        // the next bootstrap sees the real spec.
         if self.buffer.is_empty() {
-            return None;
+            return Some(1);
         }
         Some(self.buffer.len())
     }
