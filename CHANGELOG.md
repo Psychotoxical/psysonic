@@ -391,6 +391,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * Settings no longer saves a second profile with the same server address and username. The same server can still be saved for a different account.
 
+### Tracks — reroll the Highly Rated selection
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1400](https://github.com/Psychotoxical/psysonic/pull/1400)**, reported by zunoz on Discord
+
+* **Highly Rated** now reshuffles tracks within each rating tier instead of requesting and redisplaying the same fixed order. Higher ratings stay first, and rerolls reuse the short-lived list cache so the new selection appears without another server roundtrip.
+
 ## [1.50.0]
 
 ## Added
