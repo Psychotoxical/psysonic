@@ -385,6 +385,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * Homepage URLs supplied by Navidrome no longer disappear from station cards or the edit form after saving or reloading the station.
 
+### Servers — prevent duplicate account profiles
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1399](https://github.com/Psychotoxical/psysonic/pull/1399)**, reported by zunoz on Discord
+
+* Settings no longer saves a second profile with the same server address and username. The same server can still be saved for a different account.
+
 ## [1.50.0]
 
 ## Added
