@@ -1,4 +1,10 @@
 fn main() {
+    // Cargo only re-runs this script when one of its declared inputs changes.
+    // The icons are compiled into the executable as a resource, but nothing
+    // here names them, so swapping an icon leaves the previous one embedded
+    // until some unrelated Rust change happens to force a rebuild.
+    println!("cargo::rerun-if-changed=icons");
+
     // Windows/MSVC test binaries only: bind to Common-Controls v6.
     //
     // The library test harness (`--lib` unittests) links the wry/tao windowing
