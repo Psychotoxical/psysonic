@@ -397,6 +397,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * **Highly Rated** now reshuffles tracks within each rating tier instead of requesting and redisplaying the same fixed order. Higher ratings stay first, and rerolls reuse the short-lived list cache so the new selection appears without another server roundtrip.
 
+### Genres — line up the page heading with its album count
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1402](https://github.com/Psychotoxical/psysonic/pull/1402)**, reported by zunoz
+
+* The genre name and the album count beside it now sit on one line instead of a couple of pixels apart, on the **Genres** overview as well as on a genre's own page. The alignment holds when the heading shrinks as you scroll.
+* The small icon between the two gives way to a dash, and a long genre name now shortens with its full text on hover instead of making the row taller.
+
 ## [1.50.0]
 
 ## Added
