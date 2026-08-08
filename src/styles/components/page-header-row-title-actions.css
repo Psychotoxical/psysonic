@@ -12,3 +12,37 @@
   margin-bottom: 0;
 }
 
+/* ─ Inpage heading (title + entity count on one line) ─
+   The title and the count are two different type sizes sharing a row. Centring
+   them vertically leaves their baselines a few pixels apart, and the offset
+   changes again once the sticky header shrinks its title on scroll. Aligning on
+   the shared baseline seats both on one line at every size, with no per-size
+   correction to maintain. */
+.inpage-heading {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  min-width: 0;
+  /* The row distributes with space-between, so the heading's position would
+     otherwise depend on how many siblings are currently rendered - it would
+     drift right while the playback actions are still loading. */
+  margin-right: auto;
+}
+
+.inpage-heading__count {
+  display: inline-flex;
+  align-items: baseline;
+  /* Same value as the wrapper's gap, so the dash sits evenly between the two. */
+  gap: var(--space-2);
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+/* A dash reads as a separator on its own; it carries no meaning a screen reader
+   needs to announce, so it stays in the stylesheet rather than the markup. */
+.inpage-heading__count::before {
+  content: '–';
+}
+

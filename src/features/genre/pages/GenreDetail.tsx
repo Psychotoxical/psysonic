@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { ArrowLeft, Disc3, Play, ListPlus, Loader2 } from 'lucide-react';
+import { ArrowLeft, Play, ListPlus, Loader2 } from 'lucide-react';
 import { AlbumCard } from '@/features/album';
 import { LongPressWaveOverlay } from '@/ui/LongPressWaveOverlay';
 import InpageScrollSentinel from '@/ui/InpageScrollSentinel';
@@ -205,13 +205,14 @@ export default function GenreDetail() {
             <ArrowLeft size={16} />
             <span className="toolbar-btn-label">{t('genres.back')}</span>
           </button>
-          <h1 className="page-title" style={{ marginBottom: 0 }}>{genre}</h1>
-          {headerCount != null && headerCount > 0 && (
-            <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--text-secondary)', fontSize: '0.9rem', fontWeight: 500 }}>
-              <Disc3 size={14} style={{ color: 'var(--accent)' }} />
-              {t('genres.albumCount', { count: headerCount })}
-            </span>
-          )}
+          <div className="inpage-heading">
+            <h1 className="page-title" style={{ marginBottom: 0 }}>{genre}</h1>
+            {headerCount != null && headerCount > 0 && (
+              <span className="inpage-heading__count">
+                {t('genres.albumCount', { count: headerCount })}
+              </span>
+            )}
+          </div>
           {showPlayback && (
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginLeft: 'auto' }}>
               <button
