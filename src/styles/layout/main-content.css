@@ -159,6 +159,53 @@
   gap: 0.5rem;
 }
 
+/* Heading inside a toolbar row: a title next to a smaller entity count.
+   Centring puts the two type sizes on separate baselines, and the offset shifts
+   again when tight mode shrinks the title above - so they align on the shared
+   baseline instead, which needs no per-size correction. */
+.inpage-heading {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  min-width: 0;
+  /* The row distributes with space-between, so without this the heading's
+     position would depend on how many siblings happen to be rendered - it
+     drifts right while the playback actions are still loading. */
+  margin-right: auto;
+}
+
+/* The row lets the heading shrink, and nothing in a page title truncates on its
+   own, so a long name would wrap the header taller and push the count out of
+   the clipped content body. Same recipe as .genre-name in statistics-page.css. */
+.inpage-heading .page-title {
+  margin-bottom: 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.inpage-heading__count {
+  display: inline-flex;
+  align-items: baseline;
+  /* Same value as the wrapper's gap, so the dash sits evenly between the two. */
+  gap: var(--space-2);
+  /* The title yields first: a truncated name still reads, a truncated count
+     does not. */
+  flex-shrink: 0;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+/* Separator glyph, same approach as .disc-subtitle and .changelog-item. Note
+   that generated content is exposed to assistive technology, so this is a
+   visual convention, not a way to hide the dash from a screen reader. */
+.inpage-heading__count::before {
+  content: '–';
+}
+
 .mainstage-inpage-toolbar-alpha-row {
   display: flex;
   flex-wrap: wrap;

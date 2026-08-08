@@ -206,7 +206,7 @@ export default function GenreDetail() {
             <span className="toolbar-btn-label">{t('genres.back')}</span>
           </button>
           <div className="inpage-heading">
-            <h1 className="page-title" style={{ marginBottom: 0 }}>{genre}</h1>
+            <h1 className="page-title">{genre}</h1>
             {headerCount != null && headerCount > 0 && (
               <span className="inpage-heading__count">
                 {t('genres.albumCount', { count: headerCount })}
