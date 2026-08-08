@@ -163,7 +163,7 @@
    Centring puts the two type sizes on separate baselines, and the offset shifts
    again when tight mode shrinks the title above - so they align on the shared
    baseline instead, which needs no per-size correction. */
-.inpage-heading {
+.mainstage-inpage-heading {
   display: flex;
   align-items: baseline;
   gap: var(--space-2);
@@ -174,23 +174,20 @@
   margin-right: auto;
 }
 
-/* The row lets the heading shrink, and nothing in a page title truncates on its
-   own, so a long name would wrap the header taller and push the count out of
-   the clipped content body. Same recipe as .genre-name in statistics-page.css. */
-.inpage-heading .page-title {
+/* Nothing in a page title truncates on its own, so a long name would wrap the
+   header taller. The .truncate utility supplies the clipping; only the shrink
+   floor and the margin reset are specific to sitting in this row. */
+.mainstage-inpage-heading .page-title {
   margin-bottom: 0;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
-.inpage-heading__count {
-  display: inline-flex;
+.mainstage-inpage-heading__count {
+  display: flex;
   align-items: baseline;
   /* Same value as the wrapper's gap, so the dash sits evenly between the two. */
   gap: var(--space-2);
-  /* The title yields first: a truncated name still reads, a truncated count
+  /* The title yields first: a shortened name still reads, a shortened count
      does not. */
   flex-shrink: 0;
   color: var(--text-secondary);
@@ -199,10 +196,10 @@
   white-space: nowrap;
 }
 
-/* Separator glyph, same approach as .disc-subtitle and .changelog-item. Note
-   that generated content is exposed to assistive technology, so this is a
-   visual convention, not a way to hide the dash from a screen reader. */
-.inpage-heading__count::before {
+/* Separator glyph. Generated content is exposed to assistive technology, so
+   this is a visual convention only - it does not hide the dash from a screen
+   reader. */
+.mainstage-inpage-heading__count::before {
   content: '–';
 }
 
