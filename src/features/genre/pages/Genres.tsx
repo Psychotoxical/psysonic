@@ -127,9 +127,10 @@ export default function Genres() {
   return (
     <div className="content-body animate-fade-in">
       <div className="psy-page-heading psy-page-heading--spaced">
-        <h1 className="page-title truncate">{t('genres.title')}</h1>
+        <h1 className="page-title truncate" title={t('genres.title')}>{t('genres.title')}</h1>
         {!loading && genres.length > 0 && (
           <span className="psy-page-heading__count">
+            <span aria-hidden="true">–</span>
             {genres.length} {t('genres.genreCount')}
           </span>
         )}

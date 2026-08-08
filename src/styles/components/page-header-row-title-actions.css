@@ -22,9 +22,16 @@
   align-items: baseline;
   gap: var(--space-2);
   min-width: 0;
-  /* Toolbar rows distribute with space-between, so without this the heading's
-     position would depend on how many siblings happen to be rendered - it
-     drifts right while the playback actions are still loading. */
+  /* Kept from the markup this replaced: both parts stay readable on a narrow
+     window instead of the title clipping while the count holds its width. */
+  flex-wrap: wrap;
+}
+
+/* For a heading sharing a toolbar row with other controls. That row distributes
+   with space-between, so without this the heading's position would depend on
+   how many siblings happen to be rendered - it drifts right while the playback
+   actions are still loading. Inert outside such a row, hence a modifier. */
+.psy-page-heading--fill {
   margin-right: auto;
 }
 
@@ -41,24 +48,21 @@
   min-width: 0;
 }
 
+/* The separator sits in the markup behind aria-hidden rather than in generated
+   content, which every engine exposes to assistive technology. The CSS
+   alt-text form that would suppress it is not portable - an engine that cannot
+   parse it drops the whole declaration and the dash with it. */
 .psy-page-heading__count {
   display: flex;
   align-items: baseline;
   /* Same value as the wrapper's gap, so the dash sits evenly between the two. */
   gap: var(--space-2);
-  /* The title yields first: a shortened name still reads, a shortened count
-     does not. */
+  /* The count wraps to its own line before anything gives way; if it still
+     shares one, it keeps its width because a clipped number reads as a
+     different number, while a clipped title stays recognisable. */
   flex-shrink: 0;
   color: var(--text-secondary);
   font-size: 0.9rem;
   font-weight: 500;
   white-space: nowrap;
 }
-
-/* Separator glyph. Generated content is exposed to assistive technology, so
-   this is a visual convention only - it does not hide the dash from a screen
-   reader. */
-.psy-page-heading__count::before {
-  content: '–';
-}
-

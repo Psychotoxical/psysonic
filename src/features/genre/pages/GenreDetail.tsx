@@ -205,16 +205,17 @@ export default function GenreDetail() {
             <ArrowLeft size={16} />
             <span className="toolbar-btn-label">{t('genres.back')}</span>
           </button>
-          <div className="psy-page-heading">
+          <div className="psy-page-heading psy-page-heading--fill">
             <h1 className="page-title truncate" title={genre}>{genre}</h1>
             {headerCount != null && headerCount > 0 && (
               <span className="psy-page-heading__count">
+                <span aria-hidden="true">–</span>
                 {t('genres.albumCount', { count: headerCount })}
               </span>
             )}
           </div>
           {showPlayback && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginLeft: 'auto' }}>
               <button
                 type="button"
                 className="btn btn-primary long-press-play-btn"
