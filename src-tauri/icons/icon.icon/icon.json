@@ -1,0 +1,36 @@
+{
+  "groups": [
+    {
+      "layers": [
+        {
+          "image-name": "foreground.png",
+          "name": "glyph",
+          "glass": true,
+          "position": {
+            "scale": 2.56,
+            "translation-in-points": [
+              0,
+              0
+            ]
+          }
+        }
+      ],
+      "name": "Foreground",
+      "specular": true,
+      "shadow": {
+        "kind": "layer-color",
+        "opacity": 0.5
+      },
+      "blur-material": null
+    }
+  ],
+  "supported-platforms": {
+    "squares": "shared",
+    "circles": [
+      "watchOS"
+    ]
+  },
+  "fill": {
+    "solid": "srgb:0.03922,0.10588,0.27843,1.00000"
+  }
+}
