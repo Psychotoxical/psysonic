@@ -61,19 +61,36 @@ fn alsa_format(params: &HwParams<'_>, format: SampleFormat) -> Option<Format> {
 pub(super) fn negotiated_output_rate(
     device: &Device,
     config: &SupportedStreamConfig,
-) -> Option<u32> {
-    let pcm_id = device.description().ok()?.driver()?.to_string();
-    let pcm = PCM::new(&pcm_id, Direction::Playback, true).ok()?;
-    let params = HwParams::any(&pcm).ok()?;
-    params.set_access(Access::RWInterleaved).ok()?;
+) -> Result<u32, String> {
+    let description = device
+        .description()
+        .map_err(|error| format!("failed to describe ALSA output device: {error}"))?;
+    let pcm_id = description
+        .driver()
+        .ok_or_else(|| "ALSA output device has no PCM identifier".to_string())?
+        .to_string();
+    let pcm = PCM::new(&pcm_id, Direction::Playback, true)
+        .map_err(|error| format!("failed to open ALSA PCM '{pcm_id}': {error}"))?;
+    let params = HwParams::any(&pcm)
+        .map_err(|error| format!("failed to query ALSA hardware parameters: {error}"))?;
     params
-        .set_format(alsa_format(&params, config.sample_format())?)
-        .ok()?;
+        .set_access(Access::RWInterleaved)
+        .map_err(|error| format!("failed to select ALSA interleaved access: {error}"))?;
+    params
+        .set_format(
+            alsa_format(&params, config.sample_format())
+                .ok_or_else(|| format!("ALSA does not support {} output", config.sample_format()))?,
+        )
+        .map_err(|error| format!("failed to select ALSA sample format: {error}"))?;
     params
         .set_rate(config.sample_rate(), ValueOr::Nearest)
-        .ok()?;
-    params.set_channels(config.channels() as u32).ok()?;
-    params.get_rate().ok()
+        .map_err(|error| format!("failed to negotiate ALSA sample rate: {error}"))?;
+    params
+        .set_channels(config.channels() as u32)
+        .map_err(|error| format!("failed to select ALSA channel count: {error}"))?;
+    params
+        .get_rate()
+        .map_err(|error| format!("failed to read negotiated ALSA sample rate: {error}"))
 }
 
 #[cfg(test)]
@@ -82,22 +99,35 @@ mod tests {
 
     #[test]
     fn maps_formats_used_by_cpal_alsa_output() {
-        for format in [
-            SampleFormat::I8,
-            SampleFormat::I16,
-            SampleFormat::I24,
-            SampleFormat::I32,
-            SampleFormat::U8,
-            SampleFormat::U16,
-            SampleFormat::U24,
-            SampleFormat::U32,
-            SampleFormat::F32,
-            SampleFormat::F64,
-        ] {
-            assert!(
-                alsa_format_candidates(format).is_some(),
-                "missing mapping for {format}"
-            );
+        let mut expected = vec![
+            (SampleFormat::I8, (Format::S8, None)),
+            (SampleFormat::U8, (Format::U8, None)),
+        ];
+        #[cfg(target_endian = "little")]
+        expected.extend([
+            (SampleFormat::I16, (Format::S16LE, Some(Format::S16BE))),
+            (SampleFormat::I24, (Format::S24LE, Some(Format::S24BE))),
+            (SampleFormat::I32, (Format::S32LE, Some(Format::S32BE))),
+            (SampleFormat::U16, (Format::U16LE, Some(Format::U16BE))),
+            (SampleFormat::U24, (Format::U24LE, Some(Format::U24BE))),
+            (SampleFormat::U32, (Format::U32LE, Some(Format::U32BE))),
+            (SampleFormat::F32, (Format::FloatLE, Some(Format::FloatBE))),
+            (SampleFormat::F64, (Format::Float64LE, Some(Format::Float64BE))),
+        ]);
+        #[cfg(target_endian = "big")]
+        expected.extend([
+            (SampleFormat::I16, (Format::S16BE, Some(Format::S16LE))),
+            (SampleFormat::I24, (Format::S24BE, Some(Format::S24LE))),
+            (SampleFormat::I32, (Format::S32BE, Some(Format::S32LE))),
+            (SampleFormat::U16, (Format::U16BE, Some(Format::U16LE))),
+            (SampleFormat::U24, (Format::U24BE, Some(Format::U24LE))),
+            (SampleFormat::U32, (Format::U32BE, Some(Format::U32LE))),
+            (SampleFormat::F32, (Format::FloatBE, Some(Format::FloatLE))),
+            (SampleFormat::F64, (Format::Float64BE, Some(Format::Float64LE))),
+        ]);
+
+        for (format, mapping) in expected {
+            assert_eq!(alsa_format_candidates(format), Some(mapping), "{format}");
         }
     }
 }

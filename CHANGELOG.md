@@ -389,7 +389,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 **By [@cucadmuh](https://github.com/cucadmuh), PR [#1398](https://github.com/Psychotoxical/psysonic/pull/1398)**
 
-* ALSA and PipeWire devices that select a different sample rate no longer play tracks at half or double speed with shifted pitch. Native Hi-Res remains available, and fallback output configurations verify the rate the device actually accepted.
+* ALSA and PipeWire devices that select a different sample rate no longer play tracks at half or double speed with shifted pitch. Native Hi-Res remains available, and the selected output configuration verifies the rate the device actually accepted.
 * Hi-Res and gapless source replacement no longer loses the track-completion signal, so playback advances to the next queued track reliably.
 
 ### Servers — prevent duplicate account profiles

@@ -6,7 +6,6 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use futures_util::StreamExt;
-use rodio::Player;
 use rodio::Source;
 use tauri::{AppHandle, Emitter, State};
 
@@ -154,7 +153,10 @@ pub async fn audio_play(
 
     // Bump generation first so the old progress task stops before we peel
     // chained_info (avoids a race where it sees current_done + empty chain).
-    let gen = state.generation.fetch_add(1, Ordering::SeqCst) + 1;
+    let gen = {
+        let _commit_guard = state.playback_commit_lock.lock().unwrap();
+        state.generation.fetch_add(1, Ordering::SeqCst) + 1
+    };
     // Ranged/legacy HTTP paths reset this to false in `select_play_input`.
     state.stream_playback_armed.store(true, Ordering::SeqCst);
 
@@ -454,10 +456,11 @@ pub async fn audio_play(
                         tokio::time::sleep(Duration::from_millis(150)).await;
                     }
                 }
-                Err(_) => {
+                Err(error) => {
                     crate::app_eprintln!(
-                        "[psysonic] stream rate switch timed out, keeping {current_stream_rate} Hz"
+                        "[psysonic] stream rate switch failed from {current_stream_rate} Hz: {error}"
                     );
+                    return Err(error);
                 }
             }
         }
@@ -485,8 +488,10 @@ pub async fn audio_play(
         }
     }
 
-    let stream = super::engine::ensure_output_stream_open(&state)?;
-    let sink = Arc::new(Player::connect_new(stream.mixer()));
+    let (sink, stream_attach) = super::engine::connect_new_player(&state)?;
+    if state.generation.load(Ordering::SeqCst) != gen {
+        return Ok(());
+    }
     sink.set_volume(effective_volume);
 
     // ── Sink pre-fill for hi-res tracks ──────────────────────────────────────
@@ -566,6 +571,11 @@ pub async fn audio_play(
         }
     }
 
+    let commit_guard = state.playback_commit_lock.lock().unwrap();
+    if state.generation.load(Ordering::SeqCst) != gen {
+        return Ok(());
+    }
+
     swap_in_new_sink(&state, SinkSwapInputs {
         sink,
         duration_secs,
@@ -578,6 +588,7 @@ pub async fn audio_play(
         outgoing_fade_secs,
         start_paused,
     });
+    drop(stream_attach);
 
     // B-head: `swap_in_new_sink` resets `seek_offset` to 0 and starts the play
     // clock — re-anchor both the wall-clock baseline (`seek_offset`) and the
@@ -597,6 +608,7 @@ pub async fn audio_play(
             Ordering::Relaxed,
         );
     }
+    drop(commit_guard);
 
     if defer_playback_start {
         if !start_paused {

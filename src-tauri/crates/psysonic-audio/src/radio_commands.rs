@@ -7,7 +7,7 @@ use std::time::{Duration, Instant};
 
 use ringbuf::traits::Split;
 use ringbuf::{HeapCons, HeapRb};
-use rodio::{Player, Source};
+use rodio::Source;
 use tauri::{AppHandle, Emitter, State};
 
 use super::decode::SizedDecoder;
@@ -39,7 +39,10 @@ pub async fn audio_play_radio(
     app: AppHandle,
     state: State<'_, AudioEngine>,
 ) -> Result<(), String> {
-    let gen = state.generation.fetch_add(1, Ordering::SeqCst) + 1;
+    let gen = {
+        let _commit_guard = state.playback_commit_lock.lock().unwrap();
+        state.generation.fetch_add(1, Ordering::SeqCst) + 1
+    };
 
     // Cancel any active preview so it doesn't keep playing alongside radio.
     preview_clear_for_new_main_playback(&state, &app);
@@ -152,11 +155,17 @@ pub async fn audio_play_radio(
 
     if state.generation.load(Ordering::SeqCst) != gen { return Ok(()); }
 
-    let stream = super::engine::ensure_output_stream_open(&state)?;
-    let sink = Arc::new(Player::connect_new(stream.mixer()));
+    let (sink, stream_attach) = super::engine::connect_new_player(&state)?;
+    let commit_guard = state.playback_commit_lock.lock().unwrap();
+    if state.generation.load(Ordering::SeqCst) != gen {
+        return Ok(());
+    }
     sink.set_volume((volume.clamp(0.0, 1.0) * MASTER_HEADROOM).clamp(0.0, 1.0));
     sink.append(boosted);
 
+    if state.generation.load(Ordering::SeqCst) != gen {
+        return Ok(());
+    }
     {
         let mut cur = state.current.lock().unwrap();
         if let Some(old) = cur.sink.take() { old.stop(); }
@@ -170,6 +179,8 @@ pub async fn audio_play_radio(
         cur.fadeout_trigger   = Some(fadeout_trigger);
         cur.fadeout_samples   = Some(fadeout_samples);
     }
+    drop(stream_attach);
+    drop(commit_guard);
 
     *state.current_playback_url.lock().unwrap() = Some(url.clone());
 

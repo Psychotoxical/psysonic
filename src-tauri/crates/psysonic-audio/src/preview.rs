@@ -3,7 +3,6 @@ use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use rodio::Player;
 use rodio::Source;
 use tauri::{AppHandle, Emitter, State};
 
@@ -69,9 +68,14 @@ pub(crate) fn preview_clear_for_new_main_playback(state: &AudioEngine, app: &App
     // so the watchdog — if it wakes between our writes — sees no work to do
     // and bails without resuming main behind our back.
     state.preview_main_resume.store(false, Ordering::Release);
-    state.preview_gen.fetch_add(1, Ordering::SeqCst);
-    let sink = state.preview_sink.lock().unwrap().take();
-    let id = state.preview_song_id.lock().unwrap().take();
+    let (sink, id) = {
+        let _commit_guard = state.playback_commit_lock.lock().unwrap();
+        state.preview_gen.fetch_add(1, Ordering::SeqCst);
+        (
+            state.preview_sink.lock().unwrap().take(),
+            state.preview_song_id.lock().unwrap().take(),
+        )
+    };
     if let Some(s) = sink { s.stop(); }
     if let Some(id) = id {
         app.emit("audio:preview-end", PreviewEndPayload {
@@ -350,12 +354,17 @@ pub async fn audio_preview_play(
     app: AppHandle,
     state: State<'_, AudioEngine>,
 ) -> Result<(), String> {
-    let gen = state.preview_gen.fetch_add(1, Ordering::SeqCst) + 1;
+    let (gen, prev_sink, prev_id) = {
+        let _commit_guard = state.playback_commit_lock.lock().unwrap();
+        (
+            state.preview_gen.fetch_add(1, Ordering::SeqCst) + 1,
+            state.preview_sink.lock().unwrap().take(),
+            state.preview_song_id.lock().unwrap().take(),
+        )
+    };
 
     // Tear down any existing preview before pausing main (so a rapid preview
     // swap doesn't double-pause and double-resume the main sink).
-    let prev_sink = state.preview_sink.lock().unwrap().take();
-    let prev_id = state.preview_song_id.lock().unwrap().take();
     if let Some(s) = prev_sink { s.stop(); }
     if let Some(prev) = prev_id {
         app.emit("audio:preview-end", PreviewEndPayload {
@@ -407,13 +416,21 @@ pub async fn audio_preview_play(
     let source = PriorityBoostSource::new(source);
 
     // ── Build secondary sink on the existing OutputStream ────────────────────
-    let stream = super::engine::ensure_output_stream_open(&state)?;
-    let sink = Arc::new(Player::connect_new(stream.mixer()));
+    let (sink, stream_attach) = super::engine::connect_new_player(&state)?;
+    if state.preview_gen.load(Ordering::SeqCst) != gen {
+        return Ok(());
+    }
     sink.set_volume((volume.clamp(0.0, 1.0) * MASTER_HEADROOM).clamp(0.0, 1.0));
     sink.append(source);
 
+    let commit_guard = state.playback_commit_lock.lock().unwrap();
+    if state.preview_gen.load(Ordering::SeqCst) != gen {
+        return Ok(());
+    }
     *state.preview_sink.lock().unwrap() = Some(sink.clone());
     *state.preview_song_id.lock().unwrap() = Some(id.clone());
+    drop(stream_attach);
+    drop(commit_guard);
 
     app.emit("audio:preview-start", id.clone()).ok();
 
@@ -565,9 +582,14 @@ pub fn audio_preview_set_volume(volume: f32, state: State<'_, AudioEngine>) {
 }
 
 pub(crate) fn preview_stop_inner(app: &AppHandle, state: &AudioEngine, resume_main: bool) {
-    state.preview_gen.fetch_add(1, Ordering::SeqCst);
-    let sink = state.preview_sink.lock().unwrap().take();
-    let id = state.preview_song_id.lock().unwrap().take();
+    let (sink, id) = {
+        let _commit_guard = state.playback_commit_lock.lock().unwrap();
+        state.preview_gen.fetch_add(1, Ordering::SeqCst);
+        (
+            state.preview_sink.lock().unwrap().take(),
+            state.preview_song_id.lock().unwrap().take(),
+        )
+    };
     if let Some(s) = sink { s.stop(); }
 
     if resume_main {

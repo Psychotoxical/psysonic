@@ -15,6 +15,9 @@ const IDLE_POLL_SECS: u64 = 5;
 
 /// Returns true while the app must keep an open output stream (playing, preview, crossfade).
 pub(crate) fn output_stream_is_needed(engine: &AudioEngine) -> bool {
+    if super::engine::stream_attachment_is_pending(engine) {
+        return true;
+    }
     if engine.preview_sink.lock().unwrap().is_some() {
         return true;
     }
@@ -56,9 +59,8 @@ pub(crate) fn teardown_playback_sinks_for_idle_release(engine: &AudioEngine) {
     cur.play_started = None;
 }
 
-fn close_output_device_handle(engine: &AudioEngine, app: &AppHandle) -> Result<(), String> {
-    super::engine::request_stream_release(engine)?;
-    *engine.stream_handle.lock().unwrap() = None;
+fn close_output_device_handle_locked(engine: &AudioEngine, app: &AppHandle) -> Result<(), String> {
+    super::engine::request_stream_release_locked(engine)?;
     let _ = app.emit("audio:output-released", ());
     Ok(())
 }
@@ -68,11 +70,17 @@ pub(crate) fn release_output_stream(
     engine: &AudioEngine,
     app: &AppHandle,
 ) -> Result<(), String> {
+    let _open_guard = engine.stream_open_lock.lock().unwrap();
     if engine.stream_handle.lock().unwrap().is_none() {
         return Ok(());
     }
+    // A player can spend hundreds of milliseconds paused for prefill before it
+    // is visible in `AudioCurrent`; recheck while release/open is serialized.
+    if output_stream_is_needed(engine) {
+        return Ok(());
+    }
     teardown_playback_sinks_for_idle_release(engine);
-    close_output_device_handle(engine, app)?;
+    close_output_device_handle_locked(engine, app)?;
     crate::app_eprintln!(
         "[psysonic] audio output stream released after {}s idle",
         OUTPUT_STREAM_IDLE_RELEASE_SECS
@@ -84,18 +92,21 @@ pub(crate) fn release_output_stream(
 pub(crate) fn release_output_stream_on_stop(
     engine: &AudioEngine,
     app: &AppHandle,
+    expected_generation: u64,
 ) -> Result<(), String> {
+    let _open_guard = engine.stream_open_lock.lock().unwrap();
+    super::engine::wait_for_stream_attachments_locked(engine);
+    let _commit_guard = engine.playback_commit_lock.lock().unwrap();
+    if engine.generation.load(Ordering::SeqCst) != expected_generation {
+        return Ok(());
+    }
     if engine.stream_handle.lock().unwrap().is_none() {
         return Ok(());
     }
-    // `audio_stop` already tore down the main sink; clear any crossfade/preview tail
-    // still tied to the open device before closing the handle.
-    if engine.preview_sink.lock().unwrap().is_some()
-        || engine.fading_out_sink.lock().unwrap().is_some()
-    {
-        teardown_playback_sinks_for_idle_release(engine);
-    }
-    close_output_device_handle(engine, app)?;
+    // A player attachment that was already in flight can finish after
+    // `audio_stop` cleared the main sink. Recheck all sink slots after waiting.
+    teardown_playback_sinks_for_idle_release(engine);
+    close_output_device_handle_locked(engine, app)?;
     crate::app_eprintln!("[psysonic] audio output stream released on stop");
     Ok(())
 }
@@ -176,6 +187,9 @@ mod tests {
         let (stream_thread_tx, _) = std::sync::mpsc::sync_channel(0);
         AudioEngine {
             stream_handle: Arc::new(Mutex::new(None)),
+            stream_open_lock: Arc::new(Mutex::new(())),
+            stream_attach_pending: Arc::new((Mutex::new(0), std::sync::Condvar::new())),
+            playback_commit_lock: Arc::new(Mutex::new(())),
             stream_sample_rate: Arc::new(AtomicU32::new(0)),
             stream_requested_rate: Arc::new(AtomicU32::new(0)),
             device_default_rate: 48_000,
@@ -235,6 +249,13 @@ mod tests {
     fn idle_when_no_sink_and_no_preview() {
         let engine = minimal_engine();
         assert!(!output_stream_is_needed(&engine));
+    }
+
+    #[test]
+    fn needed_while_player_attachment_is_pending() {
+        let engine = minimal_engine();
+        *engine.stream_attach_pending.0.lock().unwrap() = 1;
+        assert!(output_stream_is_needed(&engine));
     }
 
     #[test]

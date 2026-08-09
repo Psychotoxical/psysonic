@@ -1,6 +1,6 @@
 //! `AudioEngine` / `AudioCurrent`, stream thread, and HTTP client refresh.
 use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64};
-use std::sync::{Arc, Mutex, RwLock};
+use std::sync::{Arc, Condvar, Mutex, RwLock};
 use std::time::{Duration, Instant};
 
 use rodio::Player;
@@ -9,8 +9,8 @@ use tauri::Manager;
 use super::state::{ChainedInfo, CurrentSourceDone, PreloadedTrack, StreamCompletedSpill};
 
 /// Reply channel handed back to the audio-stream thread once an open finishes.
-pub type StreamOpenReply =
-    std::sync::mpsc::SyncSender<(Arc<rodio::MixerDeviceSink>, u32)>;
+pub type StreamOpenResult = Result<(Arc<rodio::MixerDeviceSink>, u32), String>;
+pub type StreamOpenReply = std::sync::mpsc::SyncSender<StreamOpenResult>;
 
 /// Requests handled on the dedicated audio-stream thread (open / idle release).
 pub enum StreamThreadMsg {
@@ -18,6 +18,7 @@ pub enum StreamThreadMsg {
         desired_rate: u32,
         is_hi_res: bool,
         device_name: Option<String>,
+        require_named_device: bool,
         reply: StreamOpenReply,
     },
     Release {
@@ -27,6 +28,12 @@ pub enum StreamThreadMsg {
 
 pub struct AudioEngine {
     pub stream_handle: Arc<std::sync::Mutex<Option<Arc<rodio::MixerDeviceSink>>>>,
+    /// Serializes release/open/state-commit as one output-stream transaction.
+    pub(crate) stream_open_lock: Arc<Mutex<()>>,
+    /// Players connected to the mixer but not yet registered in engine state.
+    pub(crate) stream_attach_pending: Arc<(Mutex<u32>, Condvar)>,
+    /// Serializes playback generation changes with final sink registration.
+    pub(crate) playback_commit_lock: Arc<Mutex<()>>,
     /// Actual mixer/device rate selected by the output backend.
     pub stream_sample_rate: Arc<AtomicU32>,
     /// Last rate requested by playback mode. Kept separate from the negotiated
@@ -171,11 +178,9 @@ impl AudioCurrent {
 /// `device_name`: exact name from `audio_list_devices`. `None` → system default.
 /// Falls back to the system default if the named device is not found.
 ///
-/// Resolution order:
-///   1. Exact rate match in the device's supported config ranges.
-///   2. Highest available rate (for hardware that doesn't support the source rate).
-///   3. Device default.
-///   4. System default (last resort).
+/// Linux resolves one target device, selects its exact/highest/default config,
+/// then performs one ALSA negotiation probe. Other platforms retain Rodio's
+/// broader fallback behavior.
 ///
 /// Rodio prints a stderr line on every intentional stream drop. Keep that only
 /// when runtime logging is in **debug** mode; normal/off silence the noise.
@@ -192,7 +197,7 @@ fn finalize_mixer_device_sink(mut handle: rodio::MixerDeviceSink) -> Arc<rodio::
 fn open_stream_with_verified_rate(
     device: &rodio::cpal::Device,
     config: &rodio::cpal::SupportedStreamConfig,
-) -> Option<(Arc<rodio::MixerDeviceSink>, u32)> {
+) -> StreamOpenResult {
     let requested_rate = config.sample_rate();
     #[cfg(target_os = "linux")]
     let actual_rate = crate::alsa_rate::negotiated_output_rate(device, config)?;
@@ -206,57 +211,74 @@ fn open_stream_with_verified_rate(
         );
     }
 
-    let builder = rodio::DeviceSinkBuilder::from_device(device.clone()).ok()?;
     #[cfg(target_os = "linux")]
-    let builder = builder
-        .with_channels(std::num::NonZeroU16::new(config.channels())?)
+    let builder = rodio::DeviceSinkBuilder::default()
+        .with_device(device.clone())
+        .with_channels(
+            std::num::NonZeroU16::new(config.channels())
+                .ok_or_else(|| "audio output configuration has zero channels".to_string())?,
+        )
         .with_sample_format(config.sample_format());
+    #[cfg(not(target_os = "linux"))]
+    let builder = rodio::DeviceSinkBuilder::from_device(device.clone())
+        .map_err(|error| format!("failed to configure audio output device: {error}"))?;
     let handle = builder
         .with_sample_rate(
             std::num::NonZeroU32::new(actual_rate).unwrap_or(std::num::NonZeroU32::MIN),
         )
         .open_stream()
-        .ok()?;
-    Some((finalize_mixer_device_sink(handle), actual_rate))
+        .map_err(|error| format!("failed to open audio output stream: {error}"))?;
+    Ok((finalize_mixer_device_sink(handle), actual_rate))
 }
 
 #[cfg(target_os = "linux")]
-fn open_verified_device_fallback(
+fn select_verified_stream_config(
     device: &rodio::cpal::Device,
-) -> Option<(Arc<rodio::MixerDeviceSink>, u32)> {
+    desired_rate: u32,
+) -> Result<(rodio::cpal::SupportedStreamConfig, &'static str), String> {
     use rodio::cpal::traits::DeviceTrait;
 
-    if let Ok(config) = device.default_output_config() {
-        if let Some(opened) = open_stream_with_verified_rate(device, &config) {
-            return Some(opened);
+    if desired_rate > 0 {
+        let configs: Vec<_> = device
+            .supported_output_configs()
+            .map_err(|error| format!("failed to query audio output configurations: {error}"))?
+            .collect();
+
+        if let Some(config) = configs
+            .iter()
+            .filter(|config| {
+                config.min_sample_rate() <= desired_rate
+                    && desired_rate <= config.max_sample_rate()
+            })
+            .max_by(|a, b| a.cmp_default_heuristics(b))
+        {
+            return Ok(((*config).with_sample_rate(desired_rate), "requested"));
+        }
+
+        if let Some(config) = configs.iter().max_by(|a, b| {
+            a.max_sample_rate()
+                .cmp(&b.max_sample_rate())
+                .then_with(|| a.cmp_default_heuristics(b))
+        }) {
+            return Ok(((*config).with_max_sample_rate(), "highest supported"));
         }
     }
 
-    let mut ranges: Vec<_> = device.supported_output_configs().ok()?.collect();
-    ranges.sort_by(|a, b| b.cmp_default_heuristics(a));
-    for range in ranges {
-        let min_rate = range.min_sample_rate();
-        let max_rate = range.max_sample_rate();
-        let mut rates = vec![max_rate];
-        if (min_rate..=max_rate).contains(&44_100) {
-            rates.push(44_100);
-        }
-        rates.push(min_rate);
-        rates.dedup();
-
-        for rate in rates {
-            let config = range.with_sample_rate(rate);
-            if let Some(opened) = open_stream_with_verified_rate(device, &config) {
-                return Some(opened);
-            }
-        }
-    }
-    None
+    device
+        .default_output_config()
+        .map(|config| (config, "device default"))
+        .map_err(|error| format!("failed to query default audio output configuration: {error}"))
 }
 
 /// Returns `(stream_handle, actual_sample_rate)`.
-fn open_stream_for_device_and_rate(device_name: Option<&str>, desired_rate: u32) -> (Arc<rodio::MixerDeviceSink>, u32) {
-    use rodio::cpal::traits::{DeviceTrait, HostTrait};
+fn open_stream_for_device_and_rate(
+    device_name: Option<&str>,
+    desired_rate: u32,
+    require_named_device: bool,
+) -> StreamOpenResult {
+    use rodio::cpal::traits::HostTrait;
+    #[cfg(not(target_os = "linux"))]
+    use rodio::cpal::traits::DeviceTrait;
 
     // Suppress ALSA stderr noise while enumerating devices on Unix.
     #[cfg(unix)]
@@ -283,20 +305,17 @@ fn open_stream_for_device_and_rate(device_name: Option<&str>, desired_rate: u32)
     // On systems where neither alias exists (pure ALSA, macOS, Windows),
     // `find_by_name` returns None and we drop through to `default_output_device`
     // unchanged — no regression.
-    let find_by_key = |key: &str| -> Option<_> {
-        super::dev_io::resolve_output_device(key).or_else(|| {
-            host.output_devices().ok()?.find(|d| {
-                d.description()
-                    .ok()
-                    .map(|desc| desc.name().to_string())
-                    .as_deref()
-                    == Some(key)
-            })
-        })
-    };
+    let find_by_key = |key: &str| super::dev_io::resolve_output_device(key);
 
-    let device = device_name
-        .and_then(find_by_key)
+    let named_device = device_name.and_then(find_by_key);
+    if require_named_device && device_name.is_some() && named_device.is_none() {
+        return Err(format!(
+            "selected audio output device '{}' is unavailable",
+            device_name.unwrap_or_default()
+        ));
+    }
+
+    let device = named_device
         .or_else(|| {
             #[cfg(target_os = "linux")]
             { find_by_key("pipewire").or_else(|| find_by_key("pulse")) }
@@ -306,6 +325,20 @@ fn open_stream_for_device_and_rate(device_name: Option<&str>, desired_rate: u32)
         .or_else(|| host.default_output_device());
 
     if let Some(device) = device {
+        #[cfg(target_os = "linux")]
+        {
+            // Probe exactly one chosen configuration on exactly one device.
+            // Failed snd_pcm_open() calls are not guaranteed to clean up on
+            // every ALSA plugin, so broad probe sweeps can poison the backend.
+            let (config, choice) = select_verified_stream_config(&device, desired_rate)?;
+            let (handle, actual_rate) = open_stream_with_verified_rate(&device, &config)?;
+            crate::app_eprintln!(
+                "[psysonic] audio stream opened at {actual_rate} Hz ({choice}, wanted {desired_rate} Hz)"
+            );
+            return Ok((handle, actual_rate));
+        }
+
+        #[cfg(not(target_os = "linux"))]
         if desired_rate > 0 {
             if let Ok(supported) = device.supported_output_configs() {
                 let configs: Vec<_> = supported.collect();
@@ -320,7 +353,7 @@ fn open_stream_for_device_and_rate(device_name: Option<&str>, desired_rate: u32)
 
                 if let Some(cfg) = exact {
                     let config = (*cfg).with_sample_rate(desired_rate);
-                    if let Some((handle, actual_rate)) =
+                    if let Ok((handle, actual_rate)) =
                         open_stream_with_verified_rate(&device, &config)
                     {
                         crate::app_eprintln!(
@@ -328,7 +361,7 @@ fn open_stream_for_device_and_rate(device_name: Option<&str>, desired_rate: u32)
                             actual_rate,
                             desired_rate
                         );
-                        return (handle, actual_rate);
+                        return Ok((handle, actual_rate));
                     }
                 }
 
@@ -342,83 +375,49 @@ fn open_stream_for_device_and_rate(device_name: Option<&str>, desired_rate: u32)
 
                 if let Some(cfg) = best {
                     let config = (*cfg).with_max_sample_rate();
-                    if let Some((handle, actual_rate)) =
+                    if let Ok((handle, actual_rate)) =
                         open_stream_with_verified_rate(&device, &config)
                     {
                         crate::app_eprintln!(
                             "[psysonic] audio stream opened at {} Hz (highest, wanted {})",
                             actual_rate, desired_rate
                         );
-                        return (handle, actual_rate);
+                        return Ok((handle, actual_rate));
                     }
                 }
             }
         }
 
-        // 3. Device fallback configurations.
-        #[cfg(target_os = "linux")]
-        if let Some((handle, rate)) = open_verified_device_fallback(&device) {
-            crate::app_eprintln!(
-                "[psysonic] audio stream opened at {} Hz (verified device fallback)",
-                rate
-            );
-            return (handle, rate);
-        }
+        // 3. Device default.
         #[cfg(not(target_os = "linux"))]
         if let Ok(config) = device.default_output_config() {
-            if let Some((handle, rate)) = open_stream_with_verified_rate(&device, &config) {
+            if let Ok((handle, rate)) = open_stream_with_verified_rate(&device, &config) {
                 crate::app_eprintln!(
                     "[psysonic] audio stream opened at {} Hz (device default)",
                     rate
                 );
-                return (handle, rate);
+                return Ok((handle, rate));
             }
         }
     }
 
-    // 4. Verified system-default and alternate-device fallbacks. Do not call
-    // Rodio's broad fallback here: on ALSA it would bypass negotiated-rate
-    // verification and could reintroduce pitch/speed distortion.
+    // Linux deliberately avoids probing every enumerated device. Apart from
+    // leaking resources on broken ALSA plugins, that can leave all later opens
+    // failing with EBUSY until the process exits.
     #[cfg(target_os = "linux")]
-    {
-        if let Some(default_device) = host.default_output_device() {
-            if let Some((handle, rate)) = open_verified_device_fallback(&default_device) {
-                crate::app_eprintln!(
-                    "[psysonic] audio stream opened at {} Hz (verified system default)",
-                    rate
-                );
-                return (handle, rate);
-            }
-        }
-        if let Ok(devices) = host.output_devices() {
-            for fallback_device in devices.filter(|device| {
-                device
-                    .description()
-                    .map(|description| description.driver() != Some("null"))
-                    .unwrap_or(false)
-            }) {
-                if let Some((handle, rate)) = open_verified_device_fallback(&fallback_device) {
-                    crate::app_eprintln!(
-                        "[psysonic] audio stream opened at {} Hz (verified alternate device)",
-                        rate
-                    );
-                    return (handle, rate);
-                }
-            }
-        }
-        panic!("cannot open any verified audio output device")
-    }
+    return Err("no audio output device is available".to_string());
+
     #[cfg(not(target_os = "linux"))]
     {
         crate::app_eprintln!("[psysonic] audio stream falling back to system default");
         let handle = rodio::DeviceSinkBuilder::open_default_sink()
-            .expect("cannot open any audio output device");
+            .map_err(|error| format!("cannot open any audio output device: {error}"))?;
         let rate = host
             .default_output_device()
             .and_then(|device| device.default_output_config().ok())
             .map(|config| config.sample_rate())
             .unwrap_or(44_100);
-        (finalize_mixer_device_sink(handle), rate)
+        Ok((finalize_mixer_device_sink(handle), rate))
     }
 }
 
@@ -433,42 +432,74 @@ fn probe_device_default_rate() -> u32 {
 }
 
 /// Open the output stream (blocking). Updates requested and negotiated rates.
-pub(crate) fn open_output_stream_blocking(
+pub(crate) fn open_output_stream_blocking_locked(
     engine: &AudioEngine,
     desired_rate: u32,
     is_hi_res: bool,
     device_name: Option<String>,
-) -> Result<Arc<rodio::MixerDeviceSink>, String> {
+    require_named_device: bool,
+) -> Result<(), String> {
+    wait_for_stream_attachments_locked(engine);
     let rate = if desired_rate > 0 {
         desired_rate
     } else {
         engine.device_default_rate
     };
+    // The stream thread owns one Arc and the engine slot owns the other. Drop
+    // the slot before the thread drops its copy so exclusive ALSA devices are
+    // actually released before the verification/open sequence starts.
+    drop(engine.stream_handle.lock().unwrap().take());
+    engine
+        .stream_sample_rate
+        .store(0, std::sync::atomic::Ordering::Relaxed);
     let (reply_tx, reply_rx) = std::sync::mpsc::sync_channel(0);
     engine
         .stream_thread_tx
-        .send(StreamThreadMsg::Open {
+        .try_send(StreamThreadMsg::Open {
             desired_rate: rate,
             is_hi_res,
             device_name,
+            require_named_device,
             reply: reply_tx,
         })
-        .map_err(|e| e.to_string())?;
-    let (handle, actual_rate) = reply_rx
-        .recv_timeout(Duration::from_secs(5))
-        .map_err(|_| "audio stream open timed out".to_string())?;
+        .map_err(|error| match error {
+            std::sync::mpsc::TrySendError::Full(_) => {
+                "audio stream thread request queue is full".to_string()
+            }
+            std::sync::mpsc::TrySendError::Disconnected(_) => {
+                "audio stream thread is unavailable".to_string()
+            }
+        })?;
+    let (handle, actual_rate) = match reply_rx.recv_timeout(Duration::from_secs(5)) {
+        Ok(result) => result?,
+        Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
+            return Err("audio stream open timed out".to_string());
+        }
+        Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
+            return Err("audio stream thread stopped before opening the device".to_string());
+        }
+    };
     engine
         .stream_sample_rate
         .store(actual_rate, std::sync::atomic::Ordering::Relaxed);
     engine
         .stream_requested_rate
         .store(rate, std::sync::atomic::Ordering::Relaxed);
-    *engine.stream_handle.lock().unwrap() = Some(handle.clone());
-    Ok(handle)
+    *engine.stream_handle.lock().unwrap() = Some(handle);
+    Ok(())
 }
 
-/// Ensure a live output stream exists; lazy-opens on first playback.
-pub(crate) fn ensure_output_stream_open(
+pub(crate) fn open_output_stream_blocking(
+    engine: &AudioEngine,
+    desired_rate: u32,
+    is_hi_res: bool,
+    device_name: Option<String>,
+) -> Result<(), String> {
+    let _open_guard = engine.stream_open_lock.lock().unwrap();
+    open_output_stream_blocking_locked(engine, desired_rate, is_hi_res, device_name, false)
+}
+
+fn ensure_output_stream_open_locked(
     engine: &AudioEngine,
 ) -> Result<Arc<rodio::MixerDeviceSink>, String> {
     if let Some(handle) = engine.stream_handle.lock().unwrap().clone() {
@@ -483,15 +514,74 @@ pub(crate) fn ensure_output_stream_open(
         engine.device_default_rate
     };
     let device = engine.selected_device.lock().unwrap().clone();
-    open_output_stream_blocking(engine, open_rate, false, device)
+    open_output_stream_blocking_locked(engine, open_rate, false, device, false)?;
+    engine
+        .stream_handle
+        .lock()
+        .unwrap()
+        .clone()
+        .ok_or_else(|| "audio output stream opened without a handle".to_string())
 }
 
-pub(crate) fn request_stream_release(engine: &AudioEngine) -> Result<(), String> {
+pub(crate) struct StreamAttachGuard {
+    pending: Arc<(Mutex<u32>, Condvar)>,
+}
+
+impl Drop for StreamAttachGuard {
+    fn drop(&mut self) {
+        let (pending, ready) = &*self.pending;
+        let mut count = pending.lock().unwrap();
+        *count = count.saturating_sub(1);
+        ready.notify_all();
+    }
+}
+
+pub(crate) fn wait_for_stream_attachments_locked(engine: &AudioEngine) {
+    let (pending, ready) = &*engine.stream_attach_pending;
+    let mut count = pending.lock().unwrap();
+    while *count > 0 {
+        count = ready.wait(count).unwrap();
+    }
+}
+
+pub(crate) fn stream_attachment_is_pending(engine: &AudioEngine) -> bool {
+    *engine.stream_attach_pending.0.lock().unwrap() > 0
+}
+
+/// Connect a player and mark the stream as needed until the caller registers
+/// that player in `AudioCurrent`, `preview_sink`, or `fading_out_sink`.
+pub(crate) fn connect_new_player(
+    engine: &AudioEngine,
+) -> Result<(Arc<Player>, StreamAttachGuard), String> {
+    let _open_guard = engine.stream_open_lock.lock().unwrap();
+    let stream = ensure_output_stream_open_locked(engine)?;
+    *engine.stream_attach_pending.0.lock().unwrap() += 1;
+    let attach_guard = StreamAttachGuard {
+        pending: engine.stream_attach_pending.clone(),
+    };
+    let player = Arc::new(Player::connect_new(stream.mixer()));
+    drop(stream);
+    Ok((player, attach_guard))
+}
+
+pub(crate) fn request_stream_release_locked(engine: &AudioEngine) -> Result<(), String> {
+    wait_for_stream_attachments_locked(engine);
+    drop(engine.stream_handle.lock().unwrap().take());
+    engine
+        .stream_sample_rate
+        .store(0, std::sync::atomic::Ordering::Relaxed);
     let (reply_tx, reply_rx) = std::sync::mpsc::sync_channel(0);
     engine
         .stream_thread_tx
-        .send(StreamThreadMsg::Release { reply: reply_tx })
-        .map_err(|e| e.to_string())?;
+        .try_send(StreamThreadMsg::Release { reply: reply_tx })
+        .map_err(|error| match error {
+            std::sync::mpsc::TrySendError::Full(_) => {
+                "audio stream thread request queue is full".to_string()
+            }
+            std::sync::mpsc::TrySendError::Disconnected(_) => {
+                "audio stream thread is unavailable".to_string()
+            }
+        })?;
     reply_rx
         .recv_timeout(Duration::from_secs(5))
         .map_err(|_| "audio stream release timed out".to_string())?;
@@ -546,6 +636,7 @@ pub fn create_engine() -> (AudioEngine, std::thread::JoinHandle<()>) {
                         desired_rate,
                         is_hi_res,
                         device_name,
+                        require_named_device,
                         reply,
                     } => {
                         // Escalate to Max for Hi-Res reopens (large PipeWire quanta need
@@ -572,11 +663,27 @@ pub fn create_engine() -> (AudioEngine, std::thread::JoinHandle<()>) {
                             std::env::set_var("PULSE_LATENCY_MSEC", latency_ms.to_string());
                         }
 
-                        let (new_stream, actual_rate) =
-                            open_stream_for_device_and_rate(device_name.as_deref(), desired_rate);
-                        let new_handle = new_stream.clone();
-                        _stream = Some(new_stream);
-                        let _ = reply.send((new_handle, actual_rate));
+                        match open_stream_for_device_and_rate(
+                            device_name.as_deref(),
+                            desired_rate,
+                            require_named_device,
+                        ) {
+                            Ok((new_stream, actual_rate)) => {
+                                let new_handle = new_stream.clone();
+                                // If the caller already timed out, do not retain
+                                // an untracked stream that can hold an exclusive
+                                // device while the engine slot remains empty.
+                                if reply.send(Ok((new_handle, actual_rate))).is_ok() {
+                                    _stream = Some(new_stream);
+                                }
+                            }
+                            Err(error) => {
+                                crate::app_eprintln!(
+                                    "[psysonic] audio stream open failed: {error}"
+                                );
+                                let _ = reply.send(Err(error));
+                            }
+                        }
                     }
                 }
             }
@@ -587,6 +694,9 @@ pub fn create_engine() -> (AudioEngine, std::thread::JoinHandle<()>) {
 
     let engine = AudioEngine {
         stream_handle: Arc::new(std::sync::Mutex::new(None)),
+        stream_open_lock: Arc::new(Mutex::new(())),
+        stream_attach_pending: Arc::new((Mutex::new(0), Condvar::new())),
+        playback_commit_lock: Arc::new(Mutex::new(())),
         stream_sample_rate: Arc::new(AtomicU32::new(0)),
         stream_requested_rate: Arc::new(AtomicU32::new(0)),
         device_default_rate,
@@ -689,6 +799,7 @@ pub fn stop_audio_engine(app: &tauri::AppHandle) {
     use std::sync::atomic::Ordering;
     use tauri::Manager;
     let engine = app.state::<AudioEngine>();
+    let _commit_guard = engine.playback_commit_lock.lock().unwrap();
     engine.generation.fetch_add(1, Ordering::SeqCst);
     *engine.chained_info.lock().unwrap() = None;
     *engine.current_source_done.lock().unwrap() = None;
