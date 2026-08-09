@@ -78,6 +78,7 @@ export const settings = {
   serverFailed: '接続に失敗しました。',
   serverUrlRequired: 'サーバーアドレスを入力してください。',
   serverUsernameRequired: 'ユーザー名を入力してください。',
+  serverDuplicate: 'このサーバーアドレスとユーザー名の接続は既に存在します。',
   serverConnectFailedReason: '接続できませんでした: {{reason}}',
   testBtn: '接続をテスト',
   testingBtn: 'テスト中…',

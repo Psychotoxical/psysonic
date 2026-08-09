@@ -2,7 +2,6 @@ import type { SubsonicGenre } from '@/lib/api/subsonicTypes';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { Tags } from 'lucide-react';
 import { APP_MAIN_SCROLL_VIEWPORT_ID } from '@/constants/appScroll';
 import { useAuthStore } from '@/store/authStore';
 import { useLibraryIndexStore } from '@/store/libraryIndexStore';
@@ -127,11 +126,11 @@ export default function Genres() {
 
   return (
     <div className="content-body animate-fade-in">
-      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
-        <h1 className="page-title" style={{ marginBottom: 0 }}>{t('genres.title')}</h1>
+      <div className="psy-page-heading psy-page-heading--spaced">
+        <h1 className="page-title truncate" title={t('genres.title')}>{t('genres.title')}</h1>
         {!loading && genres.length > 0 && (
-          <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--text-secondary)', fontSize: '0.9rem', fontWeight: 500 }}>
-            <Tags size={14} style={{ color: 'var(--accent)' }} />
+          <span className="psy-page-heading__count">
+            <span aria-hidden="true">–</span>
             {genres.length} {t('genres.genreCount')}
           </span>
         )}

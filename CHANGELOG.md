@@ -392,6 +392,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * ALSA and PipeWire devices that select a different sample rate no longer play tracks at half or double speed with shifted pitch. Native Hi-Res remains available, and fallback output configurations verify the rate the device actually accepted.
 * Hi-Res and gapless source replacement no longer loses the track-completion signal, so playback advances to the next queued track reliably.
 
+### Servers — prevent duplicate account profiles
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1399](https://github.com/Psychotoxical/psysonic/pull/1399)**, reported by zunoz on Discord
+
+* Settings no longer saves a second profile with the same server address and username. The same server can still be saved for a different account.
+
+### Tracks — reroll the Highly Rated selection
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1400](https://github.com/Psychotoxical/psysonic/pull/1400)**, reported by zunoz on Discord
+
+* **Highly Rated** now reshuffles tracks within each rating tier instead of requesting and redisplaying the same fixed order. Higher ratings stay first, and rerolls reuse the short-lived list cache so the new selection appears without another server roundtrip.
+
+### Genres — line up the page heading with its album count
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1402](https://github.com/Psychotoxical/psysonic/pull/1402)**, reported by zunoz
+
+* The genre name and the album count beside it now sit on one line instead of a couple of pixels apart, on the **Genres** overview as well as on a genre's own page. The alignment holds when the heading shrinks as you scroll.
+* The small icon between the two gives way to a dash, and a long genre name now shortens with its full text on hover instead of making the row taller.
+
 ## [1.50.0]
 
 ## Added

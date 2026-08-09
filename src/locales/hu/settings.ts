@@ -78,6 +78,7 @@ export const settings = {
   serverFailed: 'A kapcsolat sikertelen.',
   serverUrlRequired: 'A szerver címe kötelező.',
   serverUsernameRequired: 'A felhasználónév kötelező.',
+  serverDuplicate: 'Már létezik kapcsolat ezzel a szervercímmel és felhasználónévvel.',
   serverConnectFailedReason: 'Nem sikerült csatlakozni: {{reason}}',
   testBtn: 'Kapcsolat tesztelése',
   testingBtn: 'Tesztelés…',
