@@ -544,6 +544,18 @@ pub(crate) fn wait_for_stream_attachments_locked(engine: &AudioEngine) {
     }
 }
 
+pub(crate) fn wait_for_stream_attachments_timeout_locked(
+    engine: &AudioEngine,
+    timeout: Duration,
+) -> bool {
+    let (pending, ready) = &*engine.stream_attach_pending;
+    let count = pending.lock().unwrap();
+    let (count, _) = ready
+        .wait_timeout_while(count, timeout, |count| *count > 0)
+        .unwrap();
+    *count == 0
+}
+
 pub(crate) fn stream_attachment_is_pending(engine: &AudioEngine) -> bool {
     *engine.stream_attach_pending.0.lock().unwrap() > 0
 }
@@ -564,8 +576,9 @@ pub(crate) fn connect_new_player(
     Ok((player, attach_guard))
 }
 
-pub(crate) fn request_stream_release_locked(engine: &AudioEngine) -> Result<(), String> {
-    wait_for_stream_attachments_locked(engine);
+pub(crate) fn request_stream_release_after_attachments_locked(
+    engine: &AudioEngine,
+) -> Result<(), String> {
     drop(engine.stream_handle.lock().unwrap().take());
     engine
         .stream_sample_rate
@@ -586,6 +599,11 @@ pub(crate) fn request_stream_release_locked(engine: &AudioEngine) -> Result<(), 
         .recv_timeout(Duration::from_secs(5))
         .map_err(|_| "audio stream release timed out".to_string())?;
     Ok(())
+}
+
+pub(crate) fn request_stream_release_locked(engine: &AudioEngine) -> Result<(), String> {
+    wait_for_stream_attachments_locked(engine);
+    request_stream_release_after_attachments_locked(engine)
 }
 
 pub fn create_engine() -> (AudioEngine, std::thread::JoinHandle<()>) {
