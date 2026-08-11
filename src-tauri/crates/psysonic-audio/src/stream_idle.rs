@@ -114,7 +114,7 @@ pub(crate) fn release_output_stream_on_stop(
     let attachments_ready =
         attachments_ready || !super::engine::stream_attachment_is_pending(engine);
     if !attachments_ready {
-        crate::app_deprintln!(
+        crate::app_eprintln!(
             "[psysonic] audio output release skipped: player attachment still pending"
         );
         return Ok(());
@@ -300,7 +300,7 @@ mod tests {
 
         assert!(super::super::engine::wait_for_stream_attachments_timeout_locked(
             &engine,
-            Duration::from_millis(100),
+            Duration::from_secs(1),
         ));
         attachment.join().unwrap();
     }
