@@ -78,6 +78,7 @@ export const settings = {
   serverFailed: 'Connection failed.',
   serverUrlRequired: 'Server address is required.',
   serverUsernameRequired: 'Username is required.',
+  serverDuplicate: 'A connection with this server address and username already exists.',
   serverConnectFailedReason: 'Could not connect: {{reason}}',
   testBtn: 'Test Connection',
   testingBtn: 'Testing…',

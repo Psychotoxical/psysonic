@@ -78,6 +78,7 @@ export const settings = {
   serverFailed: 'Връзката се провали.',
   serverUrlRequired: 'Адресът на сървъра е задължителен.',
   serverUsernameRequired: 'Потребителското име е задължително.',
+  serverDuplicate: 'Връзка с този адрес на сървъра и потребителско име вече съществува.',
   serverConnectFailedReason: 'Връзката е неуспешна: {{reason}}',
   testBtn: 'Тествай връзката',
   testingBtn: 'Тестване…',

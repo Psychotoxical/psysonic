@@ -5,13 +5,13 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use rodio::Player;
 use tauri::{AppHandle, State};
 
 use super::engine::AudioEngine;
 use super::playback_rate::raw_counter_samples_for_content_position;
 use super::play_input::{url_format_hint, PlayInput};
 use super::source_build::{build_playback_source_with_probe_fallback, BuildSourceArgs, PlaybackSource};
+use super::state::install_current_source_done;
 use super::stream::LocalFileSource;
 
 const BLEND_44100: u32 = 44_100;
@@ -101,6 +101,7 @@ fn resolve_cached_play_input(engine: &AudioEngine, url: &str) -> Option<PlayInpu
             reader: Box::new(LocalFileSource { file, len }),
             format_hint: url_format_hint(url),
             tag: "LocalFile[hi-res-blend]",
+            download_control: None,
             random_access: true,
             mp4_probe_gate: None,
         });
@@ -182,8 +183,10 @@ pub(crate) async fn spawn_outgoing_blend_resample(
         return Ok(());
     }
 
-    let stream = super::engine::ensure_output_stream_open(state)?;
-    let sink = Arc::new(Player::connect_new(stream.mixer()));
+    let (sink, stream_attach) = super::engine::connect_new_player(state)?;
+    if state.generation.load(Ordering::SeqCst) != gen {
+        return Ok(());
+    }
     let effective_volume = (snap.base_volume * snap.gain_linear).clamp(0.0, 1.0);
     sink.set_volume(effective_volume);
     sink.append(ps.built.source);
@@ -205,8 +208,14 @@ pub(crate) async fn spawn_outgoing_blend_resample(
         ps.built.fadeout_trigger.store(true, Ordering::SeqCst);
     }
 
+    let commit_guard = state.playback_commit_lock.lock().unwrap();
+    if state.generation.load(Ordering::SeqCst) != gen {
+        return Ok(());
+    }
     sink.play();
     *state.fading_out_sink.lock().unwrap() = Some(sink);
+    drop(stream_attach);
+    drop(commit_guard);
 
     let fo_arc = state.fading_out_sink.clone();
     let cleanup_secs = snap.actual_fade_secs.max(snap.outgoing_fade_secs) + 0.5;
@@ -286,8 +295,10 @@ pub(crate) async fn rebuild_current_track_at_blend_rate(
         .current_channels
         .store(ps.built.output_channels as u32, Ordering::Relaxed);
 
-    let stream = super::engine::ensure_output_stream_open(state)?;
-    let sink = Arc::new(Player::connect_new(stream.mixer()));
+    let (sink, stream_attach) = super::engine::connect_new_player(state)?;
+    if state.generation.load(Ordering::SeqCst) != gen {
+        return Ok(());
+    }
     let effective_volume = (snap.base_volume * snap.gain_linear).clamp(0.0, 1.0);
     sink.set_volume(effective_volume);
     sink.append(ps.built.source);
@@ -298,6 +309,10 @@ pub(crate) async fn rebuild_current_track_at_blend_rate(
             .map_err(|e| format!("[hi-res-blend] gapless realign seek failed: {e}"))?;
     }
 
+    let commit_guard = state.playback_commit_lock.lock().unwrap();
+    if state.generation.load(Ordering::SeqCst) != gen {
+        return Ok(());
+    }
     sink.play();
 
     {
@@ -312,6 +327,8 @@ pub(crate) async fn rebuild_current_track_at_blend_rate(
         cur.fadeout_trigger = Some(ps.built.fadeout_trigger);
         cur.fadeout_samples = Some(ps.built.fadeout_samples);
     }
+    drop(stream_attach);
+    drop(commit_guard);
 
     state.samples_played.store(
         raw_counter_samples_for_content_position(
@@ -322,6 +339,14 @@ pub(crate) async fn rebuild_current_track_at_blend_rate(
         ),
         Ordering::Relaxed,
     );
+    if !install_current_source_done(
+        &state.current_source_done,
+        &state.generation,
+        gen,
+        done_flag,
+    ) {
+        return Ok(());
+    }
 
     crate::app_deprintln!(
         "[hi-res-blend] gapless realigned current track at {blend_rate} Hz from {:.2}s",

@@ -145,30 +145,76 @@ pub async fn audio_set_device(
     state: State<'_, AudioEngine>,
     app: tauri::AppHandle,
 ) -> Result<(), String> {
-    *state.selected_device.lock().unwrap() = device_name.clone();
+    let stream_guard = state.stream_open_lock.lock().unwrap();
+    super::engine::wait_for_stream_attachments_locked(&state);
+    let previous_device = state.selected_device.lock().unwrap().clone();
 
-    let rate = state.stream_sample_rate.load(Ordering::Relaxed);
+    let rate = state.stream_requested_rate.load(Ordering::Relaxed);
     let open_rate = if rate > 0 {
         rate
     } else {
         state.device_default_rate
     };
-    super::engine::open_output_stream_blocking(&state, open_rate, false, device_name.clone())
-        .map_err(|_| "device open timed out".to_string())?;
 
-    // Capture position and drop the active sink atomically so the position
-    // reading is still valid (play_started / paused_at intact before take).
-    let current_time = {
+    // Capture position and detach players before releasing the old stream. The
+    // generation bump prevents the old progress task from reporting a false
+    // completion while the replacement or rollback is opening.
+    let (current_time, switch_generation) = {
+        let _commit_guard = state.playback_commit_lock.lock().unwrap();
         let mut cur = state.current.lock().unwrap();
         let pos = cur.position();
+        let generation = state.generation.fetch_add(1, Ordering::SeqCst) + 1;
         if let Some(s) = cur.sink.take() { s.stop(); }
-        pos
+        (pos, generation)
     };
     if let Some(s) = state.fading_out_sink.lock().unwrap().take() { s.stop(); }
+
+    if let Err(error) = super::engine::open_output_stream_blocking_locked(
+        &state,
+        open_rate,
+        false,
+        device_name.clone(),
+        true,
+    ) {
+        // Keep Rust and Settings on the previous selection. Reopen that known
+        // device once so the existing device-changed path can resume playback.
+        let rolled_back = previous_device != device_name
+            && super::engine::open_output_stream_blocking_locked(
+                &state,
+                open_rate,
+                false,
+                previous_device.clone(),
+                true,
+            )
+            .is_ok();
+        drop(stream_guard);
+        if rolled_back {
+            let _commit_guard = state.playback_commit_lock.lock().unwrap();
+            if state.generation.load(Ordering::SeqCst) == switch_generation {
+                app.emit("audio:device-changed", current_time).ok();
+            }
+        } else {
+            let _commit_guard = state.playback_commit_lock.lock().unwrap();
+            if state.generation.load(Ordering::SeqCst) == switch_generation {
+                let mut cur = state.current.lock().unwrap();
+                cur.play_started = None;
+                cur.paused_at = Some(current_time);
+                state.stream_sample_rate.store(0, Ordering::Relaxed);
+                app.emit("audio:output-released", ()).ok();
+            }
+        }
+        return Err(error);
+    }
+
+    *state.selected_device.lock().unwrap() = device_name;
+    drop(stream_guard);
 
     // Emit the saved position so the frontend can use seekFallbackVisualTarget
     // and resume from where the track was, rather than restarting from the beginning.
     // null is reserved for "Rust already resumed internally" (see reopen_output_stream).
-    app.emit("audio:device-changed", current_time).map_err(|e| e.to_string())?;
+    let _commit_guard = state.playback_commit_lock.lock().unwrap();
+    if state.generation.load(Ordering::SeqCst) == switch_generation {
+        app.emit("audio:device-changed", current_time).map_err(|e| e.to_string())?;
+    }
     Ok(())
 }

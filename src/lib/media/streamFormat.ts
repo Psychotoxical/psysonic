@@ -71,6 +71,7 @@ const SUFFIX_CODECS: Record<string, readonly string[]> = {
   wave: ['pcm'],
   aiff: ['pcm'],
   aif: ['pcm'],
+  aifc: ['pcm'],
   wv: ['wavpack'],
   wavpack: ['wavpack'],
   ape: ['monkeys-audio'],
