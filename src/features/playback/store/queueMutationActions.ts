@@ -3,7 +3,10 @@ import { useAuthStore } from '@/store/authStore';
 import { prefetchLoudnessForEnqueuedTracks } from '@/features/playback/store/loudnessPrefetch';
 import type { QueueItemRef, Track } from '@/lib/media/trackTypes';
 import type { PlayerState } from '@/features/playback/store/playerStoreTypes';
-import { toQueueItemRefs } from '@/features/playback/store/queueItemRef';
+import {
+  canonicalizeQueueItemRef,
+  toQueueItemRefs,
+} from '@/features/playback/store/queueItemRef';
 import { seedQueueResolver } from '@/features/playback/store/queueTrackResolver';
 import { pushQueueUndoFromGetter } from '@/features/playback/store/queueUndo';
 import {
@@ -102,7 +105,7 @@ export function createQueueMutationActions(set: SetState, get: GetState): Pick<
 
       pushQueueUndoFromGetter(get);
       const nextItems = [...state.queueItems];
-      nextItems[index] = { ...replacement };
+      nextItems[index] = canonicalizeQueueItemRef(replacement);
       set({ queueItems: nextItems });
       const sync = userInitiated
         ? syncUserQueueMutationToServer

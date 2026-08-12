@@ -6,7 +6,7 @@
 //! only records durable evidence. An explicit migration command later drains
 //! sync work and moves all library references in one deferred-FK transaction.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::io;
 use std::sync::{Arc, Mutex, OnceLock, Weak};
 
@@ -17,7 +17,27 @@ use tokio::sync::Mutex as AsyncMutex;
 
 use crate::store::LibraryStore;
 
-pub const CANONICAL_ID_VERSION: i64 = 1;
+pub const CANONICAL_ID_VERSION: i64 = 2;
+const MAX_PROBE_CANDIDATES: usize = 8;
+const MAX_PROBE_ATTEMPT_CANDIDATES: usize = MAX_PROBE_CANDIDATES + 1;
+const ALIAS_BASELINE_BATCH_SIZE: i64 = 256;
+const ALIAS_BASELINE_BATCHES_PER_ATTEMPT: usize = 4;
+const ALIAS_BASELINE_MIGRATION_PREFIX: &str = "navidrome_inactive_alias_baseline_v1";
+const ALIAS_BASELINE_PROGRESS_ERROR: &str =
+    "canonical-ID inactive alias baseline is still progressing";
+const ALIAS_BASELINE_NO_LEGACY_PROGRESS_ERROR: &str =
+    "canonical-ID inactive alias baseline is still progressing; resume no_legacy_ids";
+
+pub(crate) fn delete_inactive_alias_baseline_markers(
+    conn: &Connection,
+    server_id: &str,
+) -> rusqlite::Result<()> {
+    let mut statement = conn.prepare_cached("DELETE FROM library_data_migration WHERE id = ?1")?;
+    for source in ALIAS_BASELINE_SOURCES {
+        statement.execute(params![alias_baseline_marker(server_id, source)])?;
+    }
+    Ok(())
+}
 
 #[derive(Debug, Clone, serde::Serialize, specta::Type, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -37,10 +57,11 @@ pub struct IdentityProbeCandidateDto {
     pub id: String,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub(crate) enum EntityKind {
     Track,
     Album,
+    Artist,
 }
 
 #[derive(Debug, Clone)]
@@ -48,6 +69,39 @@ struct ProbeCandidate {
     kind: EntityKind,
     old_id: String,
     new_id: String,
+    cursor_after: Option<ProbeCursor>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+struct ProbeCursor {
+    source: usize,
+    after_id: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+struct ProbeCandidateBatch {
+    candidates: Vec<ProbeCandidate>,
+    next_cursor: ProbeCursor,
+    exhausted: bool,
+}
+
+#[derive(Debug, Clone, Default)]
+pub(crate) struct DeterministicWriteGuard {
+    enabled: bool,
+    probe_old_id: Option<String>,
+    probe_new_id: Option<String>,
+}
+
+impl DeterministicWriteGuard {
+    pub(crate) fn enabled(&self) -> bool {
+        self.enabled
+    }
+
+    pub(crate) fn hinted_old_id<'a>(&'a self, incoming_id: &str) -> Option<&'a str> {
+        (self.probe_new_id.as_deref() == Some(incoming_id))
+            .then_some(self.probe_old_id.as_deref())
+            .flatten()
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -104,6 +158,7 @@ pub fn transition_status(
 }
 
 pub fn assert_sync_ready(store: &LibraryStore, server_id: &str) -> Result<(), String> {
+    upgrade_completed_state_if_needed(store, server_id)?;
     let status = transition_status(store, server_id)?;
     match status.state.as_str() {
         "awaiting_supplemental_probe" => Err(format!(
@@ -118,6 +173,10 @@ pub fn assert_sync_ready(store: &LibraryStore, server_id: &str) -> Result<(), St
         "retryable" | "blocked" => Err(format!(
             "server `{server_id}` canonical-ID migration is blocked: {}",
             status.last_error.as_deref().unwrap_or("unknown reason")
+        )),
+        _ if status.canonical_version != CANONICAL_ID_VERSION => Err(format!(
+            "server `{server_id}` canonical-ID readiness version {} is stale",
+            status.canonical_version
         )),
         _ => Ok(()),
     }
@@ -158,6 +217,7 @@ pub(crate) fn resolve_remapped_id_with_conn(
 }
 
 pub fn acknowledge_frontend(store: &LibraryStore, server_id: &str) -> Result<(), String> {
+    upgrade_completed_state_if_needed(store, server_id)?;
     let now = now_unix_ms();
     store
         .with_conn("navidrome_identity.ack_frontend", |conn| {
@@ -232,8 +292,44 @@ pub async fn ensure_transition(
     subsonic: &SubsonicClient,
     server_id: &str,
 ) -> Result<IdentityTransitionDto, String> {
-    let candidates = probe_candidates(store, server_id)?;
-    ensure_transition_with_candidates(
+    let lock = transition_probe_lock(server_id);
+    let _guard = lock.lock().await;
+    upgrade_completed_state_if_needed(store, server_id)?;
+    let existing = transition_status(store, server_id)?;
+    if matches!(
+        existing.state.as_str(),
+        "transition_detected" | "pending_frontend" | "ready"
+    ) && existing.canonical_version == CANONICAL_ID_VERSION
+    {
+        return Ok(existing);
+    }
+    let resume_no_legacy = existing.state == "no_legacy_ids"
+        || existing.last_error.as_deref() == Some(ALIAS_BASELINE_NO_LEGACY_PROGRESS_ERROR);
+    if !ensure_inactive_alias_baseline(store, server_id)? {
+        record_state(
+            store,
+            server_id,
+            "retryable",
+            existing.probe_old_id.as_deref(),
+            existing.probe_new_id.as_deref(),
+            Some(if resume_no_legacy {
+                ALIAS_BASELINE_NO_LEGACY_PROGRESS_ERROR
+            } else {
+                ALIAS_BASELINE_PROGRESS_ERROR
+            }),
+            false,
+        )?;
+        return transition_status(store, server_id);
+    }
+    if resume_no_legacy {
+        record_state(store, server_id, "no_legacy_ids", None, None, None, false)?;
+        return transition_status(store, server_id);
+    }
+    if no_legacy_state_is_current(&existing) {
+        return Ok(existing);
+    }
+    let candidates = probe_candidates_for_status(store, &existing)?;
+    bounded_transition_probe(
         store,
         subsonic,
         server_id,
@@ -249,7 +345,54 @@ pub async fn ensure_transition_with_probe_candidates(
     server_id: &str,
     supplied: Vec<IdentityProbeCandidateDto>,
 ) -> Result<IdentityTransitionDto, String> {
-    let mut candidates = probe_candidates(store, server_id)?;
+    let lock = transition_probe_lock(server_id);
+    let _guard = lock.lock().await;
+    upgrade_completed_state_if_needed(store, server_id)?;
+    let existing = transition_status(store, server_id)?;
+    if matches!(
+        existing.state.as_str(),
+        "transition_detected" | "pending_frontend" | "ready"
+    ) && existing.canonical_version == CANONICAL_ID_VERSION
+    {
+        return Ok(existing);
+    }
+    let resume_no_legacy = existing.state == "no_legacy_ids"
+        || existing.last_error.as_deref() == Some(ALIAS_BASELINE_NO_LEGACY_PROGRESS_ERROR);
+    if !ensure_inactive_alias_baseline(store, server_id)? {
+        record_state(
+            store,
+            server_id,
+            "retryable",
+            existing.probe_old_id.as_deref(),
+            existing.probe_new_id.as_deref(),
+            Some(if resume_no_legacy {
+                ALIAS_BASELINE_NO_LEGACY_PROGRESS_ERROR
+            } else {
+                ALIAS_BASELINE_PROGRESS_ERROR
+            }),
+            false,
+        )?;
+        return transition_status(store, server_id);
+    }
+    if resume_no_legacy {
+        record_state(store, server_id, "no_legacy_ids", None, None, None, false)?;
+        return transition_status(store, server_id);
+    }
+    if supplied.is_empty() && no_legacy_state_is_current(&existing) {
+        return Ok(existing);
+    }
+    let retrying_persisted = matches!(existing.state.as_str(), "legacy" | "retryable")
+        && existing.probe_old_id.is_some()
+        && existing.probe_new_id.is_some();
+    let mut batch = if supplied.is_empty() || retrying_persisted {
+        probe_candidates_for_status(store, &existing)?
+    } else {
+        ProbeCandidateBatch {
+            candidates: Vec::new(),
+            next_cursor: ProbeCursor::default(),
+            exhausted: true,
+        }
+    };
     for candidate in supplied {
         let kind = match candidate.entity_kind.as_str() {
             "track" => EntityKind::Track,
@@ -260,22 +403,85 @@ pub async fn ensure_transition_with_probe_candidates(
         let new_id = canonical_id(&old_id);
         if old_id.is_empty()
             || old_id == new_id
-            || candidates
+            || batch
+                .candidates
                 .iter()
                 .any(|existing| existing.kind == kind && existing.old_id == old_id)
         {
             continue;
         }
-        candidates.push(ProbeCandidate {
+        batch.candidates.push(ProbeCandidate {
             kind,
             old_id,
             new_id,
+            cursor_after: None,
         });
-        if candidates.len() >= 8 {
+        if batch.candidates.len() >= MAX_PROBE_ATTEMPT_CANDIDATES {
             break;
         }
     }
-    ensure_transition_with_candidates(
+    bounded_transition_probe(
+        store,
+        subsonic,
+        server_id,
+        batch,
+        EmptyCandidateOutcome::NoLegacyIds,
+    )
+    .await
+}
+
+/// Revalidate the active Navidrome namespace immediately before any sync ingest.
+/// Stable terminal states avoid candidate scans, persisted legacy evidence probes
+/// one old/new pair, and an empty `no_legacy_ids` catalog stays network-neutral.
+pub(crate) async fn revalidate_before_ingest(
+    store: &LibraryStore,
+    subsonic: &SubsonicClient,
+    server_id: &str,
+) -> Result<IdentityTransitionDto, String> {
+    let lock = transition_probe_lock(server_id);
+    let _guard = lock.lock().await;
+    upgrade_completed_state_if_needed(store, server_id)?;
+    let existing = transition_status(store, server_id)?;
+    match existing.state.as_str() {
+        "transition_detected" | "pending_frontend" | "ready"
+            if existing.canonical_version == CANONICAL_ID_VERSION =>
+        {
+            return Ok(existing);
+        }
+        "blocked" | "awaiting_supplemental_probe"
+            if existing.canonical_version == CANONICAL_ID_VERSION =>
+        {
+            return Ok(existing);
+        }
+        _ => {}
+    }
+    let resume_no_legacy = existing.state == "no_legacy_ids"
+        || existing.last_error.as_deref() == Some(ALIAS_BASELINE_NO_LEGACY_PROGRESS_ERROR);
+    if !ensure_inactive_alias_baseline(store, server_id)? {
+        record_state(
+            store,
+            server_id,
+            "retryable",
+            existing.probe_old_id.as_deref(),
+            existing.probe_new_id.as_deref(),
+            Some(if resume_no_legacy {
+                ALIAS_BASELINE_NO_LEGACY_PROGRESS_ERROR
+            } else {
+                ALIAS_BASELINE_PROGRESS_ERROR
+            }),
+            false,
+        )?;
+        return transition_status(store, server_id);
+    }
+    if resume_no_legacy {
+        record_state(store, server_id, "no_legacy_ids", None, None, None, false)?;
+        return transition_status(store, server_id);
+    }
+    if no_legacy_state_is_current(&existing) {
+        return Ok(existing);
+    }
+    let candidates = probe_candidates_for_status(store, &existing)?;
+    bounded_transition_probe(
         store,
         subsonic,
         server_id,
@@ -283,6 +489,277 @@ pub async fn ensure_transition_with_probe_candidates(
         EmptyCandidateOutcome::NoLegacyIds,
     )
     .await
+}
+
+fn probe_candidates_for_status(
+    store: &LibraryStore,
+    status: &IdentityTransitionDto,
+) -> Result<ProbeCandidateBatch, String> {
+    let mut batch = probe_candidates(store, &status.server_id)?;
+    if matches!(status.state.as_str(), "legacy" | "retryable") {
+        if let (Some(old_id), Some(new_id)) =
+            (status.probe_old_id.as_ref(), status.probe_new_id.as_ref())
+        {
+            if old_id != new_id {
+                if let Some(kind) = persisted_probe_kind(store, &status.server_id, old_id)? {
+                    if let Some(index) = batch
+                        .candidates
+                        .iter()
+                        .position(|candidate| candidate.kind == kind && candidate.old_id == *old_id)
+                    {
+                        let persisted = batch.candidates.remove(index);
+                        batch.candidates.insert(0, persisted);
+                    } else {
+                        batch.candidates.insert(
+                            0,
+                            ProbeCandidate {
+                                kind,
+                                old_id: old_id.clone(),
+                                new_id: new_id.clone(),
+                                cursor_after: None,
+                            },
+                        );
+                    }
+                }
+            }
+        }
+    }
+    batch
+        .candidates
+        .truncate(MAX_PROBE_ATTEMPT_CANDIDATES);
+    Ok(batch)
+}
+
+fn persisted_probe_kind(
+    store: &LibraryStore,
+    server_id: &str,
+    old_id: &str,
+) -> Result<Option<EntityKind>, String> {
+    store.with_read_conn(|conn| {
+        let track_exists: bool = conn.query_row(
+            "SELECT EXISTS(SELECT 1 FROM track WHERE server_id = ?1 AND id = ?2 AND deleted = 0) \
+             OR EXISTS(SELECT 1 FROM track_offline WHERE server_id = ?1 AND track_id = ?2)",
+            params![server_id, old_id],
+            |row| row.get(0),
+        )?;
+        if track_exists {
+            return Ok(Some(EntityKind::Track));
+        }
+        conn.query_row(
+            "SELECT EXISTS(SELECT 1 FROM album WHERE server_id = ?1 AND id = ?2)",
+            params![server_id, old_id],
+            |row| row.get::<_, bool>(0),
+        )
+        .map(|exists| exists.then_some(EntityKind::Album))
+    })
+}
+
+fn no_legacy_state_is_current(status: &IdentityTransitionDto) -> bool {
+    status.state == "no_legacy_ids" && status.canonical_version == CANONICAL_ID_VERSION
+}
+
+struct AliasBaselineSource {
+    name: &'static str,
+    kind: EntityKind,
+    table: &'static str,
+    column: &'static str,
+    filter: &'static str,
+}
+
+const ALIAS_BASELINE_SOURCES: &[AliasBaselineSource] = &[
+    AliasBaselineSource {
+        name: "track",
+        kind: EntityKind::Track,
+        table: "track",
+        column: "id",
+        filter: "AND deleted = 0",
+    },
+    AliasBaselineSource {
+        name: "offline",
+        kind: EntityKind::Track,
+        table: "track_offline",
+        column: "track_id",
+        filter: "",
+    },
+    AliasBaselineSource {
+        name: "album",
+        kind: EntityKind::Album,
+        table: "album",
+        column: "id",
+        filter: "",
+    },
+    AliasBaselineSource {
+        name: "artist",
+        kind: EntityKind::Artist,
+        table: "artist",
+        column: "id",
+        filter: "",
+    },
+    AliasBaselineSource {
+        name: "track_album_ref",
+        kind: EntityKind::Album,
+        table: "track",
+        column: "album_id",
+        filter: "AND deleted = 0",
+    },
+    AliasBaselineSource {
+        name: "track_artist_ref",
+        kind: EntityKind::Artist,
+        table: "track",
+        column: "artist_id",
+        filter: "AND deleted = 0",
+    },
+    AliasBaselineSource {
+        name: "album_artist_ref",
+        kind: EntityKind::Artist,
+        table: "album",
+        column: "artist_id",
+        filter: "",
+    },
+];
+
+fn alias_baseline_marker(server_id: &str, source: &AliasBaselineSource) -> String {
+    format!("{ALIAS_BASELINE_MIGRATION_PREFIX}:{server_id}:{}", source.name)
+}
+
+fn ensure_inactive_alias_baseline(store: &LibraryStore, server_id: &str) -> Result<bool, String> {
+    store.with_conn_mut("navidrome_identity.alias_baseline", |conn| {
+        let mut batches = 0usize;
+        for source in ALIAS_BASELINE_SOURCES {
+            let marker = alias_baseline_marker(server_id, source);
+            loop {
+                let completed: Option<Option<i64>> = conn
+                    .query_row(
+                        "SELECT completed_at FROM library_data_migration WHERE id = ?1",
+                        params![marker],
+                        |row| row.get(0),
+                    )
+                    .optional()?;
+                if completed.flatten().is_some() {
+                    break;
+                }
+                conn.execute(
+                    "INSERT INTO library_data_migration (id, cursor_rowid, started_at) \
+                     VALUES (?1, 0, strftime('%s','now')) \
+                     ON CONFLICT(id) DO UPDATE SET \
+                       started_at = COALESCE(library_data_migration.started_at, excluded.started_at)",
+                    params![marker],
+                )?;
+                let cursor: Option<String> = conn.query_row(
+                    "SELECT cursor_text FROM library_data_migration WHERE id = ?1",
+                    params![marker],
+                    |row| row.get(0),
+                )?;
+                let sql = format!(
+                    "SELECT DISTINCT {column} FROM {table} \
+                     WHERE server_id = ?1 AND {column} > COALESCE(?2, '') \
+                        AND {column} IS NOT NULL AND {column} != '' {filter} \
+                     ORDER BY {column} LIMIT ?3",
+                    column = source.column,
+                    table = source.table,
+                    filter = source.filter,
+                );
+                let rows = conn
+                    .prepare(&sql)?
+                    .query_map(
+                        params![server_id, cursor, ALIAS_BASELINE_BATCH_SIZE],
+                        |row| row.get::<_, String>(0),
+                    )?
+                    .collect::<rusqlite::Result<Vec<_>>>()?;
+                if rows.is_empty() {
+                    conn.execute(
+                        "UPDATE library_data_migration \
+                         SET completed_at = strftime('%s','now') WHERE id = ?1",
+                        params![marker],
+                    )?;
+                    break;
+                }
+                let last_value = rows.last().cloned().or(cursor);
+                let tx = conn.unchecked_transaction()?;
+                insert_inactive_legacy_aliases(
+                    &tx,
+                    server_id,
+                    source.kind,
+                    rows.iter().map(String::as_str),
+                    now_unix_ms(),
+                )?;
+                tx.execute(
+                    "UPDATE library_data_migration SET cursor_text = ?2 WHERE id = ?1",
+                    params![marker, last_value],
+                )?;
+                tx.commit()?;
+                batches += 1;
+                if batches >= ALIAS_BASELINE_BATCHES_PER_ATTEMPT {
+                    return Ok(false);
+                }
+            }
+        }
+        Ok(true)
+    })
+}
+
+fn load_probe_cursor(store: &LibraryStore, server_id: &str) -> Result<ProbeCursor, String> {
+    store.with_read_conn(|conn| {
+        let encoded: Option<String> = conn
+            .query_row(
+            "SELECT probe_cursor FROM server_identity_transition WHERE server_id = ?1",
+            params![server_id],
+            |row| row.get(0),
+        )
+            .optional()?
+            .flatten();
+        Ok(encoded
+            .as_deref()
+            .and_then(|value| serde_json::from_str(value).ok())
+            .unwrap_or_default())
+    })
+}
+
+fn store_probe_cursor(
+    store: &LibraryStore,
+    server_id: &str,
+    cursor: &ProbeCursor,
+) -> Result<(), String> {
+    let encoded = (cursor != &ProbeCursor::default())
+        .then(|| serde_json::to_string(cursor))
+        .transpose()
+        .map_err(|error| error.to_string())?;
+    store.with_conn("navidrome_identity.store_probe_cursor", |conn| {
+        conn.execute(
+            "UPDATE server_identity_transition \
+             SET probe_cursor = ?2 \
+             WHERE server_id = ?1",
+            params![server_id, encoded],
+        )?;
+        Ok(())
+    })
+}
+
+fn clear_probe_cursor(store: &LibraryStore, server_id: &str) -> Result<(), String> {
+    store_probe_cursor(store, server_id, &ProbeCursor::default())
+}
+
+async fn bounded_transition_probe(
+    store: &LibraryStore,
+    subsonic: &SubsonicClient,
+    server_id: &str,
+    candidates: ProbeCandidateBatch,
+    empty_candidate_outcome: EmptyCandidateOutcome,
+) -> Result<IdentityTransitionDto, String> {
+    const REVALIDATION_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
+
+    tokio::time::timeout(
+        REVALIDATION_TIMEOUT,
+        ensure_transition_with_candidates(
+            store,
+            subsonic,
+            server_id,
+            candidates,
+            empty_candidate_outcome,
+        ),
+    )
+    .await
+    .map_err(|_| "canonical-ID namespace revalidation timed out".to_string())?
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -295,27 +772,41 @@ async fn ensure_transition_with_candidates(
     store: &LibraryStore,
     subsonic: &SubsonicClient,
     server_id: &str,
-    candidates: Vec<ProbeCandidate>,
+    batch: ProbeCandidateBatch,
     empty_candidate_outcome: EmptyCandidateOutcome,
 ) -> Result<IdentityTransitionDto, String> {
     let existing = transition_status(store, server_id)?;
     if matches!(
         existing.state.as_str(),
         "transition_detected" | "pending_frontend" | "ready"
-    ) {
+    ) && existing.canonical_version == CANONICAL_ID_VERSION
+    {
         return Ok(existing);
     }
 
-    if candidates.is_empty() {
+    if batch.candidates.is_empty() {
+        if !batch.exhausted {
+            let error = "canonical-ID candidate scan has more catalog rows to inspect";
+            record_state(store, server_id, "retryable", None, None, Some(error), false)?;
+            store_probe_cursor(store, server_id, &batch.next_cursor)?;
+            return transition_status(store, server_id);
+        }
         let state = match empty_candidate_outcome {
             EmptyCandidateOutcome::AwaitSupplemental => "awaiting_supplemental_probe",
             EmptyCandidateOutcome::NoLegacyIds => "no_legacy_ids",
         };
-        record_state(store, server_id, state, None, None, None, false)?;
+        if state == "no_legacy_ids" {
+            record_state(store, server_id, state, None, None, None, false)?;
+            clear_probe_cursor(store, server_id)?;
+        } else {
+            record_state(store, server_id, state, None, None, None, false)?;
+        }
         return transition_status(store, server_id);
     }
 
-    for candidate in &candidates {
+    let mut first_retryable: Option<(ProbeCandidate, String)> = None;
+    let mut conclusive_cursor: Option<ProbeCursor> = None;
+    for candidate in &batch.candidates {
         let (old, new) = tokio::join!(
             probe_entity(subsonic, candidate.kind, &candidate.old_id),
             probe_entity(subsonic, candidate.kind, &candidate.new_id),
@@ -338,11 +829,16 @@ async fn ensure_transition_with_candidates(
                     store,
                     server_id,
                     candidate,
-                    &candidates,
+                    &batch.candidates,
                 )?;
                 return transition_status(store, server_id);
             }
-            (Err(SubsonicError::NotFound), Err(SubsonicError::NotFound)) => {}
+            (Err(SubsonicError::NotFound), Err(SubsonicError::NotFound)) => {
+                if let Some(cursor) = &candidate.cursor_after {
+                    store_probe_cursor(store, server_id, cursor)?;
+                    conclusive_cursor = Some(cursor.clone());
+                }
+            }
             (Ok(()), Ok(())) => {
                 let error = "legacy and canonical forms both resolved; refusing ambiguous identity evidence";
                 record_state(
@@ -362,18 +858,26 @@ async fn ensure_transition_with_candidates(
                     probe_result_label(&old),
                     probe_result_label(&new)
                 );
-                record_state(
-                    store,
-                    server_id,
-                    "retryable",
-                    Some(&candidate.old_id),
-                    Some(&candidate.new_id),
-                    Some(&error),
-                    false,
-                )?;
-                return transition_status(store, server_id);
+                if first_retryable.is_none() {
+                    first_retryable = Some((candidate.clone(), error));
+                }
             }
         }
+    }
+    if let Some((candidate, error)) = first_retryable {
+        record_state(
+            store,
+            server_id,
+            "retryable",
+            Some(&candidate.old_id),
+            Some(&candidate.new_id),
+            Some(&error),
+            false,
+        )?;
+        if let Some(cursor) = &conclusive_cursor {
+            store_probe_cursor(store, server_id, cursor)?;
+        }
+        return transition_status(store, server_id);
     }
     let error = "no live probe candidate established the active Navidrome ID namespace";
     record_state(
@@ -385,6 +889,7 @@ async fn ensure_transition_with_candidates(
         Some(error),
         false,
     )?;
+    store_probe_cursor(store, server_id, &batch.next_cursor)?;
     transition_status(store, server_id)
 }
 
@@ -412,6 +917,8 @@ pub(crate) async fn resolve_unexpected_not_found(
     }
     let lock = targeted_probe_lock(server_id, kind, old_id);
     let _guard = lock.lock().await;
+    let transition_lock = transition_probe_lock(server_id);
+    let _transition_guard = transition_lock.lock().await;
     let existing = transition_status(store, server_id)?;
     match existing.state.as_str() {
         "transition_detected" | "pending_frontend" => {
@@ -422,12 +929,6 @@ pub(crate) async fn resolve_unexpected_not_found(
                 "canonical-ID state `{}` prevents destructive reconciliation",
                 existing.state
             ));
-        }
-        "legacy"
-            if existing.probe_old_id.as_deref() == Some(old_id)
-                && existing.probe_new_id.as_deref() == Some(new_id.as_str()) =>
-        {
-            return Ok(TargetedNotFoundOutcome::ConfirmedMissing);
         }
         _ => {}
     }
@@ -443,6 +944,7 @@ pub(crate) async fn resolve_unexpected_not_found(
                 kind,
                 old_id: old_id.to_string(),
                 new_id: new_id.clone(),
+                cursor_after: None,
             };
             record_transition_detected(
                 store,
@@ -508,6 +1010,20 @@ fn targeted_probe_lock(server_id: &str, kind: EntityKind, old_id: &str) -> Arc<A
     lock
 }
 
+pub(crate) fn transition_probe_lock(server_id: &str) -> Arc<AsyncMutex<()>> {
+    static LOCKS: OnceLock<Mutex<HashMap<String, Weak<AsyncMutex<()>>>>> = OnceLock::new();
+    let mut locks = LOCKS
+        .get_or_init(|| Mutex::new(HashMap::new()))
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    if let Some(lock) = locks.get(server_id).and_then(Weak::upgrade) {
+        return lock;
+    }
+    let lock = Arc::new(AsyncMutex::new(()));
+    locks.insert(server_id.to_string(), Arc::downgrade(&lock));
+    lock
+}
+
 async fn probe_entity(
     subsonic: &SubsonicClient,
     kind: EntityKind,
@@ -516,6 +1032,9 @@ async fn probe_entity(
     match kind {
         EntityKind::Track => subsonic.get_song(id).await.map(|_| ()),
         EntityKind::Album => subsonic.get_album(id).await.map(|_| ()),
+        EntityKind::Artist => Err(SubsonicError::Decode(
+            "artist identity candidates are not directly probeable".to_string(),
+        )),
     }
 }
 
@@ -526,40 +1045,203 @@ fn probe_result_label(result: &Result<(), SubsonicError>) -> String {
     }
 }
 
-fn probe_candidates(store: &LibraryStore, server_id: &str) -> Result<Vec<ProbeCandidate>, String> {
-    const MAX_CANDIDATES: usize = 8;
+fn probe_candidates(
+    store: &LibraryStore,
+    server_id: &str,
+) -> Result<ProbeCandidateBatch, String> {
+    const PAGE_SIZE: usize = 64;
+    const MAX_SCANNED_ROWS: usize = 512;
+    let cursor = load_probe_cursor(store, server_id)?;
     store.with_read_conn(|conn| {
-        let mut candidates = Vec::new();
-        for (kind, table) in [(EntityKind::Track, "track"), (EntityKind::Album, "album")] {
+        let mut candidates: Vec<ProbeCandidate> = Vec::new();
+        let sources = [
+            (EntityKind::Track, "track", "id"),
+            (EntityKind::Track, "track_offline", "track_id"),
+            (EntityKind::Album, "album", "id"),
+        ];
+        let mut scanned_rows = 0usize;
+        for (source, (kind, table, column)) in sources.iter().copied().enumerate().skip(cursor.source)
+        {
             let live_filter = if table == "track" {
                 " AND deleted = 0"
             } else {
                 ""
             };
-            let mut statement = conn.prepare(&format!(
-                "SELECT id FROM {table} WHERE server_id = ?1{live_filter} ORDER BY id LIMIT 64"
-            ))?;
-            let mut rows = statement.query(params![server_id])?;
-            while let Some(row) = rows.next()? {
-                let old_id = row.get::<_, String>(0)?;
-                let new_id = canonical_id(&old_id);
-                if new_id != old_id {
-                    candidates.push(ProbeCandidate {
-                        kind,
-                        old_id,
-                        new_id,
+            let mut after = (source == cursor.source)
+                .then(|| cursor.after_id.clone())
+                .flatten();
+            loop {
+                if scanned_rows >= MAX_SCANNED_ROWS
+                    || candidates.len() >= MAX_PROBE_CANDIDATES
+                {
+                    return Ok(ProbeCandidateBatch {
+                        candidates,
+                        next_cursor: ProbeCursor {
+                            source,
+                            after_id: after,
+                        },
+                        exhausted: false,
                     });
-                    if candidates.len() >= MAX_CANDIDATES {
-                        return Ok(candidates);
+                }
+                let limit = PAGE_SIZE.min(MAX_SCANNED_ROWS - scanned_rows);
+                let page = {
+                    let (sql, binds): (String, Vec<&dyn rusqlite::ToSql>) = match after.as_ref() {
+                        Some(after) => (
+                            format!(
+                                "SELECT {column} FROM {table} WHERE server_id = ?1{live_filter} \
+                                 AND {column} > ?2 ORDER BY {column} LIMIT {limit}"
+                            ),
+                            vec![&server_id, after],
+                        ),
+                        None => (
+                            format!(
+                                "SELECT {column} FROM {table} WHERE server_id = ?1{live_filter} \
+                                 ORDER BY {column} LIMIT {limit}"
+                            ),
+                            vec![&server_id],
+                        ),
+                    };
+                    conn.prepare(&sql)?
+                        .query_map(binds.as_slice(), |row| row.get::<_, String>(0))?
+                        .collect::<rusqlite::Result<Vec<_>>>()?
+                };
+                if page.is_empty() {
+                    break;
+                }
+                let page_len = page.len();
+                for old_id in page {
+                    scanned_rows += 1;
+                    after = Some(old_id.clone());
+                    let new_id = canonical_id(&old_id);
+                    if new_id != old_id
+                        && !candidates
+                            .iter()
+                            .any(|candidate| candidate.kind == kind && candidate.old_id == old_id)
+                    {
+                        candidates.push(ProbeCandidate {
+                            kind,
+                            old_id,
+                            new_id,
+                            cursor_after: Some(ProbeCursor {
+                                source,
+                                after_id: after.clone(),
+                            }),
+                        });
+                        if candidates.len() >= MAX_PROBE_CANDIDATES {
+                            return Ok(ProbeCandidateBatch {
+                                candidates,
+                                next_cursor: ProbeCursor {
+                                    source,
+                                    after_id: after,
+                                },
+                                exhausted: false,
+                            });
+                        }
                     }
+                }
+                if page_len < limit {
+                    break;
                 }
             }
         }
-        Ok(candidates)
+        Ok(ProbeCandidateBatch {
+            candidates,
+            next_cursor: ProbeCursor::default(),
+            exhausted: true,
+        })
     })
 }
 
+fn upgrade_completed_state_if_needed(
+    store: &LibraryStore,
+    server_id: &str,
+) -> Result<(), String> {
+    let status = transition_status(store, server_id)?;
+    if status.canonical_version >= CANONICAL_ID_VERSION
+        || !matches!(status.state.as_str(), "pending_frontend" | "ready")
+    {
+        return Ok(());
+    }
+
+    let result = store.with_conn_mut("navidrome_identity.upgrade_completed_state", |conn| {
+        let tx = conn.transaction()?;
+        reconcile_orphan_offline_ids(&tx, server_id, now_unix_ms())?;
+        tx.execute(
+            "UPDATE server_identity_transition \
+             SET canonical_version = ?2, last_error = NULL \
+             WHERE server_id = ?1 AND state IN ('pending_frontend', 'ready')",
+            params![server_id, CANONICAL_ID_VERSION],
+        )?;
+        tx.commit()
+    });
+    if let Err(error) = result {
+        record_state(
+            store,
+            server_id,
+            "blocked",
+            status.probe_old_id.as_deref(),
+            status.probe_new_id.as_deref(),
+            Some(&format!("canonical-ID version upgrade failed: {error}")),
+            status.state == "pending_frontend" || status.state == "ready",
+        )?;
+        return Err(error);
+    }
+    Ok(())
+}
+
+fn reconcile_orphan_offline_ids(
+    tx: &Transaction<'_>,
+    server_id: &str,
+    now: i64,
+) -> rusqlite::Result<()> {
+    let offline_ids = tx
+        .prepare("SELECT track_id FROM track_offline WHERE server_id = ?1 ORDER BY track_id")?
+        .query_map(params![server_id], |row| row.get::<_, String>(0))?
+        .collect::<rusqlite::Result<Vec<_>>>()?;
+    for old_id in offline_ids {
+        let new_id = canonical_id(&old_id);
+        if new_id == old_id {
+            continue;
+        }
+        let destination_exists: bool = tx.query_row(
+            "SELECT EXISTS(SELECT 1 FROM track_offline WHERE server_id = ?1 AND track_id = ?2)",
+            params![server_id, new_id],
+            |row| row.get(0),
+        )?;
+        if destination_exists {
+            return Err(rusqlite::Error::ToSqlConversionFailure(Box::new(
+                io::Error::other(format!(
+                    "canonical offline track id collision at `{new_id}`"
+                )),
+            )));
+        }
+        tx.execute(
+            "UPDATE track_offline SET track_id = ?3 \
+             WHERE server_id = ?1 AND track_id = ?2",
+            params![server_id, old_id, new_id],
+        )?;
+        tx.execute(
+            "INSERT INTO track_id_history \
+             (server_id, old_id, new_id, content_hash, server_path, remapped_at) \
+             VALUES (?1, ?2, ?3, NULL, NULL, ?4) \
+             ON CONFLICT(server_id, old_id) DO UPDATE SET \
+               new_id = excluded.new_id, remapped_at = excluded.remapped_at",
+            params![server_id, old_id, new_id, now],
+        )?;
+        tx.execute(
+            "INSERT INTO entity_id_remap \
+             (server_id, entity_kind, old_id, new_id, remapped_at, active) \
+             VALUES (?1, 'track', ?2, ?3, ?4, 1) \
+             ON CONFLICT(server_id, entity_kind, old_id) DO UPDATE SET \
+               new_id = excluded.new_id, remapped_at = excluded.remapped_at, active = 1",
+            params![server_id, old_id, new_id, now],
+        )?;
+    }
+    Ok(())
+}
+
 pub fn run_native_migration(store: &LibraryStore, server_id: &str) -> Result<(), String> {
+    upgrade_completed_state_if_needed(store, server_id)?;
     let status = transition_status(store, server_id)?;
     match status.state.as_str() {
         "pending_frontend" | "ready" => return Ok(()),
@@ -695,15 +1377,16 @@ pub fn run_native_migration(store: &LibraryStore, server_id: &str) -> Result<(),
         tx.commit()
     });
     if let Err(error) = result {
-        record_state(
-            store,
-            server_id,
-            "blocked",
-            status.probe_old_id.as_deref(),
-            status.probe_new_id.as_deref(),
-            Some(&error),
-            false,
-        )?;
+        let now = now_unix_ms();
+        store.with_conn("navidrome_identity.block_failed_migration", |conn| {
+            conn.execute(
+                "UPDATE server_identity_transition \
+                 SET state = 'blocked', last_error = ?2, detected_at = ?3 \
+                 WHERE server_id = ?1 AND state = 'transition_detected'",
+                params![server_id, error, now],
+            )?;
+            Ok(())
+        })?;
         return Err(error);
     }
     Ok(())
@@ -712,7 +1395,22 @@ pub fn run_native_migration(store: &LibraryStore, server_id: &str) -> Result<(),
 fn collect_library_maps(conn: &Connection, server_id: &str) -> rusqlite::Result<LibraryIdMaps> {
     let artists = collect_entity_map(conn, "artist", server_id)?;
     let albums = collect_entity_map(conn, "album", server_id)?;
-    let tracks = collect_entity_map(conn, "track", server_id)?;
+    let mut track_values = collect_column_values(conn, "track", "id", server_id)?;
+    track_values.extend(collect_column_values(
+        conn,
+        "track_offline",
+        "track_id",
+        server_id,
+    )?);
+    track_values.sort();
+    track_values.dedup();
+    let tracks = track_values
+        .into_iter()
+        .filter_map(|old_id| {
+            let new_id = canonical_id(&old_id);
+            (new_id != old_id).then_some(IdMap { old_id, new_id })
+        })
+        .collect::<Vec<_>>();
     let mut folder_values = collect_column_values(conn, "track", "library_id", server_id)?;
     folder_values.extend(collect_column_values(
         conn,
@@ -808,16 +1506,25 @@ fn insert_temp_map(tx: &Transaction<'_>, table: &str, mappings: &[IdMap]) -> rus
 }
 
 fn reject_collisions(tx: &Transaction<'_>, server_id: &str) -> rusqlite::Result<()> {
-    for (table, map) in [
-        ("artist", "canonical_artist_map"),
-        ("album", "canonical_album_map"),
-        ("track", "canonical_track_map"),
+    for (table, map, require_old_entity) in [
+        ("artist", "canonical_artist_map", false),
+        ("album", "canonical_album_map", false),
+        ("track", "canonical_track_map", true),
     ] {
+        let old_entity_filter = if require_old_entity {
+            format!(
+                " AND EXISTS (SELECT 1 FROM {table} old_entity \
+                   WHERE old_entity.server_id = entity.server_id \
+                     AND old_entity.id = mapping.old_id)"
+            )
+        } else {
+            String::new()
+        };
         let collision: Option<String> = tx
             .query_row(
                 &format!(
                     "SELECT entity.id FROM {table} entity JOIN {map} mapping ON mapping.new_id = entity.id \
-                     WHERE entity.server_id = ?1 LIMIT 1"
+                     WHERE entity.server_id = ?1{old_entity_filter} LIMIT 1"
                 ),
                 params![server_id],
                 |row| row.get(0),
@@ -1015,9 +1722,10 @@ fn record_transition_detected(
     mappings: &[ProbeCandidate],
 ) -> Result<(), String> {
     let now = now_unix_ms();
-    store.with_conn("navidrome_identity.record_transition", |conn| {
-        write_state(
-            conn,
+    store.with_conn_mut("navidrome_identity.record_transition", |conn| {
+        let tx = conn.transaction()?;
+        let applied = write_state(
+            &tx,
             server_id,
             "transition_detected",
             Some(&evidence.old_id),
@@ -1026,29 +1734,270 @@ fn record_transition_detected(
             false,
             now,
         )?;
-        let mut statement = conn.prepare(
-            "INSERT INTO entity_id_remap(server_id, entity_kind, old_id, new_id, remapped_at, active) \
-             VALUES (?1, ?2, ?3, ?4, ?5, 0) \
-             ON CONFLICT(server_id, entity_kind, old_id) DO UPDATE SET \
-               new_id = excluded.new_id, remapped_at = excluded.remapped_at, active = 0",
-        )?;
-        for mapping in mappings {
-            statement.execute(params![
-                server_id,
-                entity_kind_label(mapping.kind),
-                mapping.old_id,
-                mapping.new_id,
-                now
-            ])?;
+        if !applied {
+            tx.rollback()?;
+            return Ok(());
         }
-        Ok(())
+        {
+            let mut statement = tx.prepare(
+                "INSERT INTO entity_id_remap(server_id, entity_kind, old_id, new_id, remapped_at, active) \
+                 VALUES (?1, ?2, ?3, ?4, ?5, 0) \
+                 ON CONFLICT(server_id, entity_kind, old_id) DO UPDATE SET \
+                   new_id = excluded.new_id, remapped_at = excluded.remapped_at, active = 0",
+            )?;
+            for mapping in mappings {
+                statement.execute(params![
+                    server_id,
+                    entity_kind_label(mapping.kind),
+                    mapping.old_id,
+                    mapping.new_id,
+                    now
+                ])?;
+            }
+        }
+        tx.commit()
     })
+}
+
+pub(crate) fn record_deterministic_transition_if_legacy_state(
+    conn: &Connection,
+    server_id: &str,
+    entity_kind: &str,
+    old_id: &str,
+    new_id: &str,
+) -> rusqlite::Result<bool> {
+    let state: Option<String> = conn
+        .query_row(
+            "SELECT state FROM server_identity_transition WHERE server_id = ?1",
+            params![server_id],
+            |row| row.get(0),
+        )
+        .optional()?;
+    if !matches!(state.as_deref(), Some("legacy" | "no_legacy_ids")) {
+        return Ok(false);
+    }
+
+    let now = now_unix_ms();
+    let applied = write_state(
+        conn,
+        server_id,
+        "transition_detected",
+        Some(old_id),
+        Some(new_id),
+        None,
+        false,
+        now,
+    )?;
+    if !applied {
+        return Ok(false);
+    }
+    conn.execute(
+        "INSERT INTO entity_id_remap(server_id, entity_kind, old_id, new_id, remapped_at, active) \
+         VALUES (?1, ?2, ?3, ?4, ?5, 0) \
+         ON CONFLICT(server_id, entity_kind, old_id) DO UPDATE SET \
+           new_id = excluded.new_id, remapped_at = excluded.remapped_at, active = 0",
+        params![server_id, entity_kind, old_id, new_id, now],
+    )?;
+    Ok(true)
+}
+
+pub(crate) fn load_deterministic_write_guard(
+    conn: &Connection,
+    server_id: &str,
+) -> rusqlite::Result<DeterministicWriteGuard> {
+    conn.query_row(
+        "SELECT state, probe_old_id, probe_new_id \
+         FROM server_identity_transition WHERE server_id = ?1",
+        params![server_id],
+        |row| {
+            let state: String = row.get(0)?;
+            Ok(DeterministicWriteGuard {
+                enabled: matches!(state.as_str(), "legacy" | "no_legacy_ids"),
+                probe_old_id: row.get(1)?,
+                probe_new_id: row.get(2)?,
+            })
+        },
+    )
+    .optional()
+    .map(|guard| guard.unwrap_or_default())
+}
+
+pub(crate) fn register_inactive_legacy_aliases<'a>(
+    conn: &Connection,
+    server_id: &str,
+    guard: &DeterministicWriteGuard,
+    aliases: impl IntoIterator<Item = (EntityKind, &'a str)>,
+    observed_at: i64,
+) -> rusqlite::Result<usize> {
+    if !guard.enabled() {
+        return Ok(0);
+    }
+    let mut grouped = HashMap::<EntityKind, HashSet<&str>>::new();
+    for (kind, observed_id) in aliases {
+        grouped.entry(kind).or_default().insert(observed_id);
+    }
+    let mut inserted = 0usize;
+    for (kind, ids) in grouped {
+        inserted += insert_inactive_legacy_aliases(
+            conn,
+            server_id,
+            kind,
+            ids,
+            observed_at,
+        )?;
+    }
+    Ok(inserted)
+}
+
+fn insert_inactive_legacy_aliases<'a>(
+    conn: &Connection,
+    server_id: &str,
+    kind: EntityKind,
+    observed_ids: impl IntoIterator<Item = &'a str>,
+    observed_at: i64,
+) -> rusqlite::Result<usize> {
+    let mut statement = conn.prepare_cached(
+        "INSERT INTO entity_id_remap \
+         (server_id, entity_kind, old_id, new_id, remapped_at, active) \
+         VALUES (?1, ?2, ?3, ?4, ?5, 0) \
+         ON CONFLICT(server_id, entity_kind, old_id) DO UPDATE SET \
+           new_id = excluded.new_id, remapped_at = excluded.remapped_at, \
+           active = entity_id_remap.active",
+    )?;
+    let mut inserted = 0usize;
+    let entity_kind = entity_kind_label(kind);
+    for observed_id in observed_ids {
+        let canonical = canonical_id(observed_id);
+        if canonical == observed_id {
+            continue;
+        }
+        statement.execute(params![
+            server_id,
+            entity_kind,
+            observed_id,
+            canonical,
+            observed_at
+        ])?;
+        inserted += 1;
+    }
+    Ok(inserted)
+}
+
+pub(crate) fn find_deterministic_legacy_id_with_guard(
+    conn: &Connection,
+    server_id: &str,
+    guard: &DeterministicWriteGuard,
+    kind: EntityKind,
+    incoming_id: &str,
+) -> rusqlite::Result<Option<String>> {
+    if !guard.enabled() {
+        return Ok(None);
+    }
+    find_deterministic_legacy_id(
+        conn,
+        server_id,
+        kind,
+        incoming_id,
+        guard.hinted_old_id(incoming_id),
+    )
+}
+
+pub(crate) fn find_deterministic_legacy_id(
+    conn: &Connection,
+    server_id: &str,
+    kind: EntityKind,
+    incoming_id: &str,
+    hinted_old_id: Option<&str>,
+) -> rusqlite::Result<Option<String>> {
+    if let Some(old_id) = hinted_old_id {
+        if old_id != incoming_id
+            && canonical_id(old_id) == incoming_id
+            && legacy_entity_exists(conn, server_id, kind, old_id)?
+        {
+            return Ok(Some(old_id.to_string()));
+        }
+    }
+
+    let entity_kind = entity_kind_label(kind);
+    let persisted: Option<String> = conn
+        .query_row(
+            "SELECT old_id FROM entity_id_remap \
+             WHERE server_id = ?1 AND entity_kind = ?2 AND new_id = ?3 \
+             ORDER BY active DESC, remapped_at DESC LIMIT 1",
+            params![server_id, entity_kind, incoming_id],
+            |row| row.get(0),
+        )
+        .optional()?;
+    if let Some(old_id) = persisted {
+        if legacy_entity_exists(conn, server_id, kind, &old_id)? {
+            return Ok(Some(old_id));
+        }
+    }
+
+    for old_id in reversible_legacy_ids(incoming_id) {
+        if old_id != incoming_id && legacy_entity_exists(conn, server_id, kind, &old_id)? {
+            return Ok(Some(old_id));
+        }
+    }
+    Ok(None)
+}
+
+fn legacy_entity_exists(
+    conn: &Connection,
+    server_id: &str,
+    kind: EntityKind,
+    old_id: &str,
+) -> rusqlite::Result<bool> {
+    match kind {
+        EntityKind::Track => conn.query_row(
+            "SELECT EXISTS(SELECT 1 FROM track \
+               WHERE server_id = ?1 AND id = ?2 AND deleted = 0) \
+             OR EXISTS(SELECT 1 FROM track_offline \
+               WHERE server_id = ?1 AND track_id = ?2)",
+            params![server_id, old_id],
+            |row| row.get(0),
+        ),
+        EntityKind::Album => conn.query_row(
+            "SELECT EXISTS(SELECT 1 FROM album WHERE server_id = ?1 AND id = ?2)",
+            params![server_id, old_id],
+            |row| row.get(0),
+        ),
+        EntityKind::Artist => conn.query_row(
+            "SELECT EXISTS(SELECT 1 FROM artist WHERE server_id = ?1 AND id = ?2)",
+            params![server_id, old_id],
+            |row| row.get(0),
+        ),
+    }
+}
+
+fn reversible_legacy_ids(canonical: &str) -> Vec<String> {
+    if canonical.len() != 22 {
+        return Vec::new();
+    }
+    let Ok(value) = decode_base62_u128(canonical) else {
+        return Vec::new();
+    };
+    let bytes = value.to_be_bytes();
+    let hex = bytes
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect::<String>();
+    let uuid = format!(
+        "{}-{}-{}-{}-{}",
+        &hex[0..8],
+        &hex[8..12],
+        &hex[12..16],
+        &hex[16..20],
+        &hex[20..32]
+    );
+    vec![hex.clone(), hex.to_uppercase(), uuid.clone(), uuid.to_uppercase()]
 }
 
 fn entity_kind_label(kind: EntityKind) -> &'static str {
     match kind {
         EntityKind::Track => "track",
         EntityKind::Album => "album",
+        EntityKind::Artist => "artist",
     }
 }
 
@@ -1072,7 +2021,8 @@ fn record_state(
             last_error,
             migrated,
             now,
-        )
+        )?;
+        Ok(())
     })
 }
 
@@ -1086,8 +2036,8 @@ fn write_state(
     last_error: Option<&str>,
     migrated: bool,
     now: i64,
-) -> rusqlite::Result<()> {
-    conn.execute(
+) -> rusqlite::Result<bool> {
+    let changed = conn.execute(
         "INSERT INTO server_identity_transition \
          (server_id, canonical_version, state, probe_old_id, probe_new_id, detected_at, native_migrated_at, last_error) \
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8) \
@@ -1097,7 +2047,14 @@ fn write_state(
            detected_at = excluded.detected_at, \
            native_migrated_at = COALESCE(excluded.native_migrated_at, server_identity_transition.native_migrated_at), \
            frontend_acked_at = CASE WHEN excluded.state = 'pending_frontend' THEN NULL ELSE server_identity_transition.frontend_acked_at END, \
-           last_error = excluded.last_error",
+            last_error = excluded.last_error \
+           WHERE server_identity_transition.canonical_version != excluded.canonical_version \
+              OR server_identity_transition.state NOT IN ('transition_detected', 'pending_frontend', 'ready') \
+              OR server_identity_transition.state = 'transition_detected' \
+                 AND excluded.state IN ('transition_detected', 'pending_frontend') \
+              OR server_identity_transition.state = 'pending_frontend' \
+                 AND excluded.state IN ('pending_frontend', 'ready', 'blocked') \
+              OR server_identity_transition.state = 'ready' AND excluded.state = 'ready'",
         params![
             server_id,
             CANONICAL_ID_VERSION,
@@ -1109,7 +2066,7 @@ fn write_state(
             last_error,
         ],
     )?;
-    Ok(())
+    Ok(changed > 0)
 }
 
 fn sql_string(value: &str) -> String {
@@ -1245,6 +2202,47 @@ mod tests {
             .unwrap();
     }
 
+    fn incoming_track(id: &str) -> crate::repos::TrackRow {
+        crate::repos::TrackRow {
+            server_id: "s1".into(),
+            id: id.into(),
+            title: "Track".into(),
+            title_sort: None,
+            artist: None,
+            artist_id: None,
+            album: "Album".into(),
+            album_id: None,
+            album_artist: None,
+            duration_sec: 0,
+            track_number: None,
+            disc_number: None,
+            year: None,
+            genre: None,
+            suffix: None,
+            bit_rate: None,
+            size_bytes: None,
+            cover_art_id: None,
+            starred_at: None,
+            user_rating: None,
+            play_count: None,
+            played_at: None,
+            server_path: None,
+            library_id: None,
+            isrc: None,
+            mbid_recording: None,
+            bpm: None,
+            replay_gain_track_db: None,
+            replay_gain_album_db: None,
+            replay_gain_peak: None,
+            content_hash: None,
+            server_updated_at: None,
+            server_created_at: None,
+            deleted: false,
+            synced_at: 1,
+            raw_json: "{}".into(),
+        }
+    }
+
     fn song_response(id: &str) -> serde_json::Value {
         serde_json::json!({
             "subsonic-response": {
@@ -1289,6 +2287,72 @@ mod tests {
             canonical_id("not-a-uuid-----------------------"),
             "not-a-uuid-----------------------"
         );
+    }
+
+    #[test]
+    fn reversible_legacy_ids_round_trip_hex_and_uuid_forms() {
+        for old in [
+            "e3b7fc2ae9447bbec37a13bf916e3cf6",
+            "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+        ] {
+            assert!(reversible_legacy_ids(&canonical_id(old))
+                .into_iter()
+                .any(|candidate| candidate.eq_ignore_ascii_case(old)));
+        }
+    }
+
+    #[test]
+    fn album_guard_uses_bounded_primary_key_lookups() {
+        let store = LibraryStore::open_in_memory();
+        let old = "11112222333344445555666677778888";
+        let new = canonical_id(old);
+        store
+            .with_conn("test.album_guard_plan", |conn| {
+                conn.execute(
+                    "INSERT INTO album(server_id,id,name,synced_at,raw_json) \
+                     VALUES ('s1',?1,'Legacy',1,'{}')",
+                    params![old],
+                )?;
+                let plan = conn
+                    .prepare(
+                        "EXPLAIN QUERY PLAN SELECT EXISTS(SELECT 1 FROM album \
+                         WHERE server_id = ?1 AND id = ?2)",
+                    )?
+                    .query_map(params!["s1", old], |row| row.get::<_, String>(3))?
+                    .collect::<rusqlite::Result<Vec<_>>>()?;
+                assert!(plan.iter().any(|detail| detail.contains("sqlite_autoindex_album_1")));
+                assert!(!plan.iter().any(|detail| detail.contains("SCAN album")));
+                assert_eq!(
+                    find_deterministic_legacy_id(conn, "s1", EntityKind::Album, &new, None)?,
+                    Some(old.to_string())
+                );
+                Ok(())
+            })
+            .unwrap();
+    }
+
+    #[test]
+    fn canonical_alias_reverse_lookup_uses_the_new_id_index() {
+        let store = LibraryStore::open_in_memory();
+        store
+            .with_read_conn(|conn| {
+                let plan = conn
+                    .prepare(
+                        "EXPLAIN QUERY PLAN SELECT old_id FROM entity_id_remap \
+                         WHERE server_id = ?1 AND entity_kind = ?2 AND new_id = ?3 \
+                         ORDER BY active DESC, remapped_at DESC LIMIT 1",
+                    )?
+                    .query_map(params!["s1", "artist", "canonical"], |row| {
+                        row.get::<_, String>(3)
+                    })?
+                    .collect::<rusqlite::Result<Vec<_>>>()?;
+                assert!(plan
+                    .iter()
+                    .any(|detail| detail.contains("idx_entity_id_remap_new")));
+                assert!(!plan.iter().any(|detail| detail.contains("SCAN entity_id_remap")));
+                Ok(())
+            })
+            .unwrap();
     }
 
     #[test]
@@ -1369,6 +2433,531 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread")]
+    async fn retries_advance_past_eight_dead_candidates_to_the_ninth() {
+        let server = MockServer::start().await;
+        let ids: Vec<String> = (0..9).map(|index| format!("{index:032x}")).collect();
+        for old in &ids[..8] {
+            let new = canonical_id(old);
+            for id in [old.as_str(), new.as_str()] {
+                Mock::given(method("GET"))
+                    .and(path("/rest/getSong.view"))
+                    .and(query_param("id", id))
+                    .respond_with(ResponseTemplate::new(200).set_body_json(not_found_response()))
+                    .expect(1)
+                    .mount(&server)
+                    .await;
+            }
+        }
+        let decisive_old = &ids[8];
+        let decisive_new = canonical_id(decisive_old);
+        Mock::given(method("GET"))
+            .and(path("/rest/getSong.view"))
+            .and(query_param("id", decisive_old.as_str()))
+            .respond_with(ResponseTemplate::new(200).set_body_json(not_found_response()))
+            .expect(1)
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/rest/getSong.view"))
+            .and(query_param("id", decisive_new.as_str()))
+            .respond_with(ResponseTemplate::new(200).set_body_json(song_response(&decisive_new)))
+            .expect(1)
+            .mount(&server)
+            .await;
+        let store = LibraryStore::open_in_memory();
+        for id in &ids {
+            seed_legacy_track(&store, id);
+        }
+
+        let client = test_client(&server.uri());
+        let first = ensure_transition(&store, &client, "s1").await.unwrap();
+        assert_eq!(first.state, "retryable");
+        let cursor_after_first = load_probe_cursor(&store, "s1").unwrap();
+        assert_eq!(cursor_after_first.after_id.as_deref(), Some(ids[7].as_str()));
+
+        let second = ensure_transition(&store, &client, "s1").await.unwrap();
+        assert_eq!(second.state, "transition_detected");
+        assert_eq!(second.probe_old_id.as_deref(), Some(decisive_old.as_str()));
+        assert_eq!(second.probe_new_id.as_deref(), Some(decisive_new.as_str()));
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn persisted_transient_is_probed_with_next_eight_and_ninth_is_decisive() {
+        let server = MockServer::start().await;
+        let ids: Vec<String> = (0..9).map(|index| format!("{index:032x}")).collect();
+        let persisted_old = &ids[0];
+        let persisted_new = canonical_id(persisted_old);
+        for id in [persisted_old.as_str(), persisted_new.as_str()] {
+            Mock::given(method("GET"))
+                .and(path("/rest/getSong.view"))
+                .and(query_param("id", id))
+                .respond_with(ResponseTemplate::new(503))
+                .expect(2)
+                .mount(&server)
+                .await;
+        }
+        for old in &ids[1..8] {
+            let new = canonical_id(old);
+            for id in [old.as_str(), new.as_str()] {
+                Mock::given(method("GET"))
+                    .and(path("/rest/getSong.view"))
+                    .and(query_param("id", id))
+                    .respond_with(ResponseTemplate::new(200).set_body_json(not_found_response()))
+                    .expect(1)
+                    .mount(&server)
+                    .await;
+            }
+        }
+        let decisive_old = &ids[8];
+        let decisive_new = canonical_id(decisive_old);
+        Mock::given(method("GET"))
+            .and(path("/rest/getSong.view"))
+            .and(query_param("id", decisive_old.as_str()))
+            .respond_with(ResponseTemplate::new(200).set_body_json(not_found_response()))
+            .expect(1)
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/rest/getSong.view"))
+            .and(query_param("id", decisive_new.as_str()))
+            .respond_with(ResponseTemplate::new(200).set_body_json(song_response(&decisive_new)))
+            .expect(1)
+            .mount(&server)
+            .await;
+        let store = LibraryStore::open_in_memory();
+        for id in &ids {
+            seed_legacy_track(&store, id);
+        }
+        record_state(
+            &store,
+            "s1",
+            "retryable",
+            Some(persisted_old),
+            Some(&persisted_new),
+            Some("transient"),
+            false,
+        )
+        .unwrap();
+
+        let client = test_client(&server.uri());
+        let first = ensure_transition(&store, &client, "s1").await.unwrap();
+        assert_eq!(first.state, "retryable");
+        assert_eq!(first.probe_old_id.as_deref(), Some(persisted_old.as_str()));
+        assert_eq!(
+            load_probe_cursor(&store, "s1").unwrap().after_id.as_deref(),
+            Some(ids[7].as_str())
+        );
+
+        let second = ensure_transition(&store, &client, "s1").await.unwrap();
+        assert_eq!(second.state, "transition_detected");
+        assert_eq!(second.probe_old_id.as_deref(), Some(decisive_old.as_str()));
+        assert_eq!(second.probe_new_id.as_deref(), Some(decisive_new.as_str()));
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn upgrade_baselines_existing_overflow_artist_before_no_legacy_readiness() {
+        let server = MockServer::start().await;
+        let store = LibraryStore::open_in_memory();
+        let old = "ZZZZZZZZZZZZZZZZZZZZZZ";
+        let new = canonical_id(old);
+        store
+            .with_conn("test.seed_existing_overflow_artist", |conn| {
+                conn.execute(
+                    "INSERT INTO artist(server_id,id,name,synced_at) \
+                     VALUES ('s1',?1,'Legacy Artist',1)",
+                    params![old],
+                )?;
+                Ok(())
+            })
+            .unwrap();
+
+        let status = ensure_transition_with_probe_candidates(
+            &store,
+            &test_client(&server.uri()),
+            "s1",
+            Vec::new(),
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(status.state, "no_legacy_ids");
+        let alias: (String, i64) = store
+            .with_read_conn(|conn| {
+                conn.query_row(
+                    "SELECT old_id, active FROM entity_id_remap \
+                     WHERE server_id = 's1' AND entity_kind = 'artist' AND new_id = ?1",
+                    params![new],
+                    |row| Ok((row.get(0)?, row.get(1)?)),
+                )
+            })
+            .unwrap();
+        assert_eq!(alias, (old.into(), 0));
+        let completed: i64 = store
+            .with_read_conn(|conn| {
+                conn.query_row(
+                    "SELECT COUNT(*) FROM library_data_migration \
+                     WHERE id LIKE ?1 AND completed_at IS NOT NULL",
+                    params![format!("{ALIAS_BASELINE_MIGRATION_PREFIX}:s1:%")],
+                    |row| row.get(0),
+                )
+            })
+            .unwrap();
+        assert_eq!(completed, ALIAS_BASELINE_SOURCES.len() as i64);
+
+        let repo = crate::repos::ArtistRepository::new(&store);
+        let index = psysonic_integration::subsonic::ArtistIndex {
+            last_modified_ms: Some(1),
+            ignored_articles: None,
+            index: vec![psysonic_integration::subsonic::IndexBucket {
+                name: "A".into(),
+                artist: vec![psysonic_integration::subsonic::ArtistRef {
+                    id: new.clone(),
+                    name: "Canonical Artist".into(),
+                    album_count: Some(1),
+                    cover_art: None,
+                }],
+            }],
+        };
+        let (_, transition) = repo.upsert_index("s1", &index, 2).unwrap();
+        assert_eq!(transition.unwrap().old_id, old);
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn alias_baseline_resumes_from_durable_artist_cursor() {
+        let server = MockServer::start().await;
+        let store = LibraryStore::open_in_memory();
+        store
+            .with_conn("test.seed_large_artist_alias_baseline", |conn| {
+                let mut insert = conn.prepare(
+                    "INSERT INTO artist(server_id,id,name,synced_at) VALUES ('s1',?1,?2,1)",
+                )?;
+                for index in 0..1_025 {
+                    insert.execute(params![format!("{index:032x}"), format!("Artist {index}")])?;
+                }
+                Ok(())
+            })
+            .unwrap();
+        let client = test_client(&server.uri());
+
+        let first = ensure_transition_with_probe_candidates(&store, &client, "s1", Vec::new())
+            .await
+            .unwrap();
+        assert_eq!(first.state, "retryable");
+        assert_eq!(first.last_error.as_deref(), Some(ALIAS_BASELINE_PROGRESS_ERROR));
+        let artist_marker = alias_baseline_marker(
+            "s1",
+            ALIAS_BASELINE_SOURCES
+                .iter()
+                .find(|source| source.name == "artist")
+                .unwrap(),
+        );
+        let (cursor, completed, aliases): (Option<String>, Option<i64>, i64) = store
+            .with_read_conn(|conn| {
+                let (cursor, completed) = conn.query_row(
+                    "SELECT cursor_text, completed_at FROM library_data_migration WHERE id = ?1",
+                    params![artist_marker],
+                    |row| Ok((row.get(0)?, row.get(1)?)),
+                )?;
+                let aliases = conn.query_row(
+                    "SELECT COUNT(*) FROM entity_id_remap \
+                     WHERE server_id = 's1' AND entity_kind = 'artist'",
+                    [],
+                    |row| row.get(0),
+                )?;
+                Ok((cursor, completed, aliases))
+            })
+            .unwrap();
+        assert_eq!(cursor, Some(format!("{:032x}", 1_023)));
+        assert!(completed.is_none());
+        assert_eq!(aliases, 1_024);
+
+        let second = ensure_transition_with_probe_candidates(&store, &client, "s1", Vec::new())
+            .await
+            .unwrap();
+        assert_eq!(second.state, "no_legacy_ids");
+        let (completed, aliases): (Option<i64>, i64) = store
+            .with_read_conn(|conn| {
+                Ok((
+                    conn.query_row(
+                        "SELECT completed_at FROM library_data_migration WHERE id = ?1",
+                        params![artist_marker],
+                        |row| row.get(0),
+                    )?,
+                    conn.query_row(
+                        "SELECT COUNT(*) FROM entity_id_remap \
+                         WHERE server_id = 's1' AND entity_kind = 'artist'",
+                        [],
+                        |row| row.get(0),
+                    )?,
+                ))
+            })
+            .unwrap();
+        assert!(completed.is_some());
+        assert_eq!(aliases, 1_025);
+    }
+
+    #[test]
+    fn transition_state_cannot_downgrade_after_detection() {
+        let store = LibraryStore::open_in_memory();
+        record_state(
+            &store,
+            "s1",
+            "transition_detected",
+            Some("old"),
+            Some("new"),
+            None,
+            false,
+        )
+        .unwrap();
+        record_state(
+            &store,
+            "s1",
+            "legacy",
+            Some("old"),
+            Some("new"),
+            None,
+            false,
+        )
+        .unwrap();
+
+        assert_eq!(transition_status(&store, "s1").unwrap().state, "transition_detected");
+    }
+
+    #[test]
+    fn transient_probe_failure_replaces_pretransition_ready_states() {
+        for initial in ["legacy", "no_legacy_ids", "blocked"] {
+            let store = LibraryStore::open_in_memory();
+            record_state(&store, "s1", initial, Some("old"), Some("new"), None, false)
+                .unwrap();
+            record_state(
+                &store,
+                "s1",
+                "retryable",
+                Some("old"),
+                Some("new"),
+                Some("transient probe failure"),
+                false,
+            )
+            .unwrap();
+
+            let status = transition_status(&store, "s1").unwrap();
+            assert_eq!(status.state, "retryable", "initial state: {initial}");
+            assert!(assert_sync_ready(&store, "s1").is_err());
+        }
+    }
+
+    #[test]
+    fn stale_transition_detection_cannot_deactivate_ready_remaps() {
+        let store = LibraryStore::open_in_memory();
+        let old = "e3b7fc2ae9447bbec37a13bf916e3cf6";
+        let new = canonical_id(old);
+        let candidate = ProbeCandidate {
+            kind: EntityKind::Track,
+            old_id: old.to_string(),
+            new_id: new.clone(),
+            cursor_after: None,
+        };
+        record_transition_detected(&store, "s1", &candidate, std::slice::from_ref(&candidate))
+            .unwrap();
+        run_native_migration(&store, "s1").unwrap();
+        acknowledge_frontend(&store, "s1").unwrap();
+
+        record_transition_detected(&store, "s1", &candidate, std::slice::from_ref(&candidate))
+            .unwrap();
+
+        assert_eq!(transition_status(&store, "s1").unwrap().state, "ready");
+        assert_eq!(resolve_remapped_id(&store, "s1", "track", old).unwrap(), new);
+    }
+
+    #[test]
+    fn alias_baseline_sources_use_indexed_keyset_plans() {
+        let store = LibraryStore::open_in_memory();
+        store
+            .with_read_conn(|conn| {
+                for source in ALIAS_BASELINE_SOURCES {
+                    let sql = format!(
+                        "EXPLAIN QUERY PLAN SELECT DISTINCT {column} FROM {table} \
+                         WHERE server_id = ?1 AND {column} > COALESCE(?2, '') \
+                           AND {column} IS NOT NULL AND {column} != '' {filter} \
+                         ORDER BY {column} LIMIT ?3",
+                        column = source.column,
+                        table = source.table,
+                        filter = source.filter,
+                    );
+                    let plan = conn
+                        .prepare(&sql)?
+                        .query_map(params!["s1", Option::<String>::None, 256], |row| {
+                            row.get::<_, String>(3)
+                        })?
+                        .collect::<rusqlite::Result<Vec<_>>>()?;
+                    assert!(
+                        plan.iter().any(|detail| detail.contains("SEARCH")),
+                        "{} baseline plan was not indexed: {plan:?}",
+                        source.name,
+                    );
+                    assert!(
+                        !plan.iter().any(|detail| detail.contains("USE TEMP B-TREE")),
+                        "{} baseline plan sorted through a temp B-tree: {plan:?}",
+                        source.name,
+                    );
+                }
+                Ok(())
+            })
+            .unwrap();
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn transient_candidate_does_not_hide_decisive_later_candidate() {
+        let server = MockServer::start().await;
+        let transient_old = "00112233445566778899aabbccddeeff";
+        let transient_new = canonical_id(transient_old);
+        for id in [transient_old, transient_new.as_str()] {
+            Mock::given(method("GET"))
+                .and(path("/rest/getSong.view"))
+                .and(query_param("id", id))
+                .respond_with(ResponseTemplate::new(503))
+                .expect(1)
+                .mount(&server)
+                .await;
+        }
+        let decisive_old = "11112222333344445555666677778888";
+        let decisive_new = canonical_id(decisive_old);
+        Mock::given(method("GET"))
+            .and(path("/rest/getSong.view"))
+            .and(query_param("id", decisive_old))
+            .respond_with(ResponseTemplate::new(200).set_body_json(not_found_response()))
+            .expect(1)
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/rest/getSong.view"))
+            .and(query_param("id", decisive_new.as_str()))
+            .respond_with(ResponseTemplate::new(200).set_body_json(song_response(&decisive_new)))
+            .expect(1)
+            .mount(&server)
+            .await;
+        let store = LibraryStore::open_in_memory();
+        seed_legacy_track(&store, transient_old);
+        seed_legacy_track(&store, decisive_old);
+        let batch = ProbeCandidateBatch {
+            candidates: vec![
+                ProbeCandidate {
+                    kind: EntityKind::Track,
+                    old_id: transient_old.into(),
+                    new_id: transient_new,
+                    cursor_after: Some(ProbeCursor {
+                        source: 0,
+                        after_id: Some(transient_old.into()),
+                    }),
+                },
+                ProbeCandidate {
+                    kind: EntityKind::Track,
+                    old_id: decisive_old.into(),
+                    new_id: decisive_new.clone(),
+                    cursor_after: Some(ProbeCursor {
+                        source: 0,
+                        after_id: Some(decisive_old.into()),
+                    }),
+                },
+            ],
+            next_cursor: ProbeCursor {
+                source: 0,
+                after_id: Some(decisive_old.into()),
+            },
+            exhausted: false,
+        };
+
+        let status = ensure_transition_with_candidates(
+            &store,
+            &test_client(&server.uri()),
+            "s1",
+            batch,
+            EmptyCandidateOutcome::NoLegacyIds,
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(status.state, "transition_detected");
+        assert_eq!(status.probe_old_id.as_deref(), Some(decisive_old));
+        assert_eq!(status.probe_new_id.as_deref(), Some(decisive_new.as_str()));
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn dead_candidate_advances_cursor_after_earlier_transient() {
+        let server = MockServer::start().await;
+        let transient_old = "00112233445566778899aabbccddeeff";
+        let transient_new = canonical_id(transient_old);
+        for id in [transient_old, transient_new.as_str()] {
+            Mock::given(method("GET"))
+                .and(path("/rest/getSong.view"))
+                .and(query_param("id", id))
+                .respond_with(ResponseTemplate::new(503))
+                .expect(1)
+                .mount(&server)
+                .await;
+        }
+        let dead_old = "11112222333344445555666677778888";
+        let dead_new = canonical_id(dead_old);
+        for id in [dead_old, dead_new.as_str()] {
+            Mock::given(method("GET"))
+                .and(path("/rest/getSong.view"))
+                .and(query_param("id", id))
+                .respond_with(ResponseTemplate::new(200).set_body_json(not_found_response()))
+                .expect(1)
+                .mount(&server)
+                .await;
+        }
+        let store = LibraryStore::open_in_memory();
+        seed_legacy_track(&store, transient_old);
+        seed_legacy_track(&store, dead_old);
+        let batch = ProbeCandidateBatch {
+            candidates: vec![
+                ProbeCandidate {
+                    kind: EntityKind::Track,
+                    old_id: transient_old.into(),
+                    new_id: transient_new.clone(),
+                    cursor_after: Some(ProbeCursor {
+                        source: 0,
+                        after_id: Some(transient_old.into()),
+                    }),
+                },
+                ProbeCandidate {
+                    kind: EntityKind::Track,
+                    old_id: dead_old.into(),
+                    new_id: dead_new,
+                    cursor_after: Some(ProbeCursor {
+                        source: 0,
+                        after_id: Some(dead_old.into()),
+                    }),
+                },
+            ],
+            next_cursor: ProbeCursor {
+                source: 0,
+                after_id: Some(dead_old.into()),
+            },
+            exhausted: false,
+        };
+
+        let status = ensure_transition_with_candidates(
+            &store,
+            &test_client(&server.uri()),
+            "s1",
+            batch,
+            EmptyCandidateOutcome::NoLegacyIds,
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(status.state, "retryable");
+        assert_eq!(status.probe_old_id.as_deref(), Some(transient_old));
+        assert_eq!(status.probe_new_id.as_deref(), Some(transient_new.as_str()));
+        assert_eq!(
+            load_probe_cursor(&store, "s1").unwrap().after_id.as_deref(),
+            Some(dead_old)
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
     async fn canonical_evidence_records_transition_without_running_migration() {
         let server = MockServer::start().await;
         let old = "e3b7fc2ae9447bbec37a13bf916e3cf6";
@@ -1446,37 +3035,308 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread")]
-    async fn no_legacy_ids_state_is_rechecked_after_sync_adds_a_legacy_candidate() {
+    async fn no_legacy_ids_write_guard_detects_a_later_canonical_transition() {
         let store = LibraryStore::open_in_memory();
         let unreachable = test_client("http://127.0.0.1:9");
         ensure_transition_with_probe_candidates(&store, &unreachable, "s1", Vec::new())
             .await
             .unwrap();
 
-        let server = MockServer::start().await;
         let old = "e3b7fc2ae9447bbec37a13bf916e3cf6";
         let new = canonical_id(old);
-        Mock::given(method("GET"))
-            .and(path("/rest/getSong.view"))
-            .and(query_param("id", old))
-            .respond_with(ResponseTemplate::new(200).set_body_json(song_response(old)))
-            .expect(1)
-            .mount(&server)
-            .await;
-        Mock::given(method("GET"))
-            .and(path("/rest/getSong.view"))
-            .and(query_param("id", new.as_str()))
-            .respond_with(ResponseTemplate::new(200).set_body_json(not_found_response()))
-            .expect(1)
-            .mount(&server)
-            .await;
-        seed_legacy_track(&store, old);
+        let repo = crate::repos::TrackRepository::new(&store);
+        let legacy = repo
+            .upsert_delta_batch_with_remap(&[incoming_track(old)], false)
+            .unwrap();
+        assert!(legacy.identity_transition.is_none());
+        assert_eq!(transition_status(&store, "s1").unwrap().state, "no_legacy_ids");
 
-        let status = ensure_transition(&store, &test_client(&server.uri()), "s1")
+        let stats = repo
+            .upsert_delta_batch_with_remap(&[incoming_track(&new)], false)
+            .unwrap();
+
+        assert!(stats.identity_transition.is_some());
+        assert_eq!(transition_status(&store, "s1").unwrap().state, "transition_detected");
+    }
+
+    #[test]
+    fn overflowing_base62_track_alias_detects_later_canonical_id() {
+        let store = LibraryStore::open_in_memory();
+        record_state(
+            &store,
+            "s1",
+            "no_legacy_ids",
+            None,
+            None,
+            None,
+            false,
+        )
+        .unwrap();
+        let old = "ZZZZZZZZZZZZZZZZZZZZZZ";
+        let new = canonical_id(old);
+        let repo = crate::repos::TrackRepository::new(&store);
+
+        assert!(repo
+            .upsert_delta_batch_with_remap(&[incoming_track(old)], false)
+            .unwrap()
+            .identity_transition
+            .is_none());
+        let alias: (String, i64) = store
+            .with_read_conn(|conn| {
+                conn.query_row(
+                    "SELECT old_id, active FROM entity_id_remap \
+                     WHERE server_id = 's1' AND entity_kind = 'track' AND new_id = ?1",
+                    params![new],
+                    |row| Ok((row.get(0)?, row.get(1)?)),
+                )
+            })
+            .unwrap();
+        assert_eq!(alias, (old.into(), 0));
+
+        let transition = repo
+            .upsert_delta_batch_with_remap(&[incoming_track(&new)], false)
+            .unwrap()
+            .identity_transition
+            .unwrap();
+        assert_eq!(transition.old_id, old);
+        assert_eq!(transition.new_id, new);
+        assert_eq!(transition_status(&store, "s1").unwrap().state, "transition_detected");
+    }
+
+    #[tokio::test]
+    async fn delta_revalidation_preserves_no_legacy_ids_for_empty_catalog() {
+        let store = LibraryStore::open_in_memory();
+        record_state(
+            &store,
+            "s1",
+            "no_legacy_ids",
+            None,
+            None,
+            None,
+            false,
+        )
+        .unwrap();
+
+        let status = revalidate_before_ingest(
+            &store,
+            &test_client("http://127.0.0.1:9"),
+            "s1",
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(status.state, "no_legacy_ids");
+        assert!(assert_sync_ready(&store, "s1").is_ok());
+    }
+
+    #[tokio::test]
+    async fn current_no_legacy_state_ignores_routine_catalog_timestamp_updates() {
+        let store = LibraryStore::open_in_memory();
+        let canonical = canonical_id("e3b7fc2ae9447bbec37a13bf916e3cf6");
+        store
+            .with_conn("test.seed_canonical_only", |conn| {
+                for index in 0..1_000 {
+                    conn.execute(
+                        "INSERT INTO track(server_id,id,title,album,synced_at,raw_json) \
+                         VALUES ('s1',?1,'Canonical','Album',?2,'{}')",
+                        params![format!("canonical-{index:04}"), index],
+                    )?;
+                }
+                conn.execute(
+                    "INSERT INTO track(server_id,id,title,album,synced_at,raw_json) \
+                     VALUES ('s1',?1,'Canonical','Album',2000,'{}')",
+                    params![canonical],
+                )?;
+                conn.execute(
+                    "INSERT INTO server_identity_transition \
+                     (server_id, canonical_version, state, detected_at) \
+                     VALUES ('s1',?1,'no_legacy_ids',1)",
+                    params![CANONICAL_ID_VERSION],
+                )?;
+                Ok(())
+            })
+            .unwrap();
+
+        let client = test_client("http://127.0.0.1:9");
+        revalidate_before_ingest(&store, &client, "s1")
+            .await
+            .unwrap();
+        store
+            .with_conn("test.bump_routine_synced_at", |conn| {
+                conn.execute(
+                    "UPDATE track SET synced_at = synced_at + 10000 WHERE server_id = 's1'",
+                    [],
+                )?;
+                Ok(())
+            })
+            .unwrap();
+        revalidate_before_ingest(&store, &client, "s1")
             .await
             .unwrap();
 
-        assert_eq!(status.state, "legacy");
+        assert!(no_legacy_state_is_current(
+            &transition_status(&store, "s1").unwrap()
+        ));
+    }
+
+    #[tokio::test]
+    async fn large_canonical_only_catalog_converges_by_bounded_cursor_pages() {
+        let store = LibraryStore::open_in_memory();
+        store
+            .with_conn("test.seed_large_canonical_only", |conn| {
+                for index in 0..1_025 {
+                    conn.execute(
+                        "INSERT INTO track(server_id,id,title,album,synced_at,raw_json) \
+                         VALUES ('s1',?1,'Canonical','Album',1,'{}')",
+                        params![format!("canonical-{index:04}")],
+                    )?;
+                }
+                Ok(())
+            })
+            .unwrap();
+        let client = test_client("http://127.0.0.1:9");
+
+        let first = ensure_transition_with_probe_candidates(&store, &client, "s1", Vec::new())
+            .await
+            .unwrap();
+        assert_eq!(first.state, "retryable");
+        assert_eq!(load_probe_cursor(&store, "s1").unwrap(), ProbeCursor::default());
+
+        let second = ensure_transition_with_probe_candidates(&store, &client, "s1", Vec::new())
+            .await
+            .unwrap();
+        assert_eq!(second.state, "retryable");
+        assert_eq!(
+            load_probe_cursor(&store, "s1").unwrap().after_id.as_deref(),
+            Some("canonical-0511")
+        );
+        let third = ensure_transition_with_probe_candidates(&store, &client, "s1", Vec::new())
+            .await
+            .unwrap();
+        assert_eq!(third.state, "retryable");
+        assert_eq!(
+            load_probe_cursor(&store, "s1").unwrap().after_id.as_deref(),
+            Some("canonical-1023")
+        );
+        let fourth = ensure_transition_with_probe_candidates(&store, &client, "s1", Vec::new())
+            .await
+            .unwrap();
+
+        assert_eq!(fourth.state, "no_legacy_ids");
+        assert_eq!(load_probe_cursor(&store, "s1").unwrap(), ProbeCursor::default());
+    }
+
+    #[test]
+    fn version_one_pending_frontend_is_upgraded_and_remains_ackable() {
+        let store = LibraryStore::open_in_memory();
+        let old = "e3b7fc2ae9447bbec37a13bf916e3cf6";
+        let new = canonical_id(old);
+        store
+            .with_conn("test.seed_v1_pending", |conn| {
+                conn.execute(
+                    "INSERT INTO track_offline(server_id,track_id,local_path,cached_at) \
+                     VALUES ('s1',?1,'/offline.flac',1)",
+                    params![old],
+                )?;
+                conn.execute(
+                    "INSERT INTO server_identity_transition \
+                     (server_id, canonical_version, state, detected_at, native_migrated_at) \
+                     VALUES ('s1',1,'pending_frontend',1,1)",
+                    [],
+                )?;
+                Ok(())
+            })
+            .unwrap();
+
+        acknowledge_frontend(&store, "s1").unwrap();
+
+        let status = transition_status(&store, "s1").unwrap();
+        assert_eq!(status.canonical_version, CANONICAL_ID_VERSION);
+        assert_eq!(status.state, "ready");
+        assert_eq!(resolve_remapped_id(&store, "s1", "track", old).unwrap(), new);
+    }
+
+    #[test]
+    fn version_one_ready_runs_orphan_offline_reconciliation_once() {
+        let store = LibraryStore::open_in_memory();
+        let old = "e3b7fc2ae9447bbec37a13bf916e3cf6";
+        let new = canonical_id(old);
+        store
+            .with_conn("test.seed_v1_ready", |conn| {
+                conn.execute(
+                    "INSERT INTO track_offline(server_id,track_id,local_path,cached_at) \
+                     VALUES ('s1',?1,'/offline.flac',1)",
+                    params![old],
+                )?;
+                conn.execute(
+                    "INSERT INTO server_identity_transition \
+                     (server_id, canonical_version, state, detected_at, native_migrated_at, frontend_acked_at) \
+                     VALUES ('s1',1,'ready',1,1,1)",
+                    [],
+                )?;
+                Ok(())
+            })
+            .unwrap();
+
+        assert_sync_ready(&store, "s1").unwrap();
+        assert_sync_ready(&store, "s1").unwrap();
+
+        let status = transition_status(&store, "s1").unwrap();
+        assert_eq!(status.canonical_version, CANONICAL_ID_VERSION);
+        assert_eq!(status.state, "ready");
+        let offline_id = store
+            .with_read_conn(|conn| {
+                conn.query_row(
+                    "SELECT track_id FROM track_offline WHERE server_id = 's1'",
+                    [],
+                    |row| row.get::<_, String>(0),
+                )
+            })
+            .unwrap();
+        assert_eq!(offline_id, new);
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn version_one_legacy_and_retryable_states_are_reprobed() {
+        for stale_state in ["legacy", "retryable"] {
+            let server = MockServer::start().await;
+            let old = "e3b7fc2ae9447bbec37a13bf916e3cf6";
+            let new = canonical_id(old);
+            Mock::given(method("GET"))
+                .and(path("/rest/getSong.view"))
+                .and(query_param("id", old))
+                .respond_with(ResponseTemplate::new(200).set_body_json(song_response(old)))
+                .expect(1)
+                .mount(&server)
+                .await;
+            Mock::given(method("GET"))
+                .and(path("/rest/getSong.view"))
+                .and(query_param("id", new.as_str()))
+                .respond_with(ResponseTemplate::new(200).set_body_json(not_found_response()))
+                .expect(1)
+                .mount(&server)
+                .await;
+            let store = LibraryStore::open_in_memory();
+            seed_legacy_track(&store, old);
+            store
+                .with_conn("test.seed_v1_probe_state", |conn| {
+                    conn.execute(
+                        "INSERT INTO server_identity_transition \
+                         (server_id, canonical_version, state, probe_old_id, probe_new_id, detected_at) \
+                         VALUES ('s1',1,?1,?2,?3,1)",
+                        params![stale_state, old, new],
+                    )?;
+                    Ok(())
+                })
+                .unwrap();
+
+            let status = revalidate_before_ingest(&store, &test_client(&server.uri()), "s1")
+                .await
+                .unwrap();
+
+            assert_eq!(status.state, "legacy");
+            assert_eq!(status.canonical_version, CANONICAL_ID_VERSION);
+        }
     }
 
     #[tokio::test(flavor = "multi_thread")]
@@ -1565,7 +3425,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread")]
-    async fn targeted_not_found_probe_is_single_flight() {
+    async fn targeted_not_found_probe_serializes_but_rechecks_cached_legacy_evidence() {
         let server = MockServer::start().await;
         let old = "e3b7fc2ae9447bbec37a13bf916e3cf6";
         let new = canonical_id(old);
@@ -1573,7 +3433,7 @@ mod tests {
             .and(path("/rest/getSong.view"))
             .and(query_param("id", new.as_str()))
             .respond_with(ResponseTemplate::new(200).set_body_json(not_found_response()))
-            .expect(1)
+            .expect(2)
             .mount(&server)
             .await;
         let store = LibraryStore::open_in_memory();
@@ -1586,6 +3446,95 @@ mod tests {
 
         assert_eq!(first.unwrap(), TargetedNotFoundOutcome::ConfirmedMissing);
         assert_eq!(second.unwrap(), TargetedNotFoundOutcome::ConfirmedMissing);
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn targeted_not_found_reprobes_canonical_after_cached_legacy_result() {
+        let server = MockServer::start().await;
+        let old = "e3b7fc2ae9447bbec37a13bf916e3cf6";
+        let new = canonical_id(old);
+        Mock::given(method("GET"))
+            .and(path("/rest/getSong.view"))
+            .and(query_param("id", new.as_str()))
+            .respond_with(ResponseTemplate::new(200).set_body_json(song_response(&new)))
+            .expect(1)
+            .mount(&server)
+            .await;
+        let store = LibraryStore::open_in_memory();
+        record_state(
+            &store,
+            "s1",
+            "legacy",
+            Some(old),
+            Some(&new),
+            None,
+            false,
+        )
+        .unwrap();
+
+        let outcome = resolve_unexpected_not_found(
+            &store,
+            &test_client(&server.uri()),
+            "s1",
+            EntityKind::Track,
+            old,
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(outcome, TargetedNotFoundOutcome::TransitionDetected);
+        assert_eq!(transition_status(&store, "s1").unwrap().state, "transition_detected");
+    }
+
+    #[test]
+    fn probe_candidates_page_past_non_transformable_prefix() {
+        let store = LibraryStore::open_in_memory();
+        let old = "e3b7fc2ae9447bbec37a13bf916e3cf6";
+        store
+            .with_conn("test.seed_probe_candidates", |conn| {
+                for index in 0..64 {
+                    conn.execute(
+                        "INSERT INTO track(server_id,id,title,album,synced_at,raw_json) \
+                         VALUES ('s1',?1,'Track','Album',1,'{}')",
+                        params![format!("a-{index:02}")],
+                    )?;
+                }
+                conn.execute(
+                    "INSERT INTO track(server_id,id,title,album,synced_at,raw_json) \
+                     VALUES ('s1',?1,'Track','Album',1,'{}')",
+                    params![old],
+                )?;
+                Ok(())
+            })
+            .unwrap();
+
+        let candidates = probe_candidates(&store, "s1").unwrap();
+
+        assert_eq!(candidates.candidates.len(), 1);
+        assert_eq!(candidates.candidates[0].old_id, old);
+        assert_eq!(candidates.candidates[0].new_id, canonical_id(old));
+    }
+
+    #[test]
+    fn probe_candidates_include_orphan_offline_tracks() {
+        let store = LibraryStore::open_in_memory();
+        let old = "e3b7fc2ae9447bbec37a13bf916e3cf6";
+        store
+            .with_conn("test.seed_offline_probe_candidate", |conn| {
+                conn.execute(
+                    "INSERT INTO track_offline(server_id,track_id,local_path,cached_at) \
+                     VALUES ('s1',?1,'/music/orphan.flac',1)",
+                    params![old],
+                )?;
+                Ok(())
+            })
+            .unwrap();
+
+        let candidates = probe_candidates(&store, "s1").unwrap();
+
+        assert_eq!(candidates.candidates.len(), 1);
+        assert_eq!(candidates.candidates[0].kind, EntityKind::Track);
+        assert_eq!(candidates.candidates[0].old_id, old);
     }
 
     #[test]
@@ -1784,6 +3733,152 @@ mod tests {
                 Ok(())
             })
             .unwrap();
+    }
+
+    #[test]
+    fn migration_rewrites_orphan_offline_track_and_records_alias_history() {
+        let store = LibraryStore::open_in_memory();
+        let old_track = "e3b7fc2ae9447bbec37a13bf916e3cf6";
+        let new_track = canonical_id(old_track);
+        store
+            .with_conn("test.seed_orphan_offline", |conn| {
+                conn.execute(
+                    "INSERT INTO track_offline(server_id,track_id,local_path,cached_at) \
+                     VALUES ('s1',?1,'/music/orphan.flac',1)",
+                    params![old_track],
+                )?;
+                Ok(())
+            })
+            .unwrap();
+        record_state(
+            &store,
+            "s1",
+            "transition_detected",
+            Some(old_track),
+            Some(&new_track),
+            None,
+            false,
+        )
+        .unwrap();
+
+        run_native_migration(&store, "s1").unwrap();
+
+        store
+            .with_read_conn(|conn| {
+                let path: String = conn.query_row(
+                    "SELECT local_path FROM track_offline \
+                     WHERE server_id = 's1' AND track_id = ?1",
+                    params![new_track],
+                    |row| row.get(0),
+                )?;
+                assert_eq!(path, "/music/orphan.flac");
+                let history: String = conn.query_row(
+                    "SELECT new_id FROM track_id_history \
+                     WHERE server_id = 's1' AND old_id = ?1",
+                    params![old_track],
+                    |row| row.get(0),
+                )?;
+                assert_eq!(history, new_track);
+                Ok(())
+            })
+            .unwrap();
+        assert_eq!(
+            resolve_remapped_id(&store, "s1", "track", old_track).unwrap(),
+            new_track
+        );
+    }
+
+    #[test]
+    fn migration_retargets_orphan_offline_when_canonical_track_already_exists() {
+        let store = LibraryStore::open_in_memory();
+        let old_track = "e3b7fc2ae9447bbec37a13bf916e3cf6";
+        let new_track = canonical_id(old_track);
+        store
+            .with_conn("test.seed_canonical_track_and_orphan_offline", |conn| {
+                conn.execute(
+                    "INSERT INTO track(server_id,id,title,album,synced_at,raw_json) \
+                     VALUES ('s1',?1,'Canonical','Album',1,'{}')",
+                    params![new_track],
+                )?;
+                conn.execute(
+                    "INSERT INTO track_offline(server_id,track_id,local_path,cached_at) \
+                     VALUES ('s1',?1,'/music/orphan.flac',1)",
+                    params![old_track],
+                )?;
+                Ok(())
+            })
+            .unwrap();
+        record_state(
+            &store,
+            "s1",
+            "transition_detected",
+            Some(old_track),
+            Some(&new_track),
+            None,
+            false,
+        )
+        .unwrap();
+
+        run_native_migration(&store, "s1").unwrap();
+
+        store
+            .with_read_conn(|conn| {
+                let ids: Vec<String> = conn
+                    .prepare("SELECT id FROM track WHERE server_id = 's1'")?
+                    .query_map([], |row| row.get(0))?
+                    .collect::<rusqlite::Result<Vec<_>>>()?;
+                assert_eq!(ids, vec![new_track.clone()]);
+                let offline_id: String = conn.query_row(
+                    "SELECT track_id FROM track_offline WHERE server_id = 's1'",
+                    [],
+                    |row| row.get(0),
+                )?;
+                assert_eq!(offline_id, new_track);
+                Ok(())
+            })
+            .unwrap();
+    }
+
+    #[test]
+    fn migration_blocks_when_old_and_canonical_track_rows_both_exist() {
+        let store = LibraryStore::open_in_memory();
+        let old_track = "e3b7fc2ae9447bbec37a13bf916e3cf6";
+        let new_track = canonical_id(old_track);
+        store
+            .with_conn("test.seed_track_pk_collision", |conn| {
+                for (id, title) in [(old_track, "Legacy"), (new_track.as_str(), "Canonical")] {
+                    conn.execute(
+                        "INSERT INTO track(server_id,id,title,album,synced_at,raw_json) \
+                         VALUES ('s1',?1,?2,'Album',1,'{}')",
+                        params![id, title],
+                    )?;
+                }
+                Ok(())
+            })
+            .unwrap();
+        record_state(
+            &store,
+            "s1",
+            "transition_detected",
+            Some(old_track),
+            Some(&new_track),
+            None,
+            false,
+        )
+        .unwrap();
+
+        assert!(run_native_migration(&store, "s1").is_err());
+        assert_eq!(transition_status(&store, "s1").unwrap().state, "blocked");
+        let count = store
+            .with_read_conn(|conn| {
+                conn.query_row(
+                    "SELECT COUNT(*) FROM track WHERE server_id = 's1'",
+                    [],
+                    |row| row.get::<_, i64>(0),
+                )
+            })
+            .unwrap();
+        assert_eq!(count, 2);
     }
 
     #[test]

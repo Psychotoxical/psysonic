@@ -1,6 +1,35 @@
 import type { QueueItemRef, Track } from '@/lib/media/trackTypes';
 import { stampTrackServerId } from '@/lib/media/trackServerScope';
 import { canonicalQueueServerKey } from '@/lib/server/serverIndexKey';
+import { canonicalizeConfirmedNavidromeId } from '@/lib/server/navidromeCanonicalIds';
+
+export function canonicalizePlaybackTrack(track: Track, fallbackServerId = ''): Track {
+  const owner = canonicalQueueServerKey(track.serverId ?? fallbackServerId);
+  if (!owner) return track;
+  const canonicalize = (value: string): string => canonicalizeConfirmedNavidromeId(owner, value);
+  const id = canonicalize(track.id);
+  const albumId = canonicalize(track.albumId);
+  const artistId = track.artistId ? canonicalize(track.artistId) : track.artistId;
+  const coverArt = track.coverArt ? canonicalize(track.coverArt) : track.coverArt;
+  const artists = track.artists?.map(artist => ({
+    ...artist,
+    id: artist.id ? canonicalize(artist.id) : artist.id,
+  }));
+  if (
+    id === track.id
+    && albumId === track.albumId
+    && artistId === track.artistId
+    && coverArt === track.coverArt
+    && artists?.every((artist, index) => artist.id === track.artists?.[index]?.id) !== false
+  ) return track;
+  return { ...track, id, albumId, artistId, coverArt, artists };
+}
+
+export function canonicalizeQueueItemRef(ref: QueueItemRef): QueueItemRef {
+  const serverId = canonicalQueueServerKey(ref.serverId);
+  const trackId = canonicalizeConfirmedNavidromeId(serverId, ref.trackId);
+  return serverId === ref.serverId && trackId === ref.trackId ? ref : { ...ref, serverId, trackId };
+}
 
 /**
  * Derive thin `QueueItemRef`s from a `Track[]` queue (thin-state). Per-item
@@ -16,7 +45,8 @@ export function toQueueItemRefs(serverId: string, queue: Track[]): QueueItemRef[
   return queue.map(t => {
     const scoped = stampTrackServerId(t, serverId);
     const canonicalId = canonicalQueueServerKey(scoped.serverId ?? serverId);
-    const ref: QueueItemRef = { serverId: canonicalId, trackId: t.id };
+    const activeTrack = canonicalizePlaybackTrack(scoped, canonicalId);
+    const ref: QueueItemRef = { serverId: canonicalId, trackId: activeTrack.id };
     if (t.autoAdded) ref.autoAdded = true;
     if (t.radioAdded) ref.radioAdded = true;
     if (t.playNextAdded) ref.playNextAdded = true;

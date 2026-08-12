@@ -1,7 +1,23 @@
-import { describe, it, expect } from 'vitest';
+import { beforeEach, describe, it, expect } from 'vitest';
 import { bootstrapTrackFromPlaySession, timelineHistoryToQueueRefs } from '@/features/playback/utils/timelineHistoryRefs';
+import { useAuthStore } from '@/store/authStore';
 
 describe('timelineHistoryRefs', () => {
+  beforeEach(() => {
+    useAuthStore.setState({ servers: [] });
+  });
+
+  it('centralizes queue server identity while mapping history rows', () => {
+    useAuthStore.setState({
+      servers: [{ id: 's1', name: 'One', url: 'https://music.test', username: 'u', password: 'p' }],
+    });
+    expect(timelineHistoryToQueueRefs([
+      { serverId: 's1', trackId: 't1', playedAtMs: 1 },
+    ])).toEqual([
+      { serverId: 'music.test', trackId: 't1' },
+    ]);
+  });
+
   it('maps history rows to queue refs', () => {
     expect(timelineHistoryToQueueRefs([
       { serverId: 's1', trackId: 't1', playedAtMs: 1 },

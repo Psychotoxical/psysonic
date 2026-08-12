@@ -8,6 +8,7 @@ use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, OnceLock};
+use std::time::{Duration, Instant, SystemTime};
 
 use psysonic_analysis::analysis_runtime::enqueue_offline_library_analysis_from_file;
 use psysonic_audio as audio;
@@ -148,6 +149,76 @@ fn track_download_locks(
     LOCKS.get_or_init(|| tokio::sync::Mutex::new(HashMap::new()))
 }
 
+fn library_tier_mutation_locks(
+) -> &'static tokio::sync::Mutex<HashMap<String, Arc<tokio::sync::RwLock<()>>>> {
+    static LOCKS: OnceLock<tokio::sync::Mutex<HashMap<String, Arc<tokio::sync::RwLock<()>>>>> =
+        OnceLock::new();
+    LOCKS.get_or_init(|| tokio::sync::Mutex::new(HashMap::new()))
+}
+
+fn persistent_tier_mutation_locks(
+) -> &'static tokio::sync::Mutex<HashMap<String, Arc<tokio::sync::RwLock<()>>>> {
+    static LOCKS: OnceLock<tokio::sync::Mutex<HashMap<String, Arc<tokio::sync::RwLock<()>>>>> =
+        OnceLock::new();
+    LOCKS.get_or_init(|| tokio::sync::Mutex::new(HashMap::new()))
+}
+
+async fn persistent_tier_mutation_lock(tier: LocalTier) -> Arc<tokio::sync::RwLock<()>> {
+    let mut locks = persistent_tier_mutation_locks().lock().await;
+    locks
+        .entry(tier.subdir().to_string())
+        .or_insert_with(|| Arc::new(tokio::sync::RwLock::new(())))
+        .clone()
+}
+
+fn recent_library_paths() -> &'static std::sync::Mutex<HashMap<String, Instant>> {
+    static PATHS: OnceLock<std::sync::Mutex<HashMap<String, Instant>>> = OnceLock::new();
+    PATHS.get_or_init(|| std::sync::Mutex::new(HashMap::new()))
+}
+
+fn mark_recent_library_path(path: &Path) {
+    if let Ok(mut paths) = recent_library_paths().lock() {
+        paths.insert(normalize_path_key(path), Instant::now());
+    }
+}
+
+fn recent_library_path_keys() -> HashSet<String> {
+    const HANDOFF_GRACE: Duration = Duration::from_secs(30);
+    let Ok(mut paths) = recent_library_paths().lock() else {
+        return HashSet::new();
+    };
+    paths.retain(|_, marked_at| marked_at.elapsed() <= HANDOFF_GRACE);
+    paths.keys().cloned().collect()
+}
+
+fn is_recent_library_path(path: &Path) -> bool {
+    recent_library_path_keys().contains(&normalize_path_key(path))
+}
+
+async fn library_tier_mutation_lock(server_index_key: &str) -> Arc<tokio::sync::RwLock<()>> {
+    let mut locks = library_tier_mutation_locks().lock().await;
+    locks
+        .entry(sanitize_path_segment(server_index_key))
+        .or_insert_with(|| Arc::new(tokio::sync::RwLock::new(())))
+        .clone()
+}
+
+fn library_server_segment_for_path(
+    file_path: &Path,
+    media_dir: Option<&str>,
+    app: &AppHandle,
+) -> Option<String> {
+    let library_root = resolve_media_dir(media_dir, app).ok()?.join(LocalTier::Library.subdir());
+    file_path
+        .strip_prefix(library_root)
+        .ok()?
+        .components()
+        .next()?
+        .as_os_str()
+        .to_str()
+        .map(str::to_string)
+}
+
 async fn acquire_per_track_download_lock(key: &str) -> tokio::sync::OwnedMutexGuard<()> {
     let lock_arc = {
         let mut map = track_download_locks().lock().await;
@@ -273,6 +344,16 @@ pub async fn download_track_local(
     app: AppHandle,
 ) -> Result<LocalTrackDownloadResult, String> {
     let local_tier = LocalTier::parse(&tier).ok_or_else(|| format!("unknown local tier: `{tier}`"))?;
+    let persistent_tier_lock = match local_tier {
+        LocalTier::Library | LocalTier::Favorites => {
+            Some(persistent_tier_mutation_lock(local_tier).await)
+        }
+        LocalTier::Ephemeral => None,
+    };
+    let _persistent_tier_guard = match persistent_tier_lock.as_ref() {
+        Some(lock) => Some(lock.read().await),
+        None => None,
+    };
 
     let resolved = if local_tier == LocalTier::Library || local_tier == LocalTier::Favorites {
         resolve_track_path_for_tier(ResolveTrackPathForTier {
@@ -337,10 +418,22 @@ pub async fn download_track_local(
         client: &client,
         registry: http_registry.as_deref(),
     };
+    let library_tier_lock = if local_tier == LocalTier::Library {
+        Some(library_tier_mutation_lock(&server_index_key).await)
+    } else {
+        None
+    };
+    let _library_tier_guard = match library_tier_lock.as_ref() {
+        Some(lock) => Some(lock.read().await),
+        None => None,
+    };
 
     if !verified_raw_request {
         if let Some(hit) = local_track_hit_if_exists(&local_track_hit_args, false).await?
         {
+            if local_tier == LocalTier::Library {
+                mark_recent_library_path(&file_path);
+            }
             return Ok(hit);
         }
     }
@@ -358,6 +451,9 @@ pub async fn download_track_local(
     )
     .await?
     {
+        if local_tier == LocalTier::Library {
+            mark_recent_library_path(&file_path);
+        }
         return Ok(hit);
     }
 
@@ -457,6 +553,9 @@ pub async fn download_track_local(
         .await
         .map(|m| m.len())
         .unwrap_or(0);
+    if local_tier == LocalTier::Library {
+        mark_recent_library_path(&file_path);
+    }
 
     Ok(LocalTrackDownloadResult {
         path: path_str,
@@ -615,7 +714,12 @@ pub async fn probe_library_track_local(
     })
 }
 
-async fn prune_orphan_files_under_root(root: &Path, keep_paths: &[String]) -> Vec<String> {
+async fn prune_orphan_files_under_root_before(
+    root: &Path,
+    keep_paths: &[String],
+    modified_before: Option<SystemTime>,
+    preserve_recent_library_paths: bool,
+) -> Vec<String> {
     if !root.is_dir() {
         return Vec::new();
     }
@@ -623,9 +727,20 @@ async fn prune_orphan_files_under_root(root: &Path, keep_paths: &[String]) -> Ve
         .iter()
         .map(|p| normalize_path_key(Path::new(p)))
         .collect();
+    let recent = preserve_recent_library_paths
+        .then(recent_library_path_keys)
+        .unwrap_or_default();
     let mut removed = Vec::new();
     for file in super::fs_utils::collect_regular_files_under(root) {
-        if keep.contains(&normalize_path_key(&file)) {
+        let normalized = normalize_path_key(&file);
+        if keep.contains(&normalized) || recent.contains(&normalized) {
+            continue;
+        }
+        if modified_before.is_some_and(|cutoff| {
+            std::fs::metadata(&file)
+                .and_then(|metadata| metadata.modified())
+                .is_ok_and(|modified| modified > cutoff)
+        }) {
             continue;
         }
         if tokio::fs::remove_file(&file).await.is_err() {
@@ -640,6 +755,10 @@ async fn prune_orphan_files_under_root(root: &Path, keep_paths: &[String]) -> Ve
     removed
 }
 
+async fn prune_orphan_files_under_root(root: &Path, keep_paths: &[String]) -> Vec<String> {
+    prune_orphan_files_under_root_before(root, keep_paths, None, false).await
+}
+
 /// Remove library-tier files under `{server_index_key}` that are not listed in `keep_paths`.
 #[tauri::command]
 #[specta::specta]
@@ -649,10 +768,15 @@ pub async fn prune_orphan_library_tier_files(
     media_dir: Option<String>,
     app: AppHandle,
 ) -> Result<Vec<String>, String> {
+    let mutation_lock = library_tier_mutation_lock(&server_index_key).await;
+    let _mutation_guard = mutation_lock.write().await;
     let media_root = resolve_media_dir(media_dir.as_deref(), &app)?;
     let segment = sanitize_path_segment(&server_index_key);
     let root = media_root.join(LocalTier::Library.subdir()).join(segment);
-    Ok(prune_orphan_files_under_root(&root, &keep_paths).await)
+    let cutoff = SystemTime::now()
+        .checked_sub(Duration::from_secs(30))
+        .unwrap_or(SystemTime::UNIX_EPOCH);
+    Ok(prune_orphan_files_under_root_before(&root, &keep_paths, Some(cutoff), true).await)
 }
 
 struct OrphanCacheFile {
@@ -786,6 +910,16 @@ pub async fn purge_media_tier(
     app: AppHandle,
 ) -> Result<(), String> {
     let local_tier = LocalTier::parse(&tier).ok_or_else(|| format!("unknown local tier: `{tier}`"))?;
+    let persistent_tier_lock = match local_tier {
+        LocalTier::Library | LocalTier::Favorites => {
+            Some(persistent_tier_mutation_lock(local_tier).await)
+        }
+        LocalTier::Ephemeral => None,
+    };
+    let _persistent_tier_guard = match persistent_tier_lock.as_ref() {
+        Some(lock) => Some(lock.write().await),
+        None => None,
+    };
     let root = resolve_media_tier_root(local_tier, media_dir.as_deref(), &app)?;
     if root.exists() {
         tokio::fs::remove_dir_all(&root)
@@ -824,6 +958,19 @@ pub async fn delete_media_file(
     app: AppHandle,
 ) -> Result<(), String> {
     let file_path = std::path::PathBuf::from(&local_path);
+    let library_lock = library_server_segment_for_path(&file_path, media_dir.as_deref(), &app)
+        .map(|segment| async move { library_tier_mutation_lock(&segment).await });
+    let library_lock = match library_lock {
+        Some(lock) => Some(lock.await),
+        None => None,
+    };
+    let _library_guard = match library_lock.as_ref() {
+        Some(lock) => Some(lock.write().await),
+        None => None,
+    };
+    if library_lock.is_some() && is_recent_library_path(&file_path) {
+        return Ok(());
+    }
     if file_path.is_file() {
         tokio::fs::remove_file(&file_path)
             .await
@@ -1361,6 +1508,8 @@ pub async fn migrate_legacy_offline_disk(
     runtime: State<'_, LibraryRuntime>,
     app: AppHandle,
 ) -> Result<Vec<LegacyOfflineMigrationResult>, String> {
+    let persistent_tier_lock = persistent_tier_mutation_lock(LocalTier::Library).await;
+    let _persistent_tier_guard = persistent_tier_lock.read().await;
     let media_root = resolve_media_dir(media_dir.as_deref(), &app)?;
     let library_boundary = media_root.join(LocalTier::Library.subdir());
     let repo = TrackRepository::new(&runtime.store);
@@ -1396,7 +1545,9 @@ pub async fn migrate_legacy_offline_disk(
             continue;
         }
 
-        out.push(
+        let mutation_lock = library_tier_mutation_lock(&server_index_key).await;
+        let _mutation_guard = mutation_lock.write().await;
+        let result =
             relocate_legacy_track_file(RelocateLegacyTrackFile {
                 track_id: &file.track_id,
                 server_index_key: &server_index_key,
@@ -1407,8 +1558,11 @@ pub async fn migrate_legacy_offline_disk(
                 library_boundary: &library_boundary,
                 app: &app,
             })
-            .await,
-        );
+            .await;
+        if result.relocated {
+            mark_recent_library_path(Path::new(&result.path));
+        }
+        out.push(result);
     }
 
     Ok(out)
@@ -1593,6 +1747,30 @@ mod migrate_tests {
         assert!(!orphan.exists());
         assert!(!orphan_part.exists());
         assert!(!base.join("cache/srv/Other").exists());
+        let _ = std::fs::remove_dir_all(&base);
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn library_orphan_prune_preserves_recent_download_handoffs() {
+        let base = std::env::temp_dir().join(format!(
+            "psysonic-library-prune-recent-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&base);
+        let recent = base.join("library/srv/Artist/Album/Recent.flac");
+        std::fs::create_dir_all(recent.parent().unwrap()).unwrap();
+        std::fs::write(&recent, b"recent").unwrap();
+
+        let removed = prune_orphan_files_under_root_before(
+            &base.join("library/srv"),
+            &[],
+            Some(SystemTime::now() - Duration::from_secs(30)),
+            true,
+        )
+        .await;
+
+        assert!(removed.is_empty());
+        assert!(recent.is_file());
         let _ = std::fs::remove_dir_all(&base);
     }
 

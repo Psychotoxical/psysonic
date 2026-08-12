@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { cancelOfflineDownloads } from '@/lib/api/syncfs';
+import { canonicalizeConfirmedNavidromeId } from '@/lib/server/navidromeCanonicalIds';
 
 export interface DownloadJob {
   trackId: string;
@@ -38,6 +39,35 @@ interface OfflineJobState {
 // Module-level cancellation set — checked by downloadAlbum before each track.
 export const cancelledDownloads = new Set<string>();
 
+function cancellationKey(albumId: string, serverId?: string): string {
+  return serverId ? `${serverId}:${albumId}` : albumId;
+}
+
+export function offlineAlbumIdsMatch(albumId: string, candidateId: string, serverId?: string): boolean {
+  if (albumId === candidateId) return true;
+  if (!serverId) return false;
+  return canonicalizeConfirmedNavidromeId(serverId, albumId)
+    === canonicalizeConfirmedNavidromeId(serverId, candidateId);
+}
+
+function addCancellationAliases(albumId: string, serverId?: string): void {
+  cancelledDownloads.add(cancellationKey(albumId, serverId));
+  if (!serverId) return;
+  cancelledDownloads.add(cancellationKey(
+    canonicalizeConfirmedNavidromeId(serverId, albumId),
+    serverId,
+  ));
+}
+
+export function isOfflineDownloadCancelled(albumId: string, serverId?: string): boolean {
+  if (cancelledDownloads.has(cancellationKey(albumId, serverId))) return true;
+  if (!serverId) return cancelledDownloads.has(albumId);
+  const canonicalId = canonicalizeConfirmedNavidromeId(serverId, albumId);
+  return cancelledDownloads.has(cancellationKey(canonicalId, serverId))
+    || cancelledDownloads.has(albumId)
+    || cancelledDownloads.has(canonicalId);
+}
+
 /** Tells Rust to abort any in-flight `download_track_offline` calls for these jobs. */
 function abortDownloadsInRust(jobs: DownloadJob[]) {
   const downloadIds = [...new Set(jobs.map(j => j.downloadId).filter(Boolean))];
@@ -54,7 +84,8 @@ export const useOfflineJobStore = create<OfflineJobState>()((set, get) => ({
   setPinQueueStatus: (albumId, status, serverId) => {
     set(state => ({
       pinQueue: state.pinQueue.map(p => (
-        p.albumId === albumId && (!serverId || !p.serverId || p.serverId === serverId)
+        offlineAlbumIdsMatch(albumId, p.albumId, p.serverId ?? serverId)
+          && (!serverId || !p.serverId || p.serverId === serverId)
           ? { ...p, status }
           : p
       )),
@@ -64,7 +95,8 @@ export const useOfflineJobStore = create<OfflineJobState>()((set, get) => ({
   removePinFromQueue: (albumId, serverId) => {
     set(state => ({
       pinQueue: state.pinQueue.filter(p => (
-        p.albumId !== albumId || (serverId && p.serverId && p.serverId !== serverId)
+        !offlineAlbumIdsMatch(albumId, p.albumId, p.serverId ?? serverId)
+          || (serverId && p.serverId && p.serverId !== serverId)
       )),
     }));
   },
@@ -84,19 +116,29 @@ export const useOfflineJobStore = create<OfflineJobState>()((set, get) => ({
   },
 
   cancelDownload: (albumId, serverId) => {
-    const cancelKey = serverId ? `${serverId}:${albumId}` : albumId;
-    cancelledDownloads.add(cancelKey);
+    const state = get();
+    const matchingJobs = state.jobs.filter(j => (
+      offlineAlbumIdsMatch(albumId, j.albumId, j.serverId ?? serverId)
+        && (!serverId || !j.serverId || j.serverId === serverId)
+    ));
+    const matchingPins = state.pinQueue.filter(p => (
+      offlineAlbumIdsMatch(albumId, p.albumId, p.serverId ?? serverId)
+        && (!serverId || !p.serverId || p.serverId === serverId)
+    ));
+    addCancellationAliases(albumId, serverId);
+    for (const job of matchingJobs) addCancellationAliases(job.albumId, job.serverId ?? serverId);
+    for (const pin of matchingPins) addCancellationAliases(pin.albumId, pin.serverId ?? serverId);
     // Abort the in-flight Rust transfers, then drop every job for this album
     // (queued AND downloading) so the sidebar toast clears right away.
-    abortDownloadsInRust(get().jobs.filter(j => (
-      j.albumId === albumId && (!serverId || !j.serverId || j.serverId === serverId)
-    )));
+    abortDownloadsInRust(matchingJobs);
     set(state => ({
       jobs: state.jobs.filter(j => (
-        j.albumId !== albumId || (serverId && j.serverId && j.serverId !== serverId)
+        !offlineAlbumIdsMatch(albumId, j.albumId, j.serverId ?? serverId)
+          || (serverId && j.serverId && j.serverId !== serverId)
       )),
       pinQueue: state.pinQueue.filter(p => (
-        p.albumId !== albumId || (serverId && p.serverId && p.serverId !== serverId)
+        !offlineAlbumIdsMatch(albumId, p.albumId, p.serverId ?? serverId)
+          || (serverId && p.serverId && p.serverId !== serverId)
       )),
     }));
   },

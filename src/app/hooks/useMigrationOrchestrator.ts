@@ -9,12 +9,16 @@ import {
 import { migrationInspect, migrationRun, type ServerIndexMapping } from '@/lib/api/migration';
 import { useAuthStore } from '@/store/authStore';
 import { useMigrationStore } from '@/store/migrationStore';
+import {
+  enqueueBlockingMigration,
+  blockingMigrationStatus,
+  retryCurrentBlockingMigration,
+  type BlockingMigrationContext,
+} from '@/store/migrationCoordinator';
 import { serverIndexKeyFromUrl } from '@/lib/server/serverIndexKey';
 import { rewriteFrontendStoreKeys } from '@/utils/server/rewriteFrontendStoreKeys';
-import { retryCanonicalIdentityMigration } from '@/utils/server/reconcileCanonicalEntityIds';
 
 const MIGRATION_DONE_FLAG = 'psysonic-server-key-migration-v1';
-let migrationInFlight: Promise<void> | null = null;
 const REAL_MIGRATION_TEST_OVERRIDE = '__PSYSONIC_REAL_MIGRATION_TEST__';
 
 function logSkippedUnknownRowsOnce(
@@ -37,7 +41,7 @@ function buildMappings(): ServerIndexMapping[] {
     .filter(mapping => mapping.legacyId.trim().length > 0 && mapping.indexKey.trim().length > 0);
 }
 
-async function runGenreTagsPhase(): Promise<void> {
+async function runGenreTagsPhase(context: BlockingMigrationContext): Promise<void> {
   const state = useMigrationStore.getState();
   state.setGenreTagsProgress(null);
 
@@ -46,137 +50,110 @@ async function runGenreTagsPhase(): Promise<void> {
   // modal briefly appeared on every startup once the backfill was complete).
   const inspect = await libraryGenreTagsInspect();
   state.setGenreTagsInspect(inspect);
-  if (!inspect.needed) {
-    state.setStep(null);
-    return;
-  }
+  if (!inspect.needed) return;
 
-  state.setStep('genreTags');
-  state.setError(null);
-  state.setPhase('running');
+  context.setView({ step: 'genreTags', needsMigration: true, phase: 'running' });
   const maxAttempts = 3;
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     await libraryGenreTagsRun();
     const after = await libraryGenreTagsInspect();
     state.setGenreTagsInspect(after);
     if (!after.needed) {
-      state.setStep(null);
       state.setGenreTagsProgress(null);
       return;
     }
   }
   const after = await libraryGenreTagsInspect();
   if (after.needed) {
-    state.setError('Genre index update incomplete. Retry after restart.');
-    state.setPhase('error');
-    throw new Error('genre_tags_incomplete');
+    throw new Error('Genre index update incomplete. Retry after restart.');
   }
 }
 
-async function runScopeBrowseProjectionPhase(): Promise<void> {
+async function runScopeBrowseProjectionPhase(context: BlockingMigrationContext): Promise<void> {
   const state = useMigrationStore.getState();
   state.setScopeBrowseProjectionProgress(null);
   const inspect = await libraryScopeBrowseProjectionInspect();
   state.setScopeBrowseProjectionInspect(inspect);
   if (!inspect.needed) return;
 
-  state.setStep('scopeBrowseProjection');
-  state.setError(null);
-  state.setPhase('running');
+  context.setView({ step: 'scopeBrowseProjection', needsMigration: true, phase: 'running' });
   await libraryScopeBrowseProjectionRun();
   const after = await libraryScopeBrowseProjectionInspect();
   state.setScopeBrowseProjectionInspect(after);
   if (after.needed) {
-    state.setError('Library browse index update incomplete. Retry after restart.');
-    state.setPhase('error');
-    throw new Error('scope_browse_projection_incomplete');
+    throw new Error('Library browse index update incomplete. Retry after restart.');
   }
-  state.setStep(null);
   state.setScopeBrowseProjectionProgress(null);
 }
 
 async function runOrchestrator(force = false): Promise<void> {
-  if (migrationInFlight) {
-    await migrationInFlight;
-    return;
-  }
-  migrationInFlight = (async () => {
-    const state = useMigrationStore.getState();
-    let skippedLogged = false;
-    if (import.meta.env.MODE === 'test' && !(globalThis as Record<string, unknown>)[REAL_MIGRATION_TEST_OVERRIDE]) {
-      state.setNeedsMigration(false);
-      state.setPhase('completed');
-      return;
-    }
-    const servers = useAuthStore.getState().servers;
-    if (servers.length === 0) {
-      state.setNeedsMigration(false);
-      state.setPhase('completed');
-      return;
-    }
-    const mappings = buildMappings();
-    const hasDoneFlag = localStorage.getItem(MIGRATION_DONE_FLAG) === '1';
-    state.setError(null);
-    state.setProgress(null);
-    state.setGenreTagsProgress(null);
-    state.setStep('serverIndex');
-    state.setPhase(force ? 'inspecting' : 'idle');
-    let inspect = null as Awaited<ReturnType<typeof migrationInspect>> | null;
-    if (!force && hasDoneFlag) {
-      inspect = await migrationInspect(mappings);
+  const promise = enqueueBlockingMigration({
+    id: 'ordinary-migrations',
+    step: 'serverIndex',
+    initialPhase: force ? 'inspecting' : 'idle',
+    retry: () => { void runOrchestrator(true); },
+    run: async (context) => {
+      const state = useMigrationStore.getState();
+      let skippedLogged = false;
+      if (import.meta.env.MODE === 'test' && !(globalThis as Record<string, unknown>)[REAL_MIGRATION_TEST_OVERRIDE]) {
+        return;
+      }
+      const servers = useAuthStore.getState().servers;
+      if (servers.length === 0) {
+        return;
+      }
+      const mappings = buildMappings();
+      const hasDoneFlag = localStorage.getItem(MIGRATION_DONE_FLAG) === '1';
+      state.setProgress(null);
+      state.setGenreTagsProgress(null);
+      context.setView({
+        step: 'serverIndex',
+        needsMigration: false,
+        phase: force ? 'inspecting' : 'idle',
+      });
+      let inspect = null as Awaited<ReturnType<typeof migrationInspect>> | null;
+      if (!force && hasDoneFlag) {
+        inspect = await migrationInspect(mappings);
+        state.setInspect(inspect);
+        state.setNeedsMigration(inspect.needsMigration);
+        skippedLogged = logSkippedUnknownRowsOnce(inspect, skippedLogged);
+        if (!inspect.needsMigration) {
+          await runGenreTagsPhase(context);
+          await runScopeBrowseProjectionPhase(context);
+          return;
+        }
+      }
+      if (!inspect) {
+        inspect = await migrationInspect(mappings);
+      }
       state.setInspect(inspect);
       state.setNeedsMigration(inspect.needsMigration);
       skippedLogged = logSkippedUnknownRowsOnce(inspect, skippedLogged);
       if (!inspect.needsMigration) {
-        await runGenreTagsPhase();
-        await runScopeBrowseProjectionPhase();
-        state.setPhase('completed');
+        await rewriteFrontendStoreKeys(servers);
+        localStorage.setItem(MIGRATION_DONE_FLAG, '1');
+        await runGenreTagsPhase(context);
+        await runScopeBrowseProjectionPhase(context);
         return;
       }
-    }
-    if (!inspect) {
-      inspect = await migrationInspect(mappings);
-    }
-    state.setInspect(inspect);
-    state.setNeedsMigration(inspect.needsMigration);
-    skippedLogged = logSkippedUnknownRowsOnce(inspect, skippedLogged);
-    if (!inspect.needsMigration) {
+      context.setView({ step: 'serverIndex', needsMigration: true, phase: 'running' });
+      await migrationRun(mappings);
       await rewriteFrontendStoreKeys(servers);
-      localStorage.setItem(MIGRATION_DONE_FLAG, '1');
-      await runGenreTagsPhase();
-      await runScopeBrowseProjectionPhase();
-      state.setPhase('completed');
-      return;
-    }
-    state.setPhase('inspecting');
-    state.setPhase('running');
-    await migrationRun(mappings);
-    await rewriteFrontendStoreKeys(servers);
-    state.setPhase('inspecting');
-    const after = await migrationInspect(mappings);
-    state.setInspect(after);
-    state.setNeedsMigration(after.needsMigration);
-    logSkippedUnknownRowsOnce(after, skippedLogged);
-    if (!after.needsMigration) {
-      localStorage.setItem(MIGRATION_DONE_FLAG, '1');
-        await runGenreTagsPhase();
-        await runScopeBrowseProjectionPhase();
-      state.setPhase('completed');
-      return;
-    }
-    state.setError('Migration incomplete. Retry after adding missing server mapping.');
-    state.setPhase('error');
-  })()
-    .catch((error: unknown) => {
-      if (!(error instanceof Error && error.message === 'genre_tags_incomplete')) {
-        useMigrationStore.getState().setError(error instanceof Error ? error.message : String(error));
+      context.setView({ phase: 'inspecting' });
+      const after = await migrationInspect(mappings);
+      state.setInspect(after);
+      state.setNeedsMigration(after.needsMigration);
+      logSkippedUnknownRowsOnce(after, skippedLogged);
+      if (!after.needsMigration) {
+        localStorage.setItem(MIGRATION_DONE_FLAG, '1');
+        await runGenreTagsPhase(context);
+        await runScopeBrowseProjectionPhase(context);
+        return;
       }
-      useMigrationStore.getState().setPhase('error');
-    })
-    .finally(() => {
-      migrationInFlight = null;
-    });
-  await migrationInFlight;
+      throw new Error('Migration incomplete. Retry after adding missing server mapping.');
+    },
+  });
+  await promise.catch(() => {});
 }
 
 export function retryServerIndexMigration(): void {
@@ -184,43 +161,11 @@ export function retryServerIndexMigration(): void {
 }
 
 export function retryGenreTagsMigration(): void {
-  if (migrationInFlight) {
-    void migrationInFlight.then(() => retryGenreTagsMigration());
-    return;
-  }
-  migrationInFlight = (async () => {
-    const state = useMigrationStore.getState();
-    state.setError(null);
-    state.setGenreTagsProgress(null);
-    try {
-      await runGenreTagsPhase();
-      state.setPhase('completed');
-    } catch (error: unknown) {
-      if (!(error instanceof Error && error.message === 'genre_tags_incomplete')) {
-        state.setError(error instanceof Error ? error.message : String(error));
-      }
-      state.setPhase('error');
-    }
-  })().finally(() => {
-    migrationInFlight = null;
-  });
+  void runOrchestrator(true);
 }
 
 export function retryBlockingMigration(): void {
-  const step = useMigrationStore.getState().step;
-  if (step === 'canonicalIds') {
-    retryCanonicalIdentityMigration();
-    return;
-  }
-  if (step === 'genreTags') {
-    retryGenreTagsMigration();
-    return;
-  }
-  if (step === 'scopeBrowseProjection') {
-    void runOrchestrator();
-    return;
-  }
-  retryServerIndexMigration();
+  retryCurrentBlockingMigration();
 }
 
 export function useMigrationOrchestrator(): void {
@@ -260,6 +205,7 @@ export function useMigrationOrchestrator(): void {
   }, []);
 
   useEffect(() => {
+    if (blockingMigrationStatus('ordinary-migrations') === 'failed') return;
     void runOrchestrator();
   }, [servers]);
 }

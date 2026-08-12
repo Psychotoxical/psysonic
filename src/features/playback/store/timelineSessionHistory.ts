@@ -5,6 +5,7 @@ import {
 } from '@/features/playback/utils/playback/playbackServer';
 import { usePreviewStore } from '@/features/playback/store/previewStore';
 import { usePlayerStore } from '@/features/playback/store/playerStore';
+import { canonicalizeQueueItemRef } from '@/features/playback/store/queueItemRef';
 
 export const TIMELINE_HISTORY_BOOTSTRAP_LIMIT = 50;
 export const TIMELINE_APPEND_DEDUPE_MS = 2_000;
@@ -68,6 +69,10 @@ function isDuplicateInBuffer(
 
 export function appendTimelineSessionPlay(ref: TimelinePlayedRef): void {
   if (!ref.serverId || !ref.trackId) return;
+  const canonicalRef = canonicalizeQueueItemRef(ref);
+  ref = canonicalRef.serverId === ref.serverId && canonicalRef.trackId === ref.trackId
+    ? ref
+    : { ...ref, ...canonicalRef };
   const last = sessionPlays[sessionPlays.length - 1];
   if (
     last
@@ -113,6 +118,10 @@ export function clearTimelineSessionHistory(): void {
 
 export function applyTimelineBootstrap(rowsOldestFirst: TimelinePlayedRef[]): void {
   if (historyClearedThisSession || rowsOldestFirst.length === 0) return;
+  rowsOldestFirst = rowsOldestFirst.map(row => ({
+    ...row,
+    ...canonicalizeQueueItemRef(row),
+  }));
 
   if (sessionPlays.length === 0) {
     sessionPlays = [...rowsOldestFirst];
@@ -127,6 +136,23 @@ export function applyTimelineBootstrap(rowsOldestFirst: TimelinePlayedRef[]): vo
   );
   if (deduped.length === 0) return;
   sessionPlays = [...deduped, ...sessionPlays];
+  emit();
+}
+
+export function rewriteTimelineSessionHistoryForOwners(
+  owners: ReadonlySet<string>,
+  canonicalOwner: string,
+): void {
+  let changed = false;
+  const next = sessionPlays.map(row => {
+    if (!owners.has(row.serverId)) return row;
+    const canonical = canonicalizeQueueItemRef({ ...row, serverId: canonicalOwner });
+    if (canonical.serverId === row.serverId && canonical.trackId === row.trackId) return row;
+    changed = true;
+    return { ...row, ...canonical };
+  });
+  if (!changed) return;
+  sessionPlays = next;
   emit();
 }
 

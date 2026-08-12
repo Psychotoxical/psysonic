@@ -6,7 +6,11 @@ import { createHydrationGatedStorage, createSafeJSONStorage } from '@/lib/util/s
 import { emitPlaybackProgress } from '@/features/playback/store/playbackProgress';
 import type { QueueItemRef, Track } from '@/lib/media/trackTypes';
 import type { PlayerState } from '@/features/playback/store/playerStoreTypes';
-import { toQueueItemRefs } from '@/features/playback/store/queueItemRef';
+import {
+  canonicalizePlaybackTrack,
+  canonicalizeQueueItemRef,
+  toQueueItemRefs,
+} from '@/features/playback/store/queueItemRef';
 import { canonicalQueueServerKey } from '@/lib/server/serverIndexKey';
 import {
   isActivePublicShareQueue,
@@ -115,13 +119,18 @@ export const usePlayerStore = create<PlayerState>()(
         // volume/repeatMode → psysonic_player_prefs; isQueueVisible →
         // psysonic_queue_visible; networkLovedCache → psysonic_network_loved_cache.
         // Kept out of this blob so a huge queue cannot block their writes.
-        currentTrack: state.currentTrack,
-        queueServerId: state.queueServerId,
+        currentTrack: state.currentTrack
+          ? canonicalizePlaybackTrack(
+            state.currentTrack,
+            state.queueItems?.[state.queueIndex]?.serverId ?? state.queueServerId ?? '',
+          )
+          : null,
+        queueServerId: state.queueServerId ? canonicalQueueServerKey(state.queueServerId) : null,
         // Thin-state: persist the whole ordered ref list (tiny) — no windowed
         // fat `queue: Track[]` anymore. `queueItemsIndex` doubles as the
         // restore-pending sentinel a fresh rehydrate carries back, telling
         // `hydrateQueueFromIndex` the refs still need a full resolve.
-        queueItems: state.queueItems,
+        queueItems: (state.queueItems ?? []).map(canonicalizeQueueItemRef),
         queueItemsIndex: state.queueIndex,
         // currentTime is intentionally NOT persisted here.
         // handleAudioProgress fires every 100ms and each setState with a
@@ -143,12 +152,9 @@ export const usePlayerStore = create<PlayerState>()(
 
         let queueItems: QueueItemRef[] | undefined;
         if (Array.isArray(blob.queueItems) && blob.queueItems.length > 0) {
-          queueItems = (blob.queueItems as QueueItemRef[]).map(ref => ({
-            ...ref,
-            serverId: canonicalQueueServerKey(ref.serverId),
-          }));
+          queueItems = (blob.queueItems as QueueItemRef[]).map(canonicalizeQueueItemRef);
         } else if (Array.isArray(blob.queueRefs) && blob.queueRefs.length > 0) {
-          queueItems = (blob.queueRefs as string[]).map(trackId => ({
+          queueItems = (blob.queueRefs as string[]).map(trackId => canonicalizeQueueItemRef({
             serverId: canonicalSid ?? '',
             trackId,
           }));
@@ -168,6 +174,9 @@ export const usePlayerStore = create<PlayerState>()(
         }
 
         const persistedTrack = blob.currentTrack as Track | null | undefined;
+        if (persistedTrack) {
+          blob.currentTrack = canonicalizePlaybackTrack(persistedTrack, canonicalSid ?? '');
+        }
         let strippedPublicShare = false;
         if (queueItems?.length && isActivePublicShareQueue(canonicalSid, queueItems)) {
           strippedPublicShare = true;

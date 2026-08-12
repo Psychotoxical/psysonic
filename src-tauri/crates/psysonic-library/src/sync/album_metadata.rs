@@ -37,9 +37,44 @@ pub(crate) fn upsert_album_from_get_album(
     let song_count = album
         .song_count
         .or(Some(album.song.len() as i64));
-    store
+    let transition = store
         .with_conn_mut("sync.upsert_album_metadata", |conn| {
-            conn.execute(
+            let tx = conn.transaction()?;
+            let identity_guard =
+                crate::navidrome_identity::load_deterministic_write_guard(&tx, server_id)?;
+            if let Some(old_id) =
+                crate::navidrome_identity::find_deterministic_legacy_id_with_guard(
+                    &tx,
+                    server_id,
+                    &identity_guard,
+                    crate::navidrome_identity::EntityKind::Album,
+                    &album.id,
+                )?
+            {
+                crate::navidrome_identity::record_deterministic_transition_if_legacy_state(
+                    &tx,
+                    server_id,
+                    "album",
+                    &old_id,
+                    &album.id,
+                )?;
+                tx.commit()?;
+                return Ok(Some(old_id));
+            }
+            crate::navidrome_identity::register_inactive_legacy_aliases(
+                &tx,
+                server_id,
+                &identity_guard,
+                std::iter::once((
+                    crate::navidrome_identity::EntityKind::Album,
+                    album.id.as_str(),
+                ))
+                .chain(album.artist_id.as_deref().map(|id| {
+                    (crate::navidrome_identity::EntityKind::Artist, id)
+                })),
+                synced_at,
+            )?;
+            tx.execute(
                 "INSERT INTO album (
                    server_id, id, name, artist, artist_id, song_count, duration_sec,
                    year, genre, cover_art_id, starred_at, synced_at, raw_json
@@ -73,9 +108,17 @@ pub(crate) fn upsert_album_from_get_album(
                     starred_flag,
                 ],
             )?;
-            Ok(())
+            tx.commit()?;
+            Ok(None)
         })
-        .map_err(SyncError::Storage)
+        .map_err(SyncError::Storage)?;
+    if let Some(old_id) = transition {
+        return Err(SyncError::IdentityTransition(format!(
+            "server `{server_id}` changed album id `{old_id}` to canonical id `{}`; migration required",
+            album.id
+        )));
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -198,5 +241,118 @@ mod tests {
             artist_id.is_none(),
             "stale artist_id must not persist when getAlbum omits it"
         );
+    }
+
+    #[test]
+    fn canonical_album_transition_is_recorded_before_insert() {
+        let store = LibraryStore::open_in_memory();
+        let old = "11112222333344445555666677778888";
+        let new = crate::navidrome_identity::canonical_id(old);
+        store
+            .with_conn_mut("test.seed_legacy_album_state", |conn| {
+                conn.execute(
+                    "INSERT INTO album(server_id,id,name,synced_at,raw_json) \
+                     VALUES ('s1',?1,'Legacy',1,'{}')",
+                    params![old],
+                )?;
+                conn.execute(
+                    "INSERT INTO server_identity_transition \
+                     (server_id, canonical_version, state, detected_at) \
+                     VALUES ('s1',?1,'legacy',1)",
+                    params![crate::navidrome_identity::CANONICAL_ID_VERSION],
+                )?;
+                Ok(())
+            })
+            .unwrap();
+        let album = Album {
+            id: new.clone(),
+            name: "Canonical".into(),
+            artist: None,
+            artist_id: None,
+            song_count: Some(0),
+            duration: None,
+            year: None,
+            genre: None,
+            cover_art: None,
+            song: vec![],
+        };
+
+        let error = upsert_album_from_get_album(
+            &store,
+            "s1",
+            &album,
+            &serde_json::json!({ "id": new, "name": "Canonical" }),
+            2,
+        )
+        .unwrap_err();
+
+        assert!(matches!(error, SyncError::IdentityTransition(_)));
+        store
+            .with_read_conn(|conn| {
+                let canonical_exists: bool = conn.query_row(
+                    "SELECT EXISTS(SELECT 1 FROM album WHERE server_id = 's1' AND id = ?1)",
+                    params![new],
+                    |row| row.get(0),
+                )?;
+                assert!(!canonical_exists);
+                let remap: (String, i64) = conn.query_row(
+                    "SELECT new_id, active FROM entity_id_remap \
+                     WHERE server_id = 's1' AND entity_kind = 'album' AND old_id = ?1",
+                    params![old],
+                    |row| Ok((row.get(0)?, row.get(1)?)),
+                )?;
+                assert_eq!(remap, (new.clone(), 0));
+                Ok(())
+            })
+            .unwrap();
+    }
+
+    #[test]
+    fn unrelated_album_id_change_is_not_treated_as_canonical_transition() {
+        let store = LibraryStore::open_in_memory();
+        seed_album_with_artist(&store, "Artist", "ar_old");
+        store
+            .with_conn_mut("test.seed_legacy_state", |conn| {
+                conn.execute(
+                    "INSERT INTO server_identity_transition \
+                     (server_id, canonical_version, state, detected_at) \
+                     VALUES ('s1',?1,'legacy',1)",
+                    params![crate::navidrome_identity::CANONICAL_ID_VERSION],
+                )?;
+                Ok(())
+            })
+            .unwrap();
+        let album = Album {
+            id: "al-unrelated".into(),
+            name: "Unrelated".into(),
+            artist: None,
+            artist_id: None,
+            song_count: Some(0),
+            duration: None,
+            year: None,
+            genre: None,
+            cover_art: None,
+            song: vec![],
+        };
+
+        upsert_album_from_get_album(
+            &store,
+            "s1",
+            &album,
+            &serde_json::json!({ "id": "al-unrelated", "name": "Unrelated" }),
+            2,
+        )
+        .unwrap();
+
+        let exists = store
+            .with_read_conn(|conn| {
+                conn.query_row(
+                    "SELECT EXISTS(SELECT 1 FROM album WHERE server_id = 's1' AND id = 'al-unrelated')",
+                    [],
+                    |row| row.get::<_, bool>(0),
+                )
+            })
+            .unwrap();
+        assert!(exists);
     }
 }

@@ -419,6 +419,7 @@ impl<'a> BackgroundScheduler<'a> {
                 // sync_state for a torn-down session is exactly what that
                 // convention prevents.
                 Err(SyncError::Cancelled) => return Err(SyncError::Cancelled),
+                Err(error @ SyncError::IdentityTransition(_)) => return Err(error),
                 Err(error) => {
                     // Any other failure is simply no answer this round; the
                     // delta pass it rode along with has already done its work,
@@ -776,6 +777,108 @@ mod tests {
             stats.next_census_at_ms,
             Some(1_000_000 + CENSUS_INTERVAL_MS),
             "a clean run waits a full interval"
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn census_identity_transition_escapes_the_scheduler_tick() {
+        let server = MockServer::start().await;
+        let watermark = 1_716_840_000_000_i64;
+        Mock::given(wm_method("GET"))
+            .and(wm_path("/rest/getArtists.view"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "subsonic-response": {
+                    "status": "ok",
+                    "artists": { "lastModified": watermark, "ignoredArticles": "", "index": [] }
+                }
+            })))
+            .mount(&server)
+            .await;
+        Mock::given(wm_method("GET"))
+            .and(wm_path("/rest/getAlbumList2.view"))
+            .and(wiremock::matchers::query_param("offset", "0"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "subsonic-response": {
+                    "status": "ok",
+                    "albumList2": { "album": [{ "id": "al-gap", "name": "Album", "songCount": 1 }] }
+                }
+            })))
+            .mount(&server)
+            .await;
+        Mock::given(wm_method("GET"))
+            .and(wm_path("/rest/getAlbumList2.view"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "subsonic-response": { "status": "ok", "albumList2": { "album": [] } }
+            })))
+            .mount(&server)
+            .await;
+
+        let old_track = "e3b7fc2ae9447bbec37a13bf916e3cf6";
+        let new_track = crate::navidrome_identity::canonical_id(old_track);
+        Mock::given(wm_method("GET"))
+            .and(wm_path("/rest/getAlbum.view"))
+            .and(wiremock::matchers::query_param("id", "al-gap"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "subsonic-response": {
+                    "status": "ok",
+                    "album": {
+                        "id": "al-gap",
+                        "name": "Album",
+                        "songCount": 1,
+                        "song": [{ "id": new_track, "title": "Track", "album": "Album", "albumId": "al-gap" }]
+                    }
+                }
+            })))
+            .mount(&server)
+            .await;
+
+        let store = LibraryStore::open_in_memory();
+        store
+            .with_conn("test.seed_scheduler_census_transition", |conn| {
+                conn.execute(
+                    "INSERT INTO track(server_id,id,title,album,album_id,synced_at,raw_json) \
+                     VALUES ('s1',?1,'Track','Album','al-gap',1,'{}')",
+                    rusqlite::params![old_track],
+                )?;
+                conn.execute(
+                    "INSERT INTO album(server_id,id,name,synced_at,raw_json) \
+                     VALUES ('s1','al-gap','Album',1,'{}')",
+                    [],
+                )?;
+                conn.execute(
+                    "INSERT INTO server_identity_transition \
+                     (server_id, canonical_version, state, detected_at) \
+                     VALUES ('s1',?1,'no_legacy_ids',1)",
+                    rusqlite::params![crate::navidrome_identity::CANONICAL_ID_VERSION],
+                )?;
+                Ok(())
+            })
+            .unwrap();
+        let sync_state = SyncStateRepository::new(&store);
+        sync_state.ensure("s1", "").unwrap();
+        sync_state.set_sync_phase("s1", "", "ready").unwrap();
+        sync_state
+            .set_artists_last_modified_ms("s1", "", watermark)
+            .unwrap();
+
+        let error = BackgroundScheduler::new(
+            &store,
+            &test_subsonic(&server.uri()),
+            "s1",
+            "",
+            flags(CapabilityFlags::SUBSONIC_SEARCH3_BULK),
+        )
+        .with_sleep_disabled()
+        .tick(1_000_000)
+        .await
+        .unwrap_err();
+
+        assert!(matches!(error, SyncError::IdentityTransition(_)));
+        assert_eq!(
+            crate::navidrome_identity::transition_status(&store, "s1")
+                .unwrap()
+                .state,
+            "transition_detected"
         );
     }
 

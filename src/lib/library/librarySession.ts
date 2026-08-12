@@ -22,7 +22,10 @@ import {
 } from '@/lib/api/coverCache';
 import { libraryDevEnabled, logLibraryStatus, logLibrarySync, timed } from './libraryDevLog';
 import { publishServerConnectionStatus } from '@/lib/network/serverReachability';
-import { reconcileCanonicalEntityIds } from '@/utils/server/reconcileCanonicalEntityIds';
+import {
+  reconcileCanonicalEntityIds,
+  restoreCanonicalEntityIdsFromLocalState,
+} from '@/utils/server/reconcileCanonicalEntityIds';
 
 export type BindServerResult = 'bound' | 'offline' | 'error';
 
@@ -92,6 +95,11 @@ async function bindIndexedServerOnce(
   // markers so covers that failed during a registry gap re-download. Best-effort
   // and independent of bind — keep it off the critical path.
   void retryGatedServerCovers(server);
+
+  // A previous launch may have completed the native rewrite and crashed before
+  // frontend persistence was acknowledged. That recovery is local-only and must
+  // finish even when the server is currently unreachable.
+  await restoreCanonicalEntityIdsFromLocalState(server, serverIndexKey);
 
   // Dual-address: resolve the connect URL once (LAN-first, sticky cached) and
   // hand that to the Rust bind-session command — Rust then sees the reachable
@@ -188,23 +196,15 @@ export async function bootstrapIndexedServer(server: ServerProfile): Promise<Bin
   return 'bound';
 }
 
-/** Bind all indexed servers, then queue initial syncs one server at a time. */
-export async function bootstrapAllIndexedServers(): Promise<Record<string, BindServerResult>> {
+function primaryIndexedServers(): ServerProfile[] {
   const lib = useLibraryIndexStore.getState();
-  if (!lib.masterEnabled) return {};
+  if (!lib.masterEnabled) return [];
   const auth = useAuthStore.getState();
-  // Authoritatively (re)populate the native gate-header registry for every saved
-  // server before any bind/probe runs. The persist-rehydrate sync fires very
-  // early and is best-effort; this runs once React has mounted and the Tauri IPC
-  // bridge is ready, so a gated server's headers are present for the reachability
-  // probe, stream, cover and prefetch paths that resolve them from the registry.
-  await syncAllServerHttpContexts(auth.servers).catch(() => {});
   const active = auth.activeServerId
     ? auth.servers.find(s => s.id === auth.activeServerId) ?? null
     : null;
-  const indexed = auth.servers.filter(s => lib.isIndexEnabled(s.id));
   const primaryByKey = new Map<string, ServerProfile>();
-  for (const server of indexed) {
+  for (const server of auth.servers.filter(s => lib.isIndexEnabled(s.id))) {
     const key = serverIndexKeyForProfile(server);
     if (!primaryByKey.has(key)) primaryByKey.set(key, server);
   }
@@ -212,18 +212,45 @@ export async function bootstrapAllIndexedServers(): Promise<Record<string, BindS
     const key = serverIndexKeyForProfile(active);
     if (primaryByKey.has(key)) primaryByKey.set(key, active);
   }
+  return [...primaryByKey.values()];
+}
+
+/** Bind all indexed sessions, including canonical-ID reconciliation, without waiting for initial sync. */
+export async function bindAllIndexedServers(): Promise<Record<string, BindServerResult>> {
+  const servers = primaryIndexedServers();
+  if (servers.length === 0) return {};
+  const auth = useAuthStore.getState();
+  // Authoritatively (re)populate the native gate-header registry for every saved
+  // server before any bind/probe runs. The persist-rehydrate sync fires very
+  // early and is best-effort; this runs once React has mounted and the Tauri IPC
+  // bridge is ready, so a gated server's headers are present for the reachability
+  // probe, stream, cover and prefetch paths that resolve them from the registry.
+  await syncAllServerHttpContexts(auth.servers).catch(() => {});
   const results: Record<string, BindServerResult> = {};
-  for (const server of primaryByKey.values()) {
+  for (const server of servers) {
     const key = serverIndexKeyForProfile(server);
     results[key] = await bindIndexedServer(server);
   }
-  for (const server of primaryByKey.values()) {
+  return results;
+}
+
+/** Resume or start initial syncs for sessions that are already bound. */
+export async function startInitialSyncsForBoundServers(
+  results: Record<string, BindServerResult>,
+): Promise<void> {
+  for (const server of primaryIndexedServers()) {
     const key = serverIndexKeyForProfile(server);
     if (results[key] === 'bound') {
       await resumeInitialSyncIfIncomplete(key);
       await queueInitialSyncIfNeeded(key);
     }
   }
+}
+
+/** Bind all indexed servers, then queue initial syncs one server at a time. */
+export async function bootstrapAllIndexedServers(): Promise<Record<string, BindServerResult>> {
+  const results = await bindAllIndexedServers();
+  await startInitialSyncsForBoundServers(results);
   return results;
 }
 

@@ -8,12 +8,19 @@ import {
   isTimelineBootstrapAttempted,
   isTimelineHistoryClearedThisSession,
   markTimelineBootstrapAttempted,
+  rewriteTimelineSessionHistoryForOwners,
   TIMELINE_APPEND_DEDUPE_MS,
   TIMELINE_MERGE_DEDUPE_MS,
 } from '@/features/playback/store/timelineSessionHistory';
+import {
+  activateCanonicalNavidromeOwners,
+  canonicalizeNavidromeId,
+  deactivateCanonicalNavidromeOwners,
+} from '@/lib/server/navidromeCanonicalIds';
 
 describe('timelineSessionHistory', () => {
   beforeEach(() => {
+    deactivateCanonicalNavidromeOwners(['s1']);
     _resetTimelineSessionHistoryForTest();
   });
 
@@ -61,5 +68,19 @@ describe('timelineSessionHistory', () => {
     expect(markTimelineBootstrapAttempted()).toBe(true);
     expect(markTimelineBootstrapAttempted()).toBe(false);
     expect(isTimelineBootstrapAttempted()).toBe(true);
+  });
+
+  it('rewrites only live history owned by a canonicalized server', () => {
+    const legacyId = 'e3b7fc2ae9447bbec37a13bf916e3cf6';
+    appendTimelineSessionPlay({ serverId: 's1', trackId: legacyId, playedAtMs: 1 });
+    appendTimelineSessionPlay({ serverId: 's2', trackId: legacyId, playedAtMs: 2 });
+
+    activateCanonicalNavidromeOwners(['s1']);
+    rewriteTimelineSessionHistoryForOwners(new Set(['s1']), 's1');
+
+    expect(getTimelineSessionHistorySnapshot()).toEqual([
+      { serverId: 's1', trackId: canonicalizeNavidromeId(legacyId), playedAtMs: 1 },
+      { serverId: 's2', trackId: legacyId, playedAtMs: 2 },
+    ]);
   });
 });

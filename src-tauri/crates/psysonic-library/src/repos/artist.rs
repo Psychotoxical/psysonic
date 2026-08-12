@@ -5,6 +5,7 @@ use std::collections::HashSet;
 use rusqlite::{params, OptionalExtension, Transaction};
 
 use crate::artist_sort::{ignored_articles_or_default, sort_key_for_display_name};
+use crate::repos::RemapEntry;
 use crate::store::LibraryStore;
 use psysonic_integration::subsonic::ArtistIndex;
 
@@ -23,12 +24,55 @@ impl<'a> ArtistRepository<'a> {
         server_id: &str,
         index: &ArtistIndex,
         synced_at: i64,
-    ) -> Result<u32, String> {
+    ) -> Result<(u32, Option<RemapEntry>), String> {
         let ignored = ignored_articles_or_default(index.ignored_articles.as_deref());
         let mut count = 0u32;
-        self.store.with_conn_mut("artist.upsert_index", |conn| {
+        let transition = self.store.with_conn_mut("artist.upsert_index", |conn| {
             let tx = conn.transaction()?;
+            let identity_guard =
+                crate::navidrome_identity::load_deterministic_write_guard(&tx, server_id)?;
             let mut changed_identity = HashSet::new();
+            for bucket in &index.index {
+                for artist in &bucket.artist {
+                    if let Some(old_id) =
+                        crate::navidrome_identity::find_deterministic_legacy_id_with_guard(
+                            &tx,
+                            server_id,
+                            &identity_guard,
+                            crate::navidrome_identity::EntityKind::Artist,
+                            &artist.id,
+                        )?
+                    {
+                        crate::navidrome_identity::record_deterministic_transition_if_legacy_state(
+                            &tx,
+                            server_id,
+                            "artist",
+                            &old_id,
+                            &artist.id,
+                        )?;
+                        tx.commit()?;
+                        return Ok(Some(RemapEntry {
+                            server_id: server_id.to_string(),
+                            old_id,
+                            new_id: artist.id.clone(),
+                        }));
+                    }
+                }
+            }
+            crate::navidrome_identity::register_inactive_legacy_aliases(
+                &tx,
+                server_id,
+                &identity_guard,
+                index.index.iter().flat_map(|bucket| {
+                    bucket.artist.iter().map(|artist| {
+                        (
+                            crate::navidrome_identity::EntityKind::Artist,
+                            artist.id.as_str(),
+                        )
+                    })
+                }),
+                synced_at,
+            )?;
             let mut previous_name = tx.prepare_cached(
                 "SELECT name FROM artist WHERE server_id = ?1 AND id = ?2",
             )?;
@@ -56,9 +100,9 @@ impl<'a> ArtistRepository<'a> {
             drop(previous_name);
             crate::identity::record_artists(&tx, server_id, changed_identity)?;
             tx.commit()?;
-            Ok(())
+            Ok(None)
         })?;
-        Ok(count)
+        Ok((count, transition))
     }
 
     /// Materialize missing `artist` rows from synced tracks (pre-pass backfill).
@@ -99,6 +143,20 @@ impl<'a> ArtistRepository<'a> {
         let mut count = 0u32;
         self.store.with_conn_mut("artist.backfill_from_tracks", |conn| {
             let tx = conn.transaction()?;
+            let identity_guard =
+                crate::navidrome_identity::load_deterministic_write_guard(&tx, server_id)?;
+            crate::navidrome_identity::register_inactive_legacy_aliases(
+                &tx,
+                server_id,
+                &identity_guard,
+                rows.iter().map(|(id, _)| {
+                    (
+                        crate::navidrome_identity::EntityKind::Artist,
+                        id.as_str(),
+                    )
+                }),
+                synced_at,
+            )?;
             for (id, name) in &rows {
                 let name_sort = sort_key_for_display_name(name, ignored_articles);
                 upsert_artist_row(&tx, server_id, id, name, &name_sort, None, synced_at)?;
@@ -262,6 +320,78 @@ mod tests {
             })
             .unwrap();
         assert_eq!(name_sort, "beatles");
+    }
+
+    fn one_artist_index(id: &str, name: &str) -> ArtistIndex {
+        ArtistIndex {
+            last_modified_ms: Some(1),
+            ignored_articles: None,
+            index: vec![IndexBucket {
+                name: "A".into(),
+                artist: vec![ArtistRef {
+                    id: id.into(),
+                    name: name.into(),
+                    album_count: Some(1),
+                    cover_art: None,
+                }],
+            }],
+        }
+    }
+
+    #[test]
+    fn artist_only_overflow_alias_blocks_later_canonical_collision() {
+        let store = LibraryStore::open_in_memory();
+        store
+            .with_conn("test.seed_artist_identity_state", |conn| {
+                conn.execute(
+                    "INSERT INTO server_identity_transition \
+                     (server_id, canonical_version, state, detected_at) \
+                     VALUES ('s1',?1,'no_legacy_ids',1)",
+                    params![crate::navidrome_identity::CANONICAL_ID_VERSION],
+                )?;
+                Ok(())
+            })
+            .unwrap();
+        let old = "ZZZZZZZZZZZZZZZZZZZZZZ";
+        let new = crate::navidrome_identity::canonical_id(old);
+        let repo = ArtistRepository::new(&store);
+
+        let (_, first_transition) = repo
+            .upsert_index("s1", &one_artist_index(old, "Legacy Artist"), 1)
+            .unwrap();
+        assert!(first_transition.is_none());
+        let alias: (String, i64) = store
+            .with_read_conn(|conn| {
+                conn.query_row(
+                    "SELECT old_id, active FROM entity_id_remap \
+                     WHERE server_id = 's1' AND entity_kind = 'artist' AND new_id = ?1",
+                    params![new],
+                    |row| Ok((row.get(0)?, row.get(1)?)),
+                )
+            })
+            .unwrap();
+        assert_eq!(alias, (old.into(), 0));
+
+        let (_, transition) = repo
+            .upsert_index("s1", &one_artist_index(&new, "Canonical Artist"), 2)
+            .unwrap();
+        let transition = transition.unwrap();
+        assert_eq!(transition.old_id, old);
+        assert_eq!(transition.new_id, new);
+        let ids: Vec<String> = store
+            .with_read_conn(|conn| {
+                conn.prepare("SELECT id FROM artist WHERE server_id = 's1' ORDER BY id")?
+                    .query_map([], |row| row.get(0))?
+                    .collect()
+            })
+            .unwrap();
+        assert_eq!(ids, vec![old.to_string()]);
+        assert_eq!(
+            crate::navidrome_identity::transition_status(&store, "s1")
+                .unwrap()
+                .state,
+            "transition_detected"
+        );
     }
 
     fn seed_artist(store: &LibraryStore, server: &str, id: &str, name: &str, albums: Option<i64>) {

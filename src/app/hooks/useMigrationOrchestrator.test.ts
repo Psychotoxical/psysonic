@@ -10,7 +10,6 @@ const libraryGenreTagsRunMock = vi.fn();
 const libraryScopeBrowseProjectionInspectMock = vi.fn();
 const libraryScopeBrowseProjectionRunMock = vi.fn();
 const rewriteFrontendStoreKeysMock = vi.fn(async (_servers: unknown) => undefined);
-const retryCanonicalIdentityMigrationMock = vi.fn();
 
 vi.mock('@tauri-apps/api/event', () => ({
   listen: vi.fn(async () => () => {}),
@@ -32,14 +31,10 @@ vi.mock('@/utils/server/rewriteFrontendStoreKeys', () => ({
   rewriteFrontendStoreKeys: (servers: unknown) => rewriteFrontendStoreKeysMock(servers),
 }));
 
-vi.mock('@/utils/server/reconcileCanonicalEntityIds', () => ({
-  retryCanonicalIdentityMigration: () => retryCanonicalIdentityMigrationMock(),
-}));
-
 import {
-  retryBlockingMigration,
   useMigrationOrchestrator,
 } from '@/app/hooks/useMigrationOrchestrator';
+import { resetBlockingMigrationCoordinatorForTests } from '@/store/migrationCoordinator';
 
 const DONE_FLAG = 'psysonic-server-key-migration-v1';
 const REAL_MIGRATION_TEST_OVERRIDE = '__PSYSONIC_REAL_MIGRATION_TEST__';
@@ -57,7 +52,7 @@ describe('useMigrationOrchestrator', () => {
     libraryScopeBrowseProjectionInspectMock.mockResolvedValue({ needed: false, totalTracks: 0, doneTracks: 0 });
     libraryScopeBrowseProjectionRunMock.mockResolvedValue(undefined);
     rewriteFrontendStoreKeysMock.mockClear();
-    retryCanonicalIdentityMigrationMock.mockReset();
+    resetBlockingMigrationCoordinatorForTests();
     localStorage.clear();
     useAuthStore.setState({
       servers: [
@@ -67,7 +62,7 @@ describe('useMigrationOrchestrator', () => {
       isLoggedIn: true,
     });
     useMigrationStore.setState({
-      phase: 'inspecting',
+      phase: 'idle',
       step: null,
       needsMigration: false,
       inspect: null,
@@ -79,14 +74,6 @@ describe('useMigrationOrchestrator', () => {
       lastError: null,
     });
     (globalThis as Record<string, unknown>)[REAL_MIGRATION_TEST_OVERRIDE] = true;
-  });
-
-  it('routes canonical-ID retries to the canonical migration flow', () => {
-    useMigrationStore.setState({ step: 'canonicalIds', phase: 'error' });
-
-    retryBlockingMigration();
-
-    expect(retryCanonicalIdentityMigrationMock).toHaveBeenCalledTimes(1);
   });
 
   afterEach(() => {

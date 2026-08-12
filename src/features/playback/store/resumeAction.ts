@@ -37,6 +37,7 @@ import { markPlaybackActive } from '@/features/playback/store/queuePlaybackIdle'
 import { playbackReportPlaying } from '@/features/playback/store/playbackReportSession';
 import { resumeRadio } from '@/features/playback/store/radioPlayer';
 import { clearAllPlaybackScheduleTimers } from '@/features/playback/store/scheduleTimers';
+import { canonicalizePlaybackTrack } from '@/features/playback/store/queueItemRef';
 
 type SetState = (
   partial: Partial<PlayerState> | ((state: PlayerState) => Partial<PlayerState>),
@@ -168,6 +169,7 @@ export function runResume(set: SetState, get: GetState): void {
         }
       } catch { /* keep currentTrack */ }
       if (getPlayGeneration() !== gen) return;
+      trackToPlay = canonicalizePlaybackTrack(trackToPlay, coldServerId);
       if (trackToPlay !== currentTrack) set({ currentTrack: trackToPlay });
 
       const authStateCold = useAuthStore.getState();

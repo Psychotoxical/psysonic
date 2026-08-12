@@ -650,12 +650,18 @@ impl<'a> AlbumCensusRunner<'a> {
         // Servers that rebuild their id space on rescan hand back the same
         // music under new ids. Without the remap the census would insert a
         // second copy of the catalogue and leave the first one live.
-        repo.upsert_batch_with_remap(
+        let stats = repo.upsert_delta_batch_with_remap(
             &rows,
             self.capability_flags
                 .contains(CapabilityFlags::UNSTABLE_TRACK_IDS),
         )
         .map_err(SyncError::Storage)?;
+        if let Some(transition) = stats.identity_transition {
+            return Err(SyncError::IdentityTransition(format!(
+                "server `{}` changed track id `{}` to canonical id `{}` during census ingest; migration required",
+                transition.server_id, transition.old_id, transition.new_id
+            )));
+        }
 
         // Deliberately no track-level sweep here. A `getAlbum` response is
         // authoritative only for what this request can see: on a server with
@@ -1403,6 +1409,60 @@ mod tests {
             2,
             "the delta cannot reach below its watermark; the census can"
         );
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn gap_fill_blocks_child_track_canonical_transition_with_unchanged_album_id() {
+        let server = MockServer::start().await;
+        let store = LibraryStore::open_in_memory();
+        mark_ready(&store);
+        let old_track = "e3b7fc2ae9447bbec37a13bf916e3cf6";
+        let new_track = canonical_id(old_track);
+        store
+            .with_conn("test.seed_legacy_identity_state", |conn| {
+                conn.execute(
+                    "INSERT INTO track (server_id, id, title, album, album_id, duration_sec, \
+                     deleted, synced_at, raw_json) \
+                     VALUES ('s1', ?1, 'Title', 'Album', 'al-gap', 100, 0, 1, '{}')",
+                    rusqlite::params![old_track],
+                )?;
+                conn.execute(
+                    "INSERT INTO album(server_id,id,name,synced_at,raw_json) \
+                     VALUES ('s1','al-gap','Album',1,'{}')",
+                    [],
+                )?;
+                conn.execute(
+                    "INSERT INTO server_identity_transition \
+                     (server_id, canonical_version, state, probe_old_id, probe_new_id, detected_at) \
+                     VALUES ('s1',?1,'legacy',?2,?3,1)",
+                    rusqlite::params![
+                        crate::navidrome_identity::CANONICAL_ID_VERSION,
+                        old_track,
+                        new_track
+                    ],
+                )?;
+                Ok(())
+            })
+            .unwrap();
+        mount_album_list(&server, vec![album_summary("al-gap", 1, 100)]).await;
+        mount_album_present(&server, "al-gap", &[&new_track]).await;
+
+        let error = AlbumCensusRunner::new(&store, &test_subsonic(&server.uri()), "s1")
+            .with_sleep_disabled()
+            .run()
+            .await
+            .unwrap_err();
+
+        assert!(matches!(error, SyncError::IdentityTransition(_)));
+        assert_eq!(transition_status(&store, "s1").unwrap().state, "transition_detected");
+        let ids: Vec<String> = store
+            .with_read_conn(|conn| {
+                conn.prepare("SELECT id FROM track WHERE server_id = 's1' ORDER BY id")?
+                    .query_map([], |row| row.get(0))?
+                    .collect()
+            })
+            .unwrap();
+        assert_eq!(ids, vec![old_track.to_string()]);
     }
 
     #[tokio::test(flavor = "multi_thread")]

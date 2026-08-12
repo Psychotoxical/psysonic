@@ -1,5 +1,5 @@
 import { useLocalPlaybackStore } from '@/store/localPlaybackStore';
-import { useOfflineJobStore } from '@/features/offline';
+import { offlineAlbumIdsMatch, useOfflineJobStore } from '@/features/offline';
 import { isOfflinePinComplete } from '@/features/offline';
 
 export type AlbumOfflineStatus = 'none' | 'queued' | 'downloading' | 'cached';
@@ -36,7 +36,7 @@ export function useAlbumOfflineState(
   const isPinQueued = useOfflineJobStore(s =>
     !pinComplete
     && !!albumId
-    && s.pinQueue.some(p => p.albumId === albumId
+    && s.pinQueue.some(p => offlineAlbumIdsMatch(albumId, p.albumId, p.serverId ?? serverId)
       && p.serverId === serverId
       && p.status === 'queued'),
   );
@@ -44,23 +44,24 @@ export function useAlbumOfflineState(
     !pinComplete
     && !!albumId
     && (
-      s.pinQueue.some(p => p.albumId === albumId
+      s.pinQueue.some(p => offlineAlbumIdsMatch(albumId, p.albumId, p.serverId ?? serverId)
         && p.serverId === serverId
         && p.status === 'downloading')
-      || s.jobs.some(j => j.albumId === albumId
+      || s.jobs.some(j => offlineAlbumIdsMatch(albumId, j.albumId, j.serverId ?? serverId)
         && j.serverId === serverId
         && (j.status === 'queued' || j.status === 'downloading'))
     ),
   );
   const offlineProgressDone = useOfflineJobStore(s => {
     if (!albumId || pinComplete) return 0;
-    return s.jobs.filter(j => j.albumId === albumId
+    return s.jobs.filter(j => offlineAlbumIdsMatch(albumId, j.albumId, j.serverId ?? serverId)
       && j.serverId === serverId
       && (j.status === 'done' || j.status === 'error')).length;
   });
   const offlineProgressTotal = useOfflineJobStore(s => {
     if (!albumId || pinComplete) return 0;
-    return s.jobs.filter(j => j.albumId === albumId && j.serverId === serverId).length;
+    return s.jobs.filter(j => offlineAlbumIdsMatch(albumId, j.albumId, j.serverId ?? serverId)
+      && j.serverId === serverId).length;
   });
   const resolvedOfflineStatus = pinComplete
     ? 'cached'

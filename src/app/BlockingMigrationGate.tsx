@@ -12,6 +12,7 @@ function MigrationModal() {
   const scopeBrowseProjectionProgress = useMigrationStore(s => s.scopeBrowseProjectionProgress);
   const inspect = useMigrationStore(s => s.inspect);
   const error = useMigrationStore(s => s.lastError);
+  const isServerIndex = step === 'serverIndex';
   const isGenreTags = step === 'genreTags';
   const isScopeBrowseProjection = step === 'scopeBrowseProjection';
   const migrationTitle = isGenreTags
@@ -23,10 +24,18 @@ function MigrationModal() {
     ? t('migration.genreTagsBody')
     : isScopeBrowseProjection
       ? t('migration.scopeBrowseProjectionBody')
-      : (progress ? `${progress.stage} - ${progress.table}` : t('migration.working'));
-  const activeProgress = isGenreTags ? genreTagsProgress : isScopeBrowseProjection ? scopeBrowseProjectionProgress : progress;
+      : (isServerIndex && progress ? `${progress.stage} - ${progress.table}` : t('migration.working'));
+  const activeProgress = isGenreTags
+    ? genreTagsProgress
+    : isScopeBrowseProjection
+      ? scopeBrowseProjectionProgress
+      : isServerIndex
+        ? progress
+        : null;
 
-  const migratedRows = (inspect?.library.totalLegacyRows ?? 0) + (inspect?.analysis.totalLegacyRows ?? 0);
+  const migratedRows = isServerIndex
+    ? (inspect?.library.totalLegacyRows ?? 0) + (inspect?.analysis.totalLegacyRows ?? 0)
+    : 0;
   return (
     <div style={{
       position: 'fixed',
@@ -63,7 +72,7 @@ function MigrationModal() {
             <p style={{ color: 'var(--text-muted)' }}>
               {activeProgress ? `${activeProgress.done} / ${activeProgress.total}` : t('migration.working')}
             </p>
-            {!isGenreTags && inspect?.hasSkippedUnknownServerRows ? (
+            {isServerIndex && inspect?.hasSkippedUnknownServerRows ? (
               <p style={{ color: 'var(--text-muted)', marginTop: '0.5rem' }}>
                 {t('migration.skippedRows')}
               </p>

@@ -1,32 +1,47 @@
-import { describe, expect, it } from 'vitest';
-import { toQueueItemRefs } from './queueItemRef';
-import type { Track } from '@/lib/media/trackTypes';
+import { beforeEach, describe, expect, it } from 'vitest';
+import { useAuthStore } from '@/store/authStore';
+import {
+  activateCanonicalNavidromeOwners,
+  canonicalizeNavidromeId,
+  deactivateCanonicalNavidromeOwners,
+} from '@/lib/server/navidromeCanonicalIds';
+import { canonicalizePlaybackTrack, toQueueItemRefs } from './queueItemRef';
 
-describe('toQueueItemRefs', () => {
-  it('uses per-track serverId when present', () => {
-    const queue: Track[] = [
-      { id: 't1', title: 'A', artist: '', album: '', albumId: '', duration: 1, serverId: 'srv-a' },
-      { id: 't2', title: 'B', artist: '', album: '', albumId: '', duration: 1, serverId: 'srv-b' },
-    ];
-    const refs = toQueueItemRefs('fallback', queue);
-    expect(refs[0].serverId).not.toBe(refs[1].serverId);
-    expect(refs[0].trackId).toBe('t1');
-    expect(refs[1].trackId).toBe('t2');
+const LEGACY_TRACK = 'e3b7fc2ae9447bbec37a13bf916e3cf6';
+const LEGACY_ALBUM = 'f47ac10b-58cc-4372-a567-0e02b2c3d479';
+
+describe('playback identity write boundaries', () => {
+  beforeEach(() => {
+    deactivateCanonicalNavidromeOwners(['srv-a', 'a.test']);
+    useAuthStore.setState({
+      servers: [{ id: 'srv-a', name: 'A', url: 'https://a.test', username: 'u', password: 'p' }],
+      activeServerId: 'srv-a',
+    });
   });
 
-  it('persists Navidrome public share direct URLs on refs', () => {
-    const queue: Track[] = [{
-      id: 'ndshare:Ab12:0',
-      title: 'A',
-      artist: '',
-      album: '',
-      albumId: '',
+  it('canonicalizes stale full tracks and thin refs after owner activation', () => {
+    activateCanonicalNavidromeOwners(['srv-a', 'a.test']);
+    const staleTrack = {
+      id: LEGACY_TRACK,
+      title: 'Track',
+      artist: 'Artist',
+      album: 'Album',
+      albumId: LEGACY_ALBUM,
+      artistId: LEGACY_ALBUM,
+      coverArt: LEGACY_ALBUM,
       duration: 1,
-      directStreamUrl: 'https://music.example.com/share/s/jwt-a',
-      directCoverArtUrl: 'https://music.example.com/share/img/jwt-a?size=300',
-    }];
-    const refs = toQueueItemRefs('navidrome-public-share', queue);
-    expect(refs[0]?.directStreamUrl).toBe('https://music.example.com/share/s/jwt-a');
-    expect(refs[0]?.directCoverArtUrl).toBe('https://music.example.com/share/img/jwt-a?size=300');
+      serverId: 'srv-a',
+    };
+
+    expect(canonicalizePlaybackTrack(staleTrack)).toMatchObject({
+      id: canonicalizeNavidromeId(LEGACY_TRACK),
+      albumId: canonicalizeNavidromeId(LEGACY_ALBUM),
+      artistId: canonicalizeNavidromeId(LEGACY_ALBUM),
+      coverArt: canonicalizeNavidromeId(LEGACY_ALBUM),
+    });
+    expect(toQueueItemRefs('srv-a', [staleTrack])).toEqual([{
+      serverId: 'a.test',
+      trackId: canonicalizeNavidromeId(LEGACY_TRACK),
+    }]);
   });
 });

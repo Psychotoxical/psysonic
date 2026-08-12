@@ -116,7 +116,7 @@ describe('getRandomSongs — pass-through behaviour', () => {
     expect(songs).toEqual([]);
   });
 
-  it('passes a song-array through unchanged', async () => {
+  it('stamps a song-array with the active server owner', async () => {
     vi.mocked(axios.get).mockResolvedValue(
       okResponse({
         randomSongs: {
@@ -130,6 +130,7 @@ describe('getRandomSongs — pass-through behaviour', () => {
     const songs = await getRandomSongs();
     expect(songs).toHaveLength(2);
     expect(songs.map(s => s.id)).toEqual(['a', 'b']);
+    expect(songs.every(s => s.serverId === 'music.example.com')).toBe(true);
   });
 
   it('forwards a custom size to the query params', async () => {

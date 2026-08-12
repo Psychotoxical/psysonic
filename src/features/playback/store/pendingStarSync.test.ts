@@ -22,6 +22,12 @@ import {
   _resetQueueResolverForTest,
 } from '@/features/playback/store/queueTrackResolver';
 import { toQueueItemRefs } from '@/features/playback/store/queueItemRef';
+import { useAuthStore } from '@/store/authStore';
+import {
+  activateCanonicalNavidromeOwners,
+  canonicalizeNavidromeId,
+  deactivateCanonicalNavidromeOwners,
+} from '@/lib/server/navidromeCanonicalIds';
 
 const track = (id: string): Track => ({
   id, title: id, artist: '', album: 'A', albumId: 'A', duration: 1,
@@ -29,6 +35,7 @@ const track = (id: string): Track => ({
 
 describe('pendingStarSync', () => {
   beforeEach(() => {
+    deactivateCanonicalNavidromeOwners(['srv-b']);
     vi.useFakeTimers();
     resetActiveServerConnectionSnapshot();
     setActiveServerReachable(true);
@@ -47,6 +54,7 @@ describe('pendingStarSync', () => {
       starredOverrides: {},
       userRatingOverrides: {},
     });
+    useAuthStore.setState({ activeServerId: 'srv-a' });
   });
   afterEach(() => {
     _resetPendingStarSyncForTest();
@@ -102,6 +110,21 @@ describe('pendingStarSync', () => {
     expect(starMock).toHaveBeenCalledWith('t1', 'song', { serverId: 'srv-b' });
   });
 
+  it('keeps a random-song retry on its stamped owner after the active server changes', async () => {
+    starMock.mockRejectedValueOnce(new Error('offline')).mockResolvedValue(undefined);
+    queueSongStar('shared', true, 'srv-b');
+    await vi.advanceTimersByTimeAsync(0);
+
+    useAuthStore.setState({ activeServerId: 'srv-c' });
+    await vi.advanceTimersByTimeAsync(1000);
+
+    expect(starMock).toHaveBeenNthCalledWith(1, 'shared', 'song', { serverId: 'srv-b' });
+    expect(starMock).toHaveBeenNthCalledWith(2, 'shared', 'song', { serverId: 'srv-b' });
+    expect(usePlayerStore.getState().starredOverrides).toEqual({
+      'srv-b:shared': true,
+    });
+  });
+
   it('isolates scoped favorite overrides that share a raw id', async () => {
     queueSongStar('shared', false, 'srv-b', { scopedOverride: true });
 
@@ -120,6 +143,26 @@ describe('pendingStarSync', () => {
     await vi.runAllTimersAsync();
     expect(unstarMock).toHaveBeenCalledWith('t1', 'song', undefined);
     expect(usePlayerStore.getState().starredOverrides.t1).toBe(false); // kept as durable false
+    expect(usePlayerStore.getState().currentTrack?.starred).toBeFalsy();
+  });
+
+  it('serializes an in-flight star toggle so the latest request reaches the server last', async () => {
+    let resolveFirst!: () => void;
+    starMock.mockImplementationOnce(() => new Promise<void>(resolve => { resolveFirst = resolve; }));
+
+    queueSongStar('t1', true);
+    await vi.advanceTimersByTimeAsync(0);
+    queueSongStar('t1', false);
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(starMock).toHaveBeenCalledTimes(1);
+    expect(unstarMock).not.toHaveBeenCalled();
+
+    resolveFirst();
+    await vi.runAllTimersAsync();
+
+    expect(unstarMock).toHaveBeenCalledWith('t1', 'song', undefined);
+    expect(usePlayerStore.getState().starredOverrides.t1).toBe(false);
     expect(usePlayerStore.getState().currentTrack?.starred).toBeFalsy();
   });
 
@@ -150,5 +193,87 @@ describe('pendingStarSync', () => {
 
     expect(setRatingMock).toHaveBeenCalledWith('shared', 5, { serverId: 'srv-b' });
     expect(usePlayerStore.getState().userRatingOverrides['srv-b:shared']).toBeUndefined();
+  });
+
+  it('serializes in-flight ratings so an older response cannot overwrite the latest value', async () => {
+    let resolveFirst!: () => void;
+    setRatingMock.mockImplementationOnce(() => new Promise<void>(resolve => { resolveFirst = resolve; }));
+
+    queueSongRating('t1', 2);
+    await vi.advanceTimersByTimeAsync(0);
+    queueSongRating('t1', 5);
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(setRatingMock).toHaveBeenCalledTimes(1);
+
+    resolveFirst();
+    await vi.runAllTimersAsync();
+
+    expect(setRatingMock).toHaveBeenNthCalledWith(2, 't1', 5);
+    expect(usePlayerStore.getState().currentTrack?.userRating).toBe(5);
+    expect(usePlayerStore.getState().userRatingOverrides.t1).toBeUndefined();
+  });
+
+  it('canonicalizes a deferred retry and its scoped override after owner activation', async () => {
+    const legacyId = 'e3b7fc2ae9447bbec37a13bf916e3cf6';
+    const canonicalId = canonicalizeNavidromeId(legacyId);
+    starMock.mockRejectedValueOnce(new Error('offline')).mockResolvedValue(undefined);
+
+    queueSongStar(legacyId, true, 'srv-b', { scopedOverride: true });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(starMock).toHaveBeenLastCalledWith(legacyId, 'song', { serverId: 'srv-b' });
+
+    activateCanonicalNavidromeOwners(['srv-b']);
+    await vi.advanceTimersByTimeAsync(1000);
+
+    expect(starMock).toHaveBeenLastCalledWith(canonicalId, 'song', { serverId: 'srv-b' });
+    expect(starMock).toHaveBeenCalledTimes(2);
+    expect(usePlayerStore.getState().starredOverrides).toEqual({
+      [`srv-b:${canonicalId}`]: true,
+    });
+  });
+
+  it('drops a legacy retry when a newer canonical toggle supersedes it', async () => {
+    const legacyId = 'e3b7fc2ae9447bbec37a13bf916e3cf6';
+    const canonicalId = canonicalizeNavidromeId(legacyId);
+    starMock.mockRejectedValueOnce(new Error('offline')).mockResolvedValue(undefined);
+
+    queueSongStar(legacyId, true, 'srv-b', { scopedOverride: true });
+    await vi.advanceTimersByTimeAsync(0);
+    activateCanonicalNavidromeOwners(['srv-b']);
+    queueSongStar(legacyId, false, 'srv-b', { scopedOverride: true });
+    await vi.runAllTimersAsync();
+
+    expect(unstarMock).toHaveBeenCalledWith(canonicalId, 'song', { serverId: 'srv-b' });
+    expect(usePlayerStore.getState().starredOverrides).toEqual({
+      [`srv-b:${canonicalId}`]: false,
+    });
+  });
+
+  it('canonicalizes successful in-flight legacy work before success patches', async () => {
+    const legacyId = 'e3b7fc2ae9447bbec37a13bf916e3cf6';
+    const canonicalId = canonicalizeNavidromeId(legacyId);
+    let resolveStar!: () => void;
+    starMock.mockImplementation(() => new Promise<void>(resolve => { resolveStar = resolve; }));
+    seedQueueResolver('srv-b', [{ ...track(canonicalId), serverId: 'srv-b' }]);
+    usePlayerStore.setState({
+      currentTrack: { ...track(canonicalId), serverId: 'srv-b' },
+      starredOverrides: {},
+    });
+
+    queueSongStar(legacyId, true, 'srv-b', { scopedOverride: true });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(starMock).toHaveBeenCalledWith(legacyId, 'song', { serverId: 'srv-b' });
+
+    activateCanonicalNavidromeOwners(['srv-b']);
+    resolveStar();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(usePlayerStore.getState().starredOverrides).toEqual({
+      [`srv-b:${canonicalId}`]: true,
+    });
+    expect(usePlayerStore.getState().currentTrack?.starred).toBeTruthy();
+    expect(getCachedTrack({ serverId: 'srv-b', trackId: canonicalId })?.starred).toBeTruthy();
   });
 });

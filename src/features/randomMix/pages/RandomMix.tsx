@@ -2,7 +2,7 @@ import { queueSongStar } from '@/features/playback/store/pendingStarSync';
 import { ownedOverrideValue } from '@/lib/util/ownedEntityKey';
 import type { SubsonicSong, SubsonicGenre } from '@/lib/api/subsonicTypes';
 import { songToTrack } from '@/lib/media/songToTrack';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { usePlayerStore } from '@/features/playback/store/playerStore';
 import { usePreviewStore } from '@/features/playback/store/previewStore';
 import { useAuthStore } from '@/store/authStore';
@@ -82,19 +82,29 @@ export default function RandomMix() {
   const [genreMixLoading, setGenreMixLoading] = useState(false);
   const [genreMixComplete, setGenreMixComplete] = useState(false);
   const [genresLoading, setGenresLoading] = useState(true);
+  const songsRequestGeneration = useRef(0);
+  const genresRequestGeneration = useRef(0);
+  const genreMixRequestGeneration = useRef(0);
 
   const fetchSongs = (overrideSize?: number) => {
+    const generation = ++songsRequestGeneration.current;
     setLoading(true);
     setSongs([]);
-    fetchRandomMixSongsUntilFull(getMixMinRatingsConfigFromAuth(), { targetSize: overrideSize ?? randomMixSize })
+    fetchRandomMixSongsUntilFull(getMixMinRatingsConfigFromAuth(), {
+      serverId: activeServerId,
+      targetSize: overrideSize ?? randomMixSize,
+    })
       .then(list => {
+        if (songsRequestGeneration.current !== generation) return;
         setSongs(list);
         const st = new Set<string>();
         list.forEach(s => { if (s.starred) st.add(s.id); });
         setStarredSongs(st);
         setLoading(false);
       })
-      .catch(() => setLoading(false));
+      .catch(() => {
+        if (songsRequestGeneration.current === generation) setLoading(false);
+      });
   };
 
   useEffect(() => {
@@ -104,12 +114,21 @@ export default function RandomMix() {
   }, [contextMenuOpen]);
 
   useEffect(() => {
-    // React Compiler set-state-in-effect rule: state set from an async result resolved in this effect.
+    const genresGeneration = ++genresRequestGeneration.current;
+    genreMixRequestGeneration.current += 1;
+    queueMicrotask(() => {
+      setSelectedGenre(null);
+      setGenreMixLoading(false);
+      setGenreMixComplete(false);
+      setGenreMixSongs([]);
+    });
+    // State changes happen through async request lifecycle helpers started here.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchSongs();
     setGenresLoading(true);
     void fetchGenreCatalog(activeServerId, indexEnabled)
       .then(data => {
+        if (genresRequestGeneration.current !== genresGeneration) return;
         setServerGenres(data);
         const audiobookLower = AUDIOBOOK_GENRES.map(g => g.toLowerCase());
         const available = data
@@ -120,11 +139,14 @@ export default function RandomMix() {
         setDisplayedGenres(available.slice(0, 20));
       })
       .catch(() => {
+        if (genresRequestGeneration.current !== genresGeneration) return;
         setServerGenres([]);
         setAllAvailableGenres([]);
         setDisplayedGenres([]);
       })
-      .finally(() => setGenresLoading(false));
+      .finally(() => {
+        if (genresRequestGeneration.current === genresGeneration) setGenresLoading(false);
+      });
     // fetchSongs is a local helper recreated each render; the mix reload is keyed
     // on the library filter / server / index, not on the function identity.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -157,17 +179,21 @@ export default function RandomMix() {
   };
 
   const loadGenreMix = async (genre: string, overrideSize?: number) => {
+    const generation = ++genreMixRequestGeneration.current;
     setGenreMixLoading(true);
     setGenreMixComplete(false);
     setGenreMixSongs([]);
     try {
       const list = await fetchRandomMixSongsUntilFull(getMixMinRatingsConfigFromAuth(), {
+        serverId: activeServerId,
         genre,
         timeout: 45000,
         targetSize: overrideSize ?? randomMixSize,
       });
+      if (genreMixRequestGeneration.current !== generation) return;
       setGenreMixSongs(list);
     } catch { /* ignore: best-effort */ }
+    if (genreMixRequestGeneration.current !== generation) return;
     setGenreMixLoading(false);
     setGenreMixComplete(true);
   };

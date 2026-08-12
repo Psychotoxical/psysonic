@@ -164,6 +164,15 @@ impl<'a> DeltaSyncRunner<'a> {
         sync_state
             .ensure(&self.server_id, &self.library_scope)
             .map_err(SyncError::Storage)?;
+        crate::navidrome_identity::revalidate_before_ingest(
+            self.store,
+            self.subsonic,
+            &self.server_id,
+        )
+        .await
+        .map_err(SyncError::IdentityTransition)?;
+        crate::navidrome_identity::assert_sync_ready(self.store, &self.server_id)
+            .map_err(SyncError::IdentityTransition)?;
 
         let mut report = DeltaSyncReport::default();
 
@@ -204,6 +213,16 @@ impl<'a> DeltaSyncRunner<'a> {
             self.stamp_last_delta(&sync_state)?;
             return Ok(report);
         }
+
+        crate::navidrome_identity::revalidate_before_ingest(
+            self.store,
+            self.subsonic,
+            &self.server_id,
+        )
+        .await
+        .map_err(SyncError::IdentityTransition)?;
+        crate::navidrome_identity::assert_sync_ready(self.store, &self.server_id)
+            .map_err(SyncError::IdentityTransition)?;
 
         // DS-4 — targeted ingest. Strategy choice matches initial sync
         // but S1 is skipped: `search3` doesn't carry a delta semantic.
@@ -319,8 +338,14 @@ impl<'a> DeltaSyncRunner<'a> {
 
     fn write_batch(&self, rows: &[TrackRow]) -> Result<(u32, u32), SyncError> {
         let stats = TrackRepository::new(self.store)
-            .upsert_batch_with_remap(rows, self.unstable_track_ids())
+            .upsert_delta_batch_with_remap(rows, self.unstable_track_ids())
             .map_err(SyncError::Storage)?;
+        if let Some(transition) = stats.identity_transition {
+            return Err(SyncError::IdentityTransition(format!(
+                "server `{}` changed track id `{}` to canonical id `{}`; migration required",
+                transition.server_id, transition.old_id, transition.new_id
+            )));
+        }
         Ok((rows.len() as u32, stats.remapped.len() as u32))
     }
 
@@ -691,6 +716,211 @@ mod tests {
             .unwrap();
     }
 
+    #[test]
+    fn delta_canonical_transition_aborts_before_unstable_id_remap() {
+        let store = LibraryStore::open_in_memory();
+        let old = "e3b7fc2ae9447bbec37a13bf916e3cf6";
+        let new = crate::navidrome_identity::canonical_id(old);
+        let mut existing = TrackRow {
+            server_id: "s1".into(),
+            id: old.into(),
+            title: "old".into(),
+            title_sort: None,
+            artist: None,
+            artist_id: None,
+            album: "A".into(),
+            album_id: Some("album".into()),
+            album_artist: None,
+            duration_sec: 240,
+            track_number: None,
+            disc_number: None,
+            year: None,
+            genre: None,
+            suffix: None,
+            bit_rate: None,
+            size_bytes: None,
+            cover_art_id: None,
+            starred_at: None,
+            user_rating: None,
+            play_count: None,
+            played_at: None,
+            server_path: Some("/music/track.flac".into()),
+            library_id: None,
+            isrc: None,
+            mbid_recording: None,
+            bpm: None,
+            replay_gain_track_db: None,
+            replay_gain_album_db: None,
+            replay_gain_peak: None,
+            content_hash: Some("same-content".into()),
+            server_updated_at: Some(1),
+            server_created_at: None,
+            deleted: false,
+            synced_at: 1,
+            raw_json: "{}".into(),
+        };
+        TrackRepository::new(&store)
+            .upsert_batch(std::slice::from_ref(&existing))
+            .unwrap();
+        store
+            .with_conn("test.seed_identity_state", |conn| {
+                conn.execute(
+                    "INSERT INTO server_identity_transition \
+                     (server_id, canonical_version, state, detected_at) \
+                     VALUES ('s1', 1, 'no_legacy_ids', 1)",
+                    [],
+                )?;
+                conn.execute(
+                    "INSERT INTO track_offline(server_id,track_id,local_path,cached_at) \
+                     VALUES ('s1',?1,'/offline/track.flac',1)",
+                    rusqlite::params![old],
+                )?;
+                Ok(())
+            })
+            .unwrap();
+        existing.id = new.clone();
+        existing.title = "canonical".into();
+        existing.synced_at = 2;
+
+        let subsonic = test_subsonic("http://127.0.0.1:1");
+        let runner = DeltaSyncRunner::new(
+            &store,
+            &subsonic,
+            "s1",
+            "",
+            flags(CapabilityFlags::UNSTABLE_TRACK_IDS),
+        );
+        let error = runner.write_batch(&[existing]).unwrap_err();
+
+        assert!(matches!(error, SyncError::IdentityTransition(_)));
+        store
+            .with_read_conn(|conn| {
+                let ids: Vec<String> = conn
+                    .prepare("SELECT id FROM track WHERE server_id = 's1' ORDER BY id")?
+                    .query_map([], |row| row.get(0))?
+                    .collect::<rusqlite::Result<Vec<_>>>()?;
+                assert_eq!(ids, vec![old.to_string()]);
+                let offline_id: String = conn.query_row(
+                    "SELECT track_id FROM track_offline WHERE server_id = 's1'",
+                    [],
+                    |row| row.get(0),
+                )?;
+                assert_eq!(offline_id, old);
+                let history_count: i64 =
+                    conn.query_row("SELECT COUNT(*) FROM track_id_history", [], |row| row.get(0))?;
+                assert_eq!(history_count, 0);
+                let remap: (String, i64) = conn.query_row(
+                    "SELECT new_id, active FROM entity_id_remap \
+                     WHERE server_id = 's1' AND entity_kind = 'track' AND old_id = ?1",
+                    rusqlite::params![old],
+                    |row| Ok((row.get(0)?, row.get(1)?)),
+                )?;
+                assert_eq!(remap, (new.clone(), 0));
+                Ok(())
+            })
+            .unwrap();
+        assert_eq!(
+            crate::navidrome_identity::transition_status(&store, "s1")
+                .unwrap()
+                .state,
+            "transition_detected"
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn delta_revalidates_namespace_before_ingest_without_remap_keys() {
+        let server = MockServer::start().await;
+        let old = "e3b7fc2ae9447bbec37a13bf916e3cf6";
+        let new = crate::navidrome_identity::canonical_id(old);
+        Mock::given(wm_method("GET"))
+            .and(wm_path("/rest/getArtists.view"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "subsonic-response": {
+                    "status": "ok",
+                    "artists": {
+                        "lastModified": 1_716_840_000_000_i64,
+                        "ignoredArticles": "",
+                        "index": []
+                    }
+                }
+            })))
+            .expect(0)
+            .mount(&server)
+            .await;
+        Mock::given(wm_method("GET"))
+            .and(wm_path("/rest/getSong.view"))
+            .and(query_param("id", old))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "subsonic-response": {
+                    "status": "failed",
+                    "error": { "code": 70, "message": "Song not found" }
+                }
+            })))
+            .expect(1)
+            .mount(&server)
+            .await;
+        Mock::given(wm_method("GET"))
+            .and(wm_path("/rest/getSong.view"))
+            .and(query_param("id", new.as_str()))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "subsonic-response": {
+                    "status": "ok",
+                    "song": { "id": new, "title": "Canonical" }
+                }
+            })))
+            .expect(1)
+            .mount(&server)
+            .await;
+        Mock::given(wm_method("GET"))
+            .and(wm_path("/api/song"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!([{
+                "id": new,
+                "title": "Canonical",
+                "updatedAt": "2024-06-03T00:00:00Z"
+            }])))
+            .expect(0)
+            .mount(&server)
+            .await;
+
+        let store = LibraryStore::open_in_memory();
+        seed_track(&store, old, "album", 1_000);
+        let subsonic = test_subsonic(&server.uri());
+        let error = DeltaSyncRunner::new(
+            &store,
+            &subsonic,
+            "s1",
+            "",
+            flags(
+                CapabilityFlags::NAVIDROME_NATIVE_BULK
+                    | CapabilityFlags::UNSTABLE_TRACK_IDS,
+            ),
+        )
+        .with_navidrome_credentials(NavidromeProbeCredentials {
+            server_url: server.uri(),
+            bearer_token: "nd-tok".into(),
+        })
+        .with_sleep_disabled()
+        .run()
+        .await
+        .unwrap_err();
+
+        assert!(matches!(error, SyncError::IdentityTransition(_)));
+        let ids = store
+            .with_read_conn(|conn| {
+                conn.prepare("SELECT id FROM track WHERE server_id = 's1' ORDER BY id")?
+                    .query_map([], |row| row.get::<_, String>(0))?
+                    .collect::<rusqlite::Result<Vec<_>>>()
+            })
+            .unwrap();
+        assert_eq!(ids, vec![old.to_string()]);
+        assert_eq!(
+            crate::navidrome_identity::transition_status(&store, "s1")
+                .unwrap()
+                .state,
+            "transition_detected"
+        );
+    }
+
     // ── DS-2: getArtists watermark match → short-circuit ─────────────
 
     #[tokio::test(flavor = "multi_thread")]
@@ -966,6 +1196,144 @@ mod tests {
             })
             .unwrap();
         assert_eq!(title, "Known changed");
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn s2_album_write_guard_catches_transition_after_preflight() {
+        let server = MockServer::start().await;
+        let old_album = "11112222333344445555666677778888";
+        let new_album = crate::navidrome_identity::canonical_id(old_album);
+        Mock::given(wm_method("GET"))
+            .and(wm_path("/rest/getArtists.view"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "subsonic-response": {
+                    "status": "ok",
+                    "artists": {
+                        "lastModified": 1_716_840_000_000_i64,
+                        "ignoredArticles": "",
+                        "index": []
+                    }
+                }
+            })))
+            .mount(&server)
+            .await;
+        Mock::given(wm_method("GET"))
+            .and(wm_path("/rest/getAlbumList2.view"))
+            .and(query_param("type", "newest"))
+            .and(query_param("offset", "0"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "subsonic-response": {
+                    "status": "ok",
+                    "albumList2": { "album": [{ "id": new_album, "name": "Canonical" }] }
+                }
+            })))
+            .mount(&server)
+            .await;
+        Mock::given(wm_method("GET"))
+            .and(wm_path("/rest/getAlbumList2.view"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "subsonic-response": { "status": "ok", "albumList2": { "album": [] } }
+            })))
+            .mount(&server)
+            .await;
+        Mock::given(wm_method("GET"))
+            .and(wm_path("/rest/getAlbum.view"))
+            .and(query_param("id", new_album.as_str()))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_delay(std::time::Duration::from_millis(250))
+                    .set_body_json(json!({
+                        "subsonic-response": {
+                            "status": "ok",
+                            "album": {
+                                "id": new_album,
+                                "name": "Canonical",
+                                "song": []
+                            }
+                        }
+                    })),
+            )
+            .mount(&server)
+            .await;
+
+        let store = Arc::new(LibraryStore::open_in_memory());
+        store
+            .with_conn_mut("test.seed_old_album", |conn| {
+                conn.execute(
+                    "INSERT INTO album(server_id,id,name,synced_at,raw_json) \
+                     VALUES ('s1',?1,'Legacy',1,'{}')",
+                    rusqlite::params![old_album],
+                )?;
+                conn.execute(
+                    "INSERT INTO server_identity_transition \
+                     (server_id, canonical_version, state, detected_at) \
+                     VALUES ('s1',?1,'no_legacy_ids',2)",
+                    rusqlite::params![crate::navidrome_identity::CANONICAL_ID_VERSION],
+                )?;
+                Ok(())
+            })
+            .unwrap();
+        let runner_store = Arc::clone(&store);
+        let client = test_subsonic(&server.uri());
+        let runner = tokio::spawn(async move {
+            DeltaSyncRunner::new(
+                &runner_store,
+                &client,
+                "s1",
+                "",
+                flags(CapabilityFlags::SUBSONIC_SEARCH3_BULK),
+            )
+            .with_sleep_disabled()
+            .run()
+            .await
+        });
+        tokio::time::timeout(std::time::Duration::from_secs(2), async {
+            loop {
+                let started = server
+                    .received_requests()
+                    .await
+                    .unwrap()
+                    .iter()
+                    .any(|request| request.url.path() == "/rest/getAlbum.view");
+                if started {
+                    break;
+                }
+                tokio::time::sleep(std::time::Duration::from_millis(5)).await;
+            }
+        })
+        .await
+        .unwrap();
+        store
+            .with_conn_mut("test.flip_identity_state", |conn| {
+                conn.execute(
+                    "INSERT INTO server_identity_transition \
+                     (server_id, canonical_version, state, detected_at) \
+                     VALUES ('s1',?1,'legacy',1) \
+                     ON CONFLICT(server_id) DO UPDATE SET state = 'legacy'",
+                    rusqlite::params![crate::navidrome_identity::CANONICAL_ID_VERSION],
+                )?;
+                Ok(())
+            })
+            .unwrap();
+        let error = runner.await.unwrap().unwrap_err();
+
+        assert!(matches!(error, SyncError::IdentityTransition(_)));
+        let canonical_exists = store
+            .with_read_conn(|conn| {
+                conn.query_row(
+                    "SELECT EXISTS(SELECT 1 FROM album WHERE server_id = 's1' AND id = ?1)",
+                    rusqlite::params![new_album],
+                    |row| row.get::<_, bool>(0),
+                )
+            })
+            .unwrap();
+        assert!(!canonical_exists);
+        assert_eq!(
+            crate::navidrome_identity::transition_status(&store, "s1")
+                .unwrap()
+                .state,
+            "transition_detected"
+        );
     }
 
     #[test]

@@ -16,6 +16,7 @@ import {
   cancelOfflineDownloads,
   clearOfflineCancel,
   deleteMediaFile,
+  probeMediaFiles,
   pruneEmptyMediaTierDirs,
 } from '@/lib/api/syncfs';
 import { resolveIndexKey, serverIndexKeyForProfile } from '@/lib/server/serverIndexKey';
@@ -28,6 +29,10 @@ import {
   findFavoriteAutoEntry,
   hasLocalLibraryBytes,
 } from '@/store/localPlaybackResolve';
+import {
+  canonicalIdentityGeneration,
+  canonicalIdentityGenerationChanged,
+} from '@/lib/server/navidromeCanonicalIds';
 
 const CONCURRENCY = 2;
 const DEBOUNCE_MS = 600;
@@ -36,6 +41,8 @@ let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 /** Accumulates server ids across debounced calls; `'all'` means fan-out to every server. */
 let pendingSyncServerIds: Set<string> | 'all' = new Set();
 let runToken = 0;
+let syncPauseDepth = 0;
+const serverRunTail = new Map<string, Promise<void>>();
 /** Rust cancellation key for the active favorites batch (`download_track_local`). */
 let activeFavoritesDownloadId: string | null = null;
 
@@ -50,21 +57,18 @@ function rustDownloadIdsForFavoritesJobs(): string[] {
 }
 
 /** Abort in-flight favorites transfers and invalidate the current JS batch loop. */
-function cancelInFlightFavoritesDownloads(): void {
+async function cancelInFlightFavoritesDownloads(): Promise<void> {
   runToken += 1;
   cancelledDownloads.add(FAVORITES_OFFLINE_JOB_ID);
   const downloadIds = rustDownloadIdsForFavoritesJobs();
-  if (downloadIds.length > 0) {
-    cancelOfflineDownloads({ downloadIds }).catch(() => {});
-    for (const id of downloadIds) {
-      clearOfflineCancel({ downloadId: id }).catch(() => {});
-    }
-  }
   activeFavoritesDownloadId = null;
   useOfflineJobStore.setState(state => ({
     jobs: state.jobs.filter(j => j.albumId !== FAVORITES_OFFLINE_JOB_ID),
   }));
   useFavoritesOfflineSyncStore.getState().setRunning(false);
+  if (downloadIds.length > 0) {
+    await cancelOfflineDownloads({ downloadIds }).catch(() => {});
+  }
 }
 
 function serverIndexKeyForSync(serverId: string): string {
@@ -110,8 +114,9 @@ export async function collectStarredSongs(serverId: string): Promise<SubsonicSon
       try {
         const local = await loadAlbumFromLibraryIndex(serverId, album.id);
         if (local) albumTrackLists.push(local.songs);
+        else throw new Error(`starred album unavailable: ${album.id}`);
       } catch {
-        // skip unavailable album
+        throw new Error(`starred album unavailable: ${album.id}`);
       }
     }
   }
@@ -128,13 +133,14 @@ export async function collectStarredSongs(serverId: string): Promise<SubsonicSon
           try {
             const local = await loadAlbumFromLibraryIndex(serverId, alb.id);
             if (local) artistAlbumTrackLists.push(local.songs);
+            else throw new Error(`starred artist album unavailable: ${alb.id}`);
           } catch {
-            // skip album
+            throw new Error(`starred artist album unavailable: ${alb.id}`);
           }
         }
       }
     } catch {
-      // skip unavailable artist
+      throw new Error(`starred artist unavailable: ${artist.id}`);
     }
   }
 
@@ -154,21 +160,35 @@ async function pruneOrphanFavoriteAuto(
   serverId: string,
   targetIds: Set<string>,
   mediaDir: string | null,
+  identityOwner: string,
+  identityGeneration: number,
+  isCurrent: () => boolean,
 ): Promise<void> {
   const lp = useLocalPlaybackStore.getState();
   for (const entry of Object.values(lp.entries)) {
+    if (!isCurrent()) return;
+    if (canonicalIdentityGenerationChanged(identityOwner, identityGeneration)) return;
     if (entry.tier !== 'favorite-auto') continue;
     if (!entryBelongsToServer(entry, serverId)) continue;
     if (targetIds.has(entry.trackId)) continue;
+    if (!isCurrent() || canonicalIdentityGenerationChanged(identityOwner, identityGeneration)) return;
     await deleteMediaFile({ localPath: entry.localPath, mediaDir }).catch(() => {});
-    lp.removeEntry(entry.trackId, entry.serverIndexKey, 'favorite-unstar-prune');
+    const [stillExists] = await probeMediaFiles({ localPaths: [entry.localPath] }).catch(() => [true]);
+    if (stillExists) continue;
+    const current = findFavoriteAutoEntry(entry.trackId, serverId);
+    if (current === entry) {
+      lp.removeEntry(current.trackId, current.serverIndexKey, 'favorite-unstar-prune');
+    }
+    if (!isCurrent() || canonicalIdentityGenerationChanged(identityOwner, identityGeneration)) return;
   }
+  if (!isCurrent() || canonicalIdentityGenerationChanged(identityOwner, identityGeneration)) return;
   await pruneEmptyMediaTierDirs({ tier: 'favorite-auto', mediaDir }).catch(() => {});
 }
 
 export async function disableFavoritesOfflineSync(): Promise<void> {
   useAuthStore.getState().setFavoritesOfflineEnabled(false);
-  cancelInFlightFavoritesDownloads();
+  await cancelInFlightFavoritesDownloads();
+  await Promise.allSettled([...serverRunTail.values()]);
   const mediaDir = getMediaDir();
   await useLocalPlaybackStore.getState().purgeFavoriteAutoDisk(mediaDir);
   useFavoritesOfflineSyncStore.getState().setTargetTrackIds([]);
@@ -176,9 +196,10 @@ export async function disableFavoritesOfflineSync(): Promise<void> {
 }
 
 export function scheduleFavoritesOfflineSync(serverId?: string): void {
+  if (syncPauseDepth > 0) return;
   if (!useAuthStore.getState().favoritesOfflineEnabled) return;
   if (!isActiveServerReachable()) return;
-  cancelInFlightFavoritesDownloads();
+  void cancelInFlightFavoritesDownloads();
   if (serverId) {
     if (pendingSyncServerIds !== 'all') {
       pendingSyncServerIds.add(serverId);
@@ -217,6 +238,7 @@ export function onFavoritesOfflineStarChange(
 }
 
 async function runFavoritesOfflineSyncBatch(serverIds: string[]): Promise<void> {
+  if (syncPauseDepth > 0) return;
   const auth = useAuthStore.getState();
   if (!auth.favoritesOfflineEnabled || serverIds.length === 0) return;
 
@@ -238,24 +260,51 @@ async function runFavoritesOfflineSyncBatch(serverIds: string[]): Promise<void> 
 }
 
 async function runFavoritesOfflineSyncOneServer(serverId: string, token: number): Promise<void> {
+  const previous = serverRunTail.get(serverId) ?? Promise.resolve();
+  const current = previous.catch(() => {}).then(() => runFavoritesOfflineSyncOneServerInner(serverId, token));
+  serverRunTail.set(serverId, current);
+  try {
+    await current;
+  } finally {
+    if (serverRunTail.get(serverId) === current) serverRunTail.delete(serverId);
+  }
+}
+
+async function runFavoritesOfflineSyncOneServerInner(serverId: string, token: number): Promise<void> {
+  if (syncPauseDepth > 0) return;
   const auth = useAuthStore.getState();
   if (!auth.favoritesOfflineEnabled) return;
   const syncStore = useFavoritesOfflineSyncStore.getState();
   const jobStore = useOfflineJobStore;
   const serverIndexKey = serverIndexKeyForSync(serverId);
+  const identityGeneration = canonicalIdentityGeneration(serverIndexKey);
   const libraryServerId = librarySqlScope(serverId);
   const mediaDir = getMediaDir();
   const albumName = i18n.t('favorites.offlineJobName');
+  let downloadId: string | null = null;
 
   try {
     const allSongs = await collectStarredSongs(serverId);
-    if (token !== runToken) return;
+    if (
+      token !== runToken
+      || canonicalIdentityGenerationChanged(serverIndexKey, identityGeneration)
+    ) return;
 
     const targetIds = new Set(allSongs.map(s => s.id));
     syncStore.setTargetTrackIds([...targetIds]);
 
-    await pruneOrphanFavoriteAuto(serverId, targetIds, mediaDir);
-    if (token !== runToken) return;
+    await pruneOrphanFavoriteAuto(
+      serverId,
+      targetIds,
+      mediaDir,
+      serverIndexKey,
+      identityGeneration,
+      () => token === runToken,
+    );
+    if (
+      token !== runToken
+      || canonicalIdentityGenerationChanged(serverIndexKey, identityGeneration)
+    ) return;
 
     await libraryUpsertSongsFromApi(libraryServerId, allSongs).catch(() => {});
 
@@ -270,8 +319,17 @@ async function runFavoritesOfflineSyncOneServer(serverId: string, token: number)
     if (token !== runToken) return;
 
     cancelledDownloads.delete(FAVORITES_OFFLINE_JOB_ID);
-    const downloadId = `favorites-${Date.now()}`;
-    activeFavoritesDownloadId = downloadId;
+    const currentDownloadId = `favorites-${Date.now()}`;
+    downloadId = currentDownloadId;
+    activeFavoritesDownloadId = currentDownloadId;
+
+    const abortStaleDownload = () => {
+      jobStore.setState(state => ({
+        jobs: state.jobs.filter(j => j.albumId !== FAVORITES_OFFLINE_JOB_ID),
+      }));
+      cancelOfflineDownloads({ downloadIds: [currentDownloadId] }).catch(() => {});
+      if (activeFavoritesDownloadId === currentDownloadId) activeFavoritesDownloadId = null;
+    };
 
     jobStore.setState(state => ({
       jobs: [
@@ -284,20 +342,19 @@ async function runFavoritesOfflineSyncOneServer(serverId: string, token: number)
           trackIndex: i,
           totalTracks: pending.length,
           status: 'queued' as const,
-          downloadId,
+          downloadId: currentDownloadId,
         })),
       ],
     }));
 
     for (let i = 0; i < pending.length; i += CONCURRENCY) {
-      if (token !== runToken || cancelledDownloads.has(FAVORITES_OFFLINE_JOB_ID)) {
+      if (
+        token !== runToken
+        || canonicalIdentityGenerationChanged(serverIndexKey, identityGeneration)
+        || cancelledDownloads.has(FAVORITES_OFFLINE_JOB_ID)
+      ) {
         cancelledDownloads.delete(FAVORITES_OFFLINE_JOB_ID);
-        jobStore.setState(state => ({
-          jobs: state.jobs.filter(j => j.albumId !== FAVORITES_OFFLINE_JOB_ID),
-        }));
-        cancelOfflineDownloads({ downloadIds: [downloadId] }).catch(() => {});
-        clearOfflineCancel({ downloadId }).catch(() => {});
-        activeFavoritesDownloadId = null;
+        abortStaleDownload();
         return;
       }
 
@@ -344,11 +401,12 @@ async function runFavoritesOfflineSyncOneServer(serverId: string, token: number)
                 url: buildOriginalStreamUrlForServer(serverId, song.id),
                 suffix,
                 mediaDir,
-                downloadId,
+                downloadId: currentDownloadId,
               },
             );
             if (
               token !== runToken
+              || canonicalIdentityGenerationChanged(serverIndexKey, identityGeneration)
               || cancelledDownloads.has(FAVORITES_OFFLINE_JOB_ID)
               || !targetIds.has(song.id)
             ) {
@@ -386,6 +444,10 @@ async function runFavoritesOfflineSyncOneServer(serverId: string, token: number)
           }),
         }));
       });
+      if (canonicalIdentityGenerationChanged(serverIndexKey, identityGeneration)) {
+        abortStaleDownload();
+        return;
+      }
     }
 
     if (token === runToken) {
@@ -394,10 +456,6 @@ async function runFavoritesOfflineSyncOneServer(serverId: string, token: number)
           j => j.albumId !== FAVORITES_OFFLINE_JOB_ID || (j.status !== 'done' && j.status !== 'error'),
         ),
       }));
-      if (activeFavoritesDownloadId === downloadId) {
-        clearOfflineCancel({ downloadId }).catch(() => {});
-        activeFavoritesDownloadId = null;
-      }
       await pruneEmptyMediaTierDirs({ tier: 'favorite-auto', mediaDir }).catch(() => {});
     }
   } catch (err) {
@@ -405,7 +463,29 @@ async function runFavoritesOfflineSyncOneServer(serverId: string, token: number)
       const msg = err instanceof Error ? err.message : String(err);
       syncStore.setLastError(msg);
     }
+  } finally {
+    if (downloadId) {
+      clearOfflineCancel({ downloadId }).catch(() => {});
+      if (activeFavoritesDownloadId === downloadId) activeFavoritesDownloadId = null;
+    }
   }
+}
+
+export async function pauseAndDrainFavoritesOfflineSync(): Promise<void> {
+  syncPauseDepth += 1;
+  if (syncPauseDepth > 1) return;
+  if (debounceTimer) clearTimeout(debounceTimer);
+  debounceTimer = null;
+  pendingSyncServerIds = new Set();
+  await cancelInFlightFavoritesDownloads();
+  await Promise.allSettled([...serverRunTail.values()]);
+}
+
+export function resumeFavoritesOfflineSync(): void {
+  if (syncPauseDepth === 0) return;
+  syncPauseDepth -= 1;
+  if (syncPauseDepth > 0) return;
+  scheduleFavoritesOfflineSync();
 }
 
 /** Run an initial sync when the setting is enabled (app start / server change). */

@@ -32,6 +32,10 @@ import { analysisTrackRef } from '@/features/playback/store/analysisTrackRef';
 import { stopRadio } from '@/features/playback/store/radioPlayer';
 import { clearAllPlaybackScheduleTimers } from '@/features/playback/store/scheduleTimers';
 import { syncUserQueueMutationToServer } from '@/features/playback/store/queueSync';
+import {
+  canonicalizePlaybackTrack,
+  canonicalizeQueueItemRef,
+} from '@/features/playback/store/queueItemRef';
 
 type SetState = (
   partial: Partial<PlayerState> | ((state: PlayerState) => Partial<PlayerState>),
@@ -69,10 +73,12 @@ export function applyQueueHistorySnapshot(
   // this resolved `nextQueue` is only for the engine restore / normalization /
   // prepend logic below. The playing track is restored separately from the full
   // `snap.currentTrack`.
-  let nextQueue = snap.queueItems.map(ref => resolveQueueTrack(ref));
-  let nextItems: QueueItemRef[] = [...snap.queueItems];
+  let nextItems: QueueItemRef[] = snap.queueItems.map(canonicalizeQueueItemRef);
+  let nextQueue = nextItems.map(ref => canonicalizePlaybackTrack(resolveQueueTrack(ref), ref.serverId));
   let nextIndex = snap.queueIndex;
-  let nextTrack = snap.currentTrack ? { ...snap.currentTrack } : null;
+  let nextTrack = snap.currentTrack
+    ? canonicalizePlaybackTrack({ ...snap.currentTrack }, nextItems[snap.queueIndex]?.serverId ?? '')
+    : null;
 
   if (snap.currentTrack == null && prior.currentTrack) {
     const playing = prior.currentTrack;
@@ -91,15 +97,16 @@ export function applyQueueHistorySnapshot(
         ?? get().queueServerId
         ?? '';
       const prependServerId = canonicalQueueServerKey(snapshotSid);
-      nextQueue = [{ ...playing }, ...nextQueue];
+      const activePlaying = canonicalizePlaybackTrack(playing, prependServerId);
+      nextQueue = [activePlaying, ...nextQueue];
       nextItems = [
-        { serverId: prependServerId, trackId: playing.id },
+        canonicalizeQueueItemRef({ serverId: prependServerId, trackId: activePlaying.id }),
         ...nextItems,
       ];
       nextIndex = 0;
-      nextTrack = { ...playing };
+      nextTrack = activePlaying;
     } else {
-      nextTrack = { ...playing };
+      nextTrack = canonicalizePlaybackTrack(playing, nextItems[pos]?.serverId ?? '');
       nextIndex = pos;
     }
   }
@@ -122,7 +129,7 @@ export function applyQueueHistorySnapshot(
       const idxPrior = nextItems.findIndex(ref => queueItemRefMatchesTrack(ref, playingKeep));
       if (idxPrior >= 0) {
         nextIndex = idxPrior;
-        nextTrack = { ...playingKeep };
+        nextTrack = canonicalizePlaybackTrack(playingKeep, nextItems[idxPrior]?.serverId ?? '');
       }
     }
   }

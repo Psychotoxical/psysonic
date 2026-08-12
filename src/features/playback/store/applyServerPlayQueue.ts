@@ -2,7 +2,10 @@ import { getPlayQueueForServer, type PlayQueueResult } from '@/lib/api/subsonicP
 import { songToTrack } from '@/lib/media/songToTrack';
 import { bindQueueServerId, queueIsMultiServer } from '@/features/playback/utils/playback/playbackServer';
 import { resolveServerIdForIndexKey } from '@/lib/server/serverLookup';
-import { toQueueItemRefs } from '@/features/playback/store/queueItemRef';
+import {
+  canonicalizePlaybackTrack,
+  toQueueItemRefs,
+} from '@/features/playback/store/queueItemRef';
 import { seedQueueResolver } from '@/features/playback/store/queueTrackResolver';
 import { profileIdFromQueueRef } from '@/lib/media/trackServerScope';
 import type { QueueItemRef, Track } from '@/lib/media/trackTypes';
@@ -23,6 +26,7 @@ import {
 } from '@/features/playback/store/queuePlaybackIdle';
 import { clearQueueHandoffPending } from '@/features/playback/store/queueSyncUiState';
 import { sameQueueTrack } from '@/features/playback/utils/playback/queueIdentity';
+import { canonicalizeConfirmedNavidromeId } from '@/lib/server/navidromeCanonicalIds';
 
 export type ApplyPlayQueueMode = 'startup' | 'idle' | 'manual';
 
@@ -91,11 +95,13 @@ export function applyMappedQueue(
   preferServerPosition: boolean,
   localTimeFallback: number,
 ): void {
+  mappedTracks = mappedTracks.map(track => canonicalizePlaybackTrack(track, serverProfileId));
   let currentTrack = mappedTracks[0];
   let queueIndex = 0;
 
   if (q.current) {
-    const idx = mappedTracks.findIndex(t => t.id === q.current);
+    const currentId = canonicalizeConfirmedNavidromeId(serverProfileId, q.current);
+    const idx = mappedTracks.findIndex(t => t.id === currentId);
     if (idx >= 0) {
       currentTrack = mappedTracks[idx];
       queueIndex = idx;
@@ -178,6 +184,7 @@ export function applyMappedQueueProjection(
   serverProfileId: string,
   preserveLocalSurplus = true,
 ): void {
+  mappedTracks = mappedTracks.map(track => canonicalizePlaybackTrack(track, serverProfileId));
   seedQueueResolver(serverProfileId, mappedTracks);
   const remoteRefs = toQueueItemRefs(serverProfileId, mappedTracks);
   const player = usePlayerStore.getState();
@@ -204,7 +211,9 @@ export function applyMappedQueueProjection(
     return;
   }
 
-  const currentId = q.current ?? mappedTracks[0]?.id;
+  const currentId = q.current
+    ? canonicalizeConfirmedNavidromeId(serverProfileId, q.current)
+    : mappedTracks[0]?.id;
   const remoteIndex = mappedTracks.findIndex(track => track.id === currentId);
   const currentTrack = mappedTracks[remoteIndex >= 0 ? remoteIndex : 0];
   if (!currentTrack) {

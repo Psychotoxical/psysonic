@@ -1217,10 +1217,12 @@ pub fn library_identity_transition_status(
 
 #[tauri::command]
 #[specta::specta]
-pub fn library_identity_transition_ack(
+pub async fn library_identity_transition_ack(
     runtime: State<'_, LibraryRuntime>,
     server_id: String,
 ) -> Result<(), String> {
+    let lock = crate::navidrome_identity::transition_probe_lock(&server_id);
+    let _transition_guard = lock.lock().await;
     crate::navidrome_identity::acknowledge_frontend(&runtime.store, &server_id)
 }
 
@@ -1277,6 +1279,8 @@ async fn run_identity_native_migration(
     let _barrier = runtime
         .cancel_and_drain_sync(None, Some(&server_id))
         .await?;
+    let lock = crate::navidrome_identity::transition_probe_lock(&server_id);
+    let _transition_guard = lock.lock().await;
     let _identity_guard = runtime.identity_migration_guard().await;
     let store = Arc::clone(&runtime.store);
     let server_id_for_worker = server_id.clone();
@@ -1449,7 +1453,6 @@ async fn library_sync_start_inner(
     let session = runtime.get_session(&server_id).ok_or_else(|| {
         format!("no bound session for server `{server_id}` — call library_sync_bind_session first")
     })?;
-    crate::navidrome_identity::assert_sync_ready(&runtime.store, &server_id)?;
     let scope = library_scope
         .clone()
         .or(session.library_scope.clone())
@@ -1983,6 +1986,8 @@ pub async fn library_purge_server(
     let _barrier = runtime
         .cancel_and_drain_sync(None, Some(&server_id))
         .await?;
+    let transition_lock = crate::navidrome_identity::transition_probe_lock(&server_id);
+    let _transition_guard = transition_lock.lock().await;
     runtime.clear_session(&server_id);
     purge_server_data(&runtime, &server_id, include_offline)
 }
@@ -2103,6 +2108,7 @@ fn purge_server_data(
                 "DELETE FROM server_identity_transition WHERE server_id = ?1",
                 params![server_id],
             )?;
+            crate::navidrome_identity::delete_inactive_alias_baseline_markers(&tx, server_id)?;
             tx.execute("DELETE FROM track WHERE server_id = ?1", params![server_id])?;
             tx.execute("DELETE FROM album WHERE server_id = ?1", params![server_id])?;
             tx.execute(

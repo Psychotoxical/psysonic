@@ -15,7 +15,10 @@ import { analysisTrackRefForTrack } from '@/features/playback/store/analysisTrac
 import { getPlaybackProgressSnapshot } from '@/features/playback/store/playbackProgress';
 import { shouldRebindPlaybackToHotCache } from '@/features/playback/store/playbackUrlRouting';
 import type { PlayerState } from '@/features/playback/store/playerStoreTypes';
-import { toQueueItemRefs } from '@/features/playback/store/queueItemRef';
+import {
+  canonicalizePlaybackTrack,
+  toQueueItemRefs,
+} from '@/features/playback/store/queueItemRef';
 import { resolveQueueTrack } from '@/features/playback/store/queueTrackView';
 import { seedQueueResolver } from '@/features/playback/store/queueTrackResolver';
 import { pushQueueUndoFromGetter } from '@/features/playback/store/queueUndo';
@@ -177,6 +180,7 @@ export function createMiscActions(set: SetState, get: GetState): Pick<
     },
 
     reseedQueueForInstantMix: (track) => {
+      track = canonicalizePlaybackTrack(track, get().queueServerId ?? '');
       const s = get();
       if (!sameQueueTrack(s.currentTrack, track)) {
         get().playTrack(track, [track]);

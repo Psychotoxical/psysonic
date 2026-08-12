@@ -10,6 +10,7 @@ import {
   indexKeyBelongsToServer,
 } from '@/store/localPlaybackResolve';
 import { resolveOfflineAlbumMeta } from '@/features/offline/utils/offlineLibraryHelpers';
+import { canonicalizeConfirmedNavidromeId } from '@/lib/server/navidromeCanonicalIds';
 
 function listPlaylistPinnedGroupsForServer(serverId: string): PinnedGroup[] {
   return useLocalPlaybackStore.getState()
@@ -77,7 +78,8 @@ export async function loadOfflineBrowsablePlaylist(
   serverId: string,
 ): Promise<{ playlist: SubsonicPlaylist; songs: SubsonicSong[] } | null> {
   const group = listPlaylistPinnedGroupsForServer(serverId)
-    .find(g => g.pinSource.sourceId === playlistId);
+    .find(g => canonicalizeConfirmedNavidromeId(g.serverIndexKey, g.pinSource.sourceId)
+      === canonicalizeConfirmedNavidromeId(g.serverIndexKey, playlistId));
   if (!group) return null;
   if (!isManualOfflinePlaylist(playlistId, serverId, group.pinSource.displayName)) return null;
 

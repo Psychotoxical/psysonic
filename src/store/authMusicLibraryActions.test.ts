@@ -2,6 +2,14 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { useAuthStore } from '@/store/authStore';
 import { resetAuthStore } from '@/test/helpers/storeReset';
 import { flushMusicLibraryFilterVersionBumpForTests } from '@/store/musicLibraryFilterNotify';
+import {
+  activateCanonicalNavidromeOwners,
+  canonicalizeNavidromeId,
+  deactivateCanonicalNavidromeOwners,
+} from '@/lib/server/navidromeCanonicalIds';
+
+const LEGACY_FOLDER = 'f47ac10b-58cc-4372-a567-0e02b2c3d479';
+const CANONICAL_FOLDER = canonicalizeNavidromeId(LEGACY_FOLDER);
 
 function setUpActiveServer(): string {
   const id = useAuthStore.getState().addServer({
@@ -134,5 +142,25 @@ describe('Library browse scope', () => {
     expect(useAuthStore.getState().libraryBrowseSelectionByServer[serverId]).toEqual(['two']);
     useAuthStore.getState().setLibraryBrowseSelectionForServer(serverId, ['two', 'one']);
     expect(useAuthStore.getState().libraryBrowseSelectionByServer[serverId]).toEqual([]);
+  });
+
+  it('canonicalizes stale folder selection and filter callbacks after owner activation', () => {
+    const serverId = setUpActiveServer();
+    activateCanonicalNavidromeOwners([serverId, 'music.example.com']);
+    useAuthStore.getState().setMusicFoldersForServer(serverId, [
+      { id: LEGACY_FOLDER, name: 'Music' },
+      { id: 'other', name: 'Other' },
+    ]);
+
+    useAuthStore.getState().setLibraryBrowseSelectionForServer(serverId, [LEGACY_FOLDER]);
+    expect(useAuthStore.getState().libraryBrowseSelectionByServer[serverId]).toEqual([CANONICAL_FOLDER]);
+
+    useAuthStore.getState().setMusicLibraryFilter(LEGACY_FOLDER);
+    expect(useAuthStore.getState().musicLibraryFilterByServer[serverId]).toBe(CANONICAL_FOLDER);
+    expect(useAuthStore.getState().musicLibrarySelectionByServer[serverId]).toEqual([CANONICAL_FOLDER]);
+
+    useAuthStore.getState().setMusicLibrarySelection([LEGACY_FOLDER]);
+    expect(useAuthStore.getState().musicLibrarySelectionByServer[serverId]).toEqual([CANONICAL_FOLDER]);
+    deactivateCanonicalNavidromeOwners([serverId, 'music.example.com']);
   });
 });

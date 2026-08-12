@@ -26,6 +26,10 @@ type LocalQueueSnapshot = {
 
 export type StartupQueueReconcileResult = 'applied' | 'kept-local';
 
+type StartupQueueReconcileOptions = {
+  shouldAbort?: () => boolean;
+};
+
 function structuralQueueEqual(a: StructuralQueue, b: StructuralQueue): boolean {
   if (a.currentId !== b.currentId || a.trackIds.length !== b.trackIds.length) return false;
   return a.trackIds.every((id, index) => id === b.trackIds[index]);
@@ -79,14 +83,25 @@ function localSnapshotStillCurrent(snapshot: LocalQueueSnapshot): boolean {
   });
 }
 
+function selectedServerScope(): string[] {
+  return [...new Set(useAuthStore.getState().libraryBrowseServerIds.filter(Boolean))];
+}
+
+function sameServerScope(a: readonly string[], b: readonly string[]): boolean {
+  return a.length === b.length && a.every((serverId, index) => serverId === b[index]);
+}
+
 /**
  * Preserve the persisted mixed queue unless exactly one selected server has a
  * structurally different, non-empty remote queue. Position is intentionally
  * ignored because local playback position is not persisted in the queue blob.
  */
-export async function reconcileStartupPlayQueues(): Promise<StartupQueueReconcileResult> {
-  const selectedServerIds = [...new Set(useAuthStore.getState().libraryBrowseServerIds.filter(Boolean))];
+export async function reconcileStartupPlayQueues(
+  options: StartupQueueReconcileOptions = {},
+): Promise<StartupQueueReconcileResult> {
+  const selectedServerIds = selectedServerScope();
   if (selectedServerIds.length === 0) return 'kept-local';
+  if (options.shouldAbort?.()) return 'kept-local';
 
   const snapshot = takeLocalSnapshot();
   if (snapshot.currentRadioId) return 'kept-local';
@@ -100,6 +115,8 @@ export async function reconcileStartupPlayQueues(): Promise<StartupQueueReconcil
     serverId,
     queue: await fetchPlayQueueForServer(serverId),
   })));
+  if (options.shouldAbort?.()) return 'kept-local';
+  if (!sameServerScope(selectedServerIds, selectedServerScope())) return 'kept-local';
   if (settled.some(result => result.status === 'rejected')) return 'kept-local';
   if (!localSnapshotStillCurrent(snapshot)) return 'kept-local';
 
@@ -116,6 +133,9 @@ export async function reconcileStartupPlayQueues(): Promise<StartupQueueReconcil
   if (changed.length !== 1 || changed[0].queue.songs.length === 0) return 'kept-local';
   const [{ serverId, queue }] = changed;
   const mappedTracks = queue.songs.map(song => ({ ...songToTrack(song), serverId }));
+  if (options.shouldAbort?.()) return 'kept-local';
+  if (!sameServerScope(selectedServerIds, selectedServerScope())) return 'kept-local';
+  if (!localSnapshotStillCurrent(snapshot)) return 'kept-local';
   if (representedServerIds.size > 1) {
     applyMappedQueueProjection(mappedTracks, queue, serverId);
   } else {

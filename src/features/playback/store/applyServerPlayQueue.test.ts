@@ -1,17 +1,36 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+vi.mock('@/features/playback/store/pausedRestorePrepare', () => ({
+  preparePausedRestoreOnStartup: vi.fn(),
+}));
 import {
   applyMappedQueueProjection,
   fingerprintFromLocalQueue,
   fingerprintFromServer,
   mergeQueueServerProjection,
   playQueueFingerprintsEqual,
+  applyMappedQueue,
 } from '@/features/playback/store/applyServerPlayQueue';
 import { usePlayerStore } from '@/features/playback/store/playerStore';
 import { resetPlayerStore } from '@/test/helpers/storeReset';
+import { useAuthStore } from '@/store/authStore';
+import {
+  activateCanonicalNavidromeOwners,
+  canonicalizeNavidromeId,
+  deactivateCanonicalNavidromeOwners,
+} from '@/lib/server/navidromeCanonicalIds';
+
+const LEGACY_TRACK = 'e3b7fc2ae9447bbec37a13bf916e3cf6';
+const LEGACY_ALBUM = 'f47ac10b-58cc-4372-a567-0e02b2c3d479';
 
 describe('playQueueFingerprintsEqual', () => {
   beforeEach(() => {
+    deactivateCanonicalNavidromeOwners(['srv-a', 'a.test']);
     resetPlayerStore();
+    useAuthStore.setState({
+      servers: [{ id: 'srv-a', name: 'A', url: 'https://a.test', username: 'u', password: 'p' }],
+      activeServerId: 'srv-a',
+    });
   });
 
   it('compares track order, current id, and position within tolerance', () => {
@@ -43,6 +62,57 @@ describe('playQueueFingerprintsEqual', () => {
       trackIds: ['a', 'b'],
       currentId: 'b',
       positionMs: 1200,
+    });
+  });
+});
+
+describe('applyMappedQueue identity boundary', () => {
+  beforeEach(() => {
+    deactivateCanonicalNavidromeOwners(['srv-a', 'a.test']);
+    resetPlayerStore();
+    useAuthStore.setState({
+      servers: [{ id: 'srv-a', name: 'A', url: 'https://a.test', username: 'u', password: 'p' }],
+      activeServerId: 'srv-a',
+    });
+  });
+
+  it('does not persist a stale server response after canonical activation', () => {
+    activateCanonicalNavidromeOwners(['srv-a', 'a.test']);
+    applyMappedQueue(
+      [
+        {
+          id: 'first',
+          title: 'First',
+          artist: 'Artist',
+          album: 'Album',
+          albumId: 'first-album',
+          duration: 60,
+          serverId: 'srv-a',
+        },
+        {
+          id: LEGACY_TRACK,
+          title: 'Track',
+          artist: 'Artist',
+          album: 'Album',
+          albumId: LEGACY_ALBUM,
+          duration: 60,
+          serverId: 'srv-a',
+        },
+      ],
+      { songs: [] as never, current: LEGACY_TRACK, position: 0 },
+      'srv-a',
+      true,
+      0,
+    );
+
+    expect(usePlayerStore.getState().queueItems).toEqual([
+      { serverId: 'a.test', trackId: 'first' },
+      { serverId: 'a.test', trackId: canonicalizeNavidromeId(LEGACY_TRACK) },
+    ]);
+    expect(usePlayerStore.getState().queueIndex).toBe(1);
+    expect(usePlayerStore.getState().currentTrack).toMatchObject({
+      id: canonicalizeNavidromeId(LEGACY_TRACK),
+      albumId: canonicalizeNavidromeId(LEGACY_ALBUM),
     });
   });
 });

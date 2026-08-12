@@ -217,10 +217,14 @@ export function similarSongsRequestCount(desired: number, serverId?: string): nu
 }
 
 export async function getRandomSongs(size = 50, genre?: string, timeout = 15000): Promise<SubsonicSong[]> {
+  const ownerServerId = useAuthStore.getState().activeServerId;
   const params: Record<string, string | number> = { size, _t: Date.now(), ...libraryFilterParams() };
   if (genre) params.genre = genre;
   const data = await api<{ randomSongs: { song: SubsonicSong[] } }>('getRandomSongs.view', params, timeout);
-  return data.randomSongs?.song ?? [];
+  const songs = data.randomSongs?.song ?? [];
+  if (!ownerServerId) return songs;
+  const ownerServerKey = resolveIndexKey(ownerServerId);
+  return songs.map(song => ({ ...song, serverId: ownerServerKey }));
 }
 
 export async function getRandomSongsForServer(
@@ -268,6 +272,7 @@ export async function getRandomSongsFiltered(
   filters: RandomSongsFilters,
   timeout = 15000,
 ): Promise<SubsonicSong[]> {
+  const ownerServerId = useAuthStore.getState().activeServerId;
   const params: Record<string, string | number> = {
     size: filters.size ?? 50,
     _t: Date.now(),
@@ -277,7 +282,10 @@ export async function getRandomSongsFiltered(
   if (typeof filters.fromYear === 'number') params.fromYear = filters.fromYear;
   if (typeof filters.toYear === 'number') params.toYear = filters.toYear;
   const data = await api<{ randomSongs: { song: SubsonicSong[] } }>('getRandomSongs.view', params, timeout);
-  return data.randomSongs?.song ?? [];
+  const songs = data.randomSongs?.song ?? [];
+  if (!ownerServerId) return songs;
+  const ownerServerKey = resolveIndexKey(ownerServerId);
+  return songs.map(song => ({ ...song, serverId: ownerServerKey }));
 }
 
 export async function getAlbumListForServer(

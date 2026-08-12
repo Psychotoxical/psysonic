@@ -151,6 +151,31 @@ describe('resumeInitialSyncIfIncomplete', () => {
     expect(passwords).toEqual(['password', 'new-password']);
   });
 
+  it('completes pending frontend identity recovery before an offline reachability result', async () => {
+    sessionMocks.ensureConnectUrlResolved.mockResolvedValue({
+      ok: false,
+      endpoint: null,
+      ping: { ok: false },
+    });
+    const status = vi.fn(() => ({
+      serverId: 'music.test/rest',
+      state: 'pending_frontend',
+      canonicalVersion: 1,
+      probeOldId: null,
+      probeNewId: null,
+      lastError: null,
+    }));
+    const ack = vi.fn(() => undefined);
+    onInvoke('library_identity_transition_status', status);
+    onInvoke('analysis_delete_all_for_server', () => undefined);
+    onInvoke('library_identity_transition_ack', ack);
+
+    await expect(bootstrapIndexedServer(server)).resolves.toBe('offline');
+
+    expect(status).toHaveBeenCalled();
+    expect(ack).toHaveBeenCalledWith(expect.objectContaining({ serverId: 'music.test/rest' }));
+  });
+
   it('resumes when initial sync was interrupted mid-run', async () => {
     onInvoke('library_get_status', () => status({ syncPhase: 'initial_sync' }));
     const start = mockQueuedStart();

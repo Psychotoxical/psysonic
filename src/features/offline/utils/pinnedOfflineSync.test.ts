@@ -13,8 +13,15 @@ import {
   scheduleSyncPinnedAlbumsAndArtists,
   syncAllPinnedPlaylists,
   syncPinnedArtistIfNeeded,
+  syncPinnedSourceIfNeeded,
+  initPinnedOfflineSync,
 } from '@/features/offline/utils/pinnedOfflineSync';
 import { SMART_PREFIX } from '@/lib/format/playlistDetailHelpers';
+import {
+  activateCanonicalNavidromeOwners,
+  canonicalizeNavidromeId,
+  deactivateCanonicalNavidromeOwners,
+} from '@/lib/server/navidromeCanonicalIds';
 
 const getPlaylistMock = vi.fn();
 const getAlbumForServerMock = vi.fn();
@@ -23,6 +30,7 @@ const filterSongsMock = vi.fn(async (songs: SubsonicSong[]) => songs);
 const isReachableMock = vi.fn(() => true);
 const enqueueMock = vi.fn((_task: unknown) => true);
 const invokeMock = vi.fn(async (_cmd: string, _args?: unknown) => ({}));
+const subscribeLibrarySyncIdleMock = vi.fn();
 
 vi.mock('@/lib/network/activeServerReachability', () => ({
   isActiveServerReachable: () => isReachableMock(),
@@ -44,7 +52,7 @@ vi.mock('@/lib/api/subsonicArtists', () => ({
 
 vi.mock('@/lib/api/library', () => ({
   libraryGetTracksByAlbum: vi.fn(async () => []),
-  subscribeLibrarySyncIdle: vi.fn(async () => () => {}),
+  subscribeLibrarySyncIdle: (listener: unknown) => subscribeLibrarySyncIdleMock(listener),
 }));
 
 vi.mock('@/features/offline/utils/offlinePinQueue', async (importOriginal) => {
@@ -56,7 +64,9 @@ vi.mock('@/features/offline/utils/offlinePinQueue', async (importOriginal) => {
 });
 
 vi.mock('@tauri-apps/api/core', () => ({
-  invoke: (cmd: string, args?: unknown) => invokeMock(cmd, args),
+  invoke: (cmd: string, args?: unknown) => (
+    cmd === 'probe_media_files' ? Promise.resolve([false]) : invokeMock(cmd, args)
+  ),
 }));
 
 function song(id: string): SubsonicSong {
@@ -76,6 +86,67 @@ function seedAuth(): void {
     servers: [{ id: 'srv-a', name: 'A', url: 'https://a.test', username: 'u', password: 'p' }],
   });
 }
+
+beforeEach(() => {
+  deactivateCanonicalNavidromeOwners(['srv-a', 'a.test']);
+  subscribeLibrarySyncIdleMock.mockReset().mockResolvedValue(() => {});
+});
+
+describe('initPinnedOfflineSync', () => {
+  it('unsubscribes a delayed listener that resolves after cleanup', async () => {
+    let resolveSubscribe!: (unlisten: () => void) => void;
+    const unlisten = vi.fn();
+    subscribeLibrarySyncIdleMock.mockImplementation(() => new Promise(resolve => {
+      resolveSubscribe = resolve;
+    }));
+
+    const cleanup = initPinnedOfflineSync();
+    cleanup();
+    resolveSubscribe(unlisten);
+    await Promise.resolve();
+
+    expect(unlisten).toHaveBeenCalledOnce();
+  });
+
+  it('does not revive stale source work after cleanup and reinitialization', async () => {
+    useOfflineStore.setState({
+      albums: {
+        'a.test:al-1': {
+          id: 'al-1', serverId: 'a.test', name: 'Album', artist: 'Artist',
+          trackIds: [], type: 'album',
+        },
+      },
+    });
+    useLocalPlaybackStore.setState({ entries: {} });
+    seedAuth();
+    let resolveOld!: (value: {
+      album: { id: string; name: string; artist: string };
+      songs: SubsonicSong[];
+    }) => void;
+    getAlbumForServerMock
+      .mockImplementationOnce(() => new Promise(resolve => { resolveOld = resolve; }))
+      .mockResolvedValueOnce({
+        album: { id: 'al-1', name: 'New', artist: 'Artist' },
+        songs: [song('t-new')],
+      });
+
+    const cleanup = initPinnedOfflineSync();
+    const oldRun = syncPinnedSourceIfNeeded('al-1', 'srv-a', 'album');
+    cleanup();
+    const cleanupNew = initPinnedOfflineSync();
+    await syncPinnedSourceIfNeeded('al-1', 'srv-a', 'album');
+    resolveOld({
+      album: { id: 'al-1', name: 'Old', artist: 'Artist' },
+      songs: [song('t-old')],
+    });
+    await oldRun;
+    cleanupNew();
+
+    expect(useOfflineStore.getState().albums['a.test:al-1']).toMatchObject({
+      name: 'New', trackIds: ['t-new'],
+    });
+  });
+});
 
 describe('isPlaylistPinnedOffline', () => {
   beforeEach(() => {
@@ -306,6 +377,309 @@ describe('schedulePinnedAlbumSync', () => {
       }),
     );
     expect(useOfflineStore.getState().albums['a.test:al-1']?.trackIds).toEqual(['t2']);
+  });
+
+  it('canonicalizes a stale sync response after ACK before metadata and queue writes', async () => {
+    const legacyAlbumId = 'f47ac10b-58cc-4372-a567-0e02b2c3d479';
+    const legacyTrackId = 'e3b7fc2ae9447bbec37a13bf916e3cf6';
+    const legacyCoverId = '00112233-4455-6677-8899-aabbccddeeff';
+    const canonicalAlbumId = canonicalizeNavidromeId(legacyAlbumId);
+    const canonicalTrackId = canonicalizeNavidromeId(legacyTrackId);
+    const canonicalCoverId = canonicalizeNavidromeId(legacyCoverId);
+    let resolveAlbum!: (value: {
+      album: { id: string; name: string; artist: string; coverArt: string };
+      songs: SubsonicSong[];
+    }) => void;
+    getAlbumForServerMock.mockImplementation(() => new Promise(resolve => {
+      resolveAlbum = resolve;
+    }));
+    useOfflineStore.setState({
+      albums: {
+        [`a.test:${legacyAlbumId}`]: {
+          id: legacyAlbumId,
+          serverId: 'a.test',
+          name: 'Album',
+          artist: 'Artist',
+          trackIds: [legacyTrackId],
+          type: 'album',
+        },
+      },
+    });
+
+    const sync = syncPinnedSourceIfNeeded(legacyAlbumId, 'srv-a', 'album');
+    await vi.waitFor(() => expect(getAlbumForServerMock).toHaveBeenCalled());
+
+    activateCanonicalNavidromeOwners(['srv-a', 'a.test']);
+    useOfflineStore.setState({
+      albums: {
+        [`a.test:${canonicalAlbumId}`]: {
+          id: canonicalAlbumId,
+          serverId: 'a.test',
+          name: 'Album',
+          artist: 'Artist',
+          coverArt: canonicalCoverId,
+          trackIds: [canonicalTrackId],
+          type: 'album',
+        },
+      },
+    });
+    resolveAlbum({
+      album: { id: legacyAlbumId, name: 'Album', artist: 'Artist', coverArt: legacyCoverId },
+      songs: [{
+        ...song(legacyTrackId),
+        albumId: legacyAlbumId,
+        coverArt: legacyCoverId,
+      }],
+    });
+    await sync;
+
+    expect(useOfflineStore.getState().albums).toEqual({
+      [`a.test:${canonicalAlbumId}`]: expect.objectContaining({
+        id: canonicalAlbumId,
+        coverArt: canonicalCoverId,
+        trackIds: [canonicalTrackId],
+      }),
+    });
+    expect(enqueueMock).toHaveBeenCalledWith(expect.objectContaining({
+      albumId: canonicalAlbumId,
+      coverArt: canonicalCoverId,
+      songs: [expect.objectContaining({
+        id: canonicalTrackId,
+        albumId: canonicalAlbumId,
+        coverArt: canonicalCoverId,
+      })],
+    }));
+    deactivateCanonicalNavidromeOwners(['srv-a', 'a.test']);
+  });
+
+  it('does not prune canonical pin bytes from a response started before activation', async () => {
+    const legacyAlbumId = 'f47ac10b-58cc-4372-a567-0e02b2c3d479';
+    const legacyRemovedTrackId = 'e3b7fc2ae9447bbec37a13bf916e3cf6';
+    const canonicalAlbumId = canonicalizeNavidromeId(legacyAlbumId);
+    const canonicalRemovedTrackId = canonicalizeNavidromeId(legacyRemovedTrackId);
+    let resolveAlbum!: (value: {
+      album: { id: string; name: string; artist: string };
+      songs: SubsonicSong[];
+    }) => void;
+    getAlbumForServerMock.mockImplementation(() => new Promise(resolve => {
+      resolveAlbum = resolve;
+    }));
+    useOfflineStore.setState({
+      albums: {
+        [`a.test:${legacyAlbumId}`]: {
+          id: legacyAlbumId,
+          serverId: 'a.test',
+          name: 'Album',
+          artist: 'Artist',
+          trackIds: [legacyRemovedTrackId],
+          type: 'album',
+        },
+      },
+    });
+    useLocalPlaybackStore.setState({
+      entries: {
+        [`a.test:${legacyRemovedTrackId}`]: {
+          serverIndexKey: 'a.test',
+          trackId: legacyRemovedTrackId,
+          localPath: `/media/${legacyRemovedTrackId}.flac`,
+          layoutFingerprint: 'legacy',
+          sizeBytes: 1,
+          tier: 'library',
+          cachedAt: 1,
+          suffix: 'flac',
+          pinSource: { kind: 'album', sourceId: legacyAlbumId },
+        },
+      },
+    });
+
+    const sync = syncPinnedSourceIfNeeded(legacyAlbumId, 'srv-a', 'album');
+    await vi.waitFor(() => expect(getAlbumForServerMock).toHaveBeenCalled());
+    activateCanonicalNavidromeOwners(['srv-a', 'a.test']);
+    useOfflineStore.setState({
+      albums: {
+        [`a.test:${canonicalAlbumId}`]: {
+          id: canonicalAlbumId,
+          serverId: 'a.test',
+          name: 'Album',
+          artist: 'Artist',
+          trackIds: [canonicalRemovedTrackId],
+          type: 'album',
+        },
+      },
+    });
+    useLocalPlaybackStore.setState({
+      entries: {
+        [`a.test:${canonicalRemovedTrackId}`]: {
+          serverIndexKey: 'a.test',
+          trackId: canonicalRemovedTrackId,
+          localPath: `/media/${canonicalRemovedTrackId}.flac`,
+          layoutFingerprint: 'canonical',
+          sizeBytes: 1,
+          tier: 'library',
+          cachedAt: 1,
+          suffix: 'flac',
+          pinSource: { kind: 'album', sourceId: canonicalAlbumId },
+        },
+      },
+    });
+    resolveAlbum({ album: { id: legacyAlbumId, name: 'Album', artist: 'Artist' }, songs: [] });
+    await sync;
+
+    expect(invokeMock).not.toHaveBeenCalledWith(
+      'delete_media_file',
+      expect.objectContaining({ localPath: `/media/${canonicalRemovedTrackId}.flac` }),
+    );
+    expect(useLocalPlaybackStore.getState().entries[`a.test:${canonicalRemovedTrackId}`]).toBeDefined();
+  });
+
+  it('removes the canonical index row when identity changes during file deletion', async () => {
+    const legacyAlbumId = 'f47ac10b-58cc-4372-a567-0e02b2c3d479';
+    const legacyRemovedTrackId = 'e3b7fc2ae9447bbec37a13bf916e3cf6';
+    const canonicalAlbumId = canonicalizeNavidromeId(legacyAlbumId);
+    const canonicalRemovedTrackId = canonicalizeNavidromeId(legacyRemovedTrackId);
+    const localPath = `/media/${legacyRemovedTrackId}.flac`;
+    let resolveDelete!: () => void;
+    invokeMock.mockImplementationOnce(() => new Promise<Record<string, never>>(resolve => {
+      resolveDelete = () => resolve({});
+    }));
+    getAlbumForServerMock.mockResolvedValue({
+      album: { id: legacyAlbumId, name: 'Album', artist: 'Artist' },
+      songs: [],
+    });
+    useOfflineStore.setState({
+      albums: {
+        [`a.test:${legacyAlbumId}`]: {
+          id: legacyAlbumId,
+          serverId: 'a.test',
+          name: 'Album',
+          artist: 'Artist',
+          trackIds: [legacyRemovedTrackId],
+          type: 'album',
+        },
+      },
+    });
+    useLocalPlaybackStore.setState({
+      entries: {
+        [`a.test:${legacyRemovedTrackId}`]: {
+          serverIndexKey: 'a.test',
+          trackId: legacyRemovedTrackId,
+          localPath,
+          layoutFingerprint: 'legacy',
+          sizeBytes: 1,
+          tier: 'library',
+          cachedAt: 1,
+          suffix: 'flac',
+          pinSource: { kind: 'album', sourceId: legacyAlbumId },
+        },
+      },
+    });
+
+    const sync = syncPinnedSourceIfNeeded(legacyAlbumId, 'srv-a', 'album');
+    await vi.waitFor(() => expect(invokeMock).toHaveBeenCalledWith(
+      'delete_media_file',
+      expect.objectContaining({ localPath }),
+    ));
+
+    activateCanonicalNavidromeOwners(['srv-a', 'a.test']);
+    useLocalPlaybackStore.setState({
+      entries: {
+        [`a.test:${canonicalRemovedTrackId}`]: {
+          serverIndexKey: 'a.test',
+          trackId: canonicalRemovedTrackId,
+          localPath,
+          layoutFingerprint: 'canonical',
+          sizeBytes: 1,
+          tier: 'library',
+          cachedAt: 1,
+          suffix: 'flac',
+          pinSource: { kind: 'album', sourceId: canonicalAlbumId },
+        },
+      },
+    });
+    resolveDelete();
+    await sync;
+
+    expect(useLocalPlaybackStore.getState().entries[`a.test:${canonicalRemovedTrackId}`]).toBeUndefined();
+  });
+
+  it('ignores an older source refresh that settles after a newer one', async () => {
+    useOfflineStore.setState({
+      albums: {
+        'a.test:al-1': {
+          id: 'al-1',
+          serverId: 'a.test',
+          name: 'Album',
+          artist: 'Artist',
+          trackIds: [],
+          type: 'album',
+        },
+      },
+    });
+    useLocalPlaybackStore.setState({ entries: {} });
+    let resolveFirst!: (value: {
+      album: { id: string; name: string; artist: string };
+      songs: SubsonicSong[];
+    }) => void;
+    let resolveSecond!: (value: {
+      album: { id: string; name: string; artist: string };
+      songs: SubsonicSong[];
+    }) => void;
+    getAlbumForServerMock
+      .mockImplementationOnce(() => new Promise(resolve => { resolveFirst = resolve; }))
+      .mockImplementationOnce(() => new Promise(resolve => { resolveSecond = resolve; }));
+
+    const first = syncPinnedSourceIfNeeded('al-1', 'srv-a', 'album');
+    const second = syncPinnedSourceIfNeeded('al-1', 'srv-a', 'album');
+    resolveSecond({
+      album: { id: 'al-1', name: 'New Album', artist: 'Artist' },
+      songs: [song('t-new')],
+    });
+    await second;
+    resolveFirst({
+      album: { id: 'al-1', name: 'Old Album', artist: 'Artist' },
+      songs: [song('t-old')],
+    });
+    await first;
+
+    expect(useOfflineStore.getState().albums['a.test:al-1']).toMatchObject({
+      name: 'New Album',
+      trackIds: ['t-new'],
+    });
+    expect(enqueueMock).toHaveBeenCalledTimes(1);
+    expect(enqueueMock).toHaveBeenCalledWith(expect.objectContaining({
+      songs: [expect.objectContaining({ id: 't-new' })],
+    }));
+  });
+
+  it('keeps an older successful refresh when a newer request fails', async () => {
+    useOfflineStore.setState({
+      albums: {
+        'a.test:al-1': {
+          id: 'al-1', serverId: 'a.test', name: 'Album', artist: 'Artist',
+          trackIds: [], type: 'album',
+        },
+      },
+    });
+    useLocalPlaybackStore.setState({ entries: {} });
+    let resolveFirst!: (value: {
+      album: { id: string; name: string; artist: string };
+      songs: SubsonicSong[];
+    }) => void;
+    getAlbumForServerMock
+      .mockImplementationOnce(() => new Promise(resolve => { resolveFirst = resolve; }))
+      .mockRejectedValueOnce(new Error('offline'));
+
+    const first = syncPinnedSourceIfNeeded('al-1', 'srv-a', 'album');
+    await syncPinnedSourceIfNeeded('al-1', 'srv-a', 'album');
+    resolveFirst({
+      album: { id: 'al-1', name: 'Older Success', artist: 'Artist' },
+      songs: [song('t-success')],
+    });
+    await first;
+
+    expect(useOfflineStore.getState().albums['a.test:al-1']).toMatchObject({
+      name: 'Older Success', trackIds: ['t-success'],
+    });
   });
 });
 

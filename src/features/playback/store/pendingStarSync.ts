@@ -3,6 +3,10 @@ import { usePlayerStore } from '@/features/playback/store/playerStore';
 import { patchCachedTrack } from '@/features/playback/store/queueTrackResolver';
 import { onActiveServerBecameReachable } from '@/lib/network/activeServerReachability';
 import { ownedEntityKey } from '@/lib/util/ownedEntityKey';
+import {
+  canonicalizeConfirmedNavidromeId,
+  canonicalizeNavidromeId,
+} from '@/lib/server/navidromeCanonicalIds';
 
 /**
  * F4 — pending-sync for **song** star + rating (spec §6.5 / R7-18).
@@ -27,17 +31,23 @@ import { ownedEntityKey } from '@/lib/util/ownedEntityKey';
  */
 
 type Task =
-  | { kind: 'star'; id: string; starred: boolean; serverId?: string; overrideKey: string }
-  | { kind: 'rating'; id: string; rating: number; serverId?: string; overrideKey: string };
+  | { kind: 'star'; id: string; starred: boolean; serverId?: string; overrideKey: string; sequence: number }
+  | { kind: 'rating'; id: string; rating: number; serverId?: string; overrideKey: string; sequence: number };
 
 const pending = new Map<string, Task>(); // key `${kind}:${id}` — latest wins
 const timers = new Map<string, ReturnType<typeof setTimeout>>();
 const attempts = new Map<string, number>();
+const latestSequenceByKey = new Map<string, number>();
+const runningOperations = new Set<string>();
 const MAX_BACKOFF_MS = 30_000;
 let listenersArmed = false;
+let nextSequence = 0;
 
 const keyOf = (t: Task) =>
   `${t.kind}:${t.serverId ?? ''}:${t.id}`;
+
+const operationKeyOf = (t: Task) =>
+  `${t.kind}:${t.serverId ?? ''}:${t.serverId ? canonicalizeNavidromeId(t.id) : t.id}`;
 
 function armListeners(): void {
   if (listenersArmed || typeof window === 'undefined') return;
@@ -60,19 +70,75 @@ function schedule(k: string, delayMs: number): void {
   );
 }
 
+function normalizeTask(k: string, task: Task): { key: string; task: Task } | null {
+  const activeId = task.serverId
+    ? canonicalizeConfirmedNavidromeId(task.serverId, task.id)
+    : task.id;
+  const activeOverrideKey = task.serverId
+    ? ownedEntityKey({ id: activeId, serverId: task.serverId })
+    : task.overrideKey;
+  if (activeId === task.id && activeOverrideKey === task.overrideKey) return { key: k, task };
+
+  const activeTask = { ...task, id: activeId, overrideKey: activeOverrideKey } as Task;
+  const activeKey = keyOf(activeTask);
+  const latestSequence = latestSequenceByKey.get(activeKey) ?? 0;
+  if (latestSequence > task.sequence) {
+    pending.delete(k);
+    attempts.delete(k);
+    migrateOverride(task.overrideKey, activeOverrideKey, task.kind, false);
+    return null;
+  }
+  latestSequenceByKey.set(activeKey, Math.max(latestSequence, task.sequence));
+  const current = pending.get(activeKey);
+  if (current && current !== task) {
+    pending.delete(k);
+    attempts.delete(k);
+    migrateOverride(task.overrideKey, activeOverrideKey, task.kind, false);
+    return null;
+  }
+  pending.delete(k);
+  pending.set(activeKey, activeTask);
+  const attempt = attempts.get(k);
+  attempts.delete(k);
+  if (attempt !== undefined) attempts.set(activeKey, attempt);
+  migrateOverride(task.overrideKey, activeOverrideKey, task.kind, true);
+  return { key: activeKey, task: activeTask };
+}
+
 async function run(k: string): Promise<void> {
   timers.delete(k);
-  const task = pending.get(k);
+  let task = pending.get(k);
   if (!task) return;
+  const operationKey = operationKeyOf(task);
+  if (runningOperations.has(operationKey)) return;
+  runningOperations.add(operationKey);
+  const normalized = normalizeTask(k, task);
+  if (!normalized) {
+    runningOperations.delete(operationKey);
+    return;
+  }
+  k = normalized.key;
+  task = normalized.task;
+  const startedSequence = task.sequence;
   try {
     if (task.kind === 'star') {
       const meta = task.serverId ? { serverId: task.serverId } : undefined;
       if (task.starred) await star(task.id, 'song', meta);
       else await unstar(task.id, 'song', meta);
+      const after = normalizeTask(k, task);
+      if (!after || after.task.kind !== 'star') return;
+      k = after.key;
+      task = after.task;
+      if (pending.get(k) !== task) return;
       onStarSuccess(task);
     } else {
       if (task.serverId) await setRating(task.id, task.rating, { serverId: task.serverId });
       else await setRating(task.id, task.rating);
+      const after = normalizeTask(k, task);
+      if (!after || after.task.kind !== 'rating') return;
+      k = after.key;
+      task = after.task;
+      if (pending.get(k) !== task) return;
       onRatingSuccess(task);
     }
     // Only retire the entry if a newer toggle hasn't superseded it mid-flight.
@@ -85,7 +151,26 @@ async function run(k: string): Promise<void> {
     const n = (attempts.get(k) ?? 0) + 1;
     attempts.set(k, n);
     schedule(k, Math.min(MAX_BACKOFF_MS, 1000 * 2 ** (n - 1)));
+  } finally {
+    runningOperations.delete(operationKey);
+    const latest = [...pending.entries()].find(([, candidate]) =>
+      operationKeyOf(candidate) === operationKey && candidate.sequence > startedSequence,
+    );
+    if (latest) schedule(latest[0], 0);
   }
+}
+
+function migrateOverride(from: string, to: string, kind: Task['kind'], overwrite: boolean): void {
+  if (from === to) return;
+  usePlayerStore.setState(state => {
+    const field = kind === 'star' ? 'starredOverrides' : 'userRatingOverrides';
+    const overrides = state[field];
+    if (!(from in overrides)) return {};
+    const next = { ...overrides };
+    if (overwrite || !(to in next)) next[to] = overrides[from];
+    delete next[from];
+    return { [field]: next };
+  });
 }
 
 function onStarSuccess(task: Extract<Task, { kind: 'star' }>): void {
@@ -126,11 +211,13 @@ export function queueSongStar(
   serverId?: string,
   options?: { scopedOverride?: boolean },
 ): void {
+  if (serverId) id = canonicalizeConfirmedNavidromeId(serverId, id);
   const scopedOverride = options?.scopedOverride ?? Boolean(serverId);
   const overrideKey = scopedOverride ? ownedEntityKey({ id, serverId }) : id;
   usePlayerStore.getState().setStarredOverride(overrideKey, starred);
-  const t: Task = { kind: 'star', id, starred, serverId, overrideKey };
+  const t: Task = { kind: 'star', id, starred, serverId, overrideKey, sequence: ++nextSequence };
   const k = keyOf(t);
+  latestSequenceByKey.set(k, t.sequence);
   pending.set(k, t);
   attempts.delete(k);
   armListeners();
@@ -144,11 +231,13 @@ export function queueSongRating(
   serverId?: string,
   options?: { scopedOverride?: boolean },
 ): void {
+  if (serverId) id = canonicalizeConfirmedNavidromeId(serverId, id);
   const scopedOverride = options?.scopedOverride ?? Boolean(serverId);
   const overrideKey = scopedOverride ? ownedEntityKey({ id, serverId }) : id;
   usePlayerStore.getState().setUserRatingOverride(overrideKey, rating);
-  const t: Task = { kind: 'rating', id, rating, serverId, overrideKey };
+  const t: Task = { kind: 'rating', id, rating, serverId, overrideKey, sequence: ++nextSequence };
   const k = keyOf(t);
+  latestSequenceByKey.set(k, t.sequence);
   pending.set(k, t);
   attempts.delete(k);
   armListeners();
@@ -159,6 +248,9 @@ export function queueSongRating(
 export function _resetPendingStarSyncForTest(): void {
   pending.clear();
   attempts.clear();
+  latestSequenceByKey.clear();
+  runningOperations.clear();
+  nextSequence = 0;
   for (const t of timers.values()) clearTimeout(t);
   timers.clear();
 }

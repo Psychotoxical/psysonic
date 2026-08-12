@@ -152,4 +152,33 @@ describe('reconcileStartupPlayQueues', () => {
     await expect(reconciliation).resolves.toBe('kept-local');
     expect(applyMappedQueueMock).not.toHaveBeenCalled();
   });
+
+  it('abandons a deferred old scope and lets the new scope reconcile independently', async () => {
+    let resolveA: ((value: ReturnType<typeof remote>) => void) | undefined;
+    fetchPlayQueueForServerMock.mockImplementation((serverId: string) => {
+      if (serverId === 'a') return new Promise(resolve => { resolveA = resolve; });
+      return Promise.resolve(remote(['b1', 'b2'], 'b1'));
+    });
+    const oldScope = reconcileStartupPlayQueues();
+
+    useAuthStore.setState({ libraryBrowseServerIds: ['b'] });
+    usePlayerStore.setState({
+      queueItems: [{ serverId: 'b', trackId: 'b1' }],
+      queueIndex: 0,
+      currentTrack: { id: 'b1', title: 'b1', artist: 'Artist', album: 'Album', albumId: 'album', duration: 100, serverId: 'b' },
+    });
+    const newScope = reconcileStartupPlayQueues();
+    await expect(newScope).resolves.toBe('applied');
+
+    resolveA?.(remote(['a1', 'a3'], 'a1'));
+    await expect(oldScope).resolves.toBe('kept-local');
+    expect(applyMappedQueueMock).toHaveBeenCalledTimes(1);
+    expect(applyMappedQueueMock).toHaveBeenCalledWith(
+      expect.arrayContaining([expect.objectContaining({ id: 'b2', serverId: 'b' })]),
+      expect.objectContaining({ current: 'b1' }),
+      'b',
+      true,
+      0,
+    );
+  });
 });

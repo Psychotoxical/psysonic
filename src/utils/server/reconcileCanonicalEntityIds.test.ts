@@ -36,7 +36,16 @@ import {
   canonicalizeNavidromeId,
   reconcileCanonicalEntityIds,
 } from './reconcileCanonicalEntityIds';
-import { canonicalizeConfirmedNavidromeId } from '@/lib/server/navidromeCanonicalIds';
+import {
+  canonicalizeConfirmedNavidromeId,
+  deactivateCanonicalNavidromeOwners,
+} from '@/lib/server/navidromeCanonicalIds';
+import { resetBlockingMigrationCoordinatorForTests } from '@/store/migrationCoordinator';
+import {
+  _resetTimelineSessionHistoryForTest,
+  appendTimelineSessionPlay,
+  getTimelineSessionHistorySnapshot,
+} from '@/features/playback/store/timelineSessionHistory';
 
 const OLD_TRACK = 'e3b7fc2ae9447bbec37a13bf916e3cf6';
 const NEW_TRACK = '6VHl3uR4kss6sUPKA8Cwnk';
@@ -49,7 +58,10 @@ describe('canonical Navidrome IDs', () => {
   afterEach(() => vi.restoreAllMocks());
 
   beforeEach(async () => {
+    resetBlockingMigrationCoordinatorForTests();
+    deactivateCanonicalNavidromeOwners([PROFILE_ID, INDEX_KEY, 'ready-profile', 'ready.music.test']);
     localStorage.clear();
+    _resetTimelineSessionHistoryForTest();
     vi.mocked(libraryIdentityTransitionStatus).mockReset();
     vi.mocked(libraryIdentityTransitionAck).mockReset();
     vi.mocked(libraryIdentityTransitionProbe).mockReset();
@@ -79,6 +91,8 @@ describe('canonical Navidrome IDs', () => {
       libraryBrowseSelectionByServer: {},
       musicLibraryFilterByServer: {},
       musicLibrarySelectionByServer: {},
+      musicLibraryFilterVersion: 0,
+      libraryBrowseScopeVersion: 0,
     });
     useMigrationStore.setState({
       phase: 'completed',
@@ -116,14 +130,6 @@ describe('canonical Navidrome IDs', () => {
     vi.mocked(libraryIdentityTransitionAck).mockResolvedValue();
     vi.mocked(analysisClearServerCache).mockResolvedValue();
     vi.mocked(clearLyricsCache).mockResolvedValue();
-    const server = {
-      id: PROFILE_ID,
-      name: 'Navidrome',
-      url: 'https://music.test',
-      username: 'user',
-      password: 'password',
-    };
-
     usePlayerStore.setState({
       queueServerId: INDEX_KEY,
       currentTrack: {
@@ -139,6 +145,11 @@ describe('canonical Navidrome IDs', () => {
         { serverId: INDEX_KEY, trackId: OLD_TRACK },
         { serverId: 'other.test', trackId: OLD_TRACK },
       ],
+      starredOverrides: {
+        [`${PROFILE_ID}:${OLD_TRACK}`]: true,
+        [`${PROFILE_ID}:${NEW_TRACK}`]: false,
+        [`other-profile:${OLD_TRACK}`]: true,
+      },
     });
     useLocalPlaybackStore.setState({
       entries: {
@@ -169,6 +180,8 @@ describe('canonical Navidrome IDs', () => {
     useAuthStore.setState({
       skipStarManualSkipCountsByKey: {
         [`${PROFILE_ID}\u001f${OLD_TRACK}`]: 2,
+        [`${PROFILE_ID}\u001f${NEW_TRACK}`]: 4,
+        [`other-profile\u001f${OLD_TRACK}`]: 3,
       },
       activeServerId: PROFILE_ID,
       musicFolders: [{ id: OLD_ALBUM, name: 'Library' }],
@@ -199,14 +212,26 @@ describe('canonical Navidrome IDs', () => {
       },
     });
     usePlaylistMembershipStore.getState().setPlaylistSongIds(OLD_ALBUM, [OLD_TRACK], PROFILE_ID);
+    appendTimelineSessionPlay({ serverId: PROFILE_ID, trackId: OLD_TRACK, playedAtMs: 1 });
+    appendTimelineSessionPlay({ serverId: 'other-profile', trackId: OLD_TRACK, playedAtMs: 2 });
 
-    await reconcileCanonicalEntityIds(server, INDEX_KEY);
+    await reconcileCanonicalEntityIds({
+      id: PROFILE_ID,
+      name: 'Navidrome',
+      url: 'https://music.test',
+      username: 'user',
+      password: 'password',
+    }, INDEX_KEY);
 
     expect(usePlayerStore.getState().currentTrack?.id).toBe(NEW_TRACK);
     expect(usePlayerStore.getState().queueItems).toEqual([
       { serverId: INDEX_KEY, trackId: NEW_TRACK },
       { serverId: 'other.test', trackId: OLD_TRACK },
     ]);
+    expect(usePlayerStore.getState().starredOverrides).toEqual({
+      [`${PROFILE_ID}:${NEW_TRACK}`]: false,
+      [`other-profile:${OLD_TRACK}`]: true,
+    });
     const local = useLocalPlaybackStore.getState().entries[`${INDEX_KEY}:${NEW_TRACK}`];
     expect(local).toMatchObject({
       trackId: NEW_TRACK,
@@ -214,12 +239,17 @@ describe('canonical Navidrome IDs', () => {
       pinSource: { sourceId: NEW_ALBUM },
     });
     expect(useOfflineStore.getState().albums[`${INDEX_KEY}:${NEW_ALBUM}`]?.trackIds).toEqual([NEW_TRACK]);
-    expect(useAuthStore.getState().skipStarManualSkipCountsByKey).toEqual({});
+    expect(useAuthStore.getState().skipStarManualSkipCountsByKey).toEqual({
+      [`${PROFILE_ID}\u001f${NEW_TRACK}`]: 4,
+      [`other-profile\u001f${OLD_TRACK}`]: 3,
+    });
     expect(useAuthStore.getState().musicFolders[0]?.id).toBe(NEW_ALBUM);
     expect(useAuthStore.getState().musicFoldersByServer[PROFILE_ID]?.[0]?.id).toBe(NEW_ALBUM);
     expect(useAuthStore.getState().libraryBrowseSelectionByServer[PROFILE_ID]).toEqual([NEW_ALBUM]);
     expect(useAuthStore.getState().musicLibraryFilterByServer[PROFILE_ID]).toBe(NEW_ALBUM);
     expect(useAuthStore.getState().musicLibrarySelectionByServer[PROFILE_ID]).toEqual([NEW_ALBUM]);
+    expect(useAuthStore.getState().musicLibraryFilterVersion).toBe(1);
+    expect(useAuthStore.getState().libraryBrowseScopeVersion).toBe(1);
     expect(useDeviceSyncStore.getState().sources[0]?.id).toBe(NEW_ALBUM);
     expect(usePlaylistStore.getState()).toMatchObject({
       playlists: [],
@@ -230,6 +260,10 @@ describe('canonical Navidrome IDs', () => {
       [NEW_ALBUM]: 'folder-1',
     });
     expect(usePlaylistMembershipStore.getState().songIdsByCacheKey).toEqual({});
+    expect(getTimelineSessionHistorySnapshot()).toEqual([
+      { serverId: INDEX_KEY, trackId: NEW_TRACK, playedAtMs: 1 },
+      { serverId: 'other-profile', trackId: OLD_TRACK, playedAtMs: 2 },
+    ]);
     expect(analysisClearServerCache).toHaveBeenCalledWith(INDEX_KEY);
     expect(clearLyricsCache).toHaveBeenCalledTimes(1);
     expect(libraryIdentityTransitionRunNativeMigration).toHaveBeenCalledWith(INDEX_KEY);
@@ -418,7 +452,46 @@ describe('canonical Navidrome IDs', () => {
     expect(useMigrationStore.getState().phase).toBe('completed');
   });
 
-  it('does not acknowledge ownerless device-sync selections', async () => {
+  it('continues bounded native probe progress without requiring manual retry', async () => {
+    vi.mocked(libraryIdentityTransitionStatus).mockResolvedValue({
+      serverId: INDEX_KEY,
+      state: 'retryable',
+      canonicalVersion: 2,
+      probeOldId: null,
+      probeNewId: null,
+      lastError: 'canonical-ID inactive alias baseline is still progressing',
+    });
+    vi.mocked(libraryIdentityTransitionProbe)
+      .mockResolvedValueOnce({
+        serverId: INDEX_KEY,
+        state: 'retryable',
+        canonicalVersion: 2,
+        probeOldId: null,
+        probeNewId: null,
+        lastError: 'canonical-ID candidate scan has more catalog rows to inspect',
+      })
+      .mockResolvedValueOnce({
+        serverId: INDEX_KEY,
+        state: 'no_legacy_ids',
+        canonicalVersion: 2,
+        probeOldId: null,
+        probeNewId: null,
+        lastError: null,
+      });
+
+    await reconcileCanonicalEntityIds({
+      id: PROFILE_ID,
+      name: 'Navidrome',
+      url: 'https://music.test',
+      username: 'user',
+      password: 'password',
+    }, INDEX_KEY);
+
+    expect(libraryIdentityTransitionProbe).toHaveBeenCalledTimes(2);
+    expect(useMigrationStore.getState().phase).toBe('completed');
+  });
+
+  it('acknowledges while preserving ownerless device-sync selections for later recovery', async () => {
     vi.mocked(libraryIdentityTransitionStatus).mockResolvedValue({
       serverId: INDEX_KEY,
       state: 'pending_frontend',
@@ -432,17 +505,34 @@ describe('canonical Navidrome IDs', () => {
     useDeviceSyncStore.setState({
       legacySources: [{ type: 'album', id: OLD_ALBUM, name: 'Legacy album' }],
     });
+    useAuthStore.setState({
+      skipStarManualSkipCountsByKey: {
+        [`${PROFILE_ID}\u001f${OLD_TRACK}`]: 2,
+        [`other-profile\u001f${OLD_TRACK}`]: 3,
+      },
+    });
 
-    await expect(reconcileCanonicalEntityIds({
+    await reconcileCanonicalEntityIds({
       id: PROFILE_ID,
       name: 'Navidrome',
       url: 'https://music.test',
       username: 'user',
       password: 'password',
-    }, INDEX_KEY)).rejects.toThrow('ownerless legacy selections');
+    }, INDEX_KEY);
 
-    expect(libraryIdentityTransitionAck).not.toHaveBeenCalled();
+    expect(libraryIdentityTransitionAck).toHaveBeenCalledWith(INDEX_KEY);
     expect(useDeviceSyncStore.getState().legacySources).toHaveLength(1);
+    expect(useAuthStore.getState().skipStarManualSkipCountsByKey).toEqual({
+      [`${PROFILE_ID}\u001f${NEW_TRACK}`]: 2,
+      [`other-profile\u001f${OLD_TRACK}`]: 3,
+    });
+    const persistedAuth = JSON.parse(localStorage.getItem('psysonic-auth') ?? '{}') as {
+      state?: { skipStarManualSkipCountsByKey?: Record<string, number> };
+    };
+    expect(persistedAuth.state?.skipStarManualSkipCountsByKey).toEqual({
+      [`${PROFILE_ID}\u001f${NEW_TRACK}`]: 2,
+      [`other-profile\u001f${OLD_TRACK}`]: 3,
+    });
   });
 
   it('reactivates canonical owners from durable ready state after restart', async () => {

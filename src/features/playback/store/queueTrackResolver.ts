@@ -9,6 +9,7 @@ import { trackToSong } from '@/lib/library/advancedSearchLocal';
 import { libraryIsReady } from '@/lib/library/libraryReady';
 import { NAVIDROME_PUBLIC_SHARE_SERVER_ID } from '@/lib/share/navidromePublicSharePlayback';
 import { ownedOverrideValue } from '@/lib/util/ownedEntityKey';
+import { canonicalizePlaybackTrack } from '@/features/playback/store/queueItemRef';
 
 /**
  * Queue track resolver (thin-state phase 2). Resolves `QueueItemRef`s to full
@@ -149,9 +150,10 @@ export function seedQueueResolver(serverId: string, tracks: Track[]): void {
   const canonicalId = canonicalQueueServerKey(serverId);
   const preserve = new Set<string>();
   for (const t of tracks) {
-    const key = refKey({ serverId: canonicalId, trackId: t.id });
+    const activeTrack = canonicalizePlaybackTrack(t, canonicalId);
+    const key = refKey({ serverId: canonicalId, trackId: activeTrack.id });
     preserve.add(key);
-    cacheSet(key, t, { skipCap: true });
+    cacheSet(key, activeTrack, { skipCap: true });
   }
   // Bulk queue replace: keep the whole incoming set (may exceed CACHE_CAP).
   // Single-track touch (queue navigation): no eviction — must not wipe siblings.

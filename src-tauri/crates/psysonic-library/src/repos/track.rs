@@ -141,6 +141,7 @@ pub struct RemapEntry {
 #[derive(Debug, Clone, Default)]
 pub struct RemapStats {
     pub remapped: Vec<RemapEntry>,
+    pub identity_transition: Option<RemapEntry>,
 }
 
 pub struct TrackRepository<'a> {
@@ -176,15 +177,34 @@ impl<'a> TrackRepository<'a> {
         rows: &[TrackRow],
         resync_gen: Option<i64>,
     ) -> Result<WriteOpTiming, String> {
-        self.upsert_batch_initial_ingest_timed_with_source(rows, resync_gen, false)
+        self.upsert_batch_initial_ingest_timed_with_source(rows, resync_gen, false, false)
+            .map(|(timing, _)| timing)
     }
 
+    pub(crate) fn upsert_batch_initial_ingest_guarded_timed(
+        &self,
+        rows: &[TrackRow],
+        resync_gen: Option<i64>,
+    ) -> Result<(WriteOpTiming, Option<RemapEntry>), String> {
+        self.upsert_batch_initial_ingest_timed_with_source(rows, resync_gen, false, true)
+    }
+
+    #[cfg(test)]
     pub(crate) fn upsert_sparse_batch_initial_ingest_timed(
         &self,
         rows: &[TrackRow],
         resync_gen: Option<i64>,
     ) -> Result<WriteOpTiming, String> {
-        self.upsert_batch_initial_ingest_timed_with_source(rows, resync_gen, true)
+        self.upsert_batch_initial_ingest_timed_with_source(rows, resync_gen, true, false)
+            .map(|(timing, _)| timing)
+    }
+
+    pub(crate) fn upsert_sparse_batch_initial_ingest_guarded_timed(
+        &self,
+        rows: &[TrackRow],
+        resync_gen: Option<i64>,
+    ) -> Result<(WriteOpTiming, Option<RemapEntry>), String> {
+        self.upsert_batch_initial_ingest_timed_with_source(rows, resync_gen, true, true)
     }
 
     fn upsert_batch_initial_ingest_timed_with_source(
@@ -192,20 +212,40 @@ impl<'a> TrackRepository<'a> {
         rows: &[TrackRow],
         resync_gen: Option<i64>,
         sparse_payload: bool,
-    ) -> Result<WriteOpTiming, String> {
+        guard_canonical_transition: bool,
+    ) -> Result<(WriteOpTiming, Option<RemapEntry>), String> {
         if rows.is_empty() {
-            return Ok(WriteOpTiming::default());
+            return Ok((WriteOpTiming::default(), None));
         }
         let sql = match resync_gen {
             Some(_) => UPSERT_INITIAL_RESYNC_SQL,
             None => UPSERT_SQL,
         };
-        let (_, timing) =
+        let (identity_transition, timing) =
             self.store
                 .with_conn_mut_timed("track.upsert_initial_ingest", |conn| {
                     let tx = conn.transaction()?;
+                    let identity_guards = load_deterministic_write_guards(&tx, rows)?;
+                    if guard_canonical_transition {
+                        if let Some(transition) = detect_deterministic_track_transition(
+                            &tx,
+                            &identity_guards,
+                            rows,
+                        )? {
+                            crate::navidrome_identity::record_deterministic_transition_if_legacy_state(
+                                &tx,
+                                &transition.server_id,
+                                "track",
+                                &transition.old_id,
+                                &transition.new_id,
+                            )?;
+                            tx.commit()?;
+                            return Ok(Some(transition));
+                        }
+                    }
                     let affected_album_scopes =
                         crate::browse_projection::collect_affected_album_scopes(&tx, rows)?;
+                    register_track_row_aliases(&tx, rows, &identity_guards)?;
                     let mut upsert = tx.prepare_cached(sql)?;
                     for r in rows {
                         if let Some(gen) = resync_gen {
@@ -299,9 +339,9 @@ impl<'a> TrackRepository<'a> {
                     )?;
                     crate::browse_projection::refresh_album_scopes(&tx, affected_album_scopes)?;
                     tx.commit()?;
-                    Ok(())
+                    Ok(None)
                 })?;
-        Ok(timing)
+        Ok((timing, identity_transition))
     }
 
     /// Next generation stamp for a full-resync orphan sweep. Empty scope is
@@ -920,12 +960,32 @@ impl<'a> TrackRepository<'a> {
         rows: &[TrackRow],
         unstable_track_ids: bool,
     ) -> Result<RemapStats, String> {
+        self.upsert_batch_with_remap_inner(rows, unstable_track_ids, false)
+    }
+
+    /// Delta-sync variant that detects Navidrome's deterministic old-to-canonical
+    /// transition before the ordinary unstable-ID remap can consume it.
+    pub fn upsert_delta_batch_with_remap(
+        &self,
+        rows: &[TrackRow],
+        unstable_track_ids: bool,
+    ) -> Result<RemapStats, String> {
+        self.upsert_batch_with_remap_inner(rows, unstable_track_ids, true)
+    }
+
+    fn upsert_batch_with_remap_inner(
+        &self,
+        rows: &[TrackRow],
+        unstable_track_ids: bool,
+        guard_canonical_transition: bool,
+    ) -> Result<RemapStats, String> {
         if rows.is_empty() {
             return Ok(RemapStats::default());
         }
         self.store
             .with_conn_mut("track.upsert_batch_remap", |conn| {
                 let tx = conn.transaction()?;
+                let identity_guards = load_deterministic_write_guards(&tx, rows)?;
                 let mut affected_album_scopes =
                     crate::browse_projection::collect_affected_album_scopes(&tx, rows)?;
                 let mut remapped: Vec<RemapEntry> = Vec::new();
@@ -938,20 +998,58 @@ impl<'a> TrackRepository<'a> {
                 } else {
                     None
                 };
+                let detected_old_ids = rows
+                    .iter()
+                    .map(|row| {
+                        if let Some((ref mut by_hash, ref mut by_path)) = remap_lookup {
+                            detect_remap_target_cached(by_hash, by_path, row)
+                        } else {
+                            Ok(None)
+                        }
+                    })
+                    .collect::<rusqlite::Result<Vec<_>>>()?;
+                if guard_canonical_transition {
+                    let deterministic =
+                        detect_deterministic_track_transition(&tx, &identity_guards, rows)?;
+                    let identity_transition = deterministic.or_else(|| {
+                        rows.iter().zip(&detected_old_ids).find_map(|(incoming, old_id)| {
+                            let old_id = old_id.as_ref()?;
+                            (incoming.id == crate::navidrome_identity::canonical_id(old_id)).then(
+                                || RemapEntry {
+                                    server_id: incoming.server_id.clone(),
+                                    old_id: old_id.clone(),
+                                    new_id: incoming.id.clone(),
+                                },
+                            )
+                        })
+                    });
+                    if let Some(identity_transition) = identity_transition {
+                        if crate::navidrome_identity::record_deterministic_transition_if_legacy_state(
+                            &tx,
+                            &identity_transition.server_id,
+                            "track",
+                            &identity_transition.old_id,
+                            &identity_transition.new_id,
+                        )? {
+                            drop(upsert);
+                            drop(remap_lookup);
+                            tx.commit()?;
+                            return Ok(RemapStats {
+                                remapped: Vec::new(),
+                                identity_transition: Some(identity_transition),
+                            });
+                        }
+                    }
+                }
 
-                for r in rows {
+                register_track_row_aliases(&tx, rows, &identity_guards)?;
+
+                for (r, detected_old) in rows.iter().zip(detected_old_ids) {
                     // Spec §6.9: detect collision BEFORE the upsert so the
                     // old id is known. The upsert itself comes next; only
                     // then do we retarget children to the new id, since
                     // child tables FK→track(server_id, id) and would refuse
                     // an UPDATE pointing at an id that doesn't exist yet.
-                    let detected_old: Option<String> =
-                        if let Some((ref mut by_hash, ref mut by_path)) = remap_lookup {
-                            detect_remap_target_cached(by_hash, by_path, r)?
-                        } else {
-                            None
-                        };
-
                     upsert.execute(params![
                         r.server_id,
                         r.id,
@@ -1054,7 +1152,10 @@ impl<'a> TrackRepository<'a> {
                 crate::browse_projection::refresh_album_scopes(&tx, affected_album_scopes)?;
 
                 tx.commit()?;
-                Ok(RemapStats { remapped })
+                Ok(RemapStats {
+                    remapped,
+                    identity_transition: None,
+                })
             })
     }
 }
@@ -1129,6 +1230,84 @@ fn detect_remap_target_cached(
     }
 
     Ok(None)
+}
+
+fn detect_deterministic_track_transition(
+    tx: &Transaction<'_>,
+    guards: &HashMap<String, crate::navidrome_identity::DeterministicWriteGuard>,
+    rows: &[TrackRow],
+) -> rusqlite::Result<Option<RemapEntry>> {
+    if rows.is_empty() {
+        return Ok(None);
+    }
+    for incoming in rows {
+        let Some(guard) = guards.get(&incoming.server_id) else {
+            continue;
+        };
+        let Some(old_id) = crate::navidrome_identity::find_deterministic_legacy_id_with_guard(
+            tx,
+            &incoming.server_id,
+            guard,
+            crate::navidrome_identity::EntityKind::Track,
+            &incoming.id,
+        )? else {
+            continue;
+        };
+        return Ok(Some(RemapEntry {
+            server_id: incoming.server_id.clone(),
+            old_id,
+            new_id: incoming.id.clone(),
+        }));
+    }
+    Ok(None)
+}
+
+fn load_deterministic_write_guards(
+    tx: &Transaction<'_>,
+    rows: &[TrackRow],
+) -> rusqlite::Result<HashMap<String, crate::navidrome_identity::DeterministicWriteGuard>> {
+    let mut guards = HashMap::new();
+    for server_id in rows.iter().map(|row| row.server_id.as_str()).collect::<HashSet<_>>() {
+        guards.insert(
+            server_id.to_string(),
+            crate::navidrome_identity::load_deterministic_write_guard(tx, server_id)?,
+        );
+    }
+    Ok(guards)
+}
+
+fn register_track_row_aliases(
+    tx: &Transaction<'_>,
+    rows: &[TrackRow],
+    guards: &HashMap<String, crate::navidrome_identity::DeterministicWriteGuard>,
+) -> rusqlite::Result<()> {
+    for (server_id, guard) in guards {
+        crate::navidrome_identity::register_inactive_legacy_aliases(
+            tx,
+            server_id,
+            guard,
+            rows.iter()
+                .filter(|row| row.server_id == *server_id)
+                .flat_map(|row| {
+                    std::iter::once((
+                        crate::navidrome_identity::EntityKind::Track,
+                        row.id.as_str(),
+                    ))
+                    .chain(row.album_id.as_deref().map(|id| {
+                        (crate::navidrome_identity::EntityKind::Album, id)
+                    }))
+                    .chain(row.artist_id.as_deref().map(|id| {
+                        (crate::navidrome_identity::EntityKind::Artist, id)
+                    }))
+                }),
+            rows.iter()
+                .filter(|row| row.server_id == *server_id)
+                .map(|row| row.synced_at)
+                .max()
+                .unwrap_or(0),
+        )?;
+    }
+    Ok(())
 }
 
 /// Run the §6.9 retarget half — UPDATE every FK-bound child to the
@@ -2300,6 +2479,74 @@ mod tests {
             elapsed < std::time::Duration::from_millis(1000),
             "initial ingest batch(500) took {elapsed:?}; includes per-row track_genre \
              maintenance and large raw_json payloads"
+        );
+    }
+
+    #[test]
+    fn guarded_ingest_deduplicates_shared_alias_references_per_batch() {
+        let store = LibraryStore::open_in_memory();
+        store
+            .with_conn("test.seed_guarded_alias_state", |conn| {
+                conn.execute(
+                    "INSERT INTO server_identity_transition \
+                     (server_id, canonical_version, state, detected_at) \
+                     VALUES ('s1',?1,'no_legacy_ids',1)",
+                    params![crate::navidrome_identity::CANONICAL_ID_VERSION],
+                )?;
+                Ok(())
+            })
+            .unwrap();
+        let shared_album = "AAAAAAAAAAAAAAAAAAAAAA";
+        let shared_artist = "ZZZZZZZZZZZZZZZZZZZZZZ";
+        let rows: Vec<TrackRow> = (0..500)
+            .map(|index| {
+                let mut row = row(
+                    "s1",
+                    &format!("{index:032x}"),
+                    &format!("Track {index}"),
+                );
+                row.album_id = Some(shared_album.into());
+                row.artist_id = Some(shared_artist.into());
+                row
+            })
+            .collect();
+
+        let start = std::time::Instant::now();
+        TrackRepository::new(&store)
+            .upsert_batch_initial_ingest_guarded_timed(&rows, None)
+            .unwrap();
+        let elapsed = start.elapsed();
+
+        let (track_aliases, album_aliases, artist_aliases): (i64, i64, i64) = store
+            .with_read_conn(|conn| {
+                Ok((
+                    conn.query_row(
+                        "SELECT COUNT(*) FROM entity_id_remap \
+                         WHERE server_id = 's1' AND entity_kind = 'track'",
+                        [],
+                        |row| row.get(0),
+                    )?,
+                    conn.query_row(
+                        "SELECT COUNT(*) FROM entity_id_remap \
+                         WHERE server_id = 's1' AND entity_kind = 'album'",
+                        [],
+                        |row| row.get(0),
+                    )?,
+                    conn.query_row(
+                        "SELECT COUNT(*) FROM entity_id_remap \
+                         WHERE server_id = 's1' AND entity_kind = 'artist'",
+                        [],
+                        |row| row.get(0),
+                    )?,
+                ))
+            })
+            .unwrap();
+        assert_eq!(track_aliases, 500);
+        assert_eq!(album_aliases, 1);
+        assert_eq!(artist_aliases, 1);
+        assert!(
+            elapsed < std::time::Duration::from_secs(2),
+            "guarded ingest with 500 rows and shared references took {elapsed:?}"
         );
     }
 

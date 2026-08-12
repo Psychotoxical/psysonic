@@ -3,6 +3,8 @@ import md5 from 'md5';
 const BASE62 = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
 const MAX_U128 = (1n << 128n) - 1n;
 const confirmedOwners = new Set<string>();
+const identityGenerationByOwner = new Map<string, number>();
+let globalIdentityGeneration = 0;
 
 export function canonicalizeNavidromeId(value: string): string {
   if (value.length === 22) {
@@ -33,13 +35,41 @@ function encodeCanonicalHex(hex: string): string {
 }
 
 export function activateCanonicalNavidromeOwners(owners: Iterable<string>): void {
+  const activated: string[] = [];
   for (const owner of owners) {
-    if (owner) confirmedOwners.add(owner);
+    if (!owner || confirmedOwners.has(owner)) continue;
+    confirmedOwners.add(owner);
+    activated.push(owner);
+  }
+  if (activated.length > 0) {
+    globalIdentityGeneration += 1;
+    for (const owner of activated) {
+      identityGenerationByOwner.set(owner, (identityGenerationByOwner.get(owner) ?? 0) + 1);
+    }
   }
 }
 
 export function deactivateCanonicalNavidromeOwners(owners: Iterable<string>): void {
-  for (const owner of owners) confirmedOwners.delete(owner);
+  const deactivated: string[] = [];
+  for (const owner of owners) {
+    if (!confirmedOwners.delete(owner)) continue;
+    deactivated.push(owner);
+  }
+  if (deactivated.length > 0) {
+    globalIdentityGeneration += 1;
+    for (const owner of deactivated) {
+      identityGenerationByOwner.set(owner, (identityGenerationByOwner.get(owner) ?? 0) + 1);
+    }
+  }
+}
+
+/** Changes whenever canonical identity semantics change for this owner. */
+export function canonicalIdentityGeneration(owner?: string): number {
+  return owner ? identityGenerationByOwner.get(owner) ?? 0 : globalIdentityGeneration;
+}
+
+export function canonicalIdentityGenerationChanged(owner: string, generation: number): boolean {
+  return canonicalIdentityGeneration(owner) !== generation;
 }
 
 export function canonicalizeConfirmedNavidromeId(owner: string, value: string): string {

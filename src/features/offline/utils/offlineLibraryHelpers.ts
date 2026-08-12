@@ -12,6 +12,7 @@ import { canonicalQueueServerKey, resolveIndexKey } from '@/lib/server/serverInd
 import type { Track } from '@/lib/media/trackTypes';
 import { findServerByIdOrIndexKey, resolveServerIdForIndexKey } from '@/lib/server/serverLookup';
 import { serverIndexKeyForProfile } from '@/lib/server/serverIndexKey';
+import { canonicalizeConfirmedNavidromeId } from '@/lib/server/navidromeCanonicalIds';
 
 export interface OfflineLibraryCard {
   serverIndexKey: string;
@@ -41,7 +42,11 @@ export function resolveOfflineAlbumMeta(
   const albums = useOfflineStore.getState().albums;
   const server = useAuthStore.getState().servers.find(s => s.id === serverId);
   const indexKey = server ? serverIndexKeyForProfile(server) : serverId;
-  return albums[`${indexKey}:${albumId}`] ?? albums[`${serverId}:${albumId}`];
+  const activeAlbumId = canonicalizeConfirmedNavidromeId(indexKey, albumId);
+  return albums[`${indexKey}:${activeAlbumId}`]
+    ?? albums[`${serverId}:${activeAlbumId}`]
+    ?? albums[`${indexKey}:${albumId}`]
+    ?? albums[`${serverId}:${albumId}`];
 }
 
 /** Songs that still need a library-tier pin (used to skip redundant downloads). */
@@ -69,10 +74,11 @@ export function isOfflinePinComplete(
   }
   const server = useAuthStore.getState().servers.find(s => s.id === serverId);
   const indexKey = server ? (serverIndexKeyForProfile(server) || serverId) : serverId;
+  const activeAlbumId = canonicalizeConfirmedNavidromeId(indexKey, albumId);
   const meta = resolveOfflineAlbumMeta(albumId, serverId);
   const groupTrackIds = useLocalPlaybackStore.getState()
     .listPinnedGroups(indexKey)
-    .find(g => g.pinSource.sourceId === albumId)?.trackIds;
+    .find(g => canonicalizeConfirmedNavidromeId(indexKey, g.pinSource.sourceId) === activeAlbumId)?.trackIds;
   const trackIds = meta?.trackIds.length
     ? meta.trackIds
     : (groupTrackIds ?? []);

@@ -38,6 +38,7 @@ import { analysisTrackRef } from '@/features/playback/store/analysisTrackRef';
 import { syncQueueToServer } from '@/features/playback/store/queueSync';
 import { useAuthStore } from '@/store/authStore';
 import { setIsAudioPaused } from '@/features/playback/store/engineState';
+import { canonicalizePlaybackTrack } from '@/features/playback/store/queueItemRef';
 import {
   getLastEngineProgressSec,
   noteEngineProgressForGapless,
@@ -90,6 +91,7 @@ function applyGaplessSuccessorUi(
   source: 'track-switched' | 'progress-reconcile',
 ): void {
   const switchRef = store.queueItems[newIndex];
+  nextTrack = canonicalizePlaybackTrack(nextTrack, switchRef?.serverId ?? '');
   const switchServerId = playbackCacheKeyForRef(switchRef);
   const switchResolvedUrl = resolvePlaybackUrlForTrack(nextTrack, switchServerId);
   const switchPlaybackSource = playbackSourceHintForResolvedUrl(

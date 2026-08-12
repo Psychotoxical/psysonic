@@ -5,11 +5,12 @@ import {
   resolveEntityUserRatings,
   type EntityUserRatingRef,
 } from '@/lib/api/subsonicRatings';
-import { getRandomSongs } from '@/lib/api/subsonicLibrary';
+import { getRandomSongsForServer } from '@/lib/api/subsonicLibrary';
 import type { SubsonicAlbum, SubsonicSong } from '@/lib/api/subsonicTypes';
 import { useAuthStore } from '@/store/authStore';
 import { usePlayerStore } from '@/features/playback/store/playerStore';
 import { ownedOverrideValue } from '@/lib/util/ownedEntityKey';
+import { resolveIndexKey } from '@/lib/server/serverIndexKey';
 
 /** Default target list size for Random Mix; per-call override via `fetchRandomMixSongsUntilFull(c, { targetSize })`. */
 export const RANDOM_MIX_TARGET_SIZE = 50;
@@ -315,11 +316,12 @@ export async function enrichSongsForMixRatingFilter(
   ownerServerId?: string,
 ): Promise<SubsonicSong[]> {
   if (!c.enabled || (c.minArtist <= 0 && c.minAlbum <= 0)) return songs;
-  const serverId = ownerServerId ?? useAuthStore.getState().activeServerId;
-  if (!serverId) return songs;
+  const owner = ownerServerId ?? useAuthStore.getState().activeServerId;
+  if (!owner) return songs;
+  const serverId = resolveIndexKey(owner);
   const ownedSongs = songs.map(song => ({
     ...song,
-    serverId: ownerServerId ?? song.serverId ?? serverId,
+    serverId: song.serverId ?? serverId,
   }));
   const artistIds =
     c.minArtist > 0
@@ -363,19 +365,22 @@ export async function enrichSongsForMixRatingFilter(
  */
 export async function fetchRandomMixSongsUntilFull(
   c: MixMinRatingsConfig,
-  opts?: { genre?: string; timeout?: number; targetSize?: number },
+  opts?: { genre?: string; timeout?: number; targetSize?: number; serverId?: string },
 ): Promise<SubsonicSong[]> {
   const timeout = opts?.timeout ?? 15000;
   const genre = opts?.genre;
   const targetSize = opts?.targetSize ?? RANDOM_MIX_TARGET_SIZE;
+  const ownerServerId = opts?.serverId ?? useAuthStore.getState().activeServerId ?? undefined;
+  if (!ownerServerId) return [];
   const filterActive = c.enabled;
   const batchSize = batchSizeFor(targetSize, filterActive);
+  const fetchRandom = () => getRandomSongsForServer(ownerServerId, batchSize, genre, timeout);
 
   // Fast-path: no filter — one call asking for the full target, slice, done. The server-side
   // `ORDER BY random() LIMIT N` returns N distinct rows, so a single round-trip usually fills
   // the request without dup-streak gymnastics.
   if (!filterActive) {
-    const raw = await getRandomSongs(batchSize, genre, timeout);
+    const raw = await fetchRandom();
     if (raw.length >= targetSize) return raw.slice(0, targetSize);
     // Library smaller than target, or random endpoint returned fewer — fall through to the
     // batched loop below so we can top up via additional calls (deduped by id).
@@ -390,7 +395,7 @@ export async function fetchRandomMixSongsUntilFull(
   let dupStreak = 0;
 
   for (let b = 0; b < maxBatches && out.length < targetSize; b++) {
-    const raw = await getRandomSongs(batchSize, genre, timeout);
+    const raw = await fetchRandom();
     if (!raw.length) break;
 
     const novel = raw.filter(s => !seenFromApi.has(s.id));
@@ -403,7 +408,7 @@ export async function fetchRandomMixSongsUntilFull(
     dupStreak = 0;
 
     const enriched = filterActive
-      ? await enrichSongsForMixRatingFilter(novel, c)
+      ? await enrichSongsForMixRatingFilter(novel, c, ownerServerId)
       : novel;
     for (const s of enriched) {
       if (!passesMixMinRatings(s, c) || outIds.has(s.id)) continue;

@@ -10,6 +10,22 @@ import { analysisClearServerCache } from '@/lib/api/analysis';
 import { useAuthStore } from '@/store/authStore';
 import { useLocalPlaybackStore, type LocalPlaybackEntry } from '@/store/localPlaybackStore';
 import { useOfflineStore, type OfflineAlbumMeta } from '@/features/offline';
+import {
+  cancelAndDrainOfflinePinQueue,
+  resumeOfflinePinQueue,
+} from '@/features/offline/utils/offlinePinQueue';
+import {
+  pauseAndDrainPinnedOfflineSync,
+  resumePinnedOfflineSync,
+} from '@/features/offline/utils/pinnedOfflineSync';
+import {
+  pauseAndDrainFavoritesOfflineSync,
+  resumeFavoritesOfflineSync,
+} from '@/features/offline/utils/favoritesOfflineSync';
+import {
+  pauseAndDrainLocalPlaybackInvalidation,
+  resumeLocalPlaybackInvalidation,
+} from '@/localPlaybackInvalidation';
 import { usePlayerStore } from '@/features/playback/store/playerStore';
 import {
   readShuffleModeSnapshot,
@@ -25,20 +41,36 @@ import {
 } from '@/features/playlist';
 import { clearLyricsCache } from '@/features/lyrics/utils/lyricsPersistentCache';
 import type { ServerProfile } from '@/store/authStoreTypes';
-import { useMigrationStore } from '@/store/migrationStore';
+import {
+  enqueueBlockingMigration,
+  type BlockingMigrationContext,
+} from '@/store/migrationCoordinator';
 import { usePlaylistMembershipStore } from '@/store/playlistMembershipStore';
+import { skipStarCountStorageKey } from '@/store/authStoreHelpers';
+import { useLibraryIndexStore } from '@/store/libraryIndexStore';
+import { runMusicLibraryCatalogReloadHandler } from '@/store/musicLibraryFilterNotify';
 import { mergeLocalPlaybackEntry, mergeOfflineAlbum } from './rewriteFrontendStoreKeys';
 import { serverIndexKeyForProfile } from '@/lib/server/serverIndexKey';
 import {
   activateCanonicalNavidromeOwners,
   canonicalizeNavidromeId,
 } from '@/lib/server/navidromeCanonicalIds';
-
-const reconciliationInFlight = new Map<string, Promise<void>>();
-let canonicalMigrationSerial: Promise<void> = Promise.resolve();
-let retryRequest: { server: ServerProfile; serverIndexKey: string } | null = null;
+import {
+  getTimelineSessionHistorySnapshot,
+  rewriteTimelineSessionHistoryForOwners,
+} from '@/features/playback/store/timelineSessionHistory';
 
 export { canonicalizeNavidromeId } from '@/lib/server/navidromeCanonicalIds';
+
+function isDeterministicProbeProgress(status: { state: string; lastError: string | null }): boolean {
+  if (status.state !== 'retryable') return false;
+  return status.lastError?.includes('inactive alias baseline is still progressing') === true
+    || status.lastError?.includes('candidate scan has more catalog rows to inspect') === true;
+}
+
+async function yieldToRenderer(): Promise<void> {
+  await new Promise<void>(resolve => setTimeout(resolve, 0));
+}
 
 function isOwnedBy(serverId: string | null | undefined, owners: Set<string>): boolean {
   return !!serverId && owners.has(serverId);
@@ -94,6 +126,9 @@ function collectProbeCandidates(owners: Set<string>): IdentityProbeCandidateDto[
   for (const item of player.queueItems) {
     if (isOwnedBy(item.serverId, owners)) add(tracks, item.trackId);
   }
+  for (const item of getTimelineSessionHistorySnapshot()) {
+    if (isOwnedBy(item.serverId, owners)) add(tracks, item.trackId);
+  }
   for (const entry of Object.values(useLocalPlaybackStore.getState().entries)) {
     if (!owners.has(entry.serverIndexKey)) continue;
     add(tracks, entry.trackId);
@@ -123,7 +158,33 @@ function rewritePlayer(owners: Set<string>): ShuffleModeSnapshot {
     const queueItems = state.queueItems.map(item => isOwnedBy(item.serverId, owners)
       ? { ...item, trackId: canonicalizeNavidromeId(item.trackId) }
       : item);
-    return { currentTrack, queueItems };
+    const sortedOwners = [...owners].sort((a, b) => b.length - a.length);
+    const rewriteOverrides = <T>(overrides: Record<string, T>): Record<string, T> => {
+      const next: Record<string, T> = {};
+      const legacy: Array<[string, T]> = [];
+      for (const [key, value] of Object.entries(overrides)) {
+        const owner = sortedOwners.find(candidate => key.startsWith(`${candidate}:`));
+        if (!owner) {
+          next[key] = value;
+          continue;
+        }
+        const id = key.slice(owner.length + 1);
+        const canonicalId = canonicalizeNavidromeId(id);
+        const nextKey = `${owner}:${canonicalId}`;
+        if (canonicalId === id) next[nextKey] = value;
+        else legacy.push([nextKey, value]);
+      }
+      for (const [key, value] of legacy) {
+        if (!(key in next)) next[key] = value;
+      }
+      return next;
+    };
+    return {
+      currentTrack,
+      queueItems,
+      starredOverrides: rewriteOverrides(state.starredOverrides),
+      userRatingOverrides: rewriteOverrides(state.userRatingOverrides),
+    };
   });
 
   const shuffle = readShuffleModeSnapshot();
@@ -204,6 +265,19 @@ function rewriteAuthState(owners: Set<string>): void {
     const libraryBrowseSelectionByServer = { ...state.libraryBrowseSelectionByServer };
     const musicLibraryFilterByServer = { ...state.musicLibraryFilterByServer };
     const musicLibrarySelectionByServer = { ...state.musicLibrarySelectionByServer };
+    const skipStarManualSkipCountsByKey: Record<string, number> = {};
+    for (const [key, count] of Object.entries(state.skipStarManualSkipCountsByKey)) {
+      const separator = key.indexOf('\u001f');
+      const owner = separator >= 0 ? key.slice(0, separator) : '';
+      const trackId = separator >= 0 ? key.slice(separator + 1) : key;
+      const nextKey = owners.has(owner)
+        ? skipStarCountStorageKey(owner, canonicalizeNavidromeId(trackId))
+        : key;
+      skipStarManualSkipCountsByKey[nextKey] = Math.max(
+        skipStarManualSkipCountsByKey[nextKey] ?? 0,
+        count,
+      );
+    }
     for (const owner of owners) {
       if (musicFoldersByServer[owner]) {
         musicFoldersByServer[owner] = rewriteFolders(musicFoldersByServer[owner]);
@@ -225,23 +299,28 @@ function rewriteAuthState(owners: Set<string>): void {
       ? rewriteFolders(state.musicFolders)
       : state.musicFolders;
     return {
-      skipStarManualSkipCountsByKey: {},
+      skipStarManualSkipCountsByKey,
       musicFolders,
       musicFoldersByServer,
       libraryBrowseSelectionByServer,
       musicLibraryFilterByServer,
       musicLibrarySelectionByServer,
+      musicLibraryFilterVersion: state.musicLibraryFilterVersion + 1,
+      libraryBrowseScopeVersion: state.libraryBrowseScopeVersion + 1,
     };
   });
+  const auth = useAuthStore.getState();
+  for (const profile of auth.servers) {
+    if (!owners.has(profile.id) && !owners.has(serverIndexKeyForProfile(profile))) continue;
+    runMusicLibraryCatalogReloadHandler(
+      profile.id,
+      useLibraryIndexStore.getState().isIndexEnabled(profile.id),
+      auth.musicLibraryFilterVersion,
+    );
+  }
 }
 
 function rewriteDeviceSync(owners: Set<string>, serverIndexKey: string): void {
-  const legacySources = useDeviceSyncStore.getState().legacySources;
-  if (legacySources.length > 0) {
-    throw new Error(
-      'Device Sync has ownerless legacy selections. Open Device Sync and add a source to recover them, then retry.',
-    );
-  }
   useDeviceSyncStore.setState(state => {
     const byKey = new Map<string, (typeof state.sources)[number]>();
     for (const source of state.sources) {
@@ -295,6 +374,7 @@ function verifyPersistence(expectedShuffle: ShuffleModeSnapshot): void {
     ['psysonic-local-playback', 'entries', useLocalPlaybackStore.getState().entries],
     ['psysonic-offline', 'albums', useOfflineStore.getState().albums],
     ['psysonic-auth', 'musicFoldersByServer', useAuthStore.getState().musicFoldersByServer],
+    ['psysonic-auth', 'skipStarManualSkipCountsByKey', useAuthStore.getState().skipStarManualSkipCountsByKey],
     ['psysonic-auth', 'libraryBrowseSelectionByServer', useAuthStore.getState().libraryBrowseSelectionByServer],
     ['psysonic-auth', 'musicLibraryFilterByServer', useAuthStore.getState().musicLibraryFilterByServer],
     ['psysonic-auth', 'musicLibrarySelectionByServer', useAuthStore.getState().musicLibrarySelectionByServer],
@@ -331,6 +411,18 @@ function assertCanonicalOwnedState(owners: Set<string>): void {
   for (const item of player.queueItems) {
     if (isOwnedBy(item.serverId, owners)) check('queue', item.trackId);
   }
+  for (const item of getTimelineSessionHistorySnapshot()) {
+    if (isOwnedBy(item.serverId, owners)) check('timeline', item.trackId);
+  }
+  const sortedOwners = [...owners].sort((a, b) => b.length - a.length);
+  for (const key of Object.keys(player.starredOverrides)) {
+    const owner = sortedOwners.find(candidate => key.startsWith(`${candidate}:`));
+    if (owner) check('starredOverride', key.slice(owner.length + 1));
+  }
+  for (const key of Object.keys(player.userRatingOverrides)) {
+    const owner = sortedOwners.find(candidate => key.startsWith(`${candidate}:`));
+    if (owner) check('ratingOverride', key.slice(owner.length + 1));
+  }
   for (const entry of Object.values(useLocalPlaybackStore.getState().entries)) {
     if (!owners.has(entry.serverIndexKey)) continue;
     check('localPlayback', entry.trackId);
@@ -342,6 +434,11 @@ function assertCanonicalOwnedState(owners: Set<string>): void {
     for (const trackId of album.trackIds) check('offlineTrack', trackId);
   }
   const auth = useAuthStore.getState();
+  for (const key of Object.keys(auth.skipStarManualSkipCountsByKey)) {
+    const separator = key.indexOf('\u001f');
+    const owner = separator >= 0 ? key.slice(0, separator) : '';
+    if (owners.has(owner)) check('skipStar', separator >= 0 ? key.slice(separator + 1) : key);
+  }
   if (owners.has(auth.activeServerId ?? '')) {
     for (const folder of auth.musicFolders) check('activeMusicFolder', folder.id);
   }
@@ -353,7 +450,6 @@ function assertCanonicalOwnedState(owners: Set<string>): void {
     if (filter && filter !== 'all') check('libraryFilter', filter);
   }
   const device = useDeviceSyncStore.getState();
-  if (device.legacySources.length > 0) legacyIds.push('deviceSync:ownerless');
   for (const source of device.sources) {
     if (owners.has(source.serverIndexKey)) check('deviceSync', source.id);
   }
@@ -369,6 +465,7 @@ function assertCanonicalOwnedState(owners: Set<string>): void {
 async function runCanonicalIdentityTransition(
   server: ServerProfile,
   serverIndexKey: string,
+  context: BlockingMigrationContext,
 ): Promise<void> {
   await ensureHydrated();
   const owners = new Set([
@@ -385,7 +482,10 @@ async function runCanonicalIdentityTransition(
     || status.state === 'awaiting_supplemental_probe'
     || status.state === 'retryable'
   ) {
-    status = await libraryIdentityTransitionProbe(serverIndexKey, probeCandidates);
+    do {
+      status = await libraryIdentityTransitionProbe(serverIndexKey, probeCandidates);
+      if (isDeterministicProbeProgress(status)) await yieldToRenderer();
+    } while (isDeterministicProbeProgress(status));
   }
   if (status.state === 'ready') {
     activateCanonicalNavidromeOwners(owners);
@@ -396,17 +496,29 @@ async function runCanonicalIdentityTransition(
     throw new Error(status.lastError ?? 'Canonical-ID probe remains inconclusive');
   }
 
-  const migration = useMigrationStore.getState();
-  retryRequest = { server, serverIndexKey };
-  migration.setStep('canonicalIds');
-  migration.setNeedsMigration(true);
-  migration.setError(null);
-  migration.setPhase('running');
+  context.setView({ step: 'canonicalIds', needsMigration: true, phase: 'running' });
 
-  try {
-    if (status.state === 'blocked') {
-      throw new Error(status.lastError ?? 'Canonical-ID transition is blocked');
+  if (status.state === 'blocked') {
+    throw new Error(status.lastError ?? 'Canonical-ID transition is blocked');
+  }
+  const needsOfflineBarrier = status.state === 'transition_detected' || status.state === 'pending_frontend';
+  if (needsOfflineBarrier) {
+    const pauseResults = await Promise.allSettled([
+      cancelAndDrainOfflinePinQueue(),
+      pauseAndDrainPinnedOfflineSync(),
+      pauseAndDrainFavoritesOfflineSync(),
+      pauseAndDrainLocalPlaybackInvalidation(),
+    ]);
+    const pauseFailure = pauseResults.find(result => result.status === 'rejected');
+    if (pauseFailure?.status === 'rejected') {
+      resumeFavoritesOfflineSync();
+      resumePinnedOfflineSync();
+      resumeOfflinePinQueue();
+      resumeLocalPlaybackInvalidation();
+      throw pauseFailure.reason;
     }
+  }
+  try {
     if (status.state === 'transition_detected') {
       status = await libraryIdentityTransitionRunNativeMigration(serverIndexKey);
     }
@@ -424,18 +536,17 @@ async function runCanonicalIdentityTransition(
     rewriteAuthState(owners);
     rewriteDeviceSync(owners, serverIndexKey);
     rewritePlaylists(owners);
+    rewriteTimelineSessionHistoryForOwners(owners, serverIndexKey);
     assertCanonicalOwnedState(owners);
     verifyPersistence(expectedShuffle);
     await libraryIdentityTransitionAck(serverIndexKey);
-
-    retryRequest = null;
-    migration.setNeedsMigration(false);
-    migration.setStep(null);
-    migration.setPhase('completed');
-  } catch (error) {
-    migration.setError(error instanceof Error ? error.message : String(error));
-    migration.setPhase('error');
-    throw error;
+  } finally {
+    if (needsOfflineBarrier) {
+      resumeFavoritesOfflineSync();
+      resumePinnedOfflineSync();
+      resumeOfflinePinQueue();
+      resumeLocalPlaybackInvalidation();
+    }
   }
 }
 
@@ -443,21 +554,23 @@ export async function reconcileCanonicalEntityIds(
   server: ServerProfile,
   serverIndexKey: string,
 ): Promise<void> {
-  const existing = reconciliationInFlight.get(serverIndexKey);
-  if (existing) return existing;
-  const promise = canonicalMigrationSerial
-    .catch(() => undefined)
-    .then(() => runCanonicalIdentityTransition(server, serverIndexKey));
-  canonicalMigrationSerial = promise.catch(() => undefined);
-  const tracked = promise.finally(() => {
-    reconciliationInFlight.delete(serverIndexKey);
+  return enqueueBlockingMigration({
+    id: `canonical-ids:${serverIndexKey}`,
+    step: 'canonicalIds',
+    initialPhase: 'idle',
+    retry: () => {
+      void reconcileCanonicalEntityIds(server, serverIndexKey).catch(() => {});
+    },
+    run: context => runCanonicalIdentityTransition(server, serverIndexKey, context),
   });
-  reconciliationInFlight.set(serverIndexKey, tracked);
-  return tracked;
 }
 
-export function retryCanonicalIdentityMigration(): void {
-  const request = retryRequest;
-  if (!request) return;
-  void reconcileCanonicalEntityIds(request.server, request.serverIndexKey).catch(() => {});
+/** Complete or reactivate a durable transition without requiring server reachability. */
+export async function restoreCanonicalEntityIdsFromLocalState(
+  server: ServerProfile,
+  serverIndexKey: string,
+): Promise<void> {
+  const status = await libraryIdentityTransitionStatus(serverIndexKey);
+  if (!['transition_detected', 'pending_frontend', 'ready'].includes(status.state)) return;
+  await reconcileCanonicalEntityIds(server, serverIndexKey);
 }

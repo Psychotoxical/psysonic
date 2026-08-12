@@ -21,6 +21,7 @@ interface MigrationState {
   scopeBrowseProjectionInspect: ScopeBrowseProjectionInspectDto | null;
   scopeBrowseProjectionProgress: GenreTagsProgressEvent | null;
   lastError: string | null;
+  blockingRevision: number;
   setPhase: (phase: MigrationPhase) => void;
   setStep: (step: MigrationStep | null) => void;
   setNeedsMigration: (needsMigration: boolean) => void;
@@ -44,6 +45,7 @@ export const useMigrationStore = create<MigrationState>(set => ({
   scopeBrowseProjectionInspect: null,
   scopeBrowseProjectionProgress: null,
   lastError: null,
+  blockingRevision: 0,
   setPhase: phase => set({ phase }),
   setStep: step => set({ step }),
   setNeedsMigration: needsMigration => set({ needsMigration }),

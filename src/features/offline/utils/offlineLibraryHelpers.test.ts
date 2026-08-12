@@ -14,11 +14,17 @@ import {
   pendingOfflinePinSongs,
   offlineAlbumCoverScope,
   offlineTrackCount,
+  resolveOfflineAlbumMeta,
   type OfflineLibraryCard,
 } from '@/features/offline/utils/offlineLibraryHelpers';
 import * as libraryApi from '@/lib/api/library';
 import { coverStorageKey } from '@/cover/storageKeys';
 import { resolveCoverDisplayTier } from '@/cover/tiers';
+import {
+  activateCanonicalNavidromeOwners,
+  canonicalizeNavidromeId,
+  deactivateCanonicalNavidromeOwners,
+} from '@/lib/server/navidromeCanonicalIds';
 
 vi.mock('@/utils/server/switchActiveServer', () => ({
   switchActiveServer: vi.fn(async () => true),
@@ -46,6 +52,7 @@ vi.mock('@/lib/api/library', async importOriginal => {
 
 describe('offlineLibraryHelpers', () => {
   beforeEach(() => {
+    deactivateCanonicalNavidromeOwners(['a', 'a.test']);
     useAuthStore.setState({
       servers: [{ id: 'a', name: 'Home', url: 'http://a.test', username: 'u', password: 'p' }],
       activeServerId: 'a',
@@ -172,6 +179,25 @@ describe('offlineLibraryHelpers', () => {
       },
     });
     expect(isOfflinePinComplete('al1', 'a')).toBe(true);
+  });
+
+  it('resolves canonical pin metadata when queried with a legacy album id', () => {
+    const legacyAlbumId = 'f47ac10b-58cc-4372-a567-0e02b2c3d479';
+    const canonicalAlbumId = canonicalizeNavidromeId(legacyAlbumId);
+    activateCanonicalNavidromeOwners(['a', 'a.test']);
+    useOfflineStore.setState({
+      albums: {
+        [`a.test:${canonicalAlbumId}`]: {
+          id: canonicalAlbumId,
+          serverId: 'a.test',
+          name: 'Al',
+          artist: 'Ar',
+          trackIds: ['t1'],
+        },
+      },
+    });
+
+    expect(resolveOfflineAlbumMeta(legacyAlbumId, 'a')?.id).toBe(canonicalAlbumId);
   });
 
   it('hasAnyOfflineAlbums is true when pinned groups exist', () => {

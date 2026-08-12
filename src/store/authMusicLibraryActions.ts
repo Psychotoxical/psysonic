@@ -6,6 +6,7 @@ import {
 } from './musicLibraryFilterNotify';
 import { deriveLibraryBrowseServerIdsWithFallback } from '@/lib/library/libraryBrowseScope';
 import { emitMultiServerDebug } from '@/lib/library/multiServerDebug';
+import { canonicalizeConfirmedNavidromeId } from '@/lib/server/navidromeCanonicalIds';
 
 type SetState = (
   partial: Partial<AuthState> | ((state: AuthState) => Partial<AuthState>),
@@ -37,6 +38,17 @@ function collapseServerSelection(folders: MusicFolder[], libraryIds: string[]): 
   }
   const selected = new Set(libraryIds);
   return folders.every(folder => selected.has(folder.id)) ? [] : libraryIds;
+}
+
+function canonicalizeMusicFolders(serverId: string, folders: MusicFolder[]): MusicFolder[] {
+  return folders.map(folder => ({
+    ...folder,
+    id: canonicalizeConfirmedNavidromeId(serverId, folder.id),
+  }));
+}
+
+function canonicalizeFolderIds(serverId: string, ids: string[]): string[] {
+  return ids.map(id => canonicalizeConfirmedNavidromeId(serverId, id));
 }
 
 function deferMusicLibraryCatalogReload(get: GetState, set: SetState, serverId: string): void {
@@ -77,11 +89,12 @@ export function createMusicLibraryActions(set: SetState, get: GetState): Pick<
   return {
     setMusicFolders: (folders) => {
       const sid = get().activeServerId;
-      const folderIds = new Set(folders.map(x => x.id));
       if (!sid) {
         set({ musicFolders: folders });
         return;
       }
+      folders = canonicalizeMusicFolders(sid, folders);
+      const folderIds = new Set(folders.map(x => x.id));
 
       const s = get();
       const updates: Partial<AuthState> = {
@@ -133,6 +146,7 @@ export function createMusicLibraryActions(set: SetState, get: GetState): Pick<
         });
         return;
       }
+      folders = canonicalizeMusicFolders(serverId, folders);
       const previousFolders = s.musicFoldersByServer[serverId] ?? [];
       const foldersChanged = folders.length !== previousFolders.length
         || folders.some((folder, index) => {
@@ -268,6 +282,7 @@ export function createMusicLibraryActions(set: SetState, get: GetState): Pick<
         });
         return;
       }
+      libraryIds = canonicalizeFolderIds(serverId, libraryIds);
       const folders = s.musicFoldersByServer[serverId] ?? [];
       const knownFolderIds = new Set(folders.map(folder => folder.id));
       const unique = [...new Set(libraryIds)].filter(id => folders.length === 0 || knownFolderIds.has(id));
@@ -303,6 +318,9 @@ export function createMusicLibraryActions(set: SetState, get: GetState): Pick<
     setMusicLibraryFilter: (folderId) => {
       const sid = get().activeServerId;
       if (!sid) return;
+      folderId = folderId === 'all'
+        ? folderId
+        : canonicalizeConfirmedNavidromeId(sid, folderId);
       // Selection readers prefer the ordered selection over the legacy field, so
       // a legacy-only write would be a no-op once a selection exists. Keep both
       // in sync: 'all' clears the selection (browse all), a folder id becomes a
@@ -321,6 +339,7 @@ export function createMusicLibraryActions(set: SetState, get: GetState): Pick<
     setMusicLibrarySelection: (libraryIds) => {
       const sid = get().activeServerId;
       if (!sid) return;
+      libraryIds = canonicalizeFolderIds(sid, libraryIds);
       const selection = collapseFullSelection(get(), libraryIds);
       set(s => ({
         musicLibrarySelectionByServer: {

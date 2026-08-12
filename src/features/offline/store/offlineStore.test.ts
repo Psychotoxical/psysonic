@@ -7,6 +7,11 @@ import { resetAuthStore } from '@/test/helpers/storeReset';
 import { invokeMock, onInvoke } from '@/test/mocks/tauri';
 import { cancelledDownloads, useOfflineJobStore } from '@/features/offline/store/offlineJobStore';
 import { clearOfflinePinTasks } from '@/features/offline/utils/offlinePinQueue';
+import {
+  activateCanonicalNavidromeOwners,
+  canonicalizeNavidromeId,
+  deactivateCanonicalNavidromeOwners,
+} from '@/lib/server/navidromeCanonicalIds';
 
 const mocks = vi.hoisted(() => ({
   buildOriginalStreamUrlForServer: vi.fn(
@@ -36,6 +41,7 @@ const SONG: SubsonicSong = {
 };
 
 beforeEach(() => {
+  deactivateCanonicalNavidromeOwners(['srv-a', 'a.test']);
   resetAuthStore();
   clearOfflinePinTasks();
   cancelledDownloads.clear();
@@ -122,5 +128,138 @@ describe('offlineStore download producer', () => {
     await waitFor(() => expect(
       useLocalPlaybackStore.getState().getEntry('track-1', 'a.test')?.originalBytesVerified,
     ).toBe(true));
+  });
+
+  it('canonicalizes a later active-download batch after owner activation', async () => {
+    const legacyFirst = 'e3b7fc2ae9447bbec37a13bf916e3cf6';
+    const legacySecond = 'f47ac10b-58cc-4372-a567-0e02b2c3d479';
+    const canonicalSecond = canonicalizeNavidromeId(legacySecond);
+    const songs = Array.from({ length: 9 }, (_, index): SubsonicSong => ({
+      ...SONG,
+      id: index === 0 ? legacyFirst : index === 8 ? legacySecond : `track-${index}`,
+      albumId: 'album-1',
+    }));
+    let releaseFirstBatch!: () => void;
+    const firstBatchGate = new Promise<void>(resolve => { releaseFirstBatch = resolve; });
+    let firstBatchCalls = 0;
+    onInvoke('download_track_local', async (args) => {
+      firstBatchCalls += 1;
+      if (firstBatchCalls <= 8) {
+        await firstBatchGate;
+      }
+      return {
+        path: `/media/${String((args as { trackId: string }).trackId)}.flac`,
+        size: 1,
+        layoutFingerprint: 'layout',
+        originalBytesVerified: true,
+      };
+    });
+
+    await useOfflineStore.getState().downloadAlbum(
+      'album-1', 'Album', 'Artist', undefined, undefined, songs, 'srv-a',
+    );
+    await waitFor(() => expect(firstBatchCalls).toBe(8));
+
+    activateCanonicalNavidromeOwners(['srv-a', 'a.test']);
+    releaseFirstBatch();
+    await waitFor(() => expect(mocks.buildOriginalStreamUrlForServer)
+      .toHaveBeenCalledWith('srv-a', canonicalSecond));
+    expect(invokeMock).toHaveBeenCalledWith(
+      'download_track_local',
+      expect.objectContaining({ trackId: canonicalSecond }),
+    );
+  });
+
+  it('cancels a legacy active download when removal uses its canonical album id', async () => {
+    const legacyAlbumId = 'f47ac10b-58cc-4372-a567-0e02b2c3d479';
+    const canonicalAlbumId = canonicalizeNavidromeId(legacyAlbumId);
+    const songs = Array.from({ length: 9 }, (_, index): SubsonicSong => ({
+      ...SONG,
+      id: `track-${index}`,
+      albumId: legacyAlbumId,
+    }));
+    let releaseFirstBatch!: () => void;
+    const firstBatchGate = new Promise<void>(resolve => { releaseFirstBatch = resolve; });
+    let downloadCalls = 0;
+    onInvoke('download_track_local', async args => {
+      downloadCalls += 1;
+      if (downloadCalls <= 8) await firstBatchGate;
+      return {
+        path: `/media/${String((args as { trackId: string }).trackId)}.flac`,
+        size: 1,
+        layoutFingerprint: 'layout',
+        originalBytesVerified: true,
+      };
+    });
+    onInvoke('cancel_offline_downloads', () => undefined);
+
+    await useOfflineStore.getState().downloadAlbum(
+      legacyAlbumId, 'Album', 'Artist', undefined, undefined, songs, 'srv-a',
+    );
+    await waitFor(() => expect(downloadCalls).toBe(8));
+    activateCanonicalNavidromeOwners(['srv-a', 'a.test']);
+
+    await useOfflineStore.getState().deleteAlbum(canonicalAlbumId, 'srv-a');
+    releaseFirstBatch();
+    await waitFor(() => expect(useOfflineJobStore.getState().pinQueue).toEqual([]));
+
+    expect(downloadCalls).toBe(8);
+    expect(Object.keys(useLocalPlaybackStore.getState().entries)).toEqual([]);
+  });
+
+  it('resolves status and deletion across legacy and canonical album ids', async () => {
+    const legacyAlbumId = 'f47ac10b-58cc-4372-a567-0e02b2c3d479';
+    const canonicalAlbumId = canonicalizeNavidromeId(legacyAlbumId);
+    const legacyTrackId = 'e3b7fc2ae9447bbec37a13bf916e3cf6';
+    const canonicalTrackId = canonicalizeNavidromeId(legacyTrackId);
+    activateCanonicalNavidromeOwners(['srv-a', 'a.test']);
+    useOfflineStore.setState({
+      albums: {
+        [`a.test:${canonicalAlbumId}`]: {
+          id: canonicalAlbumId,
+          serverId: 'a.test',
+          name: 'Album',
+          artist: 'Artist',
+          trackIds: [canonicalTrackId],
+          type: 'album',
+        },
+      },
+    });
+    useLocalPlaybackStore.getState().upsertEntry({
+      serverIndexKey: 'a.test',
+      trackId: canonicalTrackId,
+      localPath: `/media/${canonicalTrackId}.flac`,
+      sizeBytes: 1,
+      layoutFingerprint: 'canonical',
+      tier: 'library',
+      pinSource: { kind: 'album', sourceId: canonicalAlbumId },
+      suffix: 'flac',
+    });
+    useOfflineJobStore.setState({
+      jobs: [{
+        trackId: canonicalTrackId,
+        albumId: canonicalAlbumId,
+        albumName: 'Album',
+        trackTitle: 'Track',
+        trackIndex: 0,
+        totalTracks: 1,
+        status: 'downloading',
+        downloadId: 'download-1',
+        serverId: 'srv-a',
+      }],
+      pinQueue: [],
+      bulkProgress: {},
+    });
+    onInvoke('cancel_offline_downloads', () => undefined);
+    onInvoke('delete_media_file', () => undefined);
+
+    expect(useOfflineStore.getState().isAlbumDownloaded(legacyAlbumId, 'srv-a')).toBe(true);
+    expect(useOfflineStore.getState().isAlbumDownloading(legacyAlbumId, 'srv-a')).toBe(true);
+    expect(useOfflineStore.getState().getAlbumProgress(legacyAlbumId, 'srv-a')).toEqual({ done: 0, total: 1 });
+
+    await useOfflineStore.getState().deleteAlbum(legacyAlbumId, 'srv-a');
+
+    expect(useLocalPlaybackStore.getState().entries).toEqual({});
+    expect(useOfflineStore.getState().albums).toEqual({});
   });
 });

@@ -26,9 +26,15 @@ pub fn apply_artist_index(
         .set_ignored_articles(server_id, library_scope, ignored)
         .map_err(SyncError::Storage)?;
     let repo = ArtistRepository::new(store);
-    let confirmed = repo
+    let (confirmed, transition) = repo
         .upsert_index(server_id, index, synced_at)
         .map_err(SyncError::Storage)?;
+    if let Some(transition) = transition {
+        return Err(SyncError::IdentityTransition(format!(
+            "server `{}` changed artist id `{}` to canonical id `{}`; migration required",
+            transition.server_id, transition.old_id, transition.new_id
+        )));
+    }
     repo.backfill_from_tracks(server_id, ignored, synced_at).map_err(SyncError::Storage)?;
     if let Some(ms) = index.last_modified_ms {
         sync_state

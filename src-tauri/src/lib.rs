@@ -95,6 +95,24 @@ fn scheduler_idle_payload(
         })
 }
 
+fn scheduler_error_idle_payload(
+    error: &psysonic_library::sync::SyncError,
+    server_id: &str,
+    library_scope: &str,
+) -> Option<psysonic_library::LibrarySyncIdlePayload> {
+    matches!(
+        error,
+        psysonic_library::sync::SyncError::IdentityTransition(_)
+    )
+    .then(|| psysonic_library::LibrarySyncIdlePayload::err(
+        server_id,
+        library_scope,
+        "delta_sync",
+        "background",
+        &error.to_string(),
+    ))
+}
+
 /// Shared handle to OS media controls (MPRIS2 on Linux, Now Playing on macOS, SMTC on Windows).
 /// `None` if souvlaki failed to initialize (e.g. no D-Bus session on Linux).
 type MprisControls = Mutex<Option<souvlaki::MediaControls>>;
@@ -828,14 +846,6 @@ pub fn run() {
                                 {
                                     return;
                                 }
-                                if psysonic_library::navidrome_identity::assert_sync_ready(
-                                    &runtime.store,
-                                    &session.server_id,
-                                )
-                                .is_err()
-                                {
-                                    return;
-                                }
                                 let subsonic = psysonic_integration::subsonic::subsonic_client_with_registry(
                                     Some(registry.as_ref()),
                                     &session.server_id,
@@ -938,11 +948,23 @@ pub fn run() {
                                             );
                                         }
                                     }
-                                    Err(err) => crate::app_deprintln!(
-                                        "[library-sync] scheduler recorded server failure server_id={}: {}",
-                                        session.server_id,
-                                        err
-                                    ),
+                                    Err(err) => {
+                                        crate::app_deprintln!(
+                                            "[library-sync] scheduler recorded server failure server_id={}: {}",
+                                            session.server_id,
+                                            err
+                                        );
+                                        if let Some(payload) = scheduler_error_idle_payload(
+                                            &err,
+                                            &session.server_id,
+                                            &scope,
+                                        ) {
+                                            let _ = app_for_session.emit(
+                                                psysonic_library::LibrarySyncProgressPayload::IDLE_EVENT_NAME,
+                                                &payload,
+                                            );
+                                        }
+                                    }
                                 }
                             }
                         })
@@ -1899,6 +1921,32 @@ mod scheduler_driver_tests {
             ..skipped
         };
         assert!(scheduler_idle_payload(&census_only, "s1", "").is_some());
+    }
+
+    #[test]
+    fn scheduler_identity_transition_maps_to_failed_background_idle_payload() {
+        let payload = scheduler_error_idle_payload(
+            &psysonic_library::sync::SyncError::IdentityTransition(
+                "canonical migration required".into(),
+            ),
+            "s1",
+            "scope",
+        )
+        .unwrap();
+
+        assert!(!payload.ok);
+        assert_eq!(payload.source, "background");
+        assert_eq!(payload.kind, "delta_sync");
+        assert!(payload
+            .error
+            .as_deref()
+            .is_some_and(|error| error.contains("canonical migration required")));
+        assert!(scheduler_error_idle_payload(
+            &psysonic_library::sync::SyncError::Transport("offline".into()),
+            "s1",
+            "scope",
+        )
+        .is_none());
     }
 }
 

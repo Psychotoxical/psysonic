@@ -1,6 +1,6 @@
 import { initAudioListeners } from '@/features/playback/store/initAudioListeners';
 import '@/features/playback/store/playbackEngineBridgeRegister'; // installs the playback-engine bridge at boot
-import { lazy, Suspense, useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { BrowserRouter, Route, Routes } from 'react-router';
 import { preloadMiniPlayer as preloadMiniPlayerWindow } from '@/lib/api/miniPlayer';
 import { showToast } from '@/lib/dom/toast';
@@ -25,9 +25,6 @@ import { runLegacyOfflineFileMigration } from '@/features/offline/utils/legacyOf
 import { reconcileLibraryTierForServer } from '@/features/offline/utils/libraryTierReconcile';
 import { initMiniPlayerBridgeOnMain } from '@/features/miniPlayer';
 import { runAdvancedModeMigration } from '@/app/migrations/advancedModeMigration';
-import { bootstrapAllIndexedServers } from '@/lib/library/librarySession';
-import { hydrateQueueFromIndex } from '@/features/playback/store/queueRestore';
-import { reconcileStartupPlayQueues } from '@/features/playback/store/startupPlayQueueReconcile';
 import { useLibraryAnalysisBackfill } from '@/lib/library/hooks/useLibraryAnalysisBackfill';
 import { useCoverArtPrefetch } from '../cover/useCoverArtPrefetch';
 import { useLibraryCoverBackfill } from '@/cover/useLibraryCoverBackfill';
@@ -42,6 +39,7 @@ import BlockingMigrationGate from './BlockingMigrationGate';
 import RequireAuth from './RequireAuth';
 import { useMigrationStore } from '../store/migrationStore';
 import BenchmarkRunner from './BenchmarkRunner';
+import { useStartupReadiness } from '@/app/hooks/useStartupReadiness';
 
 const Login = lazy(() => import('@/features/auth/pages/Login'));
 
@@ -67,31 +65,26 @@ export default function MainApp() {
   const serverIdsKey = useAuthStore(s => s.servers.map(srv => srv.id).join(','));
   const masterEnabled = useLibraryIndexStore(s => s.masterEnabled);
   const migrationPhase = useMigrationStore(s => s.phase);
+  const migrationRevision = useMigrationStore(s => s.blockingRevision);
   const migrationReady = migrationPhase === 'completed';
-  const startupQueueReconcileStartedRef = useRef(false);
   useMigrationOrchestrator();
-  useEffect(() => {
-    if (!migrationReady) return;
-    const shouldReconcileStartupQueue = !startupQueueReconcileStartedRef.current;
-    if (shouldReconcileStartupQueue) startupQueueReconcileStartedRef.current = true;
-    void (async () => {
-      await bootstrapAllIndexedServers();
-      await hydrateQueueFromIndex();
-      if (shouldReconcileStartupQueue) {
-        await reconcileStartupPlayQueues();
-      }
-    })();
-  }, [activeServerId, serverIdsKey, masterEnabled, migrationReady]);
+  const startupReady = useStartupReadiness({
+    migrationReady,
+    activeServerId,
+    serverIdsKey,
+    masterEnabled,
+    migrationRevision,
+  });
 
-  useLibraryAnalysisBackfill(migrationReady);
-  useCoverArtPrefetch(migrationReady);
-  useLibraryCoverBackfill(migrationReady);
-  useCoverRevalidateScheduler(migrationReady);
+  useLibraryAnalysisBackfill(startupReady);
+  useCoverArtPrefetch(startupReady);
+  useLibraryCoverBackfill(startupReady);
+  useCoverRevalidateScheduler(startupReady);
 
   useEffect(() => {
-    if (!migrationReady) return;
+    if (!startupReady) return;
     void runCoverIdbUpgradeMigration();
-  }, [migrationReady]);
+  }, [startupReady]);
 
   // Push playback state to mini window + handle control events.
   useEffect(() => {
@@ -103,22 +96,22 @@ export default function MainApp() {
   // a hang workaround — skip here to avoid double-building.
   const preloadMiniPlayer = useAuthStore(s => s.preloadMiniPlayer);
   useEffect(() => {
-    if (!migrationReady || IS_WINDOWS || !preloadMiniPlayer) return;
+    if (!startupReady || IS_WINDOWS || !preloadMiniPlayer) return;
     preloadMiniPlayerWindow().catch(() => {});
-  }, [preloadMiniPlayer, migrationReady]);
+  }, [preloadMiniPlayer, startupReady]);
 
   useEffect(() => {
-    if (!migrationReady) return undefined;
+    if (!startupReady) return undefined;
     return initAudioListeners();
-  }, [migrationReady]);
+  }, [startupReady]);
 
   useEffect(() => {
-    if (!migrationReady) return undefined;
+    if (!startupReady) return undefined;
     return initHotCachePrefetch();
-  }, [migrationReady]);
+  }, [startupReady]);
 
   useEffect(() => {
-    if (!migrationReady) return undefined;
+    if (!startupReady) return undefined;
     void (async () => {
       await runLegacyOfflineFileMigration();
       const servers = useAuthStore.getState().servers;
@@ -137,12 +130,12 @@ export default function MainApp() {
       stopPinnedOfflineSync();
       stopOfflineResume();
     };
-  }, [migrationReady, serverIdsKey]);
+  }, [startupReady, serverIdsKey]);
 
   useEffect(() => {
-    if (!migrationReady) return;
+    if (!startupReady) return;
     useGlobalShortcutsStore.getState().registerAll();
-  }, [migrationReady]);
+  }, [startupReady]);
 
   // ── Easter egg: Ctrl+Shift+Alt+N → export new albums image ──
   useEffect(() => {

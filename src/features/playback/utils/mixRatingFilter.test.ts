@@ -3,6 +3,14 @@ import type { SubsonicAlbum, SubsonicSong } from '@/lib/api/subsonicTypes';
 import { usePlayerStore } from '@/features/playback/store/playerStore';
 import { resetPlayerStore } from '@/test/helpers/storeReset';
 
+const { getRandomSongsForServerMock } = vi.hoisted(() => ({
+  getRandomSongsForServerMock: vi.fn(),
+}));
+
+vi.mock('@/lib/api/subsonicLibrary', () => ({
+  getRandomSongsForServer: getRandomSongsForServerMock,
+}));
+
 vi.mock('@/lib/api/subsonicRatings', () => ({
   entityUserRatingKey: ({ serverId, entityKind, entityId }: { serverId: string; entityKind: string; entityId: string }) => `${serverId}\u0001${entityKind}\u0001${entityId}`,
   putLocalEntityUserRatings: vi.fn(),
@@ -14,6 +22,7 @@ vi.mock('@/store/authStore', () => ({ useAuthStore: { getState: () => ({ activeS
 import { putLocalEntityUserRatings, resolveEntityUserRatings } from '@/lib/api/subsonicRatings';
 import {
   enrichSongsForMixRatingFilter,
+  fetchRandomMixSongsUntilFull,
   filterAlbumsByMixRatingsAcrossServers,
   filterTopArtistsForMixRatings,
   passesMixMinRatings,
@@ -36,6 +45,27 @@ beforeEach(() => {
   vi.mocked(resolveEntityUserRatings).mockReset();
   vi.mocked(resolveEntityUserRatings).mockResolvedValue(new Map());
   vi.mocked(putLocalEntityUserRatings).mockReset();
+  getRandomSongsForServerMock.mockReset().mockResolvedValue([]);
+});
+
+describe('fetchRandomMixSongsUntilFull', () => {
+  it('holds an explicit server owner across random-song batches', async () => {
+    getRandomSongsForServerMock
+      .mockResolvedValueOnce([song({ id: 'one', serverId: 'server-b' })])
+      .mockResolvedValueOnce([song({ id: 'two', serverId: 'server-b' })]);
+
+    const result = await fetchRandomMixSongsUntilFull(
+      { enabled: true, minSong: 0, minAlbum: 0, minArtist: 0 },
+      { serverId: 'server-b', targetSize: 2 },
+    );
+
+    expect(getRandomSongsForServerMock).toHaveBeenCalledTimes(2);
+    expect(getRandomSongsForServerMock.mock.calls.every(call => call[0] === 'server-b')).toBe(true);
+    expect(result.map(item => `${item.serverId}:${item.id}`)).toEqual([
+      'server-b:one',
+      'server-b:two',
+    ]);
+  });
 });
 
 describe('filterAlbumsByMixRatingsAcrossServers', () => {

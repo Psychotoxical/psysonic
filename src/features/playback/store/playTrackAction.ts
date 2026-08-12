@@ -71,7 +71,10 @@ import {
 } from '@/features/playback/store/playbackUrlRouting';
 import type { Track } from '@/lib/media/trackTypes';
 import type { PlayerState } from '@/features/playback/store/playerStoreTypes';
-import { toQueueItemRefs } from '@/features/playback/store/queueItemRef';
+import {
+  canonicalizePlaybackTrack,
+  toQueueItemRefs,
+} from '@/features/playback/store/queueItemRef';
 import { getQueueTracksView, resolveQueueTrack } from '@/features/playback/store/queueTrackView';
 import { getCachedTrack, seedQueueResolver, mergeDirectShareUrls } from '@/features/playback/store/queueTrackResolver';
 import { tracksArePublicShareQueue } from '@/lib/share/navidromePublicSharePlayback';
@@ -214,7 +217,7 @@ export function runPlayTrack(
 
   const stateBeforeLeave = get();
   const prevTrackForHistory = stateBeforeLeave.currentTrack;
-  const scopedTrackEarly = stampTrackServerId(track);
+  const scopedTrackEarly = canonicalizePlaybackTrack(stampTrackServerId(track));
   if (
     prevTrackForHistory
     && !sameQueueTrack(prevTrackForHistory, scopedTrackEarly)
@@ -247,7 +250,9 @@ export function runPlayTrack(
       playingRefEarly,
     )
     : scopedTrackEarly;
-  const scopedQueue = queue ? stampTrackServerIds(queue) : queue;
+  const scopedQueue = queue
+    ? stampTrackServerIds(queue).map(queueTrack => canonicalizePlaybackTrack(queueTrack))
+    : queue;
 
   clearAllPlaybackScheduleTimers();
   set({ scheduledPauseAtMs: null, scheduledPauseStartMs: null, scheduledResumeAtMs: null, scheduledResumeStartMs: null });
@@ -375,6 +380,10 @@ export function runPlayTrack(
     );
 
   const runPlayTrackBody = (trackForPlay: Track) => {
+    trackForPlay = canonicalizePlaybackTrack(
+      trackForPlay,
+      playingRef?.serverId ?? get().queueServerId ?? '',
+    );
     const playNormWindow = normWindow.map((t, i) => (i === normIdx ? trackForPlay : t));
     const authStateNow = useAuthStore.getState();
     const playbackSid = playbackProfileIdForTrack(trackForPlay, playingRef);

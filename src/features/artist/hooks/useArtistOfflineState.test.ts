@@ -3,9 +3,15 @@ import { renderHook } from '@testing-library/react';
 import { useLocalPlaybackStore } from '@/store/localPlaybackStore';
 import { useOfflineJobStore } from '@/features/offline';
 import { useArtistOfflineState } from '@/features/artist/hooks/useArtistOfflineState';
+import {
+  activateCanonicalNavidromeOwners,
+  canonicalizeNavidromeId,
+  deactivateCanonicalNavidromeOwners,
+} from '@/lib/server/navidromeCanonicalIds';
 
 describe('useArtistOfflineState', () => {
   beforeEach(() => {
+    deactivateCanonicalNavidromeOwners(['srv']);
     useOfflineJobStore.setState({ jobs: [], pinQueue: [], bulkProgress: {} });
     useLocalPlaybackStore.setState({ entries: {} });
   });
@@ -72,5 +78,28 @@ describe('useArtistOfflineState', () => {
 
     const { result } = renderHook(() => useArtistOfflineState('artist-1', 'srv', ['al-1']));
     expect(result.current.status).toBe('downloading');
+  });
+
+  it('keeps legacy bulk progress and jobs visible after canonical activation', () => {
+    const legacyArtistId = '00112233-4455-6677-8899-aabbccddeeff';
+    const canonicalArtistId = canonicalizeNavidromeId(legacyArtistId);
+    const legacyAlbumId = 'f47ac10b-58cc-4372-a567-0e02b2c3d479';
+    const canonicalAlbumId = canonicalizeNavidromeId(legacyAlbumId);
+    useOfflineJobStore.setState({
+      bulkProgress: { [`srv:${legacyArtistId}`]: { done: 0, total: 1 } },
+      pinQueue: [{
+        albumId: legacyAlbumId, albumName: 'One', pinKind: 'artist',
+        status: 'downloading', queuedAt: 1, serverId: 'srv',
+      }],
+      jobs: [],
+    });
+    activateCanonicalNavidromeOwners(['srv']);
+
+    const { result } = renderHook(() =>
+      useArtistOfflineState(canonicalArtistId, 'srv', [canonicalAlbumId]),
+    );
+
+    expect(result.current.status).toBe('downloading');
+    expect(result.current.progress).toEqual({ done: 0, total: 1 });
   });
 });
