@@ -78,6 +78,7 @@ export const settings = {
   serverFailed: 'Connessione non riuscita.',
   serverUrlRequired: 'L’indirizzo del server è obbligatorio.',
   serverUsernameRequired: 'Il nome utente è obbligatorio.',
+  serverDuplicate: 'Esiste già una connessione con questo indirizzo server e nome utente.',
   serverConnectFailedReason: 'Impossibile connettersi: {{reason}}',
   testBtn: 'Testa connessione',
   testingBtn: 'Test in corso…',

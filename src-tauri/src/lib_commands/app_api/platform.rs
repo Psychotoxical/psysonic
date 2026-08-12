@@ -6,6 +6,8 @@ use std::path::PathBuf;
 use std::sync::{Mutex, OnceLock};
 use tauri::Manager;
 
+use super::core::MainWindowLifecycleState;
+
 #[cfg(target_os = "linux")]
 const LINUX_WAYLAND_TEXT_PROFILE_FILE: &str = "linux_wayland_text_profile";
 
@@ -185,16 +187,75 @@ pub(crate) fn theme_animation_risk() -> bool {
     }
 }
 
+fn apply_window_decorations(
+    win: &tauri::WebviewWindow,
+    enabled: bool,
+    restore_focus: bool,
+) -> Result<(), String> {
+    if win.is_decorated().ok() == Some(enabled) {
+        return Ok(());
+    }
+    win.set_decorations(enabled).map_err(|error| error.to_string())?;
+    // Re-enabling native decorations on GTK causes the window manager to
+    // re-stack the window, which drops focus. Runtime preference changes need
+    // focus restored; startup preparation runs while the window is still hidden.
+    if enabled && restore_focus {
+        let _ = win.set_focus();
+    }
+    Ok(())
+}
+
+/// Keep native controls available through the startup splash on stacking WMs.
+/// React switches to the custom titlebar only after it has mounted.
 #[tauri::command]
 #[specta::specta]
-pub(crate) fn set_window_decorations(enabled: bool, app_handle: tauri::AppHandle) {
-    if let Some(win) = app_handle.get_webview_window("main") {
-        let _ = win.set_decorations(enabled);
-        // Re-enabling native decorations on GTK causes the window manager to
-        // re-stack the window, which drops focus. Bring it back immediately.
-        if enabled {
-            let _ = win.set_focus();
+pub(crate) fn prepare_main_window_for_reveal(
+    generation: u64,
+    state: tauri::State<'_, MainWindowLifecycleState>,
+    app_handle: tauri::AppHandle,
+) -> Result<bool, String> {
+    #[cfg(target_os = "linux")]
+    {
+        let is_tiling_wm = crate::lib_commands::sync::is_tiling_wm();
+        if let Some(win) = app_handle.get_webview_window("main") {
+            state
+                .apply_startup_decorations(generation, || {
+                    apply_window_decorations(&win, !is_tiling_wm, false)
+                })
+                .transpose()?;
         }
+        Ok(is_tiling_wm)
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = generation;
+        let _ = state;
+        let _ = app_handle;
+        Ok(false)
+    }
+}
+
+#[tauri::command]
+#[specta::specta]
+pub(crate) fn set_window_decorations(
+    enabled: bool,
+    generation: u64,
+    transition: u64,
+    state: tauri::State<'_, MainWindowLifecycleState>,
+    app_handle: tauri::AppHandle,
+) -> Result<bool, String> {
+    match state.apply_frontend_decorations(generation, transition, || {
+        if let Some(win) = app_handle.get_webview_window("main") {
+                apply_window_decorations(&win, enabled, true)
+        } else {
+            Ok(())
+        }
+    }) {
+        Some(result) => {
+            result?;
+            Ok(true)
+        }
+        None => Ok(false),
     }
 }
 

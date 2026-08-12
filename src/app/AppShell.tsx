@@ -89,7 +89,7 @@ export function AppShell() {
   const { t } = useTranslation();
   const isMobile = useIsMobile();
   const isWindowFullscreen = useWindowFullscreenState();
-  const { isTilingWm } = usePlatformShellSetup();
+  const { isTilingWm, linuxCustomTitlebarActive } = usePlatformShellSetup();
 
   // Orbit session hooks: idle until the local store marks a role.
   useOrbitHost();
@@ -116,7 +116,6 @@ export function AppShell() {
   useCoverNavigationPriority();
   useLiveSearchRouteScope();
   useNowPlayingPrewarm();
-  const useCustomTitlebar = useAuthStore(s => s.useCustomTitlebar);
   const fullscreenPlayerStyle = useAuthStore(s => s.fullscreenPlayerStyle);
   const offlineCtx = useReactiveOfflineBrowseContext();
   const offlineNav = offlineBrowseNavFlags(offlineCtx.capabilities);
@@ -244,7 +243,10 @@ export function AppShell() {
   // with the native traffic lights floating over our themed bar, so the bar
   // follows the active theme instead of the grey system titlebar (#1198).
   // Hidden in native fullscreen (the OS chrome is gone there anyway).
-  const showLinuxTitlebar = IS_LINUX && useCustomTitlebar && !isWindowFullscreen && !isTilingWm;
+  const showLinuxTitlebar = IS_LINUX
+    && linuxCustomTitlebarActive
+    && !isWindowFullscreen
+    && !isTilingWm;
   const showMacTitlebar = IS_MACOS && !isWindowFullscreen;
   const showTitlebar = showLinuxTitlebar || showMacTitlebar;
 

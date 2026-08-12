@@ -8,8 +8,11 @@ use crate::tray_runtime::{
     tray_state_icon, TrayMenuItems, TrayMenuItemsState, TrayMenuLabels, TrayMenuLabelsState,
     TrayPlaybackState, TrayState, TrayTooltip,
 };
+use crate::lib_commands::app_api::{
+    run_native_lifecycle_fallback, LifecycleRequest, MainWindowLifecycleState,
+};
 
-use super::super::ui::{PAUSE_RENDERING_JS, RESUME_RENDERING_JS};
+use super::super::ui::{hide_main_window, restore_main_window};
 use tauri::image::Image;
 
 /// Debug builds: mirror the default app icon horizontally so the tray differs from release.
@@ -174,16 +177,29 @@ pub(crate) fn build_tray_icon(app: &tauri::AppHandle) -> tauri::Result<TrayIcon>
             "show_hide"  => {
                 if let Some(win) = app.get_webview_window("main") {
                     if win.is_visible().unwrap_or(false) {
-                        let _ = win.eval(PAUSE_RENDERING_JS);
-                        let _ = win.hide();
+                        let _ = hide_main_window(&win);
                     } else {
-                        let _ = win.eval(RESUME_RENDERING_JS);
-                        let _ = win.show();
-                        let _ = win.set_focus();
+                        let _ = restore_main_window(&win);
                     }
                 }
             }
-            "quit" => { let _ = app.emit("app:force-quit", ()); }
+            "quit" => match app.state::<MainWindowLifecycleState>().request_force_quit() {
+                LifecycleRequest::Queued => {}
+                LifecycleRequest::EmitForceQuit => {
+                    if app.emit("app:force-quit", ()).is_err() {
+                        let request = app
+                            .state::<MainWindowLifecycleState>()
+                            .native_request_after_emit_failure(
+                                crate::lib_commands::app_api::PendingLifecycleAction::ForceQuit,
+                            );
+                        let _ = run_native_lifecycle_fallback(request, app.clone());
+                    }
+                }
+                request @ (LifecycleRequest::NativeHide | LifecycleRequest::NativeExit) => {
+                    let _ = run_native_lifecycle_fallback(request, app.clone());
+                }
+                LifecycleRequest::EmitClose { .. } => {}
+            },
             _ => {}
         })
         .on_tray_icon_event(|tray, event| {
@@ -210,12 +226,9 @@ pub(crate) fn build_tray_icon(app: &tauri::AppHandle) -> tauri::Result<TrayIcon>
                 let app = tray.app_handle();
                 if let Some(win) = app.get_webview_window("main") {
                     if win.is_visible().unwrap_or(false) {
-                        let _ = win.eval(PAUSE_RENDERING_JS);
-                        let _ = win.hide();
+                        let _ = hide_main_window(&win);
                     } else {
-                        let _ = win.eval(RESUME_RENDERING_JS);
-                        let _ = win.show();
-                        let _ = win.set_focus();
+                        let _ = restore_main_window(&win);
                     }
                 }
             }

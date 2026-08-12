@@ -36,14 +36,82 @@ export async function pauseRendering(): Promise<void> {
   if (res.status === 'error') throw new Error(res.error);
 }
 
+export async function resumeRendering(): Promise<void> {
+  const res = await commands.resumeRendering();
+  if (res.status === 'error') throw new Error(res.error);
+}
+
 // --- plain (reject on error like invoke) ---
 
-export function setWindowDecorations(args: { enabled: boolean }): Promise<void> {
-  return commands.setWindowDecorations(args.enabled);
+export async function setWindowDecorations(args: {
+  enabled: boolean;
+  generation: number;
+  transition: number;
+}): Promise<boolean> {
+  const res = await commands.setWindowDecorations(
+    args.enabled,
+    args.generation,
+    args.transition,
+  );
+  if (res.status === 'error') throw new Error(res.error);
+  return res.data;
 }
 
 export function exitApp(): Promise<void> {
   return commands.exitApp();
+}
+
+export function windowLifecycleGeneration(): Promise<number> {
+  return commands.windowLifecycleGeneration();
+}
+
+export async function windowLifecycleHide(args: {
+  generation: number;
+  transition: number;
+}): Promise<boolean> {
+  const res = await commands.windowLifecycleHide(args.generation, args.transition);
+  if (res.status === 'error') throw new Error(res.error);
+  return res.data;
+}
+
+export async function windowLifecycleBegin(args: {
+  generation: number;
+  attempt: number;
+}): Promise<void> {
+  const res = await commands.windowLifecycleBegin(args.generation, args.attempt);
+  if (res.status === 'error') throw new Error(res.error);
+}
+
+export function windowLifecycleReady(args: {
+  generation: number;
+  attempt: number;
+  minimizeToTray: boolean;
+}): Promise<void> {
+  return commands.windowLifecycleReady(
+    args.generation,
+    args.attempt,
+    args.minimizeToTray,
+  );
+}
+
+export async function windowLifecycleFallback(args: {
+  generation: number;
+  attempt: number;
+  minimizeToTray: boolean;
+}): Promise<void> {
+  const res = await commands.windowLifecycleFallback(
+    args.generation,
+    args.attempt,
+    args.minimizeToTray,
+  );
+  if (res.status === 'error') throw new Error(res.error);
+}
+
+export function windowLifecycleUpdateFallbackPolicy(args: {
+  generation: number;
+  minimizeToTray: boolean;
+}): Promise<void> {
+  return commands.windowLifecycleUpdateFallbackPolicy(args.generation, args.minimizeToTray);
 }
 
 export function linuxWaylandTextRenderSettingsAvailable(): Promise<boolean> {

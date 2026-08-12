@@ -8,6 +8,7 @@ import { getScheduledTheme, useThemeStore } from '../store/themeStore';
 import { gateInjectedThemes, syncInjectedThemes } from '@/lib/themes/themeInjection';
 import { useInstalledThemesStore, type InstalledTheme } from '../store/installedThemesStore';
 import { initializePsyLabDebugTraces } from '@/lib/perf/psyLabDebugTraces';
+import { setupWindowLifecycleBridge } from './tauriBridge/windowLifecycleBridge';
 
 /** Sync backend HTTP User-Agent from the main webview once at startup. */
 export function pushUserAgentToBackend(): void {
@@ -126,6 +127,9 @@ export function markDevBuildDocument(): void {
 export function runPreReactBootstrap(): void {
   // Pre-warm the window-kind cache so subsequent reads are sync + safe.
   getWindowKind();
+  // Close requests can arrive as soon as the inline splash reveals the window.
+  // Register this before any other asynchronous frontend bridge work.
+  void setupWindowLifecycleBridge();
   // Reset any persisted theme that is no longer bundled and not installed, so
   // the store hydrates onto a paintable theme (no unstyled-:root flash).
   migrateThemeSelection();

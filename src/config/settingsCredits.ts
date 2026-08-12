@@ -213,6 +213,8 @@ const CONTRIBUTOR_ENTRIES = [
       'Cover pipeline — Navidrome per-disc art in queue, playbar and Who is listening?; All Albums warm no longer creates mf-* album dirs (PR #1336)',
       'Performance benchmark CLI and faster scoped library browsing (PR #1382)',
       'Navidrome canonical-ID migration with blocking, crash-safe library and persisted-state reconciliation (PR #1393)',
+      'Startup window controls and lifecycle race fixes (PR #1392)',
+      'AIFF/AIF/AIFC playback across streamed, cached, and local sources (PR #1396)',
     ],
   },
   {
@@ -521,6 +523,13 @@ const CONTRIBUTOR_ENTRIES = [
     since: '1.51.0',
     contributions: [
       'MangoWM tiling window manager detection (PR #1380)',
+    ],
+  },
+  {
+    github: 'RdrSeraphim',
+    since: '1.51.0',
+    contributions: [
+      'Internet radio metadata — preserve UTF-8 titles with Latin-1 fallback (PR #1389)',
     ],
   },
 ] as const;

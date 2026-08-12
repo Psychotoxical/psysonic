@@ -4208,6 +4208,7 @@ dependencies = [
 name = "psysonic-audio"
 version = "1.51.0-dev"
 dependencies = [
+ "alsa",
  "biquad",
  "dasp_sample",
  "futures-util",

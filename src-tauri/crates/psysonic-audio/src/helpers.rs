@@ -34,6 +34,7 @@ pub(crate) fn content_type_to_hint(ct: &str) -> Option<String> {
     else if ct.contains("ogg") { Some("ogg".into()) }
     else if ct.contains("flac") { Some("flac".into()) }
     else if ct.contains("wav") || ct.contains("wave") { Some("wav".into()) }
+    else if ct.contains("aiff") || ct.contains("aifc") { Some("aiff".into()) }
     else if ct.contains("opus") { Some("opus".into()) }
     // AAC/ALAC in MP4 — Navidrome/nginx often send `audio/mp4`; without a hint we skipped ranged open.
     else if ct.contains("audio/mp4") || ct.contains("x-m4a") || ct.contains("/m4a") {
@@ -42,26 +43,25 @@ pub(crate) fn content_type_to_hint(ct: &str) -> Option<String> {
     else { None }
 }
 
+pub(crate) fn normalize_audio_extension_for_hint(ext: &str) -> Option<String> {
+    let ext = ext.trim();
+    if !(1..=5).contains(&ext.len()) || !ext.chars().all(|c| c.is_ascii_alphanumeric()) {
+        return None;
+    }
+    let ext = ext.to_ascii_lowercase();
+    matches!(
+        ext.as_str(),
+        "mp3" | "flac" | "ogg" | "oga" | "opus" | "m4a" | "mp4" | "aac" | "wav"
+            | "wave" | "aiff" | "aif" | "aifc" | "ape" | "wv" | "webm" | "mka"
+    )
+    .then_some(ext)
+}
+
 /// `Content-Disposition: attachment; filename="…"` from some Subsonic proxies.
 pub(crate) fn format_hint_from_content_disposition(cd: &str) -> Option<String> {
     fn ext_ok(ext: &str) -> Option<String> {
         let ext = ext.trim_matches(|c| c == '"' || c == '\'' || c == ' ').split(';').next()?.trim();
-        if !(1..=5).contains(&ext.len()) {
-            return None;
-        }
-        if !ext.chars().all(|c| c.is_ascii_alphanumeric()) {
-            return None;
-        }
-        let e = ext.to_ascii_lowercase();
-        if matches!(
-            e.as_str(),
-            "mp3" | "flac" | "ogg" | "oga" | "opus" | "m4a" | "mp4" | "aac" | "wav" | "wave" | "ape" | "wv"
-                | "webm" | "mka"
-        ) {
-            Some(e)
-        } else {
-            None
-        }
+        normalize_audio_extension_for_hint(ext)
     }
     fn ext_from_filename(path: &str) -> Option<String> {
         let base = path.rsplit('/').next()?.trim_matches(|c| c == '"' || c == ' ');
@@ -110,20 +110,7 @@ pub(crate) fn resolve_playback_format_hint(
 /// Subsonic [`song.suffix`](https://www.subsonic.org/pages/api.jsp#getSong) — stream.view URLs
 /// usually have no file extension; this supplies `format_hint` for ranged open.
 pub(crate) fn normalize_stream_suffix_for_hint(suffix: Option<&str>) -> Option<String> {
-    let s = suffix?.trim();
-    if s.is_empty() {
-        return None;
-    }
-    let e = s.to_ascii_lowercase();
-    if matches!(
-        e.as_str(),
-        "mp3" | "flac" | "ogg" | "oga" | "opus" | "m4a" | "mp4" | "aac" | "wav" | "wave" | "ape" | "wv"
-            | "webm" | "mka"
-    ) {
-        Some(e)
-    } else {
-        None
-    }
+    normalize_audio_extension_for_hint(suffix?)
 }
 
 /// Max prefix length for an optional `Range` probe GET when ranged open needs a format hint.
@@ -163,6 +150,12 @@ pub(crate) fn sniff_stream_format_extension(data: &[u8]) -> Option<String> {
     }
     if data.len() >= 12 && data[0..4] == *b"RIFF" && data[8..12] == *b"WAVE" {
         return Some("wav".into());
+    }
+    if data.len() >= 12
+        && data[0..4] == *b"FORM"
+        && (data[8..12] == *b"AIFF" || data[8..12] == *b"AIFC")
+    {
+        return Some("aiff".into());
     }
     // ISO-BMFF — `ftyp` inside a box; scan a small window (large `free`/`skip` before `ftyp` is rare but exists).
     let scan = data.len().min(4096).saturating_sub(4);
@@ -574,6 +567,22 @@ pub(crate) fn take_stream_completed_spill_from_slot(
     None
 }
 
+pub(crate) fn stream_spill_file_paths(
+    app: &AppHandle,
+    track_id: &str,
+) -> Result<(std::path::PathBuf, std::path::PathBuf), String> {
+    let dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| e.to_string())?
+        .join("stream-spill");
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    Ok((
+        dir.join(format!("{track_id}.complete")),
+        dir.join(format!("{track_id}.complete.part")),
+    ))
+}
+
 /// Atomically write completed stream bytes under `dir` (`{track_id}.complete.part` → rename).
 pub(crate) fn write_stream_spill_bytes_in_dir(
     dir: &std::path::Path,
@@ -622,18 +631,25 @@ pub fn cleanup_orphan_stream_spill_dir(app: &AppHandle) {
     }
 }
 
-pub(crate) fn install_stream_completed_spill(
+pub(crate) fn install_stream_completed_spill_if(
     slot: &std::sync::Arc<std::sync::Mutex<Option<crate::state::StreamCompletedSpill>>>,
     url: String,
     path: std::path::PathBuf,
-) {
+    should_install: impl FnOnce() -> bool,
+) -> bool {
     let mut guard = slot.lock().unwrap();
+    if !should_install() {
+        drop(guard);
+        let _ = std::fs::remove_file(path);
+        return false;
+    }
     if let Some(old) = guard.take() {
         if old.path != path {
             let _ = std::fs::remove_file(&old.path);
         }
     }
     *guard = Some(crate::state::StreamCompletedSpill { url, path });
+    true
 }
 
 /// Fetch track bytes from the preload cache or via HTTP.
@@ -697,6 +713,17 @@ pub(crate) async fn fetch_data(
         return Ok(Some(data));
     }
 
+    fetch_http_data(url, state, gen, app).await
+}
+
+/// Fetch bytes directly from HTTP, bypassing preload/completed caches.
+/// Used when a cached buffer failed validation and a genuinely fresh body is required.
+pub(crate) async fn fetch_http_data(
+    url: &str,
+    state: &AudioEngine,
+    gen: u64,
+    app: &AppHandle,
+) -> Result<Option<Vec<u8>>, String> {
     let response = crate::engine::playback_scoped_get(state, app, url, None)
         .send()
         .await
@@ -926,6 +953,9 @@ mod tests {
         assert_eq!(content_type_to_hint("audio/flac"), Some("flac".into()));
         assert_eq!(content_type_to_hint("audio/wav"), Some("wav".into()));
         assert_eq!(content_type_to_hint("audio/wave"), Some("wav".into()));
+        assert_eq!(content_type_to_hint("audio/aiff"), Some("aiff".into()));
+        assert_eq!(content_type_to_hint("audio/x-aiff"), Some("aiff".into()));
+        assert_eq!(content_type_to_hint("audio/aifc"), Some("aiff".into()));
         assert_eq!(content_type_to_hint("audio/opus"), Some("opus".into()));
         assert_eq!(content_type_to_hint("audio/mp4"), Some("m4a".into()));
         assert_eq!(content_type_to_hint("audio/x-m4a"), Some("m4a".into()));
@@ -951,6 +981,10 @@ mod tests {
         assert_eq!(
             format_hint_from_content_disposition("attachment; filename=\"track.flac\""),
             Some("flac".into()),
+        );
+        assert_eq!(
+            format_hint_from_content_disposition("attachment; filename=\"track.aiff\""),
+            Some("aiff".into()),
         );
     }
 
@@ -1014,6 +1048,8 @@ mod tests {
     fn suffix_normalises_known_extensions_lowercase() {
         assert_eq!(normalize_stream_suffix_for_hint(Some("MP3")), Some("mp3".into()));
         assert_eq!(normalize_stream_suffix_for_hint(Some("Flac")), Some("flac".into()));
+        assert_eq!(normalize_stream_suffix_for_hint(Some("AIFF")), Some("aiff".into()));
+        assert_eq!(normalize_stream_suffix_for_hint(Some("AIF")), Some("aif".into()));
     }
 
     #[test]
@@ -1047,6 +1083,19 @@ mod tests {
         buf.extend_from_slice(&[0u8; 4]);
         buf.extend_from_slice(b"WAVE");
         assert_eq!(sniff_stream_format_extension(&buf), Some("wav".into()));
+    }
+
+    #[test]
+    fn sniff_detects_aiff_and_aifc() {
+        let mut aiff = b"FORM".to_vec();
+        aiff.extend_from_slice(&[0u8; 4]);
+        aiff.extend_from_slice(b"AIFF");
+        assert_eq!(sniff_stream_format_extension(&aiff), Some("aiff".into()));
+
+        let mut aifc = b"FORM".to_vec();
+        aifc.extend_from_slice(&[0u8; 4]);
+        aifc.extend_from_slice(b"AIFC");
+        assert_eq!(sniff_stream_format_extension(&aifc), Some("aiff".into()));
     }
 
     #[test]
@@ -1574,18 +1623,39 @@ mod stream_spill_tests {
         std::fs::write(&new_path, b"new").unwrap();
         let slot: Arc<Mutex<Option<crate::state::StreamCompletedSpill>>> =
             Arc::new(Mutex::new(None));
-        install_stream_completed_spill(
+        assert!(install_stream_completed_spill_if(
             &slot,
             "http://example/a".into(),
             old_path.clone(),
-        );
-        install_stream_completed_spill(
+            || true,
+        ));
+        assert!(install_stream_completed_spill_if(
             &slot,
             "http://example/b".into(),
             new_path.clone(),
-        );
+            || true,
+        ));
         assert!(!old_path.exists(), "previous spill file must be removed");
         assert!(new_path.exists());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn conditional_spill_install_rejects_and_removes_candidate() {
+        let dir = scratch_dir("conditional-install");
+        let path = dir.join("candidate.complete");
+        std::fs::write(&path, b"candidate").unwrap();
+        let slot: Arc<Mutex<Option<crate::state::StreamCompletedSpill>>> =
+            Arc::new(Mutex::new(None));
+
+        assert!(!install_stream_completed_spill_if(
+            &slot,
+            "http://example/a".into(),
+            path.clone(),
+            || false,
+        ));
+        assert!(slot.lock().unwrap().is_none());
+        assert!(!path.exists());
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -1597,10 +1667,16 @@ mod stream_spill_tests {
         let slot: Arc<Mutex<Option<crate::state::StreamCompletedSpill>>> =
             Arc::new(Mutex::new(None));
         let url = "https://server/stream?id=1";
-        install_stream_completed_spill(&slot, url.into(), path.clone());
+        assert!(install_stream_completed_spill_if(
+            &slot,
+            url.into(),
+            path.clone(),
+            || true,
+        ));
         let taken = take_stream_completed_spill_from_slot(&slot, url);
         assert_eq!(taken.as_deref(), Some(path.as_path()));
         assert!(take_stream_completed_spill_from_slot(&slot, url).is_none());
         let _ = std::fs::remove_dir_all(&dir);
     }
+
 }

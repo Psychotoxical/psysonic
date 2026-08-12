@@ -36,6 +36,7 @@ vi.mock('@/lib/server/serverEndpoint', () => ({
 import {
   createInternetRadioStationForServer,
   deleteInternetRadioStationForServer,
+  getInternetRadioStationsForServer,
   getInternetRadioStationsForServersSettled,
   updateInternetRadioStationForServer,
   uploadRadioCoverArtBytesForServer,
@@ -88,6 +89,27 @@ describe('subsonicRadio explicit server ownership', () => {
       ],
       failedServerIds: ['srv-b'],
     });
+  });
+
+  it('normalises the Subsonic homePageUrl response field', async () => {
+    hoisted.apiForServer.mockResolvedValue({
+      internetRadioStations: {
+        internetRadioStation: [{
+          id: 'radio-1',
+          name: 'Station',
+          streamUrl: 'https://radio.test/live',
+          homePageUrl: 'https://radio.test',
+        }],
+      },
+    });
+
+    await expect(getInternetRadioStationsForServer('srv-owner')).resolves.toEqual([{
+      id: 'radio-1',
+      serverId: 'srv-owner',
+      name: 'Station',
+      streamUrl: 'https://radio.test/live',
+      homepageUrl: 'https://radio.test',
+    }]);
   });
 
   it('routes create, update, delete, and cover upload to the captured owner', async () => {

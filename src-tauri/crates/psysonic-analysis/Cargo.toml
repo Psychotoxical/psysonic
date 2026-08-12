@@ -19,7 +19,7 @@ futures-util = "0.3"
 ebur128 = "0.1"
 md5 = "0.8"
 rusqlite = { version = "0.40", features = ["bundled"] }
-symphonia = { version = "0.6", default-features = false, features = ["flac", "mp3", "pcm", "aac", "alac", "isomp4", "vorbis", "ogg", "wav", "adpcm", "all-meta"] }
+symphonia = { version = "0.6", default-features = false, features = ["flac", "mp3", "pcm", "aac", "alac", "isomp4", "vorbis", "ogg", "wav", "aiff", "adpcm", "all-meta"] }
 symphonia-adapter-libopus = "0.3"
 oximedia-mir = { version = "0.1.7", default-features = false, features = ["tempo", "mood"] }
 

@@ -39,6 +39,7 @@ import { isFeatureActiveForServer, resolveFeatureForServer } from '@/lib/serverC
 import type { ResolvedCapability } from '@/lib/serverCapabilities/types';
 import { serverIdentityLabel, serverListDisplayLabel, serverSettingsEntryTitle } from '@/lib/server/serverDisplayName';
 import { serverIndexKeyForProfile } from '@/lib/server/serverIndexKey';
+import { serverProfileBaseUrl } from '@/lib/server/serverBaseUrl';
 import { switchActiveServer } from '@/utils/server/switchActiveServer';
 import { AddServerForm } from '@/features/settings/components/AddServerForm';
 import { ServerCapabilityHeaderBadge } from '@/features/settings/components/ServerCapabilityHeaderBadge';
@@ -49,6 +50,18 @@ import { tooltipAttrs } from '@/ui/tooltipAttrs';
 import { publishServerConnectionStatus } from '@/lib/network/serverReachability';
 
 const AUDIOMUSE_NV_PLUGIN_URL = 'https://github.com/NeptuneHub/AudioMuse-AI-NV-plugin';
+
+function hasDuplicateServerLogin(
+  servers: ServerProfile[],
+  candidate: Pick<ServerProfile, 'url' | 'username'>,
+  excludeServerId?: string,
+): boolean {
+  const url = serverProfileBaseUrl({ url: candidate.url.trim() });
+  const username = candidate.username.trim();
+  return servers.some(server => server.id !== excludeServerId
+    && serverProfileBaseUrl({ url: server.url.trim() }) === url
+    && server.username.trim() === username);
+}
 
 /** Row visibility: same as main — hide only when manual strategy proves the feature absent. */
 function showAudiomuseRow(resolved: ResolvedCapability | null): boolean {
@@ -222,6 +235,10 @@ export function ServersTab({
   };
 
   const handleAddServer = async (data: Omit<ServerProfile, 'id'>) => {
+    if (hasDuplicateServerLogin(useAuthStore.getState().servers, data)) {
+      showToast(t('settings.serverDuplicate'), 5000, 'error');
+      return;
+    }
     // Keep the add form open until the connect test actually succeeds — so a
     // failure can point the user at what's wrong (bad credentials, gate header,
     // unreachable) instead of silently closing with a tiny status dot.
@@ -308,6 +325,10 @@ export function ServersTab({
     data: Omit<ServerProfile, 'id'>,
     onPersisted?: () => void,
   ) => {
+    if (hasDuplicateServerLogin(useAuthStore.getState().servers, data, id)) {
+      showToast(t('settings.serverDuplicate'), 5000, 'error');
+      return;
+    }
     const editGeneration = (editGenerationRef.current[id] ?? 0) + 1;
     editGenerationRef.current[id] = editGeneration;
     const previous = auth.servers.find(s => s.id === id);

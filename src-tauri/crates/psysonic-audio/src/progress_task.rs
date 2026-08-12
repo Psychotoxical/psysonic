@@ -13,7 +13,7 @@ use tauri::{AppHandle, Emitter, Runtime};
 use super::engine::AudioCurrent;
 use super::helpers::{ramp_sink_volume, ProgressPayload, MASTER_HEADROOM};
 use super::playback_rate::{effective_duration_secs, effective_position_secs, PlaybackRateAtomics};
-use super::state::ChainedInfo;
+use super::state::{install_current_source_done, ChainedInfo, CurrentSourceDone};
 
 /// Sink for the three progress events the task emits. Production wraps an
 /// `AppHandle<R>` (any Tauri runtime) via the blanket impl below; tests pass
@@ -68,7 +68,7 @@ pub(crate) fn spawn_progress_task<E: ProgressEmitter>(
     crossfade_enabled_arc: Arc<AtomicBool>,
     crossfade_secs_arc: Arc<AtomicU32>,
     autodj_suppress_arc: Arc<AtomicBool>,
-    initial_done: Arc<AtomicBool>,
+    current_source_done: CurrentSourceDone,
     emitter: E,
     analysis_app: Option<AppHandle>,
     samples_played: Arc<AtomicU64>,
@@ -109,8 +109,6 @@ pub(crate) fn spawn_progress_task<E: ProgressEmitter>(
 
     tokio::spawn(async move {
         let mut near_end_ticks: u32 = 0;
-        // Local done-flag reference; swapped on gapless transition.
-        let mut current_done = initial_done;
         // Local sample counter; swapped to chained source's counter on transition.
         let mut samples_played = samples_played;
         let mut last_progress_emit_at = Instant::now() - Duration::from_millis(PROGRESS_EMIT_MIN_MS);
@@ -130,7 +128,13 @@ pub(crate) fn spawn_progress_task<E: ProgressEmitter>(
             // If the current source is exhausted AND we have a chained track
             // ready, transition seamlessly: swap tracking state, emit
             // audio:track_switched for the new track, and continue the loop.
-            if current_done.load(Ordering::SeqCst) {
+            let source_done = current_source_done
+                .lock()
+                .unwrap()
+                .as_ref()
+                .filter(|(source_gen, _)| *source_gen == gen)
+                .map(|(_, done)| done.clone());
+            if source_done.is_some_and(|done| done.load(Ordering::SeqCst)) {
                 // Radio (dur == 0): stream exhausted / connection dropped → stop.
                 let cur_dur = current_arc.lock().unwrap().duration_secs;
                 if cur_dur <= 0.0 {
@@ -142,6 +146,14 @@ pub(crate) fn spawn_progress_task<E: ProgressEmitter>(
 
                 let chained = chained_arc.lock().unwrap().take();
                 if let Some(info) = chained {
+                    if !install_current_source_done(
+                        &current_source_done,
+                        &gen_counter,
+                        gen,
+                        info.source_done.clone(),
+                    ) {
+                        break;
+                    }
                     // The successor is now the playing track. Update the
                     // playback URL FIRST: `resolve_analysis_server_id` prefers
                     // the URL-derived server, so spawning the transition
@@ -161,8 +173,8 @@ pub(crate) fn spawn_progress_task<E: ProgressEmitter>(
                         crate::analysis_dispatch::spawn_gapless_transition_analysis(&app, &info);
                     }
 
-                    // Swap to the chained source's done flag.
-                    current_done = info.source_done;
+                    sample_rate_arc.store(info.output_rate, Ordering::Relaxed);
+                    channels_arc.store(info.output_channels as u32, Ordering::Relaxed);
 
                     // Swap to the chained source's sample counter.
                     // The chained CountingSource increments its own Arc,
@@ -380,6 +392,7 @@ mod tests {
         crossfade_secs: Arc<AtomicU32>,
         autodj_suppress: Arc<AtomicBool>,
         done: Arc<AtomicBool>,
+        current_source_done: CurrentSourceDone,
         samples_played: Arc<AtomicU64>,
         sample_rate: Arc<AtomicU32>,
         channels: Arc<AtomicU32>,
@@ -391,6 +404,7 @@ mod tests {
 
     impl TaskHarness {
         fn new(duration_secs: f64) -> Self {
+            let done = Arc::new(AtomicBool::new(false));
             let current = AudioCurrent {
                 sink: None,
                 duration_secs,
@@ -410,7 +424,8 @@ mod tests {
                 crossfade_enabled: Arc::new(AtomicBool::new(false)),
                 crossfade_secs: Arc::new(AtomicU32::new(0f32.to_bits())),
                 autodj_suppress: Arc::new(AtomicBool::new(false)),
-                done: Arc::new(AtomicBool::new(false)),
+                current_source_done: Arc::new(Mutex::new(Some((1, done.clone())))),
+                done,
                 samples_played: Arc::new(AtomicU64::new(0)),
                 sample_rate: Arc::new(AtomicU32::new(44_100)),
                 channels: Arc::new(AtomicU32::new(2)),
@@ -430,7 +445,7 @@ mod tests {
                 self.crossfade_enabled.clone(),
                 self.crossfade_secs.clone(),
                 self.autodj_suppress.clone(),
-                self.done.clone(),
+                self.current_source_done.clone(),
                 emitter,
                 None,
                 self.samples_played.clone(),
@@ -576,15 +591,17 @@ mod tests {
             raw_bytes: Arc::new(Vec::new()),
             resolved_format: Some(crate::decode::ResolvedCodecInfo {
                 codec_name: "flac",
-                sample_rate: Some(44_100),
+                sample_rate: Some(96_000),
                 bits_per_sample: Some(16),
-                channels: Some(2),
+                channels: Some(1),
                 lossless: true,
             }),
+            output_rate: 96_000,
+            output_channels: 1,
             duration_secs: 200.0,
             replay_gain_linear: 1.0,
             base_volume: 1.0,
-            source_done: chained_done,
+            source_done: chained_done.clone(),
             cancel: Arc::new(AtomicBool::new(false)),
             sample_counter: chained_samples,
         });
@@ -616,6 +633,8 @@ mod tests {
             h.gapless_switch_at.load(Ordering::SeqCst) > 0,
             "gapless_switch_at timestamp recorded for ghost-command guard"
         );
+        assert_eq!(h.sample_rate.load(Ordering::Relaxed), 96_000);
+        assert_eq!(h.channels.load(Ordering::Relaxed), 1);
 
         // The successor's resolved format must be emitted at the transition —
         // a gapless advance never re-runs audio_play, so without this the
@@ -628,9 +647,13 @@ mod tests {
             assert_eq!(formats[0].server_id.as_deref(), Some("srv-1"));
         }
 
-        // Stop the task.
-        h.gen_counter.store(99, Ordering::SeqCst);
+        chained_done.store(true, Ordering::SeqCst);
         tokio::time::sleep(Duration::from_millis(200)).await;
+        assert_eq!(
+            emitter.ended_count(),
+            1,
+            "the progress task must follow the successor completion flag"
+        );
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
@@ -650,6 +673,29 @@ mod tests {
         assert!(
             h.gen_counter.load(Ordering::SeqCst) > h.gen,
             "generation counter must bump so following commands see the new gen"
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+    async fn replacement_source_done_flag_drives_end_detection_in_same_generation() {
+        let h = TaskHarness::new(120.0);
+        let replacement_done = Arc::new(AtomicBool::new(false));
+
+        let emitter = Arc::new(MockEmitter::default());
+        h.spawn_with(emitter.clone());
+
+        // Hi-Res gapless realignment rebuilds the current source without
+        // changing the playback generation. The progress task must follow the
+        // replacement source's completion signal instead of waiting forever on
+        // the abandoned source flag captured by audio_play.
+        *h.current_source_done.lock().unwrap() = Some((h.gen, replacement_done.clone()));
+        replacement_done.store(true, Ordering::SeqCst);
+        tokio::time::sleep(Duration::from_millis(200)).await;
+
+        assert_eq!(
+            emitter.ended_count(),
+            1,
+            "audio:ended must follow the replacement source in the same generation"
         );
     }
 

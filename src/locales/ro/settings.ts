@@ -77,6 +77,7 @@ export const settings = {
   serverFailed: 'Conexiune eșuată.',
   serverUrlRequired: 'Adresa serverului este obligatorie.',
   serverUsernameRequired: 'Numele de utilizator este obligatoriu.',
+  serverDuplicate: 'Există deja o conexiune cu această adresă de server și acest nume de utilizator.',
   serverConnectFailedReason: 'Conexiune eșuată: {{reason}}',
   testBtn: 'Testează Conexiunea',
   testingBtn: 'Se testează…',
