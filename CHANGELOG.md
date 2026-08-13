@@ -432,6 +432,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Psysonic has a new app icon. It keeps the same rounded outline as before, so nothing shifts in the taskbar, dock or app launcher.
 * On **macOS 26**, the icon now ships as a Liquid Glass bundle instead of being shrunk onto a grey plate by the system's icon frame. Earlier macOS versions keep the previous rendering.
 
+### Queue — start the first track added after clearing
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1410](https://github.com/Psychotoxical/psysonic/pull/1410)**
+
+* Adding a track to a cleared queue now mounts and starts it immediately instead of leaving it hidden as the current queue item without playing.
+
 ## [1.50.0]
 
 ## Added
