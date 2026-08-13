@@ -113,13 +113,44 @@ fn resolve_within_root(root: &std::path::Path, rel: &str) -> Option<std::path::P
 
 /// Whether `path` still resolves inside `root` once the filesystem has had its
 /// say. `resolve_within_root` reads the path as text and cannot see a symlink;
-/// a device that ships `Artist -> /home/user` passes the syntax check and lands
-/// outside anyway. Only meaningful for paths that already exist.
-fn resolved_path_stays_within(root: &std::path::Path, path: &std::path::Path) -> bool {
-    let (Ok(canonical_root), Ok(canonical_path)) = (root.canonicalize(), path.canonicalize()) else {
-        return false;
-    };
-    canonical_path.starts_with(&canonical_root)
+/// a device that ships `Artist -> /somewhere/else` passes the syntax check and
+/// lands outside anyway.
+///
+/// The error is kept rather than folded into `false`: a drive pulled mid-
+/// migration fails to canonicalize too, and reporting that as a containment
+/// violation would tell the user something untrue about their own device.
+fn resolved_path_stays_within(
+    root: &std::path::Path,
+    path: &std::path::Path,
+) -> std::io::Result<bool> {
+    let canonical_root = root.canonicalize()?;
+    let canonical_path = path.canonicalize()?;
+    Ok(canonical_path.starts_with(&canonical_root))
+}
+
+/// Same question for a path that does not exist yet: walks up to the closest
+/// ancestor that does and checks that one.
+///
+/// Needed because the target's parent is created before anything is moved
+/// there. Checking only after `create_dir_all` is too late — the directories
+/// would already exist, outside the root, which is half of what this guards
+/// against even when the rename itself is then refused.
+fn planned_path_stays_within(
+    root: &std::path::Path,
+    path: &std::path::Path,
+) -> std::io::Result<bool> {
+    let mut current = path;
+    loop {
+        if current.exists() {
+            return resolved_path_stays_within(root, current);
+        }
+        match current.parent() {
+            Some(parent) => current = parent,
+            // Ran out of ancestors without meeting anything real: the path does
+            // not belong to the device tree at all.
+            None => return Ok(false),
+        }
+    }
 }
 
 /// Per-entry result for `rename_device_files`.
@@ -159,6 +190,26 @@ pub fn rename_device_files(
     Ok(rename_pairs_within_root(&root, pairs))
 }
 
+/// Checks both ends of one rename against the root and returns the message to
+/// report, or `None` when the pair is contained. Runs before anything is
+/// created or moved.
+fn containment_refusal(
+    root: &std::path::Path,
+    old_abs: &std::path::Path,
+    new_abs: &std::path::Path,
+) -> Option<String> {
+    match (
+        resolved_path_stays_within(root, old_abs),
+        planned_path_stays_within(root, new_abs),
+    ) {
+        (Ok(true), Ok(true)) => None,
+        (Ok(false), _) | (_, Ok(false)) => Some("path escapes the device root".to_string()),
+        // Neither side resolved at all — a drive pulled mid-migration looks like
+        // this, and calling that a containment violation would be a lie.
+        (Err(e), _) | (_, Err(e)) => Some(format!("could not resolve path: {e}")),
+    }
+}
+
 /// The renaming itself, separated from the volume checks above so the path
 /// containment can be tested: `is_path_on_mounted_volume` rejects a temporary
 /// directory, which is where a test would put its fixture.
@@ -190,10 +241,10 @@ fn rename_pairs_within_root(
                 old_path: old_rel, new_path: new_rel,
                 ok: false, error: Some("source not found".to_string()),
             }
-        } else if !resolved_path_stays_within(root, &old_abs) {
+        } else if let Some(refusal) = containment_refusal(root, &old_abs, &new_abs) {
             RenameResult {
                 old_path: old_rel, new_path: new_rel,
-                ok: false, error: Some("path escapes the device root".to_string()),
+                ok: false, error: Some(refusal),
             }
         } else if new_abs.exists() {
             RenameResult {
@@ -210,16 +261,8 @@ fn rename_pairs_within_root(
                     });
                     continue;
                 }
-                // The parent exists now, so it can be resolved — and a symlink
-                // among the directories leading to it would put the renamed file
-                // outside the root even though the path reads as relative.
-                if !resolved_path_stays_within(root, parent) {
-                    results.push(RenameResult {
-                        old_path: old_rel, new_path: new_rel,
-                        ok: false, error: Some("path escapes the device root".to_string()),
-                    });
-                    continue;
-                }
+                // Containment was settled before this ran (`containment_refusal`),
+                // so nothing here can land outside the root.
             }
             match std::fs::rename(&old_abs, &new_abs) {
                 Ok(_) => RenameResult { old_path: old_rel, new_path: new_rel, ok: true, error: None },
@@ -243,8 +286,15 @@ fn rename_pairs_within_root(
         let mut empty = true;
         let mut children: Vec<std::path::PathBuf> = Vec::new();
         for entry in rd.flatten() {
-            let p = entry.path();
-            if p.is_dir() { children.push(p); } else { empty = false; }
+            // `file_type()` reports the entry itself; `path().is_dir()` would
+            // follow a symlink, and this walk deletes what it finds empty. A
+            // device carrying `Artist -> /home/user/Documents` would otherwise
+            // send the cleanup out of the root and remove directories there.
+            // A symlink counts as content, so its parent is left alone too.
+            match entry.file_type() {
+                Ok(file_type) if file_type.is_dir() => children.push(entry.path()),
+                _ => empty = false,
+            }
         }
         for child in children {
             remove_empty_dirs(&child, root);
@@ -620,6 +670,48 @@ mod tests {
         assert!(!results[0].ok, "an escaping pair must not be renamed");
         assert_eq!(results[0].error.as_deref(), Some("path escapes the device root"));
         assert!(victim.exists(), "the file outside the root must be untouched");
+    }
+
+    #[test]
+    fn a_planned_target_is_judged_by_its_nearest_existing_ancestor() {
+        // The target does not exist yet — its parent is about to be created —
+        // so containment has to be decided from the closest ancestor that does.
+        let device = tempfile::tempdir().unwrap();
+        let outside = tempfile::tempdir().unwrap();
+
+        let inside = device.path().join("Artist").join("Album").join("01 Song.mp3");
+        assert!(planned_path_stays_within(device.path(), &inside).unwrap());
+
+        let elsewhere = outside.path().join("Album").join("01 Song.mp3");
+        assert!(!planned_path_stays_within(device.path(), &elsewhere).unwrap());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_directory_symlink_on_the_device_neither_receives_files_nor_gets_cleaned() {
+        // Covers both halves of the symlink escape: the syntax check cannot see
+        // a link, so a relative-looking target may still resolve outside — and
+        // the empty-directory cleanup must not walk through one either.
+        let device = tempfile::tempdir().unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(outside.path().join("empty-victim")).unwrap();
+
+        std::os::unix::fs::symlink(outside.path(), device.path().join("Artist")).unwrap();
+
+        let results = rename_pairs_within_root(
+            device.path(),
+            vec![("Old/track.mp3".to_string(), "Artist/Album/01 Song.mp3".to_string())],
+        );
+
+        assert!(!results[0].ok, "a target behind a symlink must be refused");
+        assert!(
+            !outside.path().join("Album").exists(),
+            "nothing may be created outside the root, not even a directory"
+        );
+        assert!(
+            outside.path().join("empty-victim").exists(),
+            "the cleanup must not follow the symlink out of the root"
+        );
     }
 
     #[test]
