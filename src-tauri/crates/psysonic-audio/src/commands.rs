@@ -817,6 +817,9 @@ pub async fn audio_chain_preload(
         Duration::ZERO, // gapless: no fade-in — sample-accurate boundary, no click
         chain_counter.clone(),
         target_rate,
+        // The successor must fold like the track it follows, or the gapless
+        // boundary would change channel count mid-stream.
+        crate::engine::output_device_channels(&state),
         format_hint.as_deref(),
         hi_res_enabled,
     ).map_err(|e| e.to_string())?;

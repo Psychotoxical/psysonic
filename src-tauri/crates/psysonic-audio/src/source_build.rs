@@ -545,6 +545,8 @@ async fn build_source_from_play_input(
     } = shape;
     // 0 = native rate; hi-res crossfade blend passes an explicit Hz.
     let target_rate: u32 = *resample_target_hz;
+    // 0 = device unknown; the source is then left at its own channel count.
+    let target_channels: u16 = crate::engine::output_device_channels(state);
     let mut is_seekable = true;
     let built = match play_input {
         PlayInput::Bytes(data) => build_source(
@@ -558,6 +560,7 @@ async fn build_source_from_play_input(
             *fade_in_dur,
             state.samples_played.clone(),
             target_rate,
+            target_channels,
             format_hint,
             *hi_res_enabled,
         ),
@@ -598,6 +601,7 @@ async fn build_source_from_play_input(
                 *fade_in_dur,
                 state.samples_played.clone(),
                 target_rate,
+                target_channels,
                 None,
             )
         }
@@ -630,6 +634,7 @@ async fn build_source_from_play_input(
                 *fade_in_dur,
                 state.samples_played.clone(),
                 target_rate,
+                target_channels,
                 Some(state.stream_playback_armed.clone()),
             )
         }

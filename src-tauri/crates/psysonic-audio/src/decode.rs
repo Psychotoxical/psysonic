@@ -1295,6 +1295,8 @@ pub(crate) fn build_source(
     fade_in_dur: Duration,
     sample_counter: Arc<AtomicU64>,
     target_rate: u32,
+    // Channels the output device takes; 0 when that is not known yet.
+    target_channels: u16,
     format_hint: Option<&str>,
     hi_res: bool,
 ) -> Result<BuiltSource, String> {
@@ -1377,6 +1379,10 @@ pub(crate) fn build_source(
 
     let output_rate = if target_rate > 0 && sample_rate.get() != target_rate { target_rate } else { sample_rate.get() };
 
+    // Fold before everything downstream, so EQ, fades, the spectrum tap and the
+    // sample counter all see the channels that will be played.
+    let (dyn_src, output_channels) = fold_to_output_channels(dyn_src, channels, target_channels);
+
     let fadeout_trigger = Arc::new(AtomicBool::new(false));
     let fadeout_samples = Arc::new(AtomicU64::new(0));
 
@@ -1397,11 +1403,36 @@ pub(crate) fn build_source(
         source: boosted,
         duration_secs: crate::playback_rate::effective_duration_secs(effective_dur, &playback_rate),
         output_rate,
-        output_channels: channels.get(),
+        output_channels,
         resolved_format,
         fadeout_trigger,
         fadeout_samples,
     })
+}
+
+/// Mixes a multichannel source down to stereo when the device cannot take its
+/// channels, and reports the channel count the rest of the pipeline will see.
+///
+/// Without this, rodio's mixer converts by keeping the first channels and
+/// dropping the others, so a 5.1 track on a stereo device loses centre, LFE and
+/// both surrounds outright (issue #1408).
+///
+/// `target_channels` of 0 means "unknown" — the device has not reported yet, and
+/// passing the source through unchanged leaves the previous behaviour rather
+/// than guessing a layout.
+fn fold_to_output_channels(
+    source: DynSource,
+    channels: std::num::NonZeroU16,
+    target_channels: u16,
+) -> (DynSource, u16) {
+    // Only the stereo fold exists. A device with more channels than two but
+    // fewer than the source (a 4.0 output fed 5.1, say) keeps rodio's behaviour;
+    // it needs its own layout mapping, not this one.
+    if target_channels != 2 || channels.get() <= 2 {
+        return (source, channels.get());
+    }
+    let folded = crate::channel_fold::FoldToStereo::new(source, channels.get() as usize);
+    (DynSource::new(folded), 2)
 }
 
 /// Streaming variant of `build_source`: uses a live `SizedDecoder` source
@@ -1419,6 +1450,8 @@ pub(crate) fn build_streaming_source(
     fade_in_dur: Duration,
     sample_counter: Arc<AtomicU64>,
     target_rate: u32,
+    // Channels the output device takes; 0 when that is not known yet.
+    target_channels: u16,
     count_gate: Option<Arc<AtomicBool>>,
 ) -> Result<BuiltSource, String> {
     let sample_rate = decoder.sample_rate();
@@ -1444,6 +1477,10 @@ pub(crate) fn build_streaming_source(
         sample_rate.get()
     };
 
+    // Same reasoning as `build_source`: fold first, so everything after it works
+    // on the channels that will be played.
+    let (dyn_src, output_channels) = fold_to_output_channels(dyn_src, channels, target_channels);
+
     let fadeout_trigger = Arc::new(AtomicBool::new(false));
     let fadeout_samples = Arc::new(AtomicU64::new(0));
 
@@ -1465,7 +1502,7 @@ pub(crate) fn build_streaming_source(
         source: boosted,
         duration_secs: crate::playback_rate::effective_duration_secs(effective_dur, &playback_rate),
         output_rate,
-        output_channels: channels.get(),
+        output_channels,
         resolved_format,
         fadeout_trigger,
         fadeout_samples,

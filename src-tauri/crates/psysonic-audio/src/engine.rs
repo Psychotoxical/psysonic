@@ -779,6 +779,22 @@ pub fn create_engine() -> (AudioEngine, std::thread::JoinHandle<()>) {
     (engine, thread)
 }
 
+/// Channels the open output device takes, or 0 when no stream is open.
+///
+/// Read from the sink's own config rather than kept in a second atomic, so it
+/// cannot drift from the device that is actually playing. The lock is taken and
+/// released immediately: the stream-open transaction holds `stream_open_lock`
+/// around this same handle, and holding it across source construction would put
+/// a second waiter in that path.
+pub(crate) fn output_device_channels(engine: &AudioEngine) -> u16 {
+    engine
+        .stream_handle
+        .lock()
+        .ok()
+        .and_then(|guard| guard.as_ref().map(|sink| sink.config().channel_count().get()))
+        .unwrap_or(0)
+}
+
 pub(crate) fn stream_rate_needs_switch(target_rate: u32, current_requested_rate: u32) -> bool {
     target_rate > 0 && target_rate != current_requested_rate
 }
