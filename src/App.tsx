@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useAuthStore } from './store/authStore';
 import { usePlayerStore } from '@/features/playback/store/playerStore';
 import { useLyricsStore } from './store/lyricsStore';
@@ -12,6 +12,30 @@ import { getWindowKind } from './app/windowKind';
 import { showToast } from '@/lib/dom/toast';
 import MiniPlayerApp from './app/MiniPlayerApp';
 import MainApp from './app/MainApp';
+import BlockingMigrationGate from './app/BlockingMigrationGate';
+import { useMigrationOrchestrator } from '@/app/hooks/useMigrationOrchestrator';
+import { useMigrationStore } from '@/store/migrationStore';
+
+function MainWindowRoot() {
+  useMigrationOrchestrator();
+  const migrationReady = useMigrationStore(state => state.phase === 'completed');
+  const [playbackBridgeReady, setPlaybackBridgeReady] = useState(false);
+
+  useEffect(() => {
+    if (!migrationReady) return;
+    let disposed = false;
+    void import('@/features/playback/store/playbackEngineBridgeRegister').then(() => {
+      if (!disposed) setPlaybackBridgeReady(true);
+    });
+    return () => { disposed = true; };
+  }, [migrationReady]);
+
+  return (
+    <BlockingMigrationGate>
+      {playbackBridgeReady ? <MainApp /> : null}
+    </BlockingMigrationGate>
+  );
+}
 
 export default function App() {
   const theme = useThemeStore(s => s.theme);
@@ -207,5 +231,5 @@ export default function App() {
     );
   }, [trackPreviewDurationSec]);
 
-  return getWindowKind() === 'mini' ? <MiniPlayerApp /> : <MainApp />;
+  return getWindowKind() === 'mini' ? <MiniPlayerApp /> : <MainWindowRoot />;
 }

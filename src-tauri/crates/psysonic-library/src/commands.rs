@@ -2049,6 +2049,63 @@ pub fn library_migrate_server_index_keys(
 
 #[tauri::command]
 #[specta::specta]
+pub async fn library_navidrome_canonical_inspect(
+    runtime: State<'_, LibraryRuntime>,
+    http_registry: State<'_, Arc<ServerHttpRegistry>>,
+    server_id: String,
+) -> Result<crate::navidrome_canonical_ids::CanonicalMigrationDto, String> {
+    let Some(session) = runtime.get_session(&server_id) else {
+        let current = crate::navidrome_canonical_ids::status(&runtime.store, &server_id)?;
+        if matches!(current.state.as_str(), "legacy" | "not_applicable" | "ready") {
+            return Ok(current);
+        }
+        return Err(format!(
+            "no bound session for server `{server_id}` - bind it before canonical-ID preflight"
+        ));
+    };
+    let subsonic = subsonic_client_with_registry(
+        Some(http_registry.as_ref()),
+        &server_id,
+        session.base_url,
+        session.username,
+        session.password,
+    );
+    crate::navidrome_canonical_ids::inspect(&runtime.store, &subsonic, &server_id).await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn library_navidrome_canonical_rewrite(
+    runtime: State<'_, LibraryRuntime>,
+    server_id: String,
+) -> Result<crate::navidrome_canonical_ids::CanonicalMigrationDto, String> {
+    let barrier = runtime
+        .cancel_and_drain_sync(None, Some(&server_id))
+        .await?;
+    let _barrier = barrier;
+    crate::navidrome_canonical_ids::rewrite(&runtime.store, &server_id)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn library_navidrome_canonical_ack_frontend(
+    runtime: State<'_, LibraryRuntime>,
+    server_id: String,
+) -> Result<crate::navidrome_canonical_ids::CanonicalMigrationDto, String> {
+    crate::navidrome_canonical_ids::acknowledge_frontend(&runtime.store, &server_id)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn library_navidrome_canonical_finalize(
+    runtime: State<'_, LibraryRuntime>,
+    server_id: String,
+) -> Result<crate::navidrome_canonical_ids::CanonicalMigrationDto, String> {
+    crate::navidrome_canonical_ids::finalize(&runtime.store, &server_id)
+}
+
+#[tauri::command]
+#[specta::specta]
 pub async fn library_delete_server_data(
     runtime: State<'_, LibraryRuntime>,
     server_id: String,

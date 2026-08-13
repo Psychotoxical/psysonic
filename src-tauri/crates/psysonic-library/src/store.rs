@@ -12,7 +12,7 @@ use tauri::Manager;
 ///
 /// Migration checklist (wiring, data backfill, open/swap path):
 /// psysonic-workdocs `ai/agent-rules/08-library-db-migrations.md`.
-pub const LIBRARY_DB_SCHEMA_VERSION: i64 = 26;
+pub const LIBRARY_DB_SCHEMA_VERSION: i64 = 27;
 
 /// One-time data repair after migration 014 (`artist.name_sort`).
 pub(crate) const ARTIST_NAME_SORT_RECONCILE_ID: &str = "artist_name_sort_reconcile_v1";
@@ -89,6 +89,9 @@ pub(crate) const MIGRATION_025_IDENTITY_INVALIDATION: &str =
 /// Version 26: resumable cursor for bounded post-sync library tagging.
 pub(crate) const MIGRATION_026_LIBRARY_TAG_CURSOR: &str =
     include_str!("../migrations/026_library_tag_cursor.sql");
+/// Version 27: durable stop-the-world Navidrome canonical-ID migration state.
+pub(crate) const MIGRATION_027_NAVIDROME_CANONICAL_IDS: &str =
+    include_str!("../migrations/027_navidrome_canonical_ids.sql");
 
 /// Embedded migrations. Ordered ascending by `version`; the runner sorts
 /// defensively before applying so the source order can stay readable.
@@ -109,6 +112,7 @@ const MIGRATIONS: &[(i64, &str)] = &[
     (24, MIGRATION_024_COMPOSER_BROWSE_PROJECTION),
     (25, MIGRATION_025_IDENTITY_INVALIDATION),
     (26, MIGRATION_026_LIBRARY_TAG_CURSOR),
+    (27, MIGRATION_027_NAVIDROME_CANONICAL_IDS),
 ];
 
 /// Idempotent repair — also runs after the migration runner on every open so

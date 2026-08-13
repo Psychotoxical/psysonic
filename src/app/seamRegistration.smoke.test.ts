@@ -4,8 +4,9 @@ import { describe, expect, it } from 'vitest';
 //
 // The three core↔feature seams each start at a safe *neutral default* and are
 // switched to the real implementation as a MODULE-LOAD side effect — not a render
-// step. Importing the real app entry module runs exactly that wiring:
-//   - MainApp side-effect-imports `playbackEngineBridgeRegister`         → playback bridge
+// step. Importing the real app entry plus the post-migration playback registrar runs
+// exactly that wiring:
+//   - App dynamically imports `playbackEngineBridgeRegister` after migrations
 //   - MainApp imports the `@/features/offline` barrel (`export *`)        → media resolver
 //   - MainApp imports AppShell, which imports the `@/features/orbit` barrel → orbit runtime
 //
@@ -16,6 +17,7 @@ import { describe, expect, it } from 'vitest';
 // path is hit). Registration is import-time, so mounting the (heavy) component tree
 // would add flakiness without covering anything the import does not.
 import '@/app/MainApp';
+import '@/features/playback/store/playbackEngineBridgeRegister';
 
 import { isMediaResolverRegistered } from '@/store/mediaResolver';
 import { isOrbitRuntimeRegistered } from '@/store/orbitRuntime';

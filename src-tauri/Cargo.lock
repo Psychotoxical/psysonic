@@ -4270,6 +4270,7 @@ dependencies = [
 name = "psysonic-library"
 version = "1.51.0-dev"
 dependencies = [
+ "md5",
  "psysonic-core",
  "psysonic-integration",
  "reqwest",

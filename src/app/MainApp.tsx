@@ -1,5 +1,4 @@
 import { initAudioListeners } from '@/features/playback/store/initAudioListeners';
-import '@/features/playback/store/playbackEngineBridgeRegister'; // installs the playback-engine bridge at boot
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { BrowserRouter, Route, Routes } from 'react-router';
 import { preloadMiniPlayer as preloadMiniPlayerWindow } from '@/lib/api/miniPlayer';
@@ -33,14 +32,11 @@ import { useCoverArtPrefetch } from '../cover/useCoverArtPrefetch';
 import { useLibraryCoverBackfill } from '@/cover/useLibraryCoverBackfill';
 import { useCoverRevalidateScheduler } from '../cover/useCoverRevalidateScheduler';
 import { runCoverIdbUpgradeMigration } from '@/app/migrations/coverIdbUpgradeMigration';
-import { useMigrationOrchestrator } from '@/app/hooks/useMigrationOrchestrator';
 import { IS_WINDOWS } from '@/lib/util/platform';
 import TauriEventBridge from './TauriEventBridge';
 import AppShell from './AppShell';
 import ErrorBoundary from '@/app/ErrorBoundary';
-import BlockingMigrationGate from './BlockingMigrationGate';
 import RequireAuth from './RequireAuth';
-import { useMigrationStore } from '../store/migrationStore';
 import BenchmarkRunner from './BenchmarkRunner';
 
 const Login = lazy(() => import('@/features/auth/pages/Login'));
@@ -66,12 +62,8 @@ export default function MainApp() {
   const activeServerId = useAuthStore(s => s.activeServerId);
   const serverIdsKey = useAuthStore(s => s.servers.map(srv => srv.id).join(','));
   const masterEnabled = useLibraryIndexStore(s => s.masterEnabled);
-  const migrationPhase = useMigrationStore(s => s.phase);
-  const migrationReady = migrationPhase === 'completed';
   const startupQueueReconcileStartedRef = useRef(false);
-  useMigrationOrchestrator();
   useEffect(() => {
-    if (!migrationReady) return;
     const shouldReconcileStartupQueue = !startupQueueReconcileStartedRef.current;
     if (shouldReconcileStartupQueue) startupQueueReconcileStartedRef.current = true;
     void (async () => {
@@ -81,17 +73,16 @@ export default function MainApp() {
         await reconcileStartupPlayQueues();
       }
     })();
-  }, [activeServerId, serverIdsKey, masterEnabled, migrationReady]);
+  }, [activeServerId, serverIdsKey, masterEnabled]);
 
-  useLibraryAnalysisBackfill(migrationReady);
-  useCoverArtPrefetch(migrationReady);
-  useLibraryCoverBackfill(migrationReady);
-  useCoverRevalidateScheduler(migrationReady);
+  useLibraryAnalysisBackfill(true);
+  useCoverArtPrefetch(true);
+  useLibraryCoverBackfill(true);
+  useCoverRevalidateScheduler(true);
 
   useEffect(() => {
-    if (!migrationReady) return;
     void runCoverIdbUpgradeMigration();
-  }, [migrationReady]);
+  }, []);
 
   // Push playback state to mini window + handle control events.
   useEffect(() => {
@@ -103,22 +94,19 @@ export default function MainApp() {
   // a hang workaround — skip here to avoid double-building.
   const preloadMiniPlayer = useAuthStore(s => s.preloadMiniPlayer);
   useEffect(() => {
-    if (!migrationReady || IS_WINDOWS || !preloadMiniPlayer) return;
+    if (IS_WINDOWS || !preloadMiniPlayer) return;
     preloadMiniPlayerWindow().catch(() => {});
-  }, [preloadMiniPlayer, migrationReady]);
+  }, [preloadMiniPlayer]);
 
   useEffect(() => {
-    if (!migrationReady) return undefined;
     return initAudioListeners();
-  }, [migrationReady]);
+  }, []);
 
   useEffect(() => {
-    if (!migrationReady) return undefined;
     return initHotCachePrefetch();
-  }, [migrationReady]);
+  }, []);
 
   useEffect(() => {
-    if (!migrationReady) return undefined;
     void (async () => {
       await runLegacyOfflineFileMigration();
       const servers = useAuthStore.getState().servers;
@@ -137,12 +125,11 @@ export default function MainApp() {
       stopPinnedOfflineSync();
       stopOfflineResume();
     };
-  }, [migrationReady, serverIdsKey]);
+  }, [serverIdsKey]);
 
   useEffect(() => {
-    if (!migrationReady) return;
     useGlobalShortcutsStore.getState().registerAll();
-  }, [migrationReady]);
+  }, []);
 
   // ── Easter egg: Ctrl+Shift+Alt+N → export new albums image ──
   useEffect(() => {
@@ -194,31 +181,29 @@ export default function MainApp() {
   return (
     <WindowVisibilityProvider>
       <BrowserRouter>
-        <BlockingMigrationGate>
-          <PasteClipboardHandler />
-           <TauriEventBridge />
-          <BenchmarkRunner />
-          <Suspense fallback={null}>
-            <Routes>
-              <Route path="/login" element={<Login />} />
-              <Route
-                path="/*"
-                element={
-                  <RequireAuth>
-                    <ErrorBoundary>
-                      <DragDropProvider>
-                        <AppShell />
-                      </DragDropProvider>
-                    </ErrorBoundary>
-                  </RequireAuth>
-                }
-              />
-            </Routes>
-          </Suspense>
-          {exportPickerOpen && <ExportPickerModal onConfirm={handleExport} onClose={() => setExportPickerOpen(false)} />}
-          <ZipDownloadOverlay />
-          <FpsOverlay />
-        </BlockingMigrationGate>
+        <PasteClipboardHandler />
+        <TauriEventBridge />
+        <BenchmarkRunner />
+        <Suspense fallback={null}>
+          <Routes>
+            <Route path="/login" element={<Login />} />
+            <Route
+              path="/*"
+              element={
+                <RequireAuth>
+                  <ErrorBoundary>
+                    <DragDropProvider>
+                      <AppShell />
+                    </DragDropProvider>
+                  </ErrorBoundary>
+                </RequireAuth>
+              }
+            />
+          </Routes>
+        </Suspense>
+        {exportPickerOpen && <ExportPickerModal onConfirm={handleExport} onClose={() => setExportPickerOpen(false)} />}
+        <ZipDownloadOverlay />
+        <FpsOverlay />
       </BrowserRouter>
     </WindowVisibilityProvider>
   );

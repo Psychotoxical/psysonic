@@ -175,6 +175,11 @@ export async function bindIndexedServer(server: ServerProfile): Promise<BindServ
   }
 }
 
+/** Bind one server without queuing ordinary startup sync work. */
+export async function bindIndexedServerForMigration(server: ServerProfile): Promise<BindServerResult> {
+  return bindIndexedServer(server);
+}
+
 /** Bind + kick off initial sync for one indexed server. */
 export async function bootstrapIndexedServer(server: ServerProfile): Promise<BindServerResult> {
   const bound = await bindIndexedServer(server);

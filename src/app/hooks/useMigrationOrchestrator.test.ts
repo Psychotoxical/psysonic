@@ -9,6 +9,15 @@ const libraryGenreTagsInspectMock = vi.fn();
 const libraryGenreTagsRunMock = vi.fn();
 const libraryScopeBrowseProjectionInspectMock = vi.fn();
 const libraryScopeBrowseProjectionRunMock = vi.fn();
+const libraryNavidromeCanonicalInspectMock = vi.fn();
+const bindIndexedServerForMigrationMock = vi.fn();
+const enqueueLibrarySyncMock = vi.fn();
+const libraryNavidromeCanonicalRewriteMock = vi.fn();
+const libraryNavidromeCanonicalAckFrontendMock = vi.fn();
+const libraryNavidromeCanonicalFinalizeMock = vi.fn();
+const rewriteNavidromeCanonicalFrontendStateMock = vi.fn();
+const audioStopMock = vi.fn();
+const analysisDeleteAllForServerMock = vi.fn();
 const rewriteFrontendStoreKeysMock = vi.fn(async (_servers: unknown) => undefined);
 
 vi.mock('@tauri-apps/api/event', () => ({
@@ -25,6 +34,31 @@ vi.mock('@/lib/api/library', () => ({
   libraryGenreTagsRun: () => libraryGenreTagsRunMock(),
   libraryScopeBrowseProjectionInspect: () => libraryScopeBrowseProjectionInspectMock(),
   libraryScopeBrowseProjectionRun: () => libraryScopeBrowseProjectionRunMock(),
+  libraryNavidromeCanonicalInspect: () => libraryNavidromeCanonicalInspectMock(),
+  libraryNavidromeCanonicalRewrite: (...args: unknown[]) => libraryNavidromeCanonicalRewriteMock(...args),
+  libraryNavidromeCanonicalAckFrontend: (...args: unknown[]) => libraryNavidromeCanonicalAckFrontendMock(...args),
+  libraryNavidromeCanonicalFinalize: (...args: unknown[]) => libraryNavidromeCanonicalFinalizeMock(...args),
+}));
+
+vi.mock('@/lib/library/librarySession', () => ({
+  bindIndexedServerForMigration: (...args: unknown[]) => bindIndexedServerForMigrationMock(...args),
+}));
+
+vi.mock('@/lib/library/librarySyncQueue', () => ({
+  enqueueLibrarySync: (...args: unknown[]) => enqueueLibrarySyncMock(...args),
+}));
+
+vi.mock('@/lib/api/audio', () => ({ audioStop: (...args: unknown[]) => audioStopMock(...args) }));
+vi.mock('@/lib/api/analysis', () => ({
+  analysisDeleteAllForServer: (...args: unknown[]) => analysisDeleteAllForServerMock(...args),
+}));
+vi.mock('@/cover/imageCache', () => ({ clearImageCache: vi.fn() }));
+vi.mock('@/lib/api/coverCache', () => ({ coverCacheClearServer: vi.fn() }));
+vi.mock('@/features/lyrics/utils/lyricsPersistentCache', () => ({ clearLyricsCache: vi.fn() }));
+vi.mock('@/features/home/store/homeFeedCache', () => ({ clearHomeFeedCache: vi.fn() }));
+vi.mock('@/features/home/store/becauseYouLikeCache', () => ({ clearBecauseYouLikeCache: vi.fn() }));
+vi.mock('@/app/migrations/navidromeCanonicalFrontend', () => ({
+  rewriteNavidromeCanonicalFrontendState: (...args: unknown[]) => rewriteNavidromeCanonicalFrontendStateMock(...args),
 }));
 
 vi.mock('@/utils/server/rewriteFrontendStoreKeys', () => ({
@@ -44,6 +78,24 @@ describe('useMigrationOrchestrator', () => {
     libraryGenreTagsRunMock.mockReset();
     libraryScopeBrowseProjectionInspectMock.mockReset();
     libraryScopeBrowseProjectionRunMock.mockReset();
+    libraryNavidromeCanonicalInspectMock.mockReset().mockResolvedValue({
+      serverId: 'a.test',
+      state: 'not_applicable',
+      canonicalVersion: 1,
+      probeKind: null,
+      probeOldId: null,
+      probeNewId: null,
+      lastError: null,
+      mappings: [],
+    });
+    bindIndexedServerForMigrationMock.mockReset().mockResolvedValue('bound');
+    enqueueLibrarySyncMock.mockReset().mockResolvedValue(undefined);
+    libraryNavidromeCanonicalRewriteMock.mockReset();
+    libraryNavidromeCanonicalAckFrontendMock.mockReset();
+    libraryNavidromeCanonicalFinalizeMock.mockReset();
+    rewriteNavidromeCanonicalFrontendStateMock.mockReset().mockResolvedValue(undefined);
+    audioStopMock.mockReset().mockResolvedValue(undefined);
+    analysisDeleteAllForServerMock.mockReset().mockResolvedValue({ analysisTracks: 0, waveforms: 0, loudness: 0 });
     libraryGenreTagsInspectMock.mockResolvedValue({ needed: false, totalTracks: 0, doneTracks: 0 });
     libraryGenreTagsRunMock.mockResolvedValue(undefined);
     libraryScopeBrowseProjectionInspectMock.mockResolvedValue({ needed: false, totalTracks: 0, doneTracks: 0 });
@@ -67,6 +119,7 @@ describe('useMigrationOrchestrator', () => {
       genreTagsProgress: null,
       scopeBrowseProjectionInspect: null,
       scopeBrowseProjectionProgress: null,
+      navidromeCanonical: null,
       lastError: null,
     });
     (globalThis as Record<string, unknown>)[REAL_MIGRATION_TEST_OVERRIDE] = true;
@@ -231,5 +284,94 @@ describe('useMigrationOrchestrator', () => {
     await waitFor(() => {
       expect(useMigrationStore.getState().phase).toBe('completed');
     });
+  });
+
+  it('keeps normal startup blocked through rewrite, frontend persistence, full sync, and finalize', async () => {
+    migrationInspectMock.mockResolvedValue({
+      needsMigration: false, hasSkippedUnknownServerRows: false, canRun: true, warnings: [],
+      unmappedEmptyBucket: false,
+      library: { totalLegacyRows: 0, skippedUnknownServerRows: 0, tables: {} },
+      analysis: { totalLegacyRows: 0, skippedUnknownServerRows: 0, tables: {} },
+      mappings: [{ legacyId: 'legacy-a', indexKey: 'a.test' }],
+    });
+    const mapping = { entityKind: 'track', oldId: 'old', newId: 'new' };
+    libraryNavidromeCanonicalInspectMock
+      .mockResolvedValueOnce({
+        serverId: 'a.test', state: 'required', canonicalVersion: 1,
+        probeKind: 'track', probeOldId: 'old', probeNewId: 'new', lastError: null,
+        mappings: [mapping],
+      })
+      .mockResolvedValueOnce({
+        serverId: 'a.test', state: 'resyncing', canonicalVersion: 1,
+        probeKind: 'track', probeOldId: 'old', probeNewId: 'new', lastError: null,
+        mappings: [mapping],
+      });
+    libraryNavidromeCanonicalRewriteMock.mockResolvedValue({
+      serverId: 'a.test', state: 'frontend', canonicalVersion: 1,
+      probeKind: 'track', probeOldId: 'old', probeNewId: 'new', lastError: null,
+      mappings: [mapping],
+    });
+    libraryNavidromeCanonicalAckFrontendMock.mockResolvedValue({
+      serverId: 'a.test', state: 'resyncing', canonicalVersion: 1,
+      probeKind: 'track', probeOldId: 'old', probeNewId: 'new', lastError: null,
+      mappings: [mapping],
+    });
+    libraryNavidromeCanonicalFinalizeMock.mockResolvedValue({
+      serverId: 'a.test', state: 'ready', canonicalVersion: 1,
+      probeKind: 'track', probeOldId: 'old', probeNewId: 'new', lastError: null,
+      mappings: [],
+    });
+
+    renderHook(() => useMigrationOrchestrator());
+
+    await waitFor(() => expect(useMigrationStore.getState().phase).toBe('completed'));
+    expect(libraryNavidromeCanonicalRewriteMock).toHaveBeenCalledWith('a.test');
+    expect(rewriteNavidromeCanonicalFrontendStateMock).toHaveBeenCalled();
+    expect(analysisDeleteAllForServerMock).toHaveBeenCalledWith('a.test');
+    expect(libraryNavidromeCanonicalAckFrontendMock).toHaveBeenCalledWith('a.test');
+    expect(enqueueLibrarySyncMock).toHaveBeenCalledWith({ serverId: 'a.test', kind: 'full' });
+    expect(libraryNavidromeCanonicalFinalizeMock).toHaveBeenCalledWith('a.test');
+  });
+
+  it('keeps the gate in error when the required full sync fails', async () => {
+    migrationInspectMock.mockResolvedValue({
+      needsMigration: false, hasSkippedUnknownServerRows: false, canRun: true, warnings: [],
+      unmappedEmptyBucket: false,
+      library: { totalLegacyRows: 0, skippedUnknownServerRows: 0, tables: {} },
+      analysis: { totalLegacyRows: 0, skippedUnknownServerRows: 0, tables: {} },
+      mappings: [{ legacyId: 'legacy-a', indexKey: 'a.test' }],
+    });
+    libraryNavidromeCanonicalInspectMock.mockResolvedValue({
+      serverId: 'a.test', state: 'resyncing', canonicalVersion: 1,
+      probeKind: null, probeOldId: null, probeNewId: null, lastError: null, mappings: [],
+    });
+    enqueueLibrarySyncMock.mockRejectedValue(new Error('sync failed'));
+
+    renderHook(() => useMigrationOrchestrator());
+
+    await waitFor(() => expect(useMigrationStore.getState().phase).toBe('error'));
+    expect(useMigrationStore.getState().step).toBe('navidromeCanonical');
+    expect(useMigrationStore.getState().lastError).toBe('sync failed');
+    expect(libraryNavidromeCanonicalFinalizeMock).not.toHaveBeenCalled();
+  });
+
+  it('allows offline startup for a durable terminal canonical state', async () => {
+    migrationInspectMock.mockResolvedValue({
+      needsMigration: false, hasSkippedUnknownServerRows: false, canRun: true, warnings: [],
+      unmappedEmptyBucket: false,
+      library: { totalLegacyRows: 0, skippedUnknownServerRows: 0, tables: {} },
+      analysis: { totalLegacyRows: 0, skippedUnknownServerRows: 0, tables: {} },
+      mappings: [{ legacyId: 'legacy-a', indexKey: 'a.test' }],
+    });
+    bindIndexedServerForMigrationMock.mockResolvedValue('offline');
+    libraryNavidromeCanonicalInspectMock.mockResolvedValue({
+      serverId: 'a.test', state: 'ready', canonicalVersion: 1,
+      probeKind: null, probeOldId: null, probeNewId: null, lastError: null, mappings: [],
+    });
+
+    renderHook(() => useMigrationOrchestrator());
+
+    await waitFor(() => expect(useMigrationStore.getState().phase).toBe('completed'));
+    expect(rewriteNavidromeCanonicalFrontendStateMock).toHaveBeenCalled();
   });
 });

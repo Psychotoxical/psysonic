@@ -203,6 +203,10 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             psysonic_library::commands::library_get_recent_play_sessions,
             psysonic_library::commands::library_purge_server,
             psysonic_library::commands::library_migrate_server_index_keys,
+            psysonic_library::commands::library_navidrome_canonical_inspect,
+            psysonic_library::commands::library_navidrome_canonical_rewrite,
+            psysonic_library::commands::library_navidrome_canonical_ack_frontend,
+            psysonic_library::commands::library_navidrome_canonical_finalize,
             psysonic_library::commands::library_delete_server_data,
             // psysonic-audio (audio_play + audio_chain_preload excluded: >10 args
             // exceed specta's SpectaFn limit — see the note at their definitions)
@@ -1533,6 +1537,10 @@ pub fn run() {
             psysonic_library::commands::library_get_recent_play_sessions,
             psysonic_library::commands::library_purge_server,
             psysonic_library::commands::library_migrate_server_index_keys,
+            psysonic_library::commands::library_navidrome_canonical_inspect,
+            psysonic_library::commands::library_navidrome_canonical_rewrite,
+            psysonic_library::commands::library_navidrome_canonical_ack_frontend,
+            psysonic_library::commands::library_navidrome_canonical_finalize,
             psysonic_library::commands::library_delete_server_data,
             psysonic_library::commands::library_analysis_backfill_batch,
             library_analysis_backfill::library_analysis_backfill_configure,

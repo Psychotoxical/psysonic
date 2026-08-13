@@ -3,6 +3,10 @@ import { listen } from '@tauri-apps/api/event';
 import {
   libraryGenreTagsInspect,
   libraryGenreTagsRun,
+  libraryNavidromeCanonicalAckFrontend,
+  libraryNavidromeCanonicalFinalize,
+  libraryNavidromeCanonicalInspect,
+  libraryNavidromeCanonicalRewrite,
   libraryScopeBrowseProjectionInspect,
   libraryScopeBrowseProjectionRun,
 } from '@/lib/api/library';
@@ -11,6 +15,19 @@ import { useAuthStore } from '@/store/authStore';
 import { useMigrationStore } from '@/store/migrationStore';
 import { serverIndexKeyFromUrl } from '@/lib/server/serverIndexKey';
 import { rewriteFrontendStoreKeys } from '@/utils/server/rewriteFrontendStoreKeys';
+import { bindIndexedServerForMigration } from '@/lib/library/librarySession';
+import { enqueueLibrarySync } from '@/lib/library/librarySyncQueue';
+import { serverIndexKeyForProfile } from '@/lib/server/serverIndexKey';
+import { rewriteNavidromeCanonicalFrontendState } from '@/app/migrations/navidromeCanonicalFrontend';
+import { useOfflineJobStore } from '@/features/offline/store/offlineJobStore';
+import { clearOfflinePinTasks } from '@/features/offline/utils/offlinePinQueue';
+import { audioStop } from '@/lib/api/audio';
+import { clearImageCache } from '@/cover/imageCache';
+import { coverCacheClearServer } from '@/lib/api/coverCache';
+import { clearLyricsCache } from '@/features/lyrics/utils/lyricsPersistentCache';
+import { clearHomeFeedCache } from '@/features/home/store/homeFeedCache';
+import { clearBecauseYouLikeCache } from '@/features/home/store/becauseYouLikeCache';
+import { analysisDeleteAllForServer } from '@/lib/api/analysis';
 
 const MIGRATION_DONE_FLAG = 'psysonic-server-key-migration-v1';
 let migrationInFlight: Promise<void> | null = null;
@@ -94,6 +111,75 @@ async function runScopeBrowseProjectionPhase(): Promise<void> {
   state.setScopeBrowseProjectionProgress(null);
 }
 
+async function runNavidromeCanonicalPhase(): Promise<void> {
+  const state = useMigrationStore.getState();
+  const servers = useAuthStore.getState().servers;
+  if (servers.length !== 1) {
+    const existing = state.navidromeCanonical;
+    if (existing && existing.state !== 'legacy' && existing.state !== 'ready') {
+      state.setStep('navidromeCanonical');
+      state.setPhase('error');
+      throw new Error('Canonical-ID migration requires exactly one configured server.');
+    }
+    return;
+  }
+  const server = servers[0]!;
+  const serverId = serverIndexKeyForProfile(server);
+  if (!serverId) throw new Error('The Navidrome migration requires a stable server index key.');
+
+  const bound = await bindIndexedServerForMigration(server);
+  let migration = await libraryNavidromeCanonicalInspect(serverId);
+  state.setNavidromeCanonical(migration);
+  if (bound !== 'bound' && !['legacy', 'not_applicable', 'ready'].includes(migration.state)) {
+    throw new Error('The configured server must be reachable before migration.');
+  }
+  if (migration.state === 'ready') {
+    await rewriteNavidromeCanonicalFrontendState(migration);
+    return;
+  }
+  if (migration.state === 'not_applicable' || migration.state === 'legacy') return;
+
+  state.setStep('navidromeCanonical');
+  state.setPhase('running');
+  if (migration.state === 'required' || migration.state === 'rewriting') {
+    useOfflineJobStore.getState().cancelAllDownloads();
+    clearOfflinePinTasks();
+    await audioStop().catch(() => {});
+    migration = await libraryNavidromeCanonicalRewrite(serverId);
+    state.setNavidromeCanonical(migration);
+  }
+  if (migration.state === 'frontend') {
+    await rewriteNavidromeCanonicalFrontendState(migration);
+    await analysisDeleteAllForServer(serverId);
+    await Promise.all([
+      clearImageCache(),
+      clearLyricsCache(),
+      coverCacheClearServer(serverId),
+    ]);
+    clearHomeFeedCache();
+    clearBecauseYouLikeCache();
+    migration = await libraryNavidromeCanonicalAckFrontend(serverId);
+    state.setNavidromeCanonical(migration);
+  }
+  if (migration.state === 'resyncing') {
+    await rewriteNavidromeCanonicalFrontendState(migration);
+    await analysisDeleteAllForServer(serverId);
+    await enqueueLibrarySync({ serverId, kind: 'full' });
+    migration = await libraryNavidromeCanonicalInspect(serverId);
+    state.setNavidromeCanonical(migration);
+    if (migration.state === 'legacy') {
+      state.setStep(null);
+      return;
+    }
+    migration = await libraryNavidromeCanonicalFinalize(serverId);
+    state.setNavidromeCanonical(migration);
+  }
+  if (migration.state !== 'ready') {
+    throw new Error(migration.lastError ?? `Canonical-ID migration stopped in ${migration.state}`);
+  }
+  state.setStep(null);
+}
+
 async function runOrchestrator(force = false): Promise<void> {
   if (migrationInFlight) {
     await migrationInFlight;
@@ -113,11 +199,18 @@ async function runOrchestrator(force = false): Promise<void> {
       state.setPhase('completed');
       return;
     }
+    if (servers.length !== 1) {
+      state.setStep('navidromeCanonical');
+      state.setError('Canonical-ID preflight requires exactly one configured server.');
+      state.setPhase('error');
+      return;
+    }
     const mappings = buildMappings();
     const hasDoneFlag = localStorage.getItem(MIGRATION_DONE_FLAG) === '1';
     state.setError(null);
     state.setProgress(null);
     state.setGenreTagsProgress(null);
+    state.setNavidromeCanonical(null);
     state.setStep('serverIndex');
     state.setPhase(force ? 'inspecting' : 'idle');
     let inspect = null as Awaited<ReturnType<typeof migrationInspect>> | null;
@@ -127,6 +220,7 @@ async function runOrchestrator(force = false): Promise<void> {
       state.setNeedsMigration(inspect.needsMigration);
       skippedLogged = logSkippedUnknownRowsOnce(inspect, skippedLogged);
       if (!inspect.needsMigration) {
+        await runNavidromeCanonicalPhase();
         await runGenreTagsPhase();
         await runScopeBrowseProjectionPhase();
         state.setPhase('completed');
@@ -142,6 +236,7 @@ async function runOrchestrator(force = false): Promise<void> {
     if (!inspect.needsMigration) {
       await rewriteFrontendStoreKeys(servers);
       localStorage.setItem(MIGRATION_DONE_FLAG, '1');
+      await runNavidromeCanonicalPhase();
       await runGenreTagsPhase();
       await runScopeBrowseProjectionPhase();
       state.setPhase('completed');
@@ -158,6 +253,7 @@ async function runOrchestrator(force = false): Promise<void> {
     logSkippedUnknownRowsOnce(after, skippedLogged);
     if (!after.needsMigration) {
       localStorage.setItem(MIGRATION_DONE_FLAG, '1');
+        await runNavidromeCanonicalPhase();
         await runGenreTagsPhase();
         await runScopeBrowseProjectionPhase();
       state.setPhase('completed');
@@ -207,6 +303,10 @@ export function retryGenreTagsMigration(): void {
 
 export function retryBlockingMigration(): void {
   const step = useMigrationStore.getState().step;
+  if (step === 'navidromeCanonical') {
+    void runOrchestrator(true);
+    return;
+  }
   if (step === 'genreTags') {
     retryGenreTagsMigration();
     return;

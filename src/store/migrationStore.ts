@@ -1,9 +1,17 @@
 import { create } from 'zustand';
-import type { GenreTagsInspectDto, ScopeBrowseProjectionInspectDto } from '@/lib/api/library';
+import type {
+  CanonicalMigrationDto,
+  GenreTagsInspectDto,
+  ScopeBrowseProjectionInspectDto,
+} from '@/lib/api/library';
 import type { MigrationInspectReport, MigrationProgressEvent } from '@/lib/api/migration';
 
 export type MigrationPhase = 'idle' | 'inspecting' | 'running' | 'completed' | 'error';
-export type MigrationStep = 'serverIndex' | 'genreTags' | 'scopeBrowseProjection';
+export type MigrationStep =
+  | 'serverIndex'
+  | 'navidromeCanonical'
+  | 'genreTags'
+  | 'scopeBrowseProjection';
 
 export interface GenreTagsProgressEvent {
   done: number;
@@ -20,6 +28,7 @@ interface MigrationState {
   genreTagsProgress: GenreTagsProgressEvent | null;
   scopeBrowseProjectionInspect: ScopeBrowseProjectionInspectDto | null;
   scopeBrowseProjectionProgress: GenreTagsProgressEvent | null;
+  navidromeCanonical: CanonicalMigrationDto | null;
   lastError: string | null;
   setPhase: (phase: MigrationPhase) => void;
   setStep: (step: MigrationStep | null) => void;
@@ -30,6 +39,7 @@ interface MigrationState {
   setGenreTagsProgress: (event: GenreTagsProgressEvent | null) => void;
   setScopeBrowseProjectionInspect: (report: ScopeBrowseProjectionInspectDto | null) => void;
   setScopeBrowseProjectionProgress: (event: GenreTagsProgressEvent | null) => void;
+  setNavidromeCanonical: (report: CanonicalMigrationDto | null) => void;
   setError: (error: string | null) => void;
 }
 
@@ -43,6 +53,7 @@ export const useMigrationStore = create<MigrationState>(set => ({
   genreTagsProgress: null,
   scopeBrowseProjectionInspect: null,
   scopeBrowseProjectionProgress: null,
+  navidromeCanonical: null,
   lastError: null,
   setPhase: phase => set({ phase }),
   setStep: step => set({ step }),
@@ -53,5 +64,6 @@ export const useMigrationStore = create<MigrationState>(set => ({
   setGenreTagsProgress: genreTagsProgress => set({ genreTagsProgress }),
   setScopeBrowseProjectionInspect: scopeBrowseProjectionInspect => set({ scopeBrowseProjectionInspect }),
   setScopeBrowseProjectionProgress: scopeBrowseProjectionProgress => set({ scopeBrowseProjectionProgress }),
+  setNavidromeCanonical: navidromeCanonical => set({ navidromeCanonical }),
   setError: lastError => set({ lastError }),
 }));

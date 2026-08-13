@@ -14,3 +14,4 @@ export * from './library/scopeReads';
 export * from './library/sync';
 export * from './library/stats';
 export * from './library/events';
+export * from './library/canonicalMigration';

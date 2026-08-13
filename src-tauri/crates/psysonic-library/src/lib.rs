@@ -40,6 +40,8 @@ pub mod lossless_formats;
 pub mod mainstage_browse;
 pub mod mood_groups;
 pub mod most_played;
+pub mod navidrome_canonical_ids;
+pub mod navidrome_id_codec;
 pub mod orphan_cleanup;
 pub mod payload;
 #[cfg(test)]

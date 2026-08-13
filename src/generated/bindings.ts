@@ -97,6 +97,10 @@ export const commands = {
 	libraryGetRecentPlaySessions: (limit: number | null, sinceMs: number | null) => typedError<PlaySessionDayTrackDto[], string>(__TAURI_INVOKE("library_get_recent_play_sessions", { limit, sinceMs })),
 	libraryPurgeServer: (serverId: string, includeAnalysis: boolean | null, includeOffline: boolean | null) => typedError<PurgeReportDto, string>(__TAURI_INVOKE("library_purge_server", { serverId, includeAnalysis, includeOffline })),
 	libraryMigrateServerIndexKeys: (mappings: LibraryServerKeyMigrationDto[]) => typedError<null, string>(__TAURI_INVOKE("library_migrate_server_index_keys", { mappings })),
+	libraryNavidromeCanonicalInspect: (serverId: string) => typedError<CanonicalMigrationDto, string>(__TAURI_INVOKE("library_navidrome_canonical_inspect", { serverId })),
+	libraryNavidromeCanonicalRewrite: (serverId: string) => typedError<CanonicalMigrationDto, string>(__TAURI_INVOKE("library_navidrome_canonical_rewrite", { serverId })),
+	libraryNavidromeCanonicalAckFrontend: (serverId: string) => typedError<CanonicalMigrationDto, string>(__TAURI_INVOKE("library_navidrome_canonical_ack_frontend", { serverId })),
+	libraryNavidromeCanonicalFinalize: (serverId: string) => typedError<CanonicalMigrationDto, string>(__TAURI_INVOKE("library_navidrome_canonical_finalize", { serverId })),
 	libraryDeleteServerData: (serverId: string) => typedError<null, string>(__TAURI_INVOKE("library_delete_server_data", { serverId })),
 	audioPause: () => __TAURI_INVOKE<void>("audio_pause"),
 	/**
@@ -872,6 +876,23 @@ export type BandsintownEvent = {
 	url: string,
 	on_sale_datetime: string,
 	lineup: string[],
+};
+
+export type CanonicalIdMappingDto = {
+	entityKind: string,
+	oldId: string,
+	newId: string,
+};
+
+export type CanonicalMigrationDto = {
+	serverId: string,
+	state: string,
+	canonicalVersion: number,
+	probeKind: string | null,
+	probeOldId: string | null,
+	probeNewId: string | null,
+	lastError: string | null,
+	mappings: CanonicalIdMappingDto[],
 };
 
 /**  Min/max `year` from indexed tracks for a server (Albums year filter UI). */
