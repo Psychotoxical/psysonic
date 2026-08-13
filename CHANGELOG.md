@@ -438,6 +438,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * Adding a track to a cleared queue now mounts and starts it immediately instead of leaving it hidden as the current queue item without playing.
 
+### Device sync — migration stays inside the folder you picked
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1411](https://github.com/Psychotoxical/psysonic/pull/1411)**, reported by [@youremailaddress](https://github.com/youremailaddress)
+
+* Migrating a device to the current folder layout now refuses any rename that would reach outside the folder you selected, and reports it per file instead of carrying it out. The paths came from a settings file stored on the device itself, so a device prepared elsewhere could name locations the migration was never pointed at.
+* A drive that disappears during a migration is reported as exactly that, rather than as a rejected path.
+
 ## [1.50.0]
 
 ## Added
