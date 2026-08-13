@@ -646,6 +646,15 @@ impl SizedDecoder {
         // transcode writes for a stream it cannot seek. Passing that on would arm
         // `try_seek`'s `seek_beyond_end` clamp against zero and send every scrub
         // back to the start.
+        // Only a count the container measured, never one symphonia guessed: an MP3
+        // without a Xing/VBRI header would otherwise contribute a bitrate estimate
+        // here, and an estimate is worse than no duration at all — `try_seek`'s
+        // `seek_beyond_end` would treat any scrub past it as a seek to the end
+        // while the transport writes back the position the user asked for. That
+        // estimate never arrives, because `ProbeSeekGate` hides seekability during
+        // the probe and symphonia only estimates on a seekable source
+        // (`demuxer.rs`, "may be inaccurate for vbr files"). The coupling is not
+        // obvious from either side, so a test pins it.
         let total_duration = source_random_access
             .then(|| {
                 track.time_base.zip(track.num_frames).and_then(|(base, frames)| {

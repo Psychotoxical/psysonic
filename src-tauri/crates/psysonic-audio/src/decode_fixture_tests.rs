@@ -838,3 +838,41 @@ fn non_mp3_still_uses_the_manual_itunsmpb_trim() {
         "manual trim must still remove exactly the iTunSMPB delay for non-MP3"
     );
 }
+
+#[test]
+fn an_mp3_without_a_header_frame_count_reports_no_duration() {
+    // `try_seek` clamps any scrub within a millisecond of `total_duration` to the
+    // end of the track, and the transport still writes back the position the user
+    // asked for. Fed a bitrate estimate, that pair drifts apart permanently, so a
+    // count symphonia guessed must not reach it.
+    //
+    // Nothing filters such a count, because none is produced: symphonia estimates
+    // one for a header-less MP3 only `if mss.is_seekable()`, and `ProbeSeekGate`
+    // reports false throughout the probe. That gate exists for probe latency, not
+    // for seek correctness, and nothing at either site says the two are connected
+    // — so this test is the connection. It goes red the moment an estimated count
+    // reaches the duration, which is when the clamp would need guarding.
+    let _globals = crate::spectrum::tests::lock_globals();
+    let len = NO_XING_MP3.len() as u64;
+    let media: Box<dyn MediaSource> =
+        Box::new(SizedCursorSource { inner: Cursor::new(NO_XING_MP3.to_vec()), len });
+    let decoder = SizedDecoder::new_streaming(media, Some("mp3"), "test-stream", true, None)
+        .expect("fixture must decode as a stream");
+
+    assert!(
+        decoder.total_duration().is_none(),
+        "an estimated frame count must not arm the seek clamp"
+    );
+
+    // The counterpart: a tagged MP3 still reports one, or the crossfade loses the
+    // trimmed length this branch added it for.
+    let len = LAME_SINE_MP3.len() as u64;
+    let media: Box<dyn MediaSource> =
+        Box::new(SizedCursorSource { inner: Cursor::new(LAME_SINE_MP3.to_vec()), len });
+    let tagged = SizedDecoder::new_streaming(media, Some("mp3"), "test-stream", true, None)
+        .expect("fixture must decode as a stream");
+    assert!(
+        tagged.total_duration().is_some(),
+        "a header-backed frame count must still be reported"
+    );
+}
