@@ -77,6 +77,7 @@ export const settings = {
   serverFailed: 'Ошибка подключения.',
   serverUrlRequired: 'Укажите адрес сервера.',
   serverUsernameRequired: 'Укажите имя пользователя.',
+  serverDuplicate: 'Подключение с этим адресом сервера и именем пользователя уже существует.',
   serverConnectFailedReason: 'Не удалось подключиться: {{reason}}',
   testBtn: 'Проверить',
   testingBtn: 'Проверка…',

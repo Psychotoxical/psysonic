@@ -88,6 +88,6 @@
     "vitest": "^4.1.8"
   },
   "overrides": {
-    "undici": "^7.28.0"
+    "undici": "^7.29.0"
   }
 }

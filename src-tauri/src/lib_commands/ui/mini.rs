@@ -2,6 +2,7 @@ use std::sync::{Mutex, OnceLock};
 
 use tauri::Manager;
 
+use crate::lib_commands::app_api::MainWindowLifecycleState;
 #[cfg(target_os = "linux")]
 use crate::lib_commands::sync::is_tiling_wm;
 
@@ -170,12 +171,47 @@ document.documentElement.style.removeProperty('--psy-anim-speed');
 "#;
 
 /// Resume rendering and bring the main window to the foreground.
-pub(crate) fn restore_main_window(main: &tauri::WebviewWindow) -> Result<(), String> {
-    main.eval(RESUME_RENDERING_JS).map_err(|e| e.to_string())?;
-    main.unminimize().map_err(|e| e.to_string())?;
-    main.show().map_err(|e| e.to_string())?;
-    main.set_focus().map_err(|e| e.to_string())?;
-    Ok(())
+fn run_restore_main_window_actions(
+    resume_rendering: impl FnOnce() -> Result<(), String>,
+    unminimize: impl FnOnce() -> Result<(), String>,
+    show: impl FnOnce() -> Result<(), String>,
+    focus: impl FnOnce() -> Result<(), String>,
+) -> Result<(), String> {
+    // Showing the native window is more important than the optional webview
+    // optimisation. A failed eval must not strand the main window off-screen.
+    let _ = resume_rendering();
+    unminimize()?;
+    show()?;
+    focus()
+}
+
+pub(crate) fn restore_main_window<R: tauri::Runtime>(
+    main: &tauri::WebviewWindow<R>,
+) -> Result<(), String> {
+    main.state::<MainWindowLifecycleState>()
+        .apply_native_visibility(true, || {
+            run_restore_main_window_actions(
+                || main.eval(RESUME_RENDERING_JS).map_err(|e| e.to_string()),
+                || main.unminimize().map_err(|e| e.to_string()),
+                || main.show().map_err(|e| e.to_string()),
+                || main.set_focus().map_err(|e| e.to_string()),
+            )
+        })
+}
+
+/// Pause rendering and hide the main window while invalidating stale frontend hides.
+pub(crate) fn hide_main_window<R: tauri::Runtime>(
+    main: &tauri::WebviewWindow<R>,
+) -> Result<(), String> {
+    main.state::<MainWindowLifecycleState>()
+        .apply_native_visibility(false, || {
+            let _ = main.eval(PAUSE_RENDERING_JS);
+            if let Err(error) = main.hide() {
+                let _ = main.eval(RESUME_RENDERING_JS);
+                return Err(error.to_string());
+            }
+            Ok(())
+        })
 }
 
 /// Build the mini player webview window. Caller decides `visible` so the
@@ -430,3 +466,35 @@ pub(crate) fn resize_mini_player(
     Ok(())
 }
 
+#[cfg(test)]
+mod tests {
+    use std::cell::Cell;
+
+    #[test]
+    fn restore_continues_when_rendering_resume_fails() {
+        let unminimized = Cell::new(false);
+        let shown = Cell::new(false);
+        let focused = Cell::new(false);
+
+        let result = super::run_restore_main_window_actions(
+            || Err("eval failed".to_string()),
+            || {
+                unminimized.set(true);
+                Ok(())
+            },
+            || {
+                shown.set(true);
+                Ok(())
+            },
+            || {
+                focused.set(true);
+                Ok(())
+            },
+        );
+
+        assert_eq!(result, Ok(()));
+        assert!(unminimized.get());
+        assert!(shown.get());
+        assert!(focused.get());
+    }
+}

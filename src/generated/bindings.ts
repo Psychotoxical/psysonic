@@ -492,6 +492,13 @@ export const commands = {
 	coverRevalidateEnqueue: () => typedError<null, string>(__TAURI_INVOKE("cover_revalidate_enqueue")),
 	coverRevalidateTick: (cycleDays: number | null) => typedError<number, string>(__TAURI_INVOKE("cover_revalidate_tick", { cycleDays })),
 	exitApp: () => __TAURI_INVOKE<void>("exit_app"),
+	windowLifecycleBegin: (generation: number, attempt: number) => typedError<null, string>(__TAURI_INVOKE("window_lifecycle_begin", { generation, attempt })),
+	windowLifecycleFallback: (generation: number, attempt: number, minimizeToTray: boolean) => typedError<null, string>(__TAURI_INVOKE("window_lifecycle_fallback", { generation, attempt, minimizeToTray })),
+	windowLifecycleGeneration: () => __TAURI_INVOKE<number>("window_lifecycle_generation"),
+	windowLifecycleHide: (generation: number, transition: number) => typedError<boolean, string>(__TAURI_INVOKE("window_lifecycle_hide", { generation, transition })),
+	windowLifecycleReady: (generation: number, attempt: number, minimizeToTray: boolean) => __TAURI_INVOKE<void>("window_lifecycle_ready", { generation, attempt, minimizeToTray }),
+	windowLifecycleStartupVisibility: (hidden: boolean, generation: number) => typedError<boolean, string>(__TAURI_INVOKE("window_lifecycle_startup_visibility", { hidden, generation })),
+	windowLifecycleUpdateFallbackPolicy: (generation: number, minimizeToTray: boolean) => __TAURI_INVOKE<void>("window_lifecycle_update_fallback_policy", { generation, minimizeToTray }),
 	setLoggingMode: (mode: string) => typedError<null, string>(__TAURI_INVOKE("set_logging_mode", { mode })),
 	setPsylabAlbumsBrowseTrace: (enabled: boolean) => typedError<null, string>(__TAURI_INVOKE("set_psylab_albums_browse_trace", { enabled })),
 	setPsylabArtistsBrowseTrace: (enabled: boolean) => typedError<null, string>(__TAURI_INVOKE("set_psylab_artists_browse_trace", { enabled })),
@@ -506,7 +513,12 @@ export const commands = {
 	frontendDebugLog: (scope: string, message: string) => typedError<null, string>(__TAURI_INVOKE("frontend_debug_log", { scope, message })),
 	setSubsonicWireUserAgent: (userAgent: string, windowLabel: string) => typedError<null, string>(__TAURI_INVOKE("set_subsonic_wire_user_agent", { userAgent, windowLabel })),
 	performanceCpuSnapshot: (includeThreadGroups: boolean | null) => typedError<PerformanceCpuSnapshot, string>(__TAURI_INVOKE("performance_cpu_snapshot", { includeThreadGroups })),
-	setWindowDecorations: (enabled: boolean) => __TAURI_INVOKE<void>("set_window_decorations", { enabled }),
+	setWindowDecorations: (enabled: boolean, generation: number, transition: number) => typedError<boolean, string>(__TAURI_INVOKE("set_window_decorations", { enabled, generation, transition })),
+	/**
+	 *  Keep native controls available through the startup splash on stacking WMs.
+	 *  React switches to the custom titlebar only after it has mounted.
+	 */
+	prepareMainWindowForReveal: (generation: number) => typedError<boolean, string>(__TAURI_INVOKE("prepare_main_window_for_reveal", { generation })),
 	/**  Called from the frontend settings toggle (Linux); no-op on other platforms. */
 	setLinuxWebkitSmoothScrolling: (enabled: boolean) => typedError<null, string>(__TAURI_INVOKE("set_linux_webkit_smooth_scrolling", { enabled })),
 	/**

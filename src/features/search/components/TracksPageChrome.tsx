@@ -9,12 +9,13 @@ import { useAuthStore } from '@/store/authStore';
 import { usePlayerStore } from '@/features/playback/store/playerStore';
 import { SongRail } from '@/features/home';
 import { playSongNow } from '@/features/playback/utils/playback/playSong';
-import { ndListSongs, ndInvalidateSongsCache } from '@/lib/api/navidromeBrowse';
+import { ndListSongs } from '@/lib/api/navidromeBrowse';
 import { usePerfProbeFlags } from '@/lib/perf/perfFlags';
 import { useNavigateToAlbum } from '@/features/album';
 import { useNavigateToArtist } from '@/features/artist';
 import { ResolvedArtistRefInline } from '@/ui/ResolvedArtistRefInline';
 import { resolveTrackArtistRefs } from '@/features/playback/utils/playback/trackArtistRefs';
+import { shuffleArray } from '@/lib/util/shuffleArray';
 
 const RANDOM_RAIL_SIZE = 18;
 const RATED_RAIL_FETCH = 60;
@@ -72,7 +73,10 @@ export default function TracksPageChrome({
     setRatedLoading(true);
     try {
       const songs = await ndListSongs(0, RATED_RAIL_FETCH, 'rating', 'DESC', RATED_RAIL_CACHE_MS);
-      const filtered = songs.filter(s => (s.userRating ?? 0) > 0).slice(0, RATED_RAIL_DISPLAY);
+      // Stable rating sort keeps higher tiers first while shuffle randomises ties.
+      const filtered = shuffleArray(songs.filter(s => (s.userRating ?? 0) > 0))
+        .sort((a, b) => (b.userRating ?? 0) - (a.userRating ?? 0))
+        .slice(0, RATED_RAIL_DISPLAY);
       setRated(filtered);
       setRatedSupported(true);
     } catch {
@@ -196,7 +200,7 @@ export default function TracksPageChrome({
           title={t('tracks.railHighlyRated')}
           songs={rated}
           loading={ratedLoading}
-          onReroll={() => { ndInvalidateSongsCache(); return reloadRated(); }}
+          onReroll={reloadRated}
           windowArtworkByViewport={TRACKS_SONG_RAIL_WINDOWING}
           initialArtworkBudget={TRACKS_SONG_RAIL_INITIAL_ARTWORK_BUDGET}
         />

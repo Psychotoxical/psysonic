@@ -21,6 +21,10 @@ vi.mock('./windowKind', () => ({
   getWindowKind: vi.fn(() => 'main'),
 }));
 
+vi.mock('./tauriBridge/windowLifecycleBridge', () => ({
+  setupWindowLifecycleBridge: vi.fn(async () => undefined),
+}));
+
 import { invoke } from '@tauri-apps/api/core';
 import { getWindowKind } from './windowKind';
 import {

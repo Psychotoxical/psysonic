@@ -212,6 +212,7 @@ const CONTRIBUTOR_ENTRIES = [
       'Multi-server scope recovery and redacted selectable-depth diagnostics for reachability, music folders, and New Releases (PR #1331)',
       'Cover pipeline — Navidrome per-disc art in queue, playbar and Who is listening?; All Albums warm no longer creates mf-* album dirs (PR #1336)',
       'Performance benchmark CLI and faster scoped library browsing (PR #1382)',
+      'Startup window controls and lifecycle race fixes (PR #1392)',
       'AIFF/AIF/AIFC playback across streamed, cached, and local sources (PR #1396)',
     ],
   },

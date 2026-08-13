@@ -1,5 +1,3 @@
-import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
-import { shouldDeferMainWindowReveal } from '@/lib/settings/readStartMinimizedToTray';
 import { applyStartupSplashThemeFromStorage } from '@/lib/themes/startupThemeAppearance';
 import { getWindowKind } from './windowKind';
 
@@ -8,13 +6,6 @@ export const STARTUP_ROOT_PENDING_CLASS = 'app-root--startup-pending';
 
 function revealStartupContent(): void {
   document.getElementById('root')?.classList.remove(STARTUP_ROOT_PENDING_CLASS);
-}
-
-/** Ensure the native shell is visible once the webview bundle is alive. */
-export function revealStartupWindow(): void {
-  if (getWindowKind() === 'mini') return;
-  if (shouldDeferMainWindowReveal()) return;
-  void getCurrentWebviewWindow().show().catch(() => {});
 }
 
 /** Re-apply splash colors after bootstrap theme migration/injection. */
@@ -32,7 +23,6 @@ export function configureStartupSplash(): void {
   }
 
   applyStartupSplashThemeFromStorage();
-  revealStartupWindow();
 }
 
 /** Replace the splash with the fully prepared React tree in one paint. */

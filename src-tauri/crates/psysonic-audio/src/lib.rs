@@ -8,6 +8,8 @@ pub use psysonic_core::{app_deprintln, app_eprintln, logging};
 
 pub mod autoeq_commands;
 mod analysis_dispatch;
+#[cfg(target_os = "linux")]
+mod alsa_rate;
 mod codec;
 pub mod commands;
 mod decode;

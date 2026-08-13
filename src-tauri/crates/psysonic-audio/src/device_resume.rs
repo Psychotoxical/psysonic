@@ -18,7 +18,6 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Instant;
 
-use rodio::Player;
 use tauri::Emitter;
 use tauri::Manager;
 
@@ -28,6 +27,7 @@ use super::source_build::{
     build_playback_source_with_probe_fallback, BuildSourceArgs, PlaybackSource,
 };
 use super::sink_swap::{swap_in_new_sink, SinkSwapInputs};
+use super::state::install_current_source_done;
 use super::progress_task::spawn_progress_task;
 use super::stream::LocalFileSource;
 
@@ -40,6 +40,14 @@ pub(crate) struct ResumeSnapshot {
     pub(crate) gain_linear: f32,
     pub(crate) analysis_track_id: Option<String>,
     pub(crate) is_playing: bool,
+    pub(crate) generation: u64,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum ResumeOutcome {
+    Resumed,
+    Fallback,
+    Superseded,
 }
 
 /// Try to replay the current track on the new device without involving the
@@ -54,23 +62,38 @@ pub(crate) struct ResumeSnapshot {
 pub(crate) async fn try_resume_after_device_change(
     app: &tauri::AppHandle,
     snap: &ResumeSnapshot,
-) -> bool {
+) -> ResumeOutcome {
     // Only resume actively-playing (not paused) tracks.
     if !snap.is_playing {
-        return false;
+        return ResumeOutcome::Fallback;
     }
     let url = match snap.url.as_deref() {
         Some(u) if !u.is_empty() => u,
-        _ => return false,
+        _ => return ResumeOutcome::Fallback,
     };
 
     let Some(engine) = app.try_state::<AudioEngine>() else {
-        return false;
+        return ResumeOutcome::Fallback;
     };
 
     // Skip radio — live streams don't have a resume position.
     if engine.radio_state.lock().unwrap().is_some() {
-        return false;
+        return ResumeOutcome::Fallback;
+    }
+
+    // Claim this snapshot before any file/cache work so the old progress task
+    // cannot report completion after its sink was stopped. A later play/stop
+    // command bumps the generation again and cancels this resume normally.
+    let gen = snap.generation + 1;
+    {
+        let _commit_guard = engine.playback_commit_lock.lock().unwrap();
+        if engine
+            .generation
+            .compare_exchange(snap.generation, gen, Ordering::SeqCst, Ordering::SeqCst)
+            .is_err()
+        {
+            return ResumeOutcome::Superseded;
+        }
     }
 
     // Build a PlayInput without re-downloading:
@@ -96,7 +119,7 @@ pub(crate) async fn try_resume_after_device_change(
             }
             Err(e) => {
                 crate::app_eprintln!("[device-resume] cannot open local file: {e}");
-                return false;
+                return ResumeOutcome::Fallback;
             }
         }
     } else {
@@ -119,23 +142,21 @@ pub(crate) async fn try_resume_after_device_change(
                     Ok(b) => b,
                     Err(e) => {
                         crate::app_eprintln!("[device-resume] spill read failed: {e}");
-                        return false;
+                        return ResumeOutcome::Fallback;
                     }
                 },
-                None => return false, // not fully cached yet — frontend will re-fetch
+                None => return ResumeOutcome::Fallback, // frontend will re-fetch
             }
         };
         PlayInput::Bytes(bytes)
     };
 
-    // Bump generation so the old progress task exits cleanly.
-    let gen = engine.generation.fetch_add(1, Ordering::SeqCst) + 1;
     engine.stream_playback_armed.store(true, Ordering::SeqCst);
     *engine.chained_info.lock().unwrap() = None;
     *engine.current_playback_url.lock().unwrap() = Some(url.to_owned());
 
     if engine.generation.load(Ordering::SeqCst) != gen {
-        return false; // raced with another audio_play
+        return ResumeOutcome::Superseded;
     }
 
     let format_hint = url_format_hint(url);
@@ -175,12 +196,16 @@ pub(crate) async fn try_resume_after_device_change(
         Ok(ps) => ps,
         Err(e) => {
             crate::app_eprintln!("[device-resume] source build failed: {e}");
-            return false;
+            return if engine.generation.load(Ordering::SeqCst) == gen {
+                ResumeOutcome::Fallback
+            } else {
+                ResumeOutcome::Superseded
+            };
         }
     };
 
     if engine.generation.load(Ordering::SeqCst) != gen {
-        return false;
+        return ResumeOutcome::Superseded;
     }
 
     engine
@@ -193,17 +218,28 @@ pub(crate) async fn try_resume_after_device_change(
         .current_channels
         .store(ps.built.output_channels as u32, Ordering::Relaxed);
 
-    let stream = match super::engine::ensure_output_stream_open(&engine) {
-        Ok(s) => s,
+    let (sink, stream_attach) = match super::engine::connect_new_player(&engine) {
+        Ok(connected) => connected,
         Err(e) => {
             crate::app_eprintln!("[device-resume] output stream open failed: {e}");
-            return false;
+            return if engine.generation.load(Ordering::SeqCst) == gen {
+                ResumeOutcome::Fallback
+            } else {
+                ResumeOutcome::Superseded
+            };
         }
     };
-    let sink = Arc::new(Player::connect_new(stream.mixer()));
+    if engine.generation.load(Ordering::SeqCst) != gen {
+        return ResumeOutcome::Superseded;
+    }
     let effective_volume = (snap.base_volume * snap.gain_linear).clamp(0.0, 1.0);
     sink.set_volume(effective_volume);
     sink.append(ps.built.source);
+
+    let commit_guard = engine.playback_commit_lock.lock().unwrap();
+    if engine.generation.load(Ordering::SeqCst) != gen {
+        return ResumeOutcome::Superseded;
+    }
 
     swap_in_new_sink(
         &engine,
@@ -220,6 +256,8 @@ pub(crate) async fn try_resume_after_device_change(
             start_paused: false,
         },
     );
+    drop(stream_attach);
+    drop(commit_guard);
 
     // Seek to the saved position for seekable sources (local files, ranged HTTP).
     if ps.is_seekable && snap.current_time_secs > 0.5 {
@@ -268,6 +306,14 @@ pub(crate) async fn try_resume_after_device_change(
         app.emit("audio:format", ev).ok();
     }
 
+    if !install_current_source_done(
+        &engine.current_source_done,
+        &engine.generation,
+        gen,
+        done_flag,
+    ) {
+        return ResumeOutcome::Superseded;
+    }
     let analysis_app = app.clone();
     spawn_progress_task(
         gen,
@@ -277,7 +323,7 @@ pub(crate) async fn try_resume_after_device_change(
         engine.crossfade_enabled.clone(),
         engine.crossfade_secs.clone(),
         engine.autodj_suppress_autocrossfade.clone(),
-        done_flag,
+        engine.current_source_done.clone(),
         app.clone(),
         Some(analysis_app),
         engine.samples_played.clone(),
@@ -294,5 +340,5 @@ pub(crate) async fn try_resume_after_device_change(
         snap.current_time_secs,
         ps.is_seekable
     );
-    true
+    ResumeOutcome::Resumed
 }

@@ -6,8 +6,13 @@ use std::time::{Duration, Instant};
 
 use tauri::{AppHandle, Emitter, Manager};
 
-use super::device_watcher::{reopen_output_stream, ReopenNotify};
-use super::engine::{request_stream_release, AudioEngine};
+use super::device_watcher::{
+    reopen_output_stream_with_retry, ReopenNotify, ReopenOutcome,
+};
+use super::engine::{
+    request_stream_release_after_attachments_locked, wait_for_stream_attachments_locked,
+    AudioEngine,
+};
 use super::stream_idle::{output_stream_is_needed, teardown_playback_sinks_for_idle_release};
 
 static RESUME_REOPEN_DEBOUNCE: Mutex<Option<Instant>> = Mutex::new(None);
@@ -35,23 +40,32 @@ pub(crate) async fn reopen_audio_after_system_resume(app: &AppHandle) {
     };
     let engine = state.inner();
 
-    if !output_stream_is_needed(engine) {
-        if engine.stream_handle.lock().unwrap().is_some() {
-            teardown_playback_sinks_for_idle_release(engine);
-            let _ = request_stream_release(engine);
-            *engine.stream_handle.lock().unwrap() = None;
-            let _ = app.emit("audio:output-released", ());
+    {
+        let _stream_guard = engine.stream_open_lock.lock().unwrap();
+        if !output_stream_is_needed(engine) {
+            wait_for_stream_attachments_locked(engine);
+            let _commit_guard = engine.playback_commit_lock.lock().unwrap();
+            if output_stream_is_needed(engine) {
+                return;
+            }
+            if engine.stream_handle.lock().unwrap().is_some() {
+                teardown_playback_sinks_for_idle_release(engine);
+                let _ = request_stream_release_after_attachments_locked(engine);
+                let _ = app.emit("audio:output-released", ());
+            }
+            return;
         }
-        return;
     }
 
     let device_name = engine.selected_device.lock().unwrap().clone();
 
-    if reopen_output_stream(app, device_name, ReopenNotify::DeviceChanged).await {
-        crate::app_eprintln!("[psysonic] audio output reopened after system resume");
-    } else {
-        crate::app_eprintln!(
-            "[psysonic] audio: stream reopen failed or timed out after system resume"
-        );
+    match reopen_output_stream_with_retry(app, device_name, ReopenNotify::DeviceChanged).await {
+        Ok(ReopenOutcome::Reopened) => {
+            crate::app_eprintln!("[psysonic] audio output reopened after system resume")
+        }
+        Ok(ReopenOutcome::Superseded) => {}
+        Err(error) => crate::app_eprintln!(
+            "[psysonic] audio: stream reopen failed after system resume: {error}"
+        ),
     }
 }

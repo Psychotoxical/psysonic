@@ -33,6 +33,7 @@ use std::time::Duration;
 
 use futures_util::stream::{self, StreamExt};
 use lib_commands::*;
+use tauri::webview::PageLoadEvent;
 use tauri::{Emitter, Manager};
 
 /// Tracks which user-configured shortcuts are currently registered (shortcut_str → action).
@@ -113,10 +114,7 @@ fn on_second_instance<R: tauri::Runtime>(
         // RESUME_RENDERING_JS — second-launch restore must do the same,
         // otherwise the webview comes back with rendering still paused
         // and navigation looks blank (issue #497).
-        let _ = window.eval(RESUME_RENDERING_JS);
-        let _ = window.show();
-        let _ = window.unminimize();
-        let _ = window.set_focus();
+        let _ = crate::lib_commands::ui::restore_main_window(&window);
     }
 }
 
@@ -322,6 +320,13 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             cover_cache::cover_revalidate_tick,
             // top crate shell commands (set_tray_menu_labels >10 args, backup_*_full/cli_publish_* are Value — all excluded)
             crate::lib_commands::app_api::core::exit_app,
+            crate::lib_commands::app_api::core::window_lifecycle_begin,
+            crate::lib_commands::app_api::core::window_lifecycle_fallback,
+            crate::lib_commands::app_api::core::window_lifecycle_generation,
+            crate::lib_commands::app_api::core::window_lifecycle_hide,
+            crate::lib_commands::app_api::core::window_lifecycle_ready,
+            crate::lib_commands::app_api::core::window_lifecycle_startup_visibility,
+            crate::lib_commands::app_api::core::window_lifecycle_update_fallback_policy,
             crate::lib_commands::app_api::core::set_logging_mode,
             crate::lib_commands::app_api::core::set_psylab_albums_browse_trace,
             crate::lib_commands::app_api::core::set_psylab_artists_browse_trace,
@@ -332,6 +337,7 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             crate::lib_commands::app_api::core::set_subsonic_wire_user_agent,
             crate::lib_commands::app_api::perf::performance_cpu_snapshot,
             crate::lib_commands::app_api::platform::set_window_decorations,
+            crate::lib_commands::app_api::platform::prepare_main_window_for_reveal,
             crate::lib_commands::app_api::platform::set_linux_webkit_smooth_scrolling,
             crate::lib_commands::app_api::platform::linux_wayland_gpu_font_tuning_active,
             crate::lib_commands::app_api::platform::linux_wayland_text_render_settings_available,
@@ -455,6 +461,7 @@ pub fn run() {
         .manage(TrayPlaybackState::default())
         .manage(TrayMenuItemsState::default())
         .manage(TrayMenuLabelsState::default())
+        .manage(MainWindowLifecycleState::default())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(
@@ -486,6 +493,13 @@ pub fn run() {
     let builder = builder.plugin(tauri_plugin_single_instance::init(on_second_instance));
 
     builder
+        .on_page_load(|webview, payload| {
+            if webview.label() == "main" && matches!(payload.event(), PageLoadEvent::Started) {
+                webview
+                    .state::<MainWindowLifecycleState>()
+                    .mark_frontend_loading();
+            }
+        })
         .setup(|app| {
             #[cfg(debug_assertions)]
             if let Some(window) = app.get_webview_window("main") {
@@ -1091,16 +1105,15 @@ pub fn run() {
             tauri::async_runtime::spawn(psysonic_analysis::analysis_runtime::analysis_queue_snapshot_loop());
 
             // ── Custom title bar on Linux ─────────────────────────────────
-            // Remove OS window decorations on all Linux so the React TitleBar
-            // can take over.  The frontend checks is_tiling_wm() to decide
-            // whether to actually render the TitleBar (hidden on tiling WMs).
+            // Apply Linux WebKit settings while the window is still hidden.
+            // The final decoration mode is selected by the startup reveal
+            // handshake from the persisted custom-titlebar preference.
             #[cfg(target_os = "linux")]
             {
                 use tauri::Manager;
                 let handle = app.handle().clone();
                 sync_wayland_text_profile_cache_from_disk(&handle);
                 if let Some(win) = app.get_webview_window("main") {
-                    let _ = win.set_decorations(false);
                     let _ = linux_webkit_apply_wayland_gpu_font_tuning(&win);
                     let _ = linux_webkit_reapply_cached_wayland_text_render_profile(&win);
                     // Suppress WebKit's own MPRIS player so radio (HTML <audio>)
@@ -1277,15 +1290,33 @@ pub fn run() {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                 if window.label() == "main" {
                     api.prevent_close();
-                    // All platforms: pause rendering, then let JS decide hide-to-tray
-                    // vs exit based on the minimizeToTray setting. macOS previously
-                    // always force-quit on the red close button, ignoring the setting
-                    // (#1103). The tray "Exit" item still emits app:force-quit for an
-                    // unconditional quit.
-                    if let Some(w) = window.app_handle().get_webview_window("main") {
-                        let _ = w.eval(PAUSE_RENDERING_JS);
+                    // The startup splash can be visible before the JS bundle has
+                    // registered lifecycle listeners. Queue one close request until
+                    // the frontend confirms readiness instead of emitting into a gap.
+                    // Rendering is paused only by the frontend when it actually hides.
+                    match window.state::<MainWindowLifecycleState>().request_close() {
+                        LifecycleRequest::Queued => {}
+                        LifecycleRequest::EmitClose { transition } => {
+                            if window.emit("window:close-requested", transition).is_err() {
+                                let request = window
+                                    .state::<MainWindowLifecycleState>()
+                                    .native_request_after_emit_failure(
+                                        PendingLifecycleAction::Close { transition },
+                                    );
+                                let _ = run_native_lifecycle_fallback(
+                                    request,
+                                    window.app_handle().clone(),
+                                );
+                            }
+                        }
+                        LifecycleRequest::EmitForceQuit => {}
+                        request @ (LifecycleRequest::NativeHide | LifecycleRequest::NativeExit) => {
+                            let _ = run_native_lifecycle_fallback(
+                                request,
+                                window.app_handle().clone(),
+                            );
+                        }
                     }
-                    let _ = window.emit("window:close-requested", ());
                 } else if window.label() == "mini" {
                     // Native close on the mini: hide instead of destroying so
                     // state is preserved, and restore the main window.
@@ -1317,6 +1348,13 @@ pub fn run() {
             server_http_context_clear,
             psysonic_syncfs::sync::batch::calculate_sync_payload,
             exit_app,
+            window_lifecycle_begin,
+            window_lifecycle_fallback,
+            window_lifecycle_generation,
+            window_lifecycle_hide,
+            window_lifecycle_ready,
+            window_lifecycle_startup_visibility,
+            window_lifecycle_update_fallback_policy,
             cli_publish_player_snapshot,
             cli_publish_library_list,
             cli_publish_server_list,
@@ -1324,6 +1362,7 @@ pub fn run() {
             benchmark::benchmark_publish_run,
             benchmark::benchmark_take_pending_request,
             set_window_decorations,
+            prepare_main_window_for_reveal,
             set_linux_webkit_smooth_scrolling,
             linux_wayland_gpu_font_tuning_active,
             linux_wayland_text_render_settings_available,
