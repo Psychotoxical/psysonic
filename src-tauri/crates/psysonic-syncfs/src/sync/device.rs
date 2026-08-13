@@ -82,6 +82,46 @@ pub fn read_device_manifest(dest_dir: String) -> Option<serde_json::Value> {
     serde_json::from_str(&content).ok()
 }
 
+/// Joins a migration path onto the device root, or returns `None` if it could
+/// end up anywhere else.
+///
+/// These paths are rendered from `filenameTemplate` in `psysonic-sync.json`,
+/// which lives on the device — untrusted input, whatever wrote it. Three shapes
+/// leave the root, and `Path::join` helps none of them:
+///
+/// * `..` walks out of the directory the user picked;
+/// * an absolute path (`/etc/x`, `C:\Windows\x`) makes `join` **discard the
+///   root entirely** and return the absolute path as-is;
+/// * a Windows prefix does the same, including UNC (`\\server\share`), which
+///   would reach across the network.
+///
+/// Only `Normal` components — and `.`, which goes nowhere — are accepted.
+fn resolve_within_root(root: &std::path::Path, rel: &str) -> Option<std::path::PathBuf> {
+    use std::path::Component;
+    if rel.trim().is_empty() {
+        return None;
+    }
+    let candidate = std::path::Path::new(rel);
+    for component in candidate.components() {
+        match component {
+            Component::Normal(_) | Component::CurDir => {}
+            Component::ParentDir | Component::RootDir | Component::Prefix(_) => return None,
+        }
+    }
+    Some(root.join(candidate))
+}
+
+/// Whether `path` still resolves inside `root` once the filesystem has had its
+/// say. `resolve_within_root` reads the path as text and cannot see a symlink;
+/// a device that ships `Artist -> /home/user` passes the syntax check and lands
+/// outside anyway. Only meaningful for paths that already exist.
+fn resolved_path_stays_within(root: &std::path::Path, path: &std::path::Path) -> bool {
+    let (Ok(canonical_root), Ok(canonical_path)) = (root.canonicalize(), path.canonicalize()) else {
+        return false;
+    };
+    canonical_path.starts_with(&canonical_root)
+}
+
 /// Per-entry result for `rename_device_files`.
 #[derive(serde::Serialize, specta::Type)]
 pub struct RenameResult {
@@ -116,11 +156,31 @@ pub fn rename_device_files(
     if !is_path_on_mounted_volume(&root) {
         return Err("NOT_MOUNTED_VOLUME".to_string());
     }
+    Ok(rename_pairs_within_root(&root, pairs))
+}
 
+/// The renaming itself, separated from the volume checks above so the path
+/// containment can be tested: `is_path_on_mounted_volume` rejects a temporary
+/// directory, which is where a test would put its fixture.
+fn rename_pairs_within_root(
+    root: &std::path::Path,
+    pairs: Vec<(String, String)>,
+) -> Vec<RenameResult> {
     let mut results = Vec::with_capacity(pairs.len());
     for (old_rel, new_rel) in pairs {
-        let old_abs = root.join(&old_rel);
-        let new_abs = root.join(&new_rel);
+        // Both sides are checked, not just the one the template renders: the
+        // command is part of the Tauri surface and cannot assume its caller.
+        let (Some(old_abs), Some(new_abs)) =
+            (resolve_within_root(root, &old_rel), resolve_within_root(root, &new_rel))
+        else {
+            results.push(RenameResult {
+                old_path: old_rel,
+                new_path: new_rel,
+                ok: false,
+                error: Some("path escapes the device root".to_string()),
+            });
+            continue;
+        };
 
         let entry = if old_rel == new_rel {
             // Nothing to do, count as success so the UI can show "already correct".
@@ -129,6 +189,11 @@ pub fn rename_device_files(
             RenameResult {
                 old_path: old_rel, new_path: new_rel,
                 ok: false, error: Some("source not found".to_string()),
+            }
+        } else if !resolved_path_stays_within(root, &old_abs) {
+            RenameResult {
+                old_path: old_rel, new_path: new_rel,
+                ok: false, error: Some("path escapes the device root".to_string()),
             }
         } else if new_abs.exists() {
             RenameResult {
@@ -142,6 +207,16 @@ pub fn rename_device_files(
                     results.push(RenameResult {
                         old_path: old_rel, new_path: new_rel,
                         ok: false, error: Some(format!("mkdir: {}", e)),
+                    });
+                    continue;
+                }
+                // The parent exists now, so it can be resolved — and a symlink
+                // among the directories leading to it would put the renamed file
+                // outside the root even though the path reads as relative.
+                if !resolved_path_stays_within(root, parent) {
+                    results.push(RenameResult {
+                        old_path: old_rel, new_path: new_rel,
+                        ok: false, error: Some("path escapes the device root".to_string()),
                     });
                     continue;
                 }
@@ -180,9 +255,9 @@ pub fn rename_device_files(
             let _ = std::fs::remove_dir(dir);
         }
     }
-    remove_empty_dirs(&root, &root);
+    remove_empty_dirs(root, root);
 
-    Ok(results)
+    results
 }
 
 /// Writes an Extended-M3U playlist at `{dest_dir}/Playlists/{name}/{name}.m3u8`.
@@ -445,6 +520,124 @@ pub fn compute_sync_paths(tracks: Vec<TrackSyncInfo>, dest_dir: String) -> Vec<S
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // ── Migration path containment ───────────────────────────────────────────
+    //
+    // The paths `rename_device_files` receives are rendered from a template in
+    // `psysonic-sync.json`, a file that lives on the device rather than under
+    // our control. Everything below is about that file not being able to reach
+    // past the directory the user selected.
+
+    #[test]
+    fn a_plain_relative_path_resolves_under_the_root() {
+        let root = std::path::Path::new("/media/device");
+        let resolved = resolve_within_root(root, "Artist/Album/01 Song.mp3")
+            .expect("an ordinary track path must be accepted");
+        assert!(resolved.starts_with(root));
+    }
+
+    #[test]
+    fn a_parent_component_is_rejected_anywhere_in_the_path() {
+        let root = std::path::Path::new("/media/device");
+        for rel in [
+            "../escape.mp3",
+            "Artist/../../escape.mp3",
+            "Artist/Album/../../../escape.mp3",
+            "..",
+        ] {
+            assert!(
+                resolve_within_root(root, rel).is_none(),
+                "{rel} walks out of the device root"
+            );
+        }
+    }
+
+    #[test]
+    // Demonstrating the very thing `clippy::join_absolute_paths` warns about.
+    // Worth noting that the lint could never have caught the original defect:
+    // it only fires on literals, and production joins a variable.
+    #[allow(clippy::join_absolute_paths)]
+    fn an_absolute_path_is_rejected_rather_than_replacing_the_root() {
+        // The reason this matters: `join` does not sandbox. Given an absolute
+        // path it drops the base and hands back the absolute path unchanged, so
+        // without this check the root is not merely escaped — it is ignored.
+        let root = std::path::Path::new("/media/device");
+        assert_eq!(root.join("/etc/passwd"), std::path::Path::new("/etc/passwd"));
+        assert!(resolve_within_root(root, "/etc/passwd").is_none());
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    #[allow(clippy::join_absolute_paths)]
+    fn a_windows_prefix_or_unc_path_is_rejected() {
+        let root = std::path::Path::new(r"E:\Device");
+        assert_eq!(
+            root.join(r"C:\Windows\System32\x.txt"),
+            std::path::Path::new(r"C:\Windows\System32\x.txt")
+        );
+        for rel in [r"C:\Windows\System32\x.txt", r"\\server\share\y.txt", r"\Windows\x.txt"] {
+            assert!(
+                resolve_within_root(root, rel).is_none(),
+                "{rel} leaves the device root"
+            );
+        }
+    }
+
+    #[test]
+    fn an_empty_path_is_rejected() {
+        let root = std::path::Path::new("/media/device");
+        assert!(resolve_within_root(root, "").is_none());
+        assert!(resolve_within_root(root, "   ").is_none());
+    }
+
+    #[test]
+    fn a_current_dir_component_is_harmless() {
+        let root = std::path::Path::new("/media/device");
+        assert!(resolve_within_root(root, "./Artist/Album/01 Song.mp3").is_some());
+    }
+
+    #[test]
+    fn rename_reports_an_escaping_pair_instead_of_moving_anything() {
+        let device = tempfile::tempdir().unwrap();
+        let outside = tempfile::tempdir().unwrap();
+
+        let victim = outside.path().join("victim.txt");
+        std::fs::write(&victim, b"private").unwrap();
+
+        // The shape a hostile template produces: a source that climbs out of the
+        // device root, with the destination staying inside it.
+        let escaping = format!(
+            "..{sep}{}{sep}victim.txt",
+            outside.path().file_name().unwrap().to_string_lossy(),
+            sep = std::path::MAIN_SEPARATOR,
+        );
+        let results = rename_pairs_within_root(
+            device.path(),
+            vec![(escaping, "Artist/Album/01 Song.mp3".to_string())],
+        );
+
+        assert_eq!(results.len(), 1);
+        assert!(!results[0].ok, "an escaping pair must not be renamed");
+        assert_eq!(results[0].error.as_deref(), Some("path escapes the device root"));
+        assert!(victim.exists(), "the file outside the root must be untouched");
+    }
+
+    #[test]
+    fn rename_still_moves_an_ordinary_file() {
+        // The counterpart: the guard must not break the migration it protects.
+        let device = tempfile::tempdir().unwrap();
+        let old_rel = format!("Old{sep}Album{sep}track.mp3", sep = std::path::MAIN_SEPARATOR);
+        let source = device.path().join(&old_rel);
+        std::fs::create_dir_all(source.parent().unwrap()).unwrap();
+        std::fs::write(&source, b"audio").unwrap();
+
+        let new_rel = format!("Artist{sep}Album{sep}01 Song.mp3", sep = std::path::MAIN_SEPARATOR);
+        let results = rename_pairs_within_root(device.path(), vec![(old_rel, new_rel.clone())]);
+
+        assert!(results[0].ok, "error was {:?}", results[0].error);
+        assert!(device.path().join(&new_rel).exists());
+        assert!(!source.exists());
+    }
 
     #[test]
     fn manifest_v3_persists_the_server_owner() {
