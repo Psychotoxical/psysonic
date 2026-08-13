@@ -34,7 +34,12 @@ pub(crate) fn fold_gains(channel_idx: usize, channels: usize) -> (f32, f32) {
         3 if channels == 5 => (MINUS_3_DB, 0.0),
         4 if channels == 5 => (0.0, MINUS_3_DB),
         3 => (MINUS_6_DB, MINUS_6_DB),
-        // Everything past the LFE alternates side by side.
+        // 6.1: a single back centre closes the layout, and like the front centre
+        // it belongs on both sides. Panning it hard left — which the alternation
+        // below would do — moves content that was meant to be behind the listener
+        // into one speaker.
+        6 if channels == 7 => (MINUS_3_DB, MINUS_3_DB),
+        // Everything past the LFE comes in pairs: left, right, left, right.
         channel => {
             if (channel - 4) % 2 == 0 {
                 (MINUS_3_DB, 0.0)
@@ -45,23 +50,31 @@ pub(crate) fn fold_gains(channel_idx: usize, channels: usize) -> (f32, f32) {
     }
 }
 
-/// The loudest a fold can get, used to keep it from clipping.
+/// How much to attenuate a fold so it lands at a sensible level.
 ///
-/// Summing channels can exceed full scale where the discard never could: 5.1
-/// with identical content everywhere reaches roughly 2.2× on each side. Scaling
-/// by the layout's own worst case keeps the result inside range and, more
-/// importantly, keeps it *predictable* — a track does not change loudness
-/// depending on how much its surrounds happen to correlate.
+/// Summing channels can exceed full scale where discarding them never could, so
+/// some attenuation is needed. The question is how much, and the answer decides
+/// how loud a 5.1 track plays next to the stereo tracks around it in a queue.
+///
+/// Scaled by the *power* sum, not the amplitude sum. Amplitudes only add up
+/// fully when every channel carries the same signal at full scale, which real
+/// material does not do; unrelated channels add in power. For 5.1 that is
+/// `sqrt(1 + 0.5 + 0.25 + 0.5)` = 1.5, about -3.5 dB — close to what other
+/// players do. The amplitude worst case would be 2.914, nearly -9.3 dB, and a
+/// 5.1 track would sound conspicuously quiet for a case that does not occur.
+///
+/// Correlated content can still exceed full scale, which is what the clamp in
+/// `FoldToStereo` is for.
 #[inline]
 pub(crate) fn fold_normalisation(channels: usize) -> f32 {
-    let mut left = 0.0f32;
-    let mut right = 0.0f32;
+    let mut left_power = 0.0f32;
+    let mut right_power = 0.0f32;
     for idx in 0..channels {
         let (l, r) = fold_gains(idx, channels);
-        left += l;
-        right += r;
+        left_power += l * l;
+        right_power += r * r;
     }
-    let loudest = left.max(right);
+    let loudest = left_power.max(right_power).sqrt();
     if loudest > 1.0 {
         1.0 / loudest
     } else {
@@ -110,8 +123,10 @@ where
             left += sample * left_gain;
             right += sample * right_gain;
         }
-        self.pending_right = Some(right * self.scale);
-        Some(left * self.scale)
+        // Power scaling leaves headroom for ordinary material but not for a mix
+        // whose channels carry the same signal; clamp rather than wrap.
+        self.pending_right = Some((right * self.scale).clamp(-1.0, 1.0));
+        Some((left * self.scale).clamp(-1.0, 1.0))
     }
 }
 
@@ -121,12 +136,19 @@ where
 {
     #[inline]
     fn current_span_len(&self) -> Option<usize> {
-        // Reported in samples, so it shrinks with the channel count. Rounded down
-        // to whole output frames: half a frame here is what makes rodio's
-        // converters start on the wrong channel.
+        // Reported in samples, so it shrinks with the channel count.
+        //
+        // `Some(0)` has to survive: rodio defines `is_exhausted()` as exactly
+        // `current_span_len() == Some(0)`, and its queue relies on that to look
+        // ahead to the next source's channel count and rate. Rounding an ended
+        // span up to a non-zero value leaves the queue reporting the finished
+        // source's shape at a gapless boundary.
         self.inner.current_span_len().map(|len| {
             let frames = len / self.channels;
-            (frames * 2).max(if self.pending_right.is_some() { 1 } else { 2 })
+            // Whole output frames only — a span ending mid-frame is what makes
+            // rodio's converters start on the wrong channel — plus the right
+            // sample still owed from the frame already folded.
+            frames * 2 + usize::from(self.pending_right.is_some())
         })
     }
 
@@ -147,8 +169,17 @@ where
 
     #[inline]
     fn try_seek(&mut self, pos: std::time::Duration) -> Result<(), rodio::source::SeekError> {
-        // The half-frame in flight belongs to the old position.
-        self.pending_right = None;
+        // The owed right sample is *not* dropped. Removing one sample shifts the
+        // interleave parity by one, and nothing downstream resynchronises: every
+        // left sample would land in the device's right slot for the rest of the
+        // track. Seeks arrive from `periodic_access` on an odd stride, so they
+        // land mid-frame about half the time.
+        //
+        // So it is kept either way: the consumer has just been handed a left
+        // sample and is owed the matching right one. It carries a single sample
+        // of the old position — 23 microseconds — and then the next frame starts
+        // cleanly at the new one. Swapped channels for a whole track is the worse
+        // trade by a wide margin.
         self.inner.try_seek(pos)
     }
 }
@@ -191,19 +222,20 @@ mod tests {
     }
 
     #[test]
-    fn normalisation_keeps_a_full_scale_fold_in_range() {
-        for channels in [2usize, 4, 5, 6, 8] {
-            let scale = fold_normalisation(channels);
-            let mut left = 0.0f32;
-            for idx in 0..channels {
-                left += fold_gains(idx, channels).0;
-            }
-            assert!(
-                left * scale <= 1.0 + f32::EPSILON,
-                "{channels} channels at full scale reach {} after scaling",
-                left * scale
-            );
+    fn normalisation_follows_the_power_sum() {
+        // Scaling by the amplitude worst case would put 5.1 at about -9.3 dB and
+        // make it audibly quieter than the stereo tracks around it. Power summing
+        // assumes channels are not carrying identical signals, which is what real
+        // material looks like, and lands near -3.5 dB.
+        let mut power = 0.0f32;
+        for idx in 0..6 {
+            power += fold_gains(idx, 6).0.powi(2);
         }
+        let expected = 1.0 / power.sqrt();
+        assert!((fold_normalisation(6) - expected).abs() < 1e-6);
+
+        let db = 20.0 * fold_normalisation(6).log10();
+        assert!(db > -4.5 && db < -3.0, "5.1 fold attenuates {db} dB");
     }
 
     /// Interleaved source where each channel carries its own constant, so the
@@ -223,7 +255,9 @@ mod tests {
             }
             let channel = self.pos % self.channels;
             self.pos += 1;
-            Some(channel as f32 + 1.0)
+            // Scaled to a realistic level: at 1.0 per channel the fold would run
+            // into its clamp and every assertion below would read 1.0.
+            Some((channel as f32 + 1.0) * 0.1)
         }
     }
 
@@ -251,8 +285,8 @@ mod tests {
         let folded: Vec<f32> = FoldToStereo::new(source, 6).take(2).collect();
 
         let scale = fold_normalisation(6);
-        let expected_left = (1.0 + 3.0 * MINUS_3_DB + 4.0 * 0.5 + 5.0 * MINUS_3_DB) * scale;
-        let expected_right = (2.0 + 3.0 * MINUS_3_DB + 4.0 * 0.5 + 6.0 * MINUS_3_DB) * scale;
+        let expected_left = (0.1 + 0.3 * MINUS_3_DB + 0.4 * 0.5 + 0.5 * MINUS_3_DB) * scale;
+        let expected_right = (0.2 + 0.3 * MINUS_3_DB + 0.4 * 0.5 + 0.6 * MINUS_3_DB) * scale;
 
         assert!((folded[0] - expected_left).abs() < 1e-6, "left was {}", folded[0]);
         assert!((folded[1] - expected_right).abs() < 1e-6, "right was {}", folded[1]);
@@ -260,9 +294,74 @@ mod tests {
         // The failure mode being fixed: output that contains only channels 1
         // and 2 — that is what discarding looks like.
         assert!(
-            (folded[0] - 1.0).abs() > 1e-6 && (folded[1] - 2.0).abs() > 1e-6,
+            (folded[0] - 0.1).abs() > 1e-6 && (folded[1] - 0.2).abs() > 1e-6,
             "output still looks like the bare front pair"
         );
+    }
+
+    #[test]
+    fn an_exhausted_inner_span_stays_exhausted() {
+        // rodio defines `is_exhausted()` as exactly `current_span_len() == Some(0)`
+        // and its queue uses that to look ahead at the next source's channel count
+        // and rate. Rounding an ended span up to a non-zero value leaves the queue
+        // describing the finished source at a gapless boundary.
+        use rodio::Source as _;
+        let source = Labelled { pos: 0, channels: 6, frames: 0 };
+        let folded = FoldToStereo::new(source, 6);
+        assert_eq!(folded.current_span_len(), Some(0));
+        assert!(folded.is_exhausted());
+    }
+
+    #[test]
+    fn a_pending_right_sample_is_counted_in_the_span() {
+        // Half a frame is owed after every odd call, and a span that forgets it
+        // under-reports by one — the same off-by-one that puts rodio's converters
+        // on the wrong channel.
+        use rodio::Source as _;
+        let source = Labelled { pos: 0, channels: 6, frames: 4 };
+        let mut folded = FoldToStereo::new(source, 6);
+        assert_eq!(folded.current_span_len(), Some(8));
+        let _left = folded.next().expect("a left sample");
+        assert_eq!(
+            folded.current_span_len(),
+            Some(9),
+            "the span still measures four frames — it reports a size, not a \
+             remainder — plus the one sample owed, which is what puts the stream \
+             back on a frame boundary"
+        );
+    }
+
+    #[test]
+    fn seeking_keeps_the_owed_right_sample_so_the_channels_do_not_swap() {
+        // Dropping it removes one sample from an interleaved stream, and nothing
+        // downstream resynchronises: left would land in the device's right slot
+        // for the rest of the track. Seeks arrive on an odd stride, so they hit
+        // mid-frame about half the time.
+        use rodio::Source as _;
+        let source = Labelled { pos: 0, channels: 6, frames: 8 };
+        let mut folded = FoldToStereo::new(source, 6);
+
+        let first_left = folded.next().expect("a left sample");
+        assert!(folded.pending_right.is_some(), "a right sample is now owed");
+
+        // `Labelled` has no seek support, which is the interesting case: a refused
+        // seek must not consume it either.
+        let _ = folded.try_seek(std::time::Duration::from_millis(10));
+        assert!(
+            folded.pending_right.is_some(),
+            "the owed right sample must survive a seek attempt"
+        );
+
+        let right = folded.next().expect("the owed right sample");
+        assert!(right != first_left, "left and right must stay distinguishable");
+    }
+
+    #[test]
+    fn a_six_one_back_centre_feeds_both_sides() {
+        // Index 6 of a 7-channel layout is the single rear centre. The pair
+        // alternation would hard-pan it left, moving content meant to sit behind
+        // the listener into one speaker.
+        assert_eq!(fold_gains(6, 7), (MINUS_3_DB, MINUS_3_DB));
     }
 
     #[test]
