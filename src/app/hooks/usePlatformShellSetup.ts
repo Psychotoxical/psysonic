@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
   isTilingWmCmd,
   linuxWaylandTextRenderSettingsAvailable,
@@ -7,20 +7,50 @@ import {
   setLinuxWebkitSmoothScrolling,
   setLoggingMode,
   setWindowDecorations,
+  windowLifecycleGeneration,
 } from '@/lib/api/platformShell';
 import { useAuthStore } from '@/store/authStore';
 import type { LinuxWaylandTextRenderProfile } from '@/store/authStoreTypes';
 import { IS_LINUX, IS_MACOS, IS_WINDOWS } from '@/lib/util/platform';
 
+const DECORATION_TRANSITION_TIMEOUT_MS = 1500;
+const DECORATION_TRANSITION_BASE = Date.now() * 1000;
+let decorationTransitionSequence = 0;
+
+function withDecorationTimeout<T>(work: Promise<T>): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = window.setTimeout(() => reject(new Error('window decoration transition timed out')), DECORATION_TRANSITION_TIMEOUT_MS);
+    work.then(
+      value => {
+        window.clearTimeout(timer);
+        resolve(value);
+      },
+      error => {
+        window.clearTimeout(timer);
+        reject(error);
+      },
+    );
+  });
+}
+
 /**
  * One-shot platform + window-shell configuration. Reads tiling-WM state,
  * applies platform-specific document attributes/classes, and pushes
  * preference changes (custom titlebar, kinetic scroll, log level) into
- * Rust as the user toggles them. Returns the live `isTilingWm` flag so
- * AppShell can decide whether to mount the custom titlebar.
+ * Rust as the user toggles them. Titlebar transitions keep the outgoing controls
+ * mounted until the replacement is available.
  */
-export function usePlatformShellSetup(): { isTilingWm: boolean } {
-  const [isTilingWm, setIsTilingWm] = useState(false);
+export function usePlatformShellSetup(): {
+  isTilingWm: boolean;
+  linuxCustomTitlebarActive: boolean;
+} {
+  const [isTilingWm, setIsTilingWm] = useState<boolean | null>(() => window.__psyIsTilingWm ?? null);
+  const [linuxCustomTitlebarActive, setLinuxCustomTitlebarActive] = useState(false);
+  const titlebarTransition = useRef<Promise<void>>(Promise.resolve());
+  const titlebarTransitionId = useRef(0);
+  const customTitlebarCommitted = useRef(false);
+  const customTitlebarCommitResolver = useRef<(() => void) | null>(null);
+  const isTilingWmRef = useRef(isTilingWm);
   const [waylandTextUi, setWaylandTextUi] = useState(false);
   const useCustomTitlebar = useAuthStore(s => s.useCustomTitlebar);
   const linuxWebkitKineticScroll = useAuthStore(s => s.linuxWebkitKineticScroll);
@@ -28,8 +58,23 @@ export function usePlatformShellSetup(): { isTilingWm: boolean } {
   const loggingMode = useAuthStore(s => s.loggingMode);
 
   useEffect(() => {
+    isTilingWmRef.current = isTilingWm;
+  }, [isTilingWm]);
+
+  useLayoutEffect(() => {
+    customTitlebarCommitted.current = linuxCustomTitlebarActive;
+    if (linuxCustomTitlebarActive) {
+      customTitlebarCommitResolver.current?.();
+      customTitlebarCommitResolver.current = null;
+    }
+  }, [linuxCustomTitlebarActive]);
+
+  useEffect(() => {
     if (!IS_LINUX) return;
-    isTilingWmCmd().then(setIsTilingWm).catch(() => {});
+    isTilingWmCmd().then(value => {
+      window.__psyIsTilingWm = value;
+      setIsTilingWm(value);
+    }).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -87,13 +132,86 @@ export function usePlatformShellSetup(): { isTilingWm: boolean } {
     };
   }, [waylandTextUi, linuxWaylandTextRenderProfile]);
 
-  // Sync custom titlebar preference with native decorations on Linux.
-  // On tiling WMs decorations are always off (no native title bar to replace).
+  // Serialize decoration changes so a stale async completion cannot leave both
+  // native and custom controls disabled after rapid preference changes.
   useEffect(() => {
     if (!IS_LINUX) return;
+    if (isTilingWm === null) return;
     const enabled = isTilingWm ? false : !useCustomTitlebar;
-    setWindowDecorations({ enabled }).catch(() => {});
+    const customTitlebarActive = !isTilingWm && useCustomTitlebar;
+    const transitionId = ++titlebarTransitionId.current;
+    const nativeTransition = DECORATION_TRANSITION_BASE + (++decorationTransitionSequence);
+    let cancelled = false;
+    let releaseCommitWait: (() => void) | null = null;
+
+    titlebarTransition.current = titlebarTransition.current.catch(() => {}).then(async () => {
+      if (cancelled || transitionId !== titlebarTransitionId.current) return;
+      const generation = window.__psyLifecycleGeneration
+        ?? await withDecorationTimeout(windowLifecycleGeneration());
+      window.__psyLifecycleGeneration = generation;
+
+      if (customTitlebarActive) {
+        if (!customTitlebarCommitted.current) {
+          await new Promise<void>(resolve => {
+            releaseCommitWait = resolve;
+            customTitlebarCommitResolver.current = resolve;
+            setLinuxCustomTitlebarActive(true);
+          });
+        }
+        if (cancelled || transitionId !== titlebarTransitionId.current) return;
+        try {
+          await withDecorationTimeout(setWindowDecorations({
+            enabled: false,
+            generation,
+            transition: nativeTransition,
+          }));
+        } catch {
+          // Keep custom controls mounted if the native mutation applied but its
+          // response failed, or if native decorations could not be changed.
+        }
+        return;
+      }
+
+      try {
+        const accepted = await withDecorationTimeout(setWindowDecorations({
+          enabled,
+          generation,
+          transition: nativeTransition,
+        }));
+        if (accepted && !cancelled && transitionId === titlebarTransitionId.current) {
+          setLinuxCustomTitlebarActive(false);
+        }
+      } catch {
+        // Keep the currently mounted controls when the native transition fails.
+      }
+    });
+
+    return () => {
+      cancelled = true;
+      releaseCommitWait?.();
+      if (customTitlebarCommitResolver.current === releaseCommitWait) {
+        customTitlebarCommitResolver.current = null;
+      }
+      if (titlebarTransitionId.current === transitionId) titlebarTransitionId.current += 1;
+    };
   }, [useCustomTitlebar, isTilingWm]);
+
+  useEffect(() => () => {
+    if (!IS_LINUX || isTilingWmRef.current !== false || !customTitlebarCommitted.current) return;
+    const transitionId = ++titlebarTransitionId.current;
+    const nativeTransition = DECORATION_TRANSITION_BASE + (++decorationTransitionSequence);
+    titlebarTransition.current = titlebarTransition.current.catch(() => {}).then(async () => {
+      if (transitionId !== titlebarTransitionId.current) return;
+      const generation = window.__psyLifecycleGeneration
+        ?? await withDecorationTimeout(windowLifecycleGeneration());
+      window.__psyLifecycleGeneration = generation;
+      await withDecorationTimeout(setWindowDecorations({
+        enabled: true,
+        generation,
+        transition: nativeTransition,
+      })).catch(() => {});
+    });
+  }, []);
 
   useEffect(() => {
     if (!IS_LINUX) return;
@@ -121,5 +239,8 @@ export function usePlatformShellSetup(): { isTilingWm: boolean } {
     setLoggingMode({ mode: loggingMode }).catch(() => {});
   }, [loggingMode]);
 
-  return { isTilingWm };
+  return {
+    isTilingWm: isTilingWm ?? false,
+    linuxCustomTitlebarActive,
+  };
 }

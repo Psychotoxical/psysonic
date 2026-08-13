@@ -625,7 +625,7 @@ pub fn audio_spectrum_set_active(
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use std::sync::{
         atomic::{AtomicU32, AtomicUsize, Ordering},
@@ -640,7 +640,11 @@ mod tests {
     /// Take the shared lock without propagating poisoning: a single failing
     /// test would otherwise cascade into every other test that touches the
     /// globals, burying the actual failure.
-    fn lock_globals() -> std::sync::MutexGuard<'static, ()> {
+    ///
+    /// `pub(crate)` because tests outside this module drain a full production
+    /// source (see `decode.rs`), which runs a `SpectrumTapSource` over these
+    /// same globals and could otherwise steal the lease mid-test.
+    pub(crate) fn lock_globals() -> std::sync::MutexGuard<'static, ()> {
         TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner())
     }
 

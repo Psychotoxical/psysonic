@@ -1,16 +1,8 @@
 import { useEffect } from 'react';
 import { listen } from '@tauri-apps/api/event';
-import { getCurrentWindow } from '@tauri-apps/api/window';
-import { exitApp, pauseRendering } from '@/lib/api/platformShell';
 import type { NavigateFunction } from 'react-router';
-import { flushPlayQueuePosition } from '@/features/playback/store/queueSync';
-import { playListenSessionFinalize } from '@/features/playback/store/playListenSession';
-import { playbackReportStopped } from '@/features/playback/store/playbackReportSession';
 import { getPlaybackProgressSnapshot } from '@/features/playback/store/playbackProgress';
 import { usePlayerStore } from '@/features/playback/store/playerStore';
-import { useAuthStore } from '@/store/authStore';
-import { useOrbitStore } from '@/features/orbit';
-import { endOrbitSession, leaveOrbitSession } from '@/features/orbit';
 import {
   canRunShortcutActionInMiniWindow,
   executeRuntimeAction,
@@ -18,8 +10,7 @@ import {
   isShortcutAction,
 } from '@/config/shortcutActions';
 
-/** Media keys, tray actions, global / cross-window shortcut events, relative &
- * absolute seek + volume, and the window-close / force-quit exit flow. */
+/** Media keys, tray actions, global / cross-window shortcut events, and seek/volume. */
 export function useMediaAndWindowBridge(navigate: NavigateFunction) {
   useEffect(() => {
     let cancelled = false;
@@ -102,57 +93,6 @@ export function useMediaAndWindowBridge(navigate: NavigateFunction) {
         if (cancelled) { u(); return; }
         unlisten.push(u);
       }
-
-      // Shared exit path: flush play-queue position so other devices can
-      // resume from where we left off, tear down any active Orbit session,
-      // then ask Rust to exit. Each step is capped at 1500 ms so a slow
-      // server can't keep the app hanging on quit; the playback heartbeat
-      // is the safety net for anything that didn't make it out in time.
-      const performExit = async () => {
-        await Promise.race([
-          playListenSessionFinalize('close'),
-          new Promise(r => setTimeout(r, 1500)),
-        ]);
-        // Drop our live now-playing entry on quit (playbackReport extension).
-        await Promise.race([
-          playbackReportStopped(),
-          new Promise(r => setTimeout(r, 1500)),
-        ]);
-        await Promise.race([
-          flushPlayQueuePosition(),
-          new Promise(r => setTimeout(r, 1500)),
-        ]);
-        const role = useOrbitStore.getState().role;
-        if (role === 'host' || role === 'guest') {
-          const teardown = role === 'host' ? endOrbitSession() : leaveOrbitSession();
-          await Promise.race([
-            teardown.catch(() => {}),
-            new Promise(r => setTimeout(r, 1500)),
-          ]);
-        }
-        await exitApp();
-      };
-
-      // window:close-requested is emitted by Rust (prevent_close + emit) on
-      // the X-button. JS decides: minimize to tray or exit.
-      const u = await listen('window:close-requested', async () => {
-        if (useAuthStore.getState().minimizeToTray) {
-          await pauseRendering().catch(() => {});
-          await getCurrentWindow().hide();
-        } else {
-          await performExit();
-        }
-      });
-      if (cancelled) { u(); return; }
-      unlisten.push(u);
-
-      // app:force-quit bypasses the minimize-to-tray decision — used by the
-      // tray "Exit" menu item and the macOS red close button.
-      const fq = await listen('app:force-quit', async () => {
-        await performExit();
-      });
-      if (cancelled) { fq(); return; }
-      unlisten.push(fq);
     };
 
     setup();

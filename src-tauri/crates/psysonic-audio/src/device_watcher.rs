@@ -5,18 +5,25 @@ use std::time::{Duration, Instant};
 use tauri::Emitter;
 use tauri::Manager;
 
-use super::device_resume::{try_resume_after_device_change, ResumeSnapshot};
+use super::device_resume::{try_resume_after_device_change, ResumeOutcome, ResumeSnapshot};
 use super::engine::AudioEngine;
 #[cfg(not(target_os = "linux"))]
 use super::dev_io::output_enumeration_includes_pinned;
 
 /// What to tell the frontend after a successful stream reopen.
+#[derive(Clone, Copy)]
 pub(crate) enum ReopenNotify {
     /// Normal path — same as `audio_set_device`.
     DeviceChanged,
     /// Pinned device unplugged (Windows/macOS only); Rust cleared the pin — clear Settings + restart playback.
     #[cfg(not(target_os = "linux"))]
     DeviceReset,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum ReopenOutcome {
+    Reopened,
+    Superseded,
 }
 
 /// Opens a new CPAL/rodio output stream with the given rate and device name (same path as
@@ -30,77 +37,140 @@ pub(crate) enum ReopenNotify {
 /// For radio, partially-buffered HTTP tracks, or paused playback, it falls back to the
 /// previous behaviour: emit with the captured `current_time_secs` so the frontend calls
 /// `playTrack`.
-pub(crate) async fn reopen_output_stream(
+async fn reopen_output_stream(
     app: &tauri::AppHandle,
     device_name: Option<String>,
     notify: ReopenNotify,
-) -> bool {
+    required_generation: Option<u64>,
+) -> Result<ReopenOutcome, String> {
+    enum ReopenPrepared {
+        Superseded,
+        Notify {
+            snapshot: ResumeSnapshot,
+            stream_reopened: bool,
+        },
+    }
+
     let Some(engine) = app.try_state::<AudioEngine>() else {
-        return false;
+        return Err("audio engine is unavailable".to_string());
     };
-
-    let rate = engine.stream_sample_rate.load(Ordering::Relaxed);
-    let open_rate = if rate > 0 {
-        rate
-    } else {
-        engine.device_default_rate
-    };
-    let current = engine.current.clone();
-    let fading_out = engine.fading_out_sink.clone();
-
-    // Snapshot state we need BEFORE the blocking stream reopen (while the old sink
-    // is still live and position() is still valid).
-    let snapshot = {
-        let cur = current.lock().unwrap();
-        let is_playing = cur.play_started.is_some() && cur.paused_at.is_none();
-        ResumeSnapshot {
-            url: engine.current_playback_url.lock().unwrap().clone(),
-            current_time_secs: cur.position(),
-            duration_secs: cur.duration_secs,
-            base_volume: cur.base_volume,
-            gain_linear: cur.replay_gain_linear,
-            analysis_track_id: engine.current_analysis_track_id.lock().unwrap().clone(),
-            is_playing,
-        }
-    };
-
+    let expected_generation = required_generation
+        .unwrap_or_else(|| engine.generation.load(Ordering::SeqCst));
     let app_for_open = app.clone();
-    let device_name_for_open = device_name.clone();
-    let opened = tauri::async_runtime::spawn_blocking(move || {
+    let expected_device = device_name.clone();
+    let snapshot = tauri::async_runtime::spawn_blocking(move || {
         let engine = app_for_open.state::<AudioEngine>();
-        super::engine::open_output_stream_blocking(
+        let _stream_guard = engine.stream_open_lock.lock().unwrap();
+        super::engine::wait_for_stream_attachments_locked(&engine);
+
+        // A manual switch or a new playback command completed while this
+        // watcher request was queued. Its state is authoritative; do not reopen
+        // the device or replay the stale snapshot.
+        if engine.generation.load(Ordering::SeqCst) != expected_generation
+            || *engine.selected_device.lock().unwrap() != expected_device
+        {
+            return Ok(ReopenPrepared::Superseded);
+        }
+
+        let rate = engine.stream_requested_rate.load(Ordering::Relaxed);
+        let open_rate = if rate > 0 {
+            rate
+        } else {
+            engine.device_default_rate
+        };
+        let mut snapshot = {
+            let cur = engine.current.lock().unwrap();
+            let is_playing = cur.play_started.is_some() && cur.paused_at.is_none();
+            ResumeSnapshot {
+                url: engine.current_playback_url.lock().unwrap().clone(),
+                current_time_secs: cur.position(),
+                duration_secs: cur.duration_secs,
+                base_volume: cur.base_volume,
+                gain_linear: cur.replay_gain_linear,
+                analysis_track_id: engine.current_analysis_track_id.lock().unwrap().clone(),
+                is_playing,
+                generation: expected_generation,
+            }
+        };
+
+        if let Err(error) = super::engine::open_output_stream_blocking_locked(
             &engine,
             open_rate,
             false,
-            device_name_for_open,
-        )
-        .is_ok()
+            device_name,
+            false,
+        ) {
+            let _commit_guard = engine.playback_commit_lock.lock().unwrap();
+            if engine.generation.load(Ordering::SeqCst) != expected_generation {
+                super::stream_idle::teardown_playback_sinks_for_idle_release(&engine);
+                snapshot.current_time_secs = 0.0;
+                snapshot.is_playing = false;
+                return Ok(ReopenPrepared::Notify {
+                    snapshot,
+                    stream_reopened: false,
+                });
+            }
+            engine.generation.fetch_add(1, Ordering::SeqCst);
+            super::stream_idle::teardown_playback_sinks_for_idle_release(&engine);
+            engine.current.lock().unwrap().paused_at = Some(snapshot.current_time_secs);
+            return Err(error);
+        }
+
+        // `audio_play` can bump the generation before it reaches the stream
+        // lock. Leave the newly opened stream for that command, stop players
+        // tied to the replaced mixer, and ask the frontend to retry whichever
+        // track is current now rather than replaying this stale snapshot.
+        let _commit_guard = engine.playback_commit_lock.lock().unwrap();
+        if engine.generation.load(Ordering::SeqCst) != expected_generation {
+            super::stream_idle::teardown_playback_sinks_for_idle_release(&engine);
+            snapshot.current_time_secs = 0.0;
+            snapshot.is_playing = false;
+            return Ok(ReopenPrepared::Notify {
+                snapshot,
+                stream_reopened: true,
+            });
+        }
+
+        if !snapshot.is_playing {
+            engine.generation.fetch_add(1, Ordering::SeqCst);
+        }
+        if let Some(sink) = engine.current.lock().unwrap().sink.take() {
+            sink.stop();
+        }
+        if let Some(sink) = engine.fading_out_sink.lock().unwrap().take() {
+            sink.stop();
+        }
+        snapshot.generation = engine.generation.load(Ordering::SeqCst);
+        Ok(ReopenPrepared::Notify {
+            snapshot,
+            stream_reopened: true,
+        })
     })
     .await
-    .unwrap_or(false);
-
-    if !opened {
-        return false;
-    }
-    // When we're not actively playing (paused/stopped), bump the generation
-    // before stopping the old sink so the still-running progress task sees the
-    // mismatch and bails out instead of emitting a spurious `audio:ended` —
-    // which would otherwise trigger a frontend restart of paused playback
-    // (#1094). The active-playback path bumps inside
-    // `try_resume_after_device_change`, so only guard the non-playing case here.
-    if !snapshot.is_playing {
-        engine.generation.fetch_add(1, Ordering::SeqCst);
-    }
-    if let Some(s) = current.lock().unwrap().sink.take() {
-        s.stop();
-    }
-    if let Some(s) = fading_out.lock().unwrap().take() {
-        s.stop();
-    }
+    .map_err(|error| format!("audio stream reopen task failed: {error}"))?;
+    let (snapshot, stream_reopened) = match snapshot {
+        Ok(ReopenPrepared::Notify {
+            snapshot,
+            stream_reopened,
+        }) => (snapshot, stream_reopened),
+        Ok(ReopenPrepared::Superseded) => return Ok(ReopenOutcome::Superseded),
+        Err(error) => {
+            app.emit("audio:output-released", ()).ok();
+            return Err(error);
+        }
+    };
 
     // Attempt a Rust-side internal replay (no frontend involvement).
     // Falls back gracefully to the frontend path if conditions aren't met.
-    let resumed = try_resume_after_device_change(app, &snapshot).await;
+    let resume_outcome = try_resume_after_device_change(app, &snapshot).await;
+    if resume_outcome == ResumeOutcome::Superseded {
+        return Ok(if stream_reopened {
+            ReopenOutcome::Reopened
+        } else {
+            ReopenOutcome::Superseded
+        });
+    }
+    let resumed = resume_outcome == ResumeOutcome::Resumed;
 
     match notify {
         ReopenNotify::DeviceChanged => {
@@ -121,12 +191,57 @@ pub(crate) async fn reopen_output_stream(
             }
         }
     }
-    true
+    Ok(if stream_reopened {
+        ReopenOutcome::Reopened
+    } else {
+        ReopenOutcome::Superseded
+    })
 }
 
+/// Retry one transient backend failure after the OS audio stack settles. Abort
+/// the retry if a manual device selection superseded the original request.
+pub(crate) async fn reopen_output_stream_with_retry(
+    app: &tauri::AppHandle,
+    device_name: Option<String>,
+    notify: ReopenNotify,
+) -> Result<ReopenOutcome, String> {
+    let Some(engine) = app.try_state::<AudioEngine>() else {
+        return Err("audio engine is unavailable".to_string());
+    };
+    let first_generation = {
+        let _commit_guard = engine.playback_commit_lock.lock().unwrap();
+        engine.generation.load(Ordering::SeqCst)
+    };
+    let first_error = match reopen_output_stream(
+        app,
+        device_name.clone(),
+        notify,
+        Some(first_generation),
+    )
+    .await
+    {
+        Ok(outcome) => return Ok(outcome),
+        Err(error) => error,
+    };
+
+    let retry_generation = first_generation.wrapping_add(1);
+    {
+        let _commit_guard = engine.playback_commit_lock.lock().unwrap();
+        if engine.generation.load(Ordering::SeqCst) != retry_generation {
+            return Ok(ReopenOutcome::Superseded);
+        }
+    };
+    tokio::time::sleep(Duration::from_millis(1200)).await;
+
+    reopen_output_stream(app, device_name, notify, Some(retry_generation))
+        .await
+        .map_err(|retry_error| format!("{first_error}; retry failed: {retry_error}"))
+}
 
 pub fn start_device_watcher(engine: &AudioEngine, app: tauri::AppHandle) {
     let selected_device = engine.selected_device.clone();
+    #[cfg(not(target_os = "linux"))]
+    let stream_open_lock = engine.stream_open_lock.clone();
     let samples_played = engine.samples_played.clone();
     let current = engine.current.clone();
 
@@ -209,6 +324,7 @@ pub fn start_device_watcher(engine: &AudioEngine, app: tauri::AppHandle) {
             }
 
             if should_recover_stall {
+                last_stall_recover_at = Some(Instant::now());
                 let pinned = selected_device.lock().unwrap().clone();
                 let samples_now = samples_played.load(Ordering::Relaxed);
                 crate::app_eprintln!(
@@ -217,17 +333,26 @@ pub fn start_device_watcher(engine: &AudioEngine, app: tauri::AppHandle) {
                     samples_now,
                     pinned
                 );
-                if reopen_output_stream(&app, pinned, ReopenNotify::DeviceChanged).await {
-                    last_stall_recover_at = Some(Instant::now());
-                    stalled_since = None;
-                    last_samples_seen = samples_played.load(Ordering::Relaxed);
-                    crate::app_eprintln!(
-                        "[psysonic] device-watcher: stalled-output recovery succeeded"
-                    );
-                } else {
-                    crate::app_eprintln!(
-                        "[psysonic] device-watcher: stalled-output reopen timed out"
-                    );
+                match reopen_output_stream_with_retry(
+                    &app,
+                    pinned,
+                    ReopenNotify::DeviceChanged,
+                )
+                .await
+                {
+                    Ok(ReopenOutcome::Reopened) => {
+                        stalled_since = None;
+                        last_samples_seen = samples_played.load(Ordering::Relaxed);
+                        crate::app_eprintln!(
+                            "[psysonic] device-watcher: stalled-output recovery succeeded"
+                        );
+                    }
+                    Ok(ReopenOutcome::Superseded) => {}
+                    Err(error) => {
+                        crate::app_eprintln!(
+                            "[psysonic] device-watcher: stalled-output reopen failed: {error}"
+                        );
+                    }
                 }
             }
 
@@ -293,16 +418,32 @@ pub fn start_device_watcher(engine: &AudioEngine, app: tauri::AppHandle) {
                     }
                     crate::app_eprintln!("[psysonic] device-watcher: pinned device '{dev_name}' disconnected, falling back to system default");
                     pinned_miss_count = 0;
-                    *selected_device.lock().unwrap() = None;
+                    {
+                        let _stream_guard = stream_open_lock.lock().unwrap();
+                        let mut selected = selected_device.lock().unwrap();
+                        if selected.as_ref() != Some(dev_name) {
+                            continue;
+                        }
+                        *selected = None;
+                    }
 
                     tokio::time::sleep(Duration::from_millis(500)).await;
 
-                    let reopened = reopen_output_stream(&app, None, ReopenNotify::DeviceReset).await;
-                    if !reopened {
-                        crate::app_eprintln!("[psysonic] device-watcher: stream reopen timed out (pinned disconnect)");
+                    match reopen_output_stream_with_retry(
+                        &app,
+                        None,
+                        ReopenNotify::DeviceReset,
+                    )
+                    .await
+                    {
+                        Ok(ReopenOutcome::Reopened) => last_default = current_default,
+                        Ok(ReopenOutcome::Superseded) => {}
+                        Err(error) => {
+                            crate::app_eprintln!(
+                                "[psysonic] device-watcher: stream reopen failed after pinned disconnect: {error}"
+                            );
+                        }
                     }
-
-                    last_default = current_default;
                 } else {
                     pinned_miss_count = 0;
                 }
@@ -346,8 +487,6 @@ pub fn start_device_watcher(engine: &AudioEngine, app: tauri::AppHandle) {
                 }
             }
 
-            last_default = Some(new_name.clone());
-
             // Debounce: give the OS time to finish configuring the new device.
             tokio::time::sleep(Duration::from_millis(500)).await;
 
@@ -361,12 +500,19 @@ pub fn start_device_watcher(engine: &AudioEngine, app: tauri::AppHandle) {
                 if stream_on_default {
                     // PipeWire already moved playback — notify frontend (EQ sync) only.
                     app.emit("audio:device-changed", Option::<f64>::None).ok();
+                    last_default = Some(new_name.clone());
                     continue;
                 }
             }
 
-            if !reopen_output_stream(&app, None, ReopenNotify::DeviceChanged).await {
-                crate::app_eprintln!("[psysonic] device-watcher: stream reopen timed out");
+            match reopen_output_stream_with_retry(&app, None, ReopenNotify::DeviceChanged).await {
+                Ok(ReopenOutcome::Reopened) => last_default = Some(new_name),
+                Ok(ReopenOutcome::Superseded) => {}
+                Err(error) => {
+                    crate::app_eprintln!(
+                        "[psysonic] device-watcher: stream reopen failed: {error}"
+                    );
+                }
             }
         }
     });

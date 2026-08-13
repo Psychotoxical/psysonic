@@ -352,6 +352,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * Sustained CPU-heavy work no longer starves Psysonic's audio threads and causes playback stutter or dropouts. The player now asks Linux's realtime service to prioritise both its output callback and PipeWire processing, while keeping the previous scheduling when that service is unavailable.
 
+### Gapless playback — the audible gap between MP3 tracks
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1388](https://github.com/Psychotoxical/psysonic/pull/1388)**
+
+* Playing a continuous album in MP3 no longer inserts a short silence at every track change. Two adjacent tracks now join exactly where they were split, for files whose encoder recorded the gap in the file header — which is what the common MP3 encoders write.
+* Root cause: MP3 encoders add a few milliseconds of silence to the beginning and end of every file. Psysonic played that silence instead of skipping it, which put roughly 50 ms of it into each track boundary. Unchanged: internet radio, playback from servers that cannot serve range requests, and files that carry only an iTunes-style tag instead of that header when they are played from disk or streamed.
+
 ### Internet radio — keep non-Latin track titles readable
 
 **By [@RdrSeraphim](https://github.com/RdrSeraphim), PR [#1389](https://github.com/Psychotoxical/psysonic/pull/1389)**
@@ -372,6 +379,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * The service behind this option no longer has a single working server, and its operator states publicly that a replacement cannot be funded, so the option has been removed rather than left pointing at dead addresses. If it was the only lyrics source you had switched on, LRCLIB is enabled for you automatically.
 * Word-by-word highlighting is unaffected: it also comes from lyrics embedded in your files and from Navidrome 0.63+.
 
+### Startup window — controls and close actions stay reliable
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1392](https://github.com/Psychotoxical/psysonic/pull/1392)**
+
+* On Linux with the custom title bar enabled, the loading splash keeps native window controls until Psysonic's own controls are ready, so startup no longer leaves a borderless window with no mouse-accessible close, minimise or maximise buttons.
+* Close, tray Exit, mini-player restore and second-instance focus actions are queued and ordered during startup or a webview reload instead of being lost or overridden by a stale window operation.
+
 ### AIFF playback — streamed and cached files play reliably
 
 **By [@cucadmuh](https://github.com/cucadmuh), PR [#1396](https://github.com/Psychotoxical/psysonic/pull/1396)**
@@ -384,6 +398,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 **By [@cucadmuh](https://github.com/cucadmuh), PR [#1397](https://github.com/Psychotoxical/psysonic/pull/1397)**, reported by [@vt100-music](https://github.com/vt100-music)
 
 * Homepage URLs supplied by Navidrome no longer disappear from station cards or the edit form after saving or reloading the station.
+
+### Linux playback — keep speed, pitch and queue advancement correct
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1398](https://github.com/Psychotoxical/psysonic/pull/1398)**
+
+* ALSA and PipeWire devices that select a different sample rate no longer play tracks at half or double speed with shifted pitch. Native Hi-Res remains available, and the selected output configuration verifies the rate the device actually accepted.
+* Hi-Res and gapless source replacement no longer loses the track-completion signal, so playback advances to the next queued track reliably.
 
 ### Servers — prevent duplicate account profiles
 

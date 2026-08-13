@@ -19,13 +19,18 @@ pub(crate) use cli_bridge::{
 };
 pub(crate) use core::{
     exit_app, export_runtime_logs, frontend_debug_log, get_logging_mode, greet, set_logging_mode,
-    set_psylab_albums_browse_trace, set_psylab_artists_browse_trace, set_subsonic_wire_user_agent, tail_runtime_logs,
+    set_psylab_albums_browse_trace, set_psylab_artists_browse_trace, set_subsonic_wire_user_agent,
+    tail_runtime_logs, window_lifecycle_begin, window_lifecycle_fallback,
+    window_lifecycle_generation, window_lifecycle_hide, window_lifecycle_ready,
+    window_lifecycle_startup_visibility, window_lifecycle_update_fallback_policy,
+    LifecycleRequest, MainWindowLifecycleState, PendingLifecycleAction,
+    run_native_lifecycle_fallback,
 };
 pub(crate) use perf::performance_cpu_snapshot;
 pub(crate) use platform::{
     linux_wayland_gpu_font_tuning_active, linux_wayland_text_render_settings_available,
-    set_linux_wayland_text_render_profile, set_linux_webkit_smooth_scrolling, set_window_decorations,
-    theme_animation_risk,
+    prepare_main_window_for_reveal, set_linux_wayland_text_render_profile,
+    set_linux_webkit_smooth_scrolling, set_window_decorations, theme_animation_risk,
 };
 #[cfg(target_os = "linux")]
 pub(crate) use platform::{

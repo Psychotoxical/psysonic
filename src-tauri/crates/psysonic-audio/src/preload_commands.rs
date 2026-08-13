@@ -455,6 +455,8 @@ mod tests {
             generation: 8,
             raw_bytes: std::sync::Arc::new(vec![4, 5, 6]),
             resolved_format: None,
+            output_rate: 44_100,
+            output_channels: 2,
             duration_secs: 60.0,
             replay_gain_linear: 1.0,
             base_volume: 1.0,

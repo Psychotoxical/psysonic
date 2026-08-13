@@ -567,6 +567,7 @@ async fn build_source_from_play_input(
             tag,
             random_access,
             mp4_probe_gate,
+            superseded,
             ..
         } => {
             if let Some(gate) = mp4_probe_gate.as_ref() {
@@ -576,7 +577,13 @@ async fn build_source_from_play_input(
                 }
             }
             let decoder = tokio::task::spawn_blocking(move || {
-                SizedDecoder::new_streaming(reader, media_hint.as_deref(), tag, random_access)
+                SizedDecoder::new_streaming(
+                    reader,
+                    media_hint.as_deref(),
+                    tag,
+                    random_access,
+                    superseded,
+                )
             })
             .await
             .map_err(|e| e.to_string())??;
@@ -597,6 +604,7 @@ async fn build_source_from_play_input(
         PlayInput::Streaming {
             reader,
             format_hint: stream_hint,
+            superseded,
             ..
         } => {
             is_seekable = false;
@@ -606,6 +614,7 @@ async fn build_source_from_play_input(
                     stream_hint.as_deref(),
                     "track-stream",
                     false,
+                    superseded,
                 )
             })
             .await

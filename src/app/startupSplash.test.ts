@@ -15,18 +15,8 @@ vi.mock('@/lib/themes/startupThemeAppearance', () => ({
   applyStartupSplashThemeFromStorage: vi.fn(() => 'mocha'),
 }));
 
-vi.mock('@/lib/settings/readStartMinimizedToTray', () => ({
-  shouldDeferMainWindowReveal: vi.fn(() => false),
-}));
-
-vi.mock('@tauri-apps/api/webviewWindow', () => ({
-  getCurrentWebviewWindow: vi.fn(() => ({ show: vi.fn(() => Promise.resolve()) })),
-}));
-
 import { getWindowKind } from './windowKind';
 import { applyStartupSplashThemeFromStorage } from '@/lib/themes/startupThemeAppearance';
-import { shouldDeferMainWindowReveal } from '@/lib/settings/readStartMinimizedToTray';
-import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
 
 describe('startupSplash', () => {
   beforeEach(() => {
@@ -56,14 +46,6 @@ describe('startupSplash', () => {
     document.getElementById(STARTUP_SPLASH_ID)?.remove();
     configureStartupSplash();
     expect(document.getElementById('root')).not.toHaveClass(STARTUP_ROOT_PENDING_CLASS);
-  });
-
-  it('skips reveal when start minimized to tray is enabled', () => {
-    vi.mocked(shouldDeferMainWindowReveal).mockReturnValue(true);
-    const show = vi.fn(() => Promise.resolve());
-    vi.mocked(getCurrentWebviewWindow).mockReturnValue({ show } as never);
-    configureStartupSplash();
-    expect(show).not.toHaveBeenCalled();
   });
 
   it('atomically replaces the splash with the prepared React tree', () => {

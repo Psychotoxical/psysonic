@@ -196,6 +196,28 @@ pub(crate) fn maybe_arm_stream_playback(downloaded: u64, playback_armed: &std::s
     }
 }
 
+/// The playback generation a source was built for.
+///
+/// Every on-demand reader answers a read that has been superseded — the user
+/// skipped, hovered away, started something else — with `Ok(0)`
+/// (`ranged_http.rs`, and `track_download_task` by setting `done`). That reaches
+/// the decoder as end-of-media and is indistinguishable there from a file that
+/// is genuinely truncated. Handing the same `(gen, gen_arc)` pair the reader
+/// holds down to the decoder is what lets it tell the two apart: one is an
+/// abandoned build to drop quietly, the other is a broken stream the player
+/// needs to hear about.
+#[derive(Clone)]
+pub(crate) struct GenerationGuard {
+    pub(crate) gen: u64,
+    pub(crate) gen_arc: std::sync::Arc<std::sync::atomic::AtomicU64>,
+}
+
+impl GenerationGuard {
+    pub(crate) fn is_superseded(&self) -> bool {
+        self.gen_arc.load(std::sync::atomic::Ordering::SeqCst) != self.gen
+    }
+}
+
 /// Held until `RangedHttpSource` has moov metadata for Symphonia probe (tail prefetch
 /// or fast-start moov in the linear prefix).
 pub(crate) struct RangedMp4ProbeGate {

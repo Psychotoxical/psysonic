@@ -117,24 +117,32 @@ pub async fn audio_resume(state: State<'_, AudioEngine>, app: AppHandle) -> Resu
 #[specta::specta]
 pub fn audio_stop(state: State<'_, AudioEngine>, app: AppHandle) {
     preview_clear_for_new_main_playback(&state, &app);
-    state.generation.fetch_add(1, Ordering::SeqCst);
-    *state.current_playback_url.lock().unwrap() = None;
-    *state.current_analysis_track_id.lock().unwrap() = None;
-    *state.current_playback_server_id.lock().unwrap() = None;
-    *state.chained_info.lock().unwrap() = None;
-    // Keep `stream_completed_cache`: natural track end often calls `audio_stop` when the
-    // queue is exhausted; clearing here dropped the full ranged buffer and forced a
-    // re-download on replay. The slot is only consumed on `take`/overwrite for another URL.
-    // Drop RadioLiveState → triggers Drop → task.abort() → TCP released.
-    drop(state.radio_state.lock().unwrap().take());
-    let mut cur = state.current.lock().unwrap();
-    if let Some(sink) = cur.sink.take() { sink.stop(); }
-    cur.duration_secs = 0.0;
-    cur.seek_offset   = 0.0;
-    cur.play_started  = None;
-    cur.paused_at     = None;
-    drop(cur);
-    let _ = super::stream_idle::release_output_stream_on_stop(state.inner(), &app);
+    let stop_generation = {
+        let _commit_guard = state.playback_commit_lock.lock().unwrap();
+        let generation = state.generation.fetch_add(1, Ordering::SeqCst) + 1;
+        *state.current_playback_url.lock().unwrap() = None;
+        *state.current_analysis_track_id.lock().unwrap() = None;
+        *state.current_playback_server_id.lock().unwrap() = None;
+        *state.chained_info.lock().unwrap() = None;
+        *state.current_source_done.lock().unwrap() = None;
+        // Keep `stream_completed_cache`: natural track end often calls `audio_stop` when the
+        // queue is exhausted; clearing here dropped the full ranged buffer and forced a
+        // re-download on replay. The slot is only consumed on `take`/overwrite for another URL.
+        // Drop RadioLiveState → triggers Drop → task.abort() → TCP released.
+        drop(state.radio_state.lock().unwrap().take());
+        let mut cur = state.current.lock().unwrap();
+        if let Some(sink) = cur.sink.take() { sink.stop(); }
+        cur.duration_secs = 0.0;
+        cur.seek_offset   = 0.0;
+        cur.play_started  = None;
+        cur.paused_at     = None;
+        generation
+    };
+    let _ = super::stream_idle::release_output_stream_on_stop(
+        state.inner(),
+        &app,
+        stop_generation,
+    );
 }
 
 #[tauri::command]

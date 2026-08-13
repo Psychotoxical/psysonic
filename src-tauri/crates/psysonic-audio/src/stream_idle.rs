@@ -12,9 +12,15 @@ use super::engine::AudioEngine;
 pub(crate) const OUTPUT_STREAM_IDLE_RELEASE_SECS: u64 = 60;
 
 const IDLE_POLL_SECS: u64 = 5;
+// Keep the synchronous stop command responsive. A longer attachment finishes
+// safely and the idle watcher releases the stream afterward.
+const STOP_ATTACHMENT_WAIT_MS: u64 = 50;
 
 /// Returns true while the app must keep an open output stream (playing, preview, crossfade).
 pub(crate) fn output_stream_is_needed(engine: &AudioEngine) -> bool {
+    if super::engine::stream_attachment_is_pending(engine) {
+        return true;
+    }
     if engine.preview_sink.lock().unwrap().is_some() {
         return true;
     }
@@ -56,9 +62,8 @@ pub(crate) fn teardown_playback_sinks_for_idle_release(engine: &AudioEngine) {
     cur.play_started = None;
 }
 
-fn close_output_device_handle(engine: &AudioEngine, app: &AppHandle) -> Result<(), String> {
-    super::engine::request_stream_release(engine)?;
-    *engine.stream_handle.lock().unwrap() = None;
+fn close_output_device_handle_locked(engine: &AudioEngine, app: &AppHandle) -> Result<(), String> {
+    super::engine::request_stream_release_locked(engine)?;
     let _ = app.emit("audio:output-released", ());
     Ok(())
 }
@@ -68,11 +73,17 @@ pub(crate) fn release_output_stream(
     engine: &AudioEngine,
     app: &AppHandle,
 ) -> Result<(), String> {
+    let _open_guard = engine.stream_open_lock.lock().unwrap();
     if engine.stream_handle.lock().unwrap().is_none() {
         return Ok(());
     }
+    // A player can spend hundreds of milliseconds paused for prefill before it
+    // is visible in `AudioCurrent`; recheck while release/open is serialized.
+    if output_stream_is_needed(engine) {
+        return Ok(());
+    }
     teardown_playback_sinks_for_idle_release(engine);
-    close_output_device_handle(engine, app)?;
+    close_output_device_handle_locked(engine, app)?;
     crate::app_eprintln!(
         "[psysonic] audio output stream released after {}s idle",
         OUTPUT_STREAM_IDLE_RELEASE_SECS
@@ -84,18 +95,35 @@ pub(crate) fn release_output_stream(
 pub(crate) fn release_output_stream_on_stop(
     engine: &AudioEngine,
     app: &AppHandle,
+    expected_generation: u64,
 ) -> Result<(), String> {
+    let _open_guard = engine.stream_open_lock.lock().unwrap();
+    let attachments_ready = super::engine::wait_for_stream_attachments_timeout_locked(
+        engine,
+        Duration::from_millis(STOP_ATTACHMENT_WAIT_MS),
+    );
+    let _commit_guard = engine.playback_commit_lock.lock().unwrap();
+    if engine.generation.load(Ordering::SeqCst) != expected_generation {
+        return Ok(());
+    }
+    // Stop already-registered preview/crossfade sinks even when a new player is
+    // still attaching. Its stale generation prevents it from committing later.
+    teardown_playback_sinks_for_idle_release(engine);
+    // The attachment may have finished while this command waited for the
+    // commit lock. The stream lock prevents another attachment from starting.
+    let attachments_ready =
+        attachments_ready || !super::engine::stream_attachment_is_pending(engine);
+    if !attachments_ready {
+        crate::app_eprintln!(
+            "[psysonic] audio output release skipped: player attachment still pending"
+        );
+        return Ok(());
+    }
     if engine.stream_handle.lock().unwrap().is_none() {
         return Ok(());
     }
-    // `audio_stop` already tore down the main sink; clear any crossfade/preview tail
-    // still tied to the open device before closing the handle.
-    if engine.preview_sink.lock().unwrap().is_some()
-        || engine.fading_out_sink.lock().unwrap().is_some()
-    {
-        teardown_playback_sinks_for_idle_release(engine);
-    }
-    close_output_device_handle(engine, app)?;
+    super::engine::request_stream_release_after_attachments_locked(engine)?;
+    let _ = app.emit("audio:output-released", ());
     crate::app_eprintln!("[psysonic] audio output stream released on stop");
     Ok(())
 }
@@ -176,7 +204,11 @@ mod tests {
         let (stream_thread_tx, _) = std::sync::mpsc::sync_channel(0);
         AudioEngine {
             stream_handle: Arc::new(Mutex::new(None)),
+            stream_open_lock: Arc::new(Mutex::new(())),
+            stream_attach_pending: Arc::new((Mutex::new(0), std::sync::Condvar::new())),
+            playback_commit_lock: Arc::new(Mutex::new(())),
             stream_sample_rate: Arc::new(AtomicU32::new(0)),
+            stream_requested_rate: Arc::new(AtomicU32::new(0)),
             device_default_rate: 48_000,
             stream_thread_tx,
             selected_device: Arc::new(Mutex::new(None)),
@@ -213,6 +245,7 @@ mod tests {
             normalization_target_lufs: Arc::new(AtomicU32::new(0)),
             loudness_pre_analysis_attenuation_db: Arc::new(AtomicU32::new(0)),
             chained_info: Arc::new(Mutex::new(None)),
+            current_source_done: Arc::new(Mutex::new(None)),
             samples_played: Arc::new(AtomicU64::new(0)),
             current_sample_rate: Arc::new(AtomicU32::new(44_100)),
             current_channels: Arc::new(AtomicU32::new(2)),
@@ -233,6 +266,43 @@ mod tests {
     fn idle_when_no_sink_and_no_preview() {
         let engine = minimal_engine();
         assert!(!output_stream_is_needed(&engine));
+    }
+
+    #[test]
+    fn needed_while_player_attachment_is_pending() {
+        let engine = minimal_engine();
+        *engine.stream_attach_pending.0.lock().unwrap() = 1;
+        assert!(output_stream_is_needed(&engine));
+    }
+
+    #[test]
+    fn bounded_attachment_wait_times_out_while_pending() {
+        let engine = minimal_engine();
+        *engine.stream_attach_pending.0.lock().unwrap() = 1;
+
+        assert!(!super::super::engine::wait_for_stream_attachments_timeout_locked(
+            &engine,
+            Duration::from_millis(5),
+        ));
+    }
+
+    #[test]
+    fn bounded_attachment_wait_succeeds_after_notification() {
+        let engine = minimal_engine();
+        *engine.stream_attach_pending.0.lock().unwrap() = 1;
+        let pending = engine.stream_attach_pending.clone();
+        let attachment = std::thread::spawn(move || {
+            std::thread::sleep(Duration::from_millis(5));
+            let (count, ready) = &*pending;
+            *count.lock().unwrap() = 0;
+            ready.notify_all();
+        });
+
+        assert!(super::super::engine::wait_for_stream_attachments_timeout_locked(
+            &engine,
+            Duration::from_secs(1),
+        ));
+        attachment.join().unwrap();
     }
 
     #[test]

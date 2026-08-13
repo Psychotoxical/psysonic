@@ -47,11 +47,17 @@ pub(crate) enum PlayInput {
         random_access: bool,
         /// When set, Symphonia probe waits for moov (tail or fast-start prefix).
         mp4_probe_gate: Option<super::stream::RangedMp4ProbeGate>,
+        /// The reader's own playback generation, where it has one. Lets the
+        /// decoder tell a skipped track from a truncated stream at end of media.
+        /// `None` for a plain local file: it cannot be superseded mid-read, so
+        /// EOF with nothing decoded there really is a broken file.
+        superseded: Option<super::stream::GenerationGuard>,
     },
     Streaming {
         reader: AudioStreamReader,
         format_hint: Option<String>,
         download_control: Arc<super::stream::StreamDownloadControl>,
+        superseded: Option<super::stream::GenerationGuard>,
     },
 }
 
@@ -216,6 +222,7 @@ fn open_local_file_input(
         download_control: None,
         random_access: true,
         mp4_probe_gate: None,
+        superseded: None,
     })
 }
 
@@ -392,6 +399,10 @@ async fn open_ranged_or_streaming_input(
             format_hint: stream_hint,
             tag: "ranged-stream",
             download_control: Some(download_control),
+            superseded: Some(super::stream::GenerationGuard {
+                gen: ctx.gen,
+                gen_arc: state.generation.clone(),
+            }),
             // The on-demand fetcher makes a seek-to-EOF during the probe cheap,
             // so Ogg can stay seekable through the probe (records its byte range
             // → real seeking) without forcing a full download.
@@ -455,6 +466,10 @@ async fn open_ranged_or_streaming_input(
         reader,
         format_hint: stream_hint,
         download_control,
+        superseded: Some(super::stream::GenerationGuard {
+            gen: ctx.gen,
+            gen_arc: state.generation.clone(),
+        }),
     }))
 }
 
