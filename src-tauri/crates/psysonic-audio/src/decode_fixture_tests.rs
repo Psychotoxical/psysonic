@@ -864,6 +864,17 @@ fn an_mp3_without_a_header_frame_count_reports_no_duration() {
             decoder.total_duration().is_none(),
             "an estimated frame count must not arm the seek clamp (hint {hint:?})"
         );
+
+        // The bytes constructor needs no such filter, and this is why: it picks
+        // its gate from sniffed bytes before the caller's hint, so a mislabelled
+        // MP3 still gets the gate and never reaches the estimate. Asserted rather
+        // than assumed, because the two constructors look interchangeable here.
+        let decoder = SizedDecoder::new(NO_XING_MP3.to_vec(), hint, false)
+            .expect("fixture must decode from bytes whatever the hint claims");
+        assert!(
+            decoder.total_duration().is_none(),
+            "sniffing must keep the bytes path on the gate (hint {hint:?})"
+        );
     }
 
     // The counterpart: a tagged MP3 still reports one, or the crossfade loses the
