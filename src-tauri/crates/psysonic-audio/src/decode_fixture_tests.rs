@@ -846,23 +846,25 @@ fn an_mp3_without_a_header_frame_count_reports_no_duration() {
     // asked for. Fed a bitrate estimate, that pair drifts apart permanently, so a
     // count symphonia guessed must not reach it.
     //
-    // Nothing filters such a count, because none is produced: symphonia estimates
-    // one for a header-less MP3 only `if mss.is_seekable()`, and `ProbeSeekGate`
-    // reports false throughout the probe. That gate exists for probe latency, not
-    // for seek correctness, and nothing at either site says the two are connected
-    // — so this test is the connection. It goes red the moment an estimated count
-    // reaches the duration, which is when the clamp would need guarding.
+    // Every hint, not just the correct one. `ProbeSeekGate` is what stops symphonia
+    // estimating, but it is chosen from the caller's hint before anything has
+    // identified the container, and it deliberately keeps Ogg, AIFF and MP4
+    // seekable through the probe. A server that labels an MP3 as one of those —
+    // production prefers its hint over sniffing, and this constructor has no bytes
+    // to sniff — lands on the exception while symphonia still decodes MP3.
     let _globals = crate::spectrum::tests::lock_globals();
-    let len = NO_XING_MP3.len() as u64;
-    let media: Box<dyn MediaSource> =
-        Box::new(SizedCursorSource { inner: Cursor::new(NO_XING_MP3.to_vec()), len });
-    let decoder = SizedDecoder::new_streaming(media, Some("mp3"), "test-stream", true, None)
-        .expect("fixture must decode as a stream");
+    for hint in [Some("mp3"), Some("ogg"), Some("aiff"), Some("m4a")] {
+        let len = NO_XING_MP3.len() as u64;
+        let media: Box<dyn MediaSource> =
+            Box::new(SizedCursorSource { inner: Cursor::new(NO_XING_MP3.to_vec()), len });
+        let decoder = SizedDecoder::new_streaming(media, hint, "test-stream", true, None)
+            .expect("fixture must decode as a stream whatever the hint claims");
 
-    assert!(
-        decoder.total_duration().is_none(),
-        "an estimated frame count must not arm the seek clamp"
-    );
+        assert!(
+            decoder.total_duration().is_none(),
+            "an estimated frame count must not arm the seek clamp (hint {hint:?})"
+        );
+    }
 
     // The counterpart: a tagged MP3 still reports one, or the crossfade loses the
     // trimmed length this branch added it for.
@@ -874,5 +876,87 @@ fn an_mp3_without_a_header_frame_count_reports_no_duration() {
     assert!(
         tagged.total_duration().is_some(),
         "a header-backed frame count must still be reported"
+    );
+}
+
+/// The LAME fixture with only its Xing `FRAMES` field removed. The encoder
+/// extension survives, so the demuxer still reports delay and padding — but
+/// without a frame count it has no end timestamp, and `PacketBuilder` can then
+/// never produce a `trim_end`. LAME writes the extension independently of that
+/// optional field, so this is a real file shape, not a synthetic one.
+fn lame_fixture_without_frame_count() -> Vec<u8> {
+    let mut d = LAME_SINE_MP3.to_vec();
+    let tag = d
+        .windows(4)
+        .position(|w| w == b"Info" || w == b"Xing")
+        .expect("fixture must carry a Xing/Info tag");
+
+    let flags = u32::from_be_bytes(d[tag + 4..tag + 8].try_into().unwrap());
+    assert_eq!(flags & 1, 1, "fixture must have a FRAMES field to remove");
+    d[tag + 4..tag + 8].copy_from_slice(&(flags & !1).to_be_bytes());
+
+    // Symphonia parses these fields in order and skips the ones the flags clear,
+    // so the four bytes have to go rather than be zeroed.
+    d.drain(tag + 8..tag + 12);
+
+    // Where the tag now ends: the fields symphonia still reads, then the 36-byte
+    // LAME extension.
+    let mut ext = tag + 8;
+    if flags & 0x2 != 0 { ext += 4; }
+    if flags & 0x4 != 0 { ext += 100; }
+    if flags & 0x8 != 0 { ext += 4; }
+    let tag_end = ext + 36;
+
+    // The tag CRC no longer matches, and a stale one makes symphonia drop the
+    // whole extension. Zero means "ignore" by its own rule.
+    d[tag_end - 2..tag_end].copy_from_slice(&0u16.to_be_bytes());
+
+    // Give the four bytes back inside the *same* MPEG frame — it is zero-padded
+    // between the tag and the next frame header. Putting them anywhere later
+    // would shift every following sync word and destroy an audio frame.
+    let next_sync = d[tag_end..]
+        .windows(2)
+        .position(|w| w[0] == 0xFF && (w[1] & 0xE0) == 0xE0)
+        .map(|p| tag_end + p)
+        .expect("a second frame must follow the tag frame");
+    d.splice(next_sync..next_sync, [0u8; 4]);
+    d
+}
+
+/// Raw frames minus the LAME delay of 1105: what the decoder alone can remove
+/// when the container gives it no end timestamp.
+const LAME_SINE_FRONT_TRIMMED_FRAMES: u64 = 23_087;
+
+#[test]
+fn a_lame_file_without_a_xing_frame_count_keeps_its_end_trim() {
+    // Owning the front gap does not mean owning both ends. Without Xing `FRAMES`
+    // the demuxer has no end timestamp, so `PacketBuilder` never yields a
+    // `trim_end` and the decoder leaves the padding in — at the very boundary
+    // issue #1373 is about. The manual `iTunSMPB` trim has to stay available for
+    // the end while the decoder keeps the front.
+    let base = lame_fixture_without_frame_count();
+    let decoder = SizedDecoder::new(base.clone(), Some("mp3"), false).expect("fixture decodes");
+    assert!(
+        decoder.applies_builtin_gapless(),
+        "the LAME extension still reports a gap, so the decoder owns the front"
+    );
+    assert!(
+        !decoder.applies_builtin_end_trim(),
+        "without a frame count it cannot own the end"
+    );
+
+    assert_eq!(
+        decoded_frames(base.clone(), Some("mp3")),
+        LAME_SINE_FRONT_TRIMMED_FRAMES,
+        "with nothing to describe the end, the delay trim must still happen"
+    );
+
+    let mut tagged = base;
+    tagged.extend_from_slice(&super::tests::synth_itunsmpb_blob("00000451", "0000040D", "00005622"));
+    assert_eq!(
+        decoded_frames(tagged, Some("mp3")),
+        LAME_SINE_TRIMMED_FRAMES,
+        "an iTunSMPB total must still remove the end padding, and the delay must \
+         not be cut a second time"
     );
 }
