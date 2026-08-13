@@ -214,6 +214,7 @@ const CONTRIBUTOR_ENTRIES = [
       'Performance benchmark CLI and faster scoped library browsing (PR #1382)',
       'Startup window controls and lifecycle race fixes (PR #1392)',
       'AIFF/AIF/AIFC playback across streamed, cached, and local sources (PR #1396)',
+      'Navidrome canonical-ID migration before app startup (PR #1409)',
     ],
   },
   {

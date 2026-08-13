@@ -418,6 +418,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * The genre name and the album count beside it now sit on one line instead of a couple of pixels apart, on the **Genres** overview as well as on a genre's own page. The alignment holds when the heading shrinks as you scroll.
 * The small icon between the two gives way to a dash, and a long genre name now shortens with its full text on hover instead of making the row taller.
 
+### Navidrome libraries — migrate entity IDs before startup
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1409](https://github.com/Psychotoxical/psysonic/pull/1409)**
+
+* Existing single-server Navidrome libraries now migrate legacy entity IDs before browse, playback, sync or offline work can start, preventing mixed IDs from breaking links, artwork, caches or analysis data.
+* The migration is journaled and resumes safely after interruption. If the server namespace cannot be verified, Psysonic stays on a visible blocking screen instead of opening with partially converted data.
+
 ## [1.50.0]
 
 ## Added
