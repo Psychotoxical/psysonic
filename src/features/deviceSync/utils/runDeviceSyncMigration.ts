@@ -69,9 +69,20 @@ export async function runDeviceSyncMigrationPreview(deps: RunMigrationPreviewDep
       tracks: albumSourceTracks.map(tr => trackToSyncInfo(tr, '')),
       destDir: targetDir,
     });
+    // Separators are normalised before the prefix is stripped. `targetDir` can
+    // carry forward slashes while Rust builds the path with backslashes, and the
+    // old comparison then never matched — the absolute path fell through as if
+    // it were relative. The native side used to absorb that (joining an absolute
+    // path silently replaces the base) but now rejects it as escaping the root,
+    // so a separator mismatch would fail the whole migration.
     const sepChar = IS_WINDOWS ? '\\' : '/';
-    const prefix = targetDir.endsWith(sepChar) ? targetDir : targetDir + sepChar;
-    const newRelPaths = newAbsPaths.map(p => p.startsWith(prefix) ? p.slice(prefix.length) : p);
+    const normalizeSeparators = (p: string) => (IS_WINDOWS ? p.replace(/\//g, '\\') : p);
+    const normalizedTarget = normalizeSeparators(targetDir).replace(/[\\/]+$/, '');
+    const prefix = normalizedTarget + sepChar;
+    const newRelPaths = newAbsPaths.map(p => {
+      const normalized = normalizeSeparators(p);
+      return normalized.startsWith(prefix) ? normalized.slice(prefix.length) : normalized;
+    });
 
     // Old paths via the legacy template (JS).
     const oldRelPaths = albumSourceTracks.map(tr => applyLegacyTemplate(oldTemplate, {

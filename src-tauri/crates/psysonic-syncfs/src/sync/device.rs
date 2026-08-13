@@ -203,8 +203,10 @@ fn containment_refusal(
         planned_path_stays_within(root, new_abs),
     ) {
         (Ok(true), Ok(true)) => None,
+        // A definite escape on either side outranks an unresolved other side:
+        // what is known beats what is not.
         (Ok(false), _) | (_, Ok(false)) => Some("path escapes the device root".to_string()),
-        // Neither side resolved at all — a drive pulled mid-migration looks like
+        // Either side failed to resolve. A drive pulled mid-migration looks like
         // this, and calling that a containment violation would be a lie.
         (Err(e), _) | (_, Err(e)) => Some(format!("could not resolve path: {e}")),
     }
@@ -287,10 +289,15 @@ fn rename_pairs_within_root(
         let mut children: Vec<std::path::PathBuf> = Vec::new();
         for entry in rd.flatten() {
             // `file_type()` reports the entry itself; `path().is_dir()` would
-            // follow a symlink, and this walk deletes what it finds empty. A
-            // device carrying `Artist -> /home/user/Documents` would otherwise
-            // send the cleanup out of the root and remove directories there.
-            // A symlink counts as content, so its parent is left alone too.
+            // follow a symlink, and this walk deletes what it finds empty — a
+            // device carrying `Artist -> /somewhere/else` would send it out of
+            // the root. A symlink counts as content, so its parent stays too.
+            //
+            // Inert today: the only caller passes `root` as `dir`, which the
+            // guard above turns into an immediate return, so this walk has never
+            // removed anything. Left correct rather than left to be discovered
+            // by whoever makes it run — that belongs in its own change, not in
+            // a containment fix.
             match entry.file_type() {
                 Ok(file_type) if file_type.is_dir() => children.push(entry.path()),
                 _ => empty = false,
@@ -686,17 +693,39 @@ mod tests {
         assert!(!planned_path_stays_within(device.path(), &elsewhere).unwrap());
     }
 
-    #[cfg(unix)]
+    /// Creates a directory symlink on either platform. On Windows this needs
+    /// Developer Mode or admin rights; where they are missing the caller skips
+    /// rather than fails, so the test stays meaningful on the platforms that can
+    /// run it instead of being switched off everywhere.
+    fn try_symlink_dir(target: &std::path::Path, link: &std::path::Path) -> std::io::Result<()> {
+        #[cfg(unix)]
+        {
+            std::os::unix::fs::symlink(target, link)
+        }
+        #[cfg(windows)]
+        {
+            std::os::windows::fs::symlink_dir(target, link)
+        }
+    }
+
     #[test]
-    fn a_directory_symlink_on_the_device_neither_receives_files_nor_gets_cleaned() {
-        // Covers both halves of the symlink escape: the syntax check cannot see
-        // a link, so a relative-looking target may still resolve outside — and
-        // the empty-directory cleanup must not walk through one either.
+    fn a_target_behind_a_directory_symlink_is_refused_before_anything_is_created() {
+        // The syntax check cannot see a link: `Artist/Album/01 Song.mp3` reads as
+        // a perfectly ordinary relative path while resolving outside the root.
+        //
+        // The source has to exist, or the "source not found" branch answers first
+        // and the containment check is never reached — which is exactly how an
+        // earlier version of this test passed without exercising anything.
         let device = tempfile::tempdir().unwrap();
         let outside = tempfile::tempdir().unwrap();
-        std::fs::create_dir_all(outside.path().join("empty-victim")).unwrap();
+        let source = device.path().join("Old").join("track.mp3");
+        std::fs::create_dir_all(source.parent().unwrap()).unwrap();
+        std::fs::write(&source, b"audio").unwrap();
 
-        std::os::unix::fs::symlink(outside.path(), device.path().join("Artist")).unwrap();
+        if try_symlink_dir(outside.path(), &device.path().join("Artist")).is_err() {
+            eprintln!("skipped: this machine cannot create directory symlinks");
+            return;
+        }
 
         let results = rename_pairs_within_root(
             device.path(),
@@ -704,14 +733,16 @@ mod tests {
         );
 
         assert!(!results[0].ok, "a target behind a symlink must be refused");
+        assert_eq!(
+            results[0].error.as_deref(),
+            Some("path escapes the device root"),
+            "and refused for that reason, not because something else failed first"
+        );
         assert!(
             !outside.path().join("Album").exists(),
             "nothing may be created outside the root, not even a directory"
         );
-        assert!(
-            outside.path().join("empty-victim").exists(),
-            "the cleanup must not follow the symlink out of the root"
-        );
+        assert!(source.exists(), "the source must still be where it was");
     }
 
     #[test]
