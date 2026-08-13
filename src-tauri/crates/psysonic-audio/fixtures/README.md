@@ -38,6 +38,29 @@ instead of 1152. That is fewer than the encoder delay, so the first packet is tr
 away *entirely*. It guards the case where an empty first buffer made the source report
 a zero-length span and the resampling path played nothing at all.
 
+### `five_one_sine.flac`
+
+A 5.1 FLAC where every channel carries a different tone, so a stereo downmix can
+be asked which channels reached it:
+
+| channel | tone |
+|---|---|
+| front left | 200 Hz |
+| front right | 400 Hz |
+| centre | 800 Hz |
+| LFE | 60 Hz |
+| back left | 1600 Hz |
+| back right | 3200 Hz |
+
+For issue #1408, where a 5.1 track played on a stereo device lost centre, LFE and
+both surrounds: rodio's mixer converts channel counts by keeping the first ones
+and discarding the rest, so only 200 Hz and 400 Hz used to survive.
+
+**The channel map is explicit on purpose.** Without `map=`, `join` does not place
+its inputs in the order they are listed — the first attempt at this fixture put
+400 Hz on front-left and 200 Hz on centre, which reads as a bug in the downmix
+rather than in the fixture. Verify per channel after regenerating.
+
 ## Regenerating
 
 ```bash
@@ -52,3 +75,24 @@ ffmpeg -i lo.wav -c:a libmp3lame -b:a 64k mpeg2_sine_22050.mp3
 
 Cut with `start_sample`/`end_sample`, not with timestamps — a time-based cut does not
 land on an exact sample boundary and the reference numbers above stop matching.
+
+```bash
+ffmpeg -f lavfi -i "sine=frequency=200:duration=0.25:sample_rate=44100" \
+       -f lavfi -i "sine=frequency=400:duration=0.25:sample_rate=44100" \
+       -f lavfi -i "sine=frequency=800:duration=0.25:sample_rate=44100" \
+       -f lavfi -i "sine=frequency=60:duration=0.25:sample_rate=44100" \
+       -f lavfi -i "sine=frequency=1600:duration=0.25:sample_rate=44100" \
+       -f lavfi -i "sine=frequency=3200:duration=0.25:sample_rate=44100" \
+       -filter_complex "[0:a][1:a][2:a][3:a][4:a][5:a]join=inputs=6:channel_layout=5.1:\
+map=0.0-FL|1.0-FR|2.0-FC|3.0-LFE|4.0-BL|5.0-BR[a]" \
+       -map "[a]" -c:a flac -compression_level 8 -sample_fmt s16 five_one_sine.flac
+```
+
+Check each channel afterwards, rather than trusting the input order:
+
+```bash
+for i in 0 1 2 3 4 5; do
+  ffmpeg -y -loglevel error -i five_one_sine.flac \
+    -filter_complex "[0:a]pan=mono|c0=c$i" -c:a pcm_s16le "ch$i.wav"
+done
+```
