@@ -3,6 +3,7 @@ import { usePlayerStore } from '@/features/playback/store/playerStore';
 import { registerOrbitRuntime } from '@/store/orbitRuntime';
 import { makeTracks } from '@/test/helpers/factories';
 import { resetAllStores } from '@/test/helpers/storeReset';
+import { onInvoke } from '@/test/mocks/tauri';
 
 // Scenario: orbit session × bulk enqueue. The real `enqueue` action routes a
 // multi-track enqueue through the orbitRuntime.bulkGuard seam and only commits the
@@ -16,6 +17,7 @@ let allowsTrackServer: Mock<(serverId?: string) => boolean>;
 
 beforeEach(() => {
   resetAllStores();
+  onInvoke('audio_play', () => undefined);
   bulkGuard = vi.fn<(count: number) => Promise<boolean>>(async () => true);
   allowsTrackServer = vi.fn<(serverId?: string) => boolean>(() => true);
   registerOrbitRuntime({

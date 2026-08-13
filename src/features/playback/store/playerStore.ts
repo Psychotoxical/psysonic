@@ -94,8 +94,8 @@ export const usePlayerStore = create<PlayerState>()(
       ...createMiscActions(set, get),
       ...createScheduleActions(set, get),
 
-      playTrack: (track, queue, manual = true, _orbitConfirmed = false, targetQueueIndex) =>
-        runPlayTrack(set, get, track, queue, manual, _orbitConfirmed, targetQueueIndex),
+      playTrack: (track, queue, manual = true, _orbitConfirmed = false, targetQueueIndex, _skipQueueUndo = false) =>
+        runPlayTrack(set, get, track, queue, manual, _orbitConfirmed, targetQueueIndex, _skipQueueUndo),
       resume: () => runResume(set, get),
       next: (manual = true) => runNext(set, get, manual),
       seek: (progress) => runSeek(set, get, progress),

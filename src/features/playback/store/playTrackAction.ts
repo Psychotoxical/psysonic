@@ -134,6 +134,7 @@ export function runPlayTrack(
   manual: boolean,
   _orbitConfirmed: boolean,
   targetQueueIndex: number | undefined,
+  skipQueueUndo = false,
 ): void {
   if (orbitSnapshot().role === 'host') {
     if (
@@ -341,7 +342,7 @@ export function runPlayTrack(
   const normIdx = normWindow.length;
   normWindow.push(scopedTrack);
   if (nextNeighbour) normWindow.push(nextNeighbour);
-  if (manual) {
+  if (manual && !skipQueueUndo) {
     pushQueueUndoFromGetter(get);
   }
   const visualForInitial = getSeekFallbackVisualTarget();

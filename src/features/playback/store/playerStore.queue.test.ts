@@ -50,7 +50,7 @@ import {
   appendTimelineSessionPlay,
   getTimelineSessionHistorySnapshot,
 } from '@/features/playback/store/timelineSessionHistory';
-import { onInvoke } from '@/test/mocks/tauri';
+import { invokeMock, onInvoke } from '@/test/mocks/tauri';
 import { resetPlayerStore } from '@/test/helpers/storeReset';
 import { makeTrack, makeTracks, seedQueue } from '@/test/helpers/factories';
 import { getCachedTrack } from '@/features/playback/store/queueTrackResolver';
@@ -66,6 +66,7 @@ beforeEach(() => {
   // `clearQueue` fires `invoke('audio_stop')`; every queue mutation triggers a
   // debounced `syncQueueToServer` we don't need to advance.
   onInvoke('audio_stop', () => undefined);
+  onInvoke('audio_play', () => undefined);
   onInvoke('audio_update_replay_gain', () => undefined);
 });
 
@@ -74,6 +75,26 @@ afterEach(() => {
 });
 
 describe('enqueue', () => {
+  it('mounts and starts the first track added after the queue was cleared', async () => {
+    const previous = makeTrack({ id: 'previous', serverId: 'srv-a' });
+    seedQueue([previous], { currentTrack: previous, serverId: 'srv-a' });
+    usePlayerStore.getState().clearQueue();
+    invokeMock.mockClear();
+
+    const first = makeTrack({ id: 'first', serverId: 'srv-a' });
+    usePlayerStore.getState().enqueue([first], true);
+    await vi.waitFor(() => {
+      expect(invokeMock).toHaveBeenCalledWith('audio_play', expect.objectContaining({
+        analysisTrackId: 'first',
+      }));
+    });
+
+    const state = usePlayerStore.getState();
+    expect(state.queueItems.map(ref => ref.trackId)).toEqual(['first']);
+    expect(state.queueIndex).toBe(0);
+    expect(state.currentTrack).toEqual(expect.objectContaining({ id: 'first' }));
+  });
+
   it('appends a single track to an empty queue', () => {
     const t1 = makeTrack({ id: 't1' });
     usePlayerStore.getState().enqueue([t1], true);
@@ -92,6 +113,49 @@ describe('enqueue', () => {
     const tracks = makeTracks(3);
     usePlayerStore.getState().enqueue(tracks, true);
     expect(usePlayerStore.getState().queueItems.map(r => r.trackId)).toEqual(tracks.map(t => t.id));
+  });
+
+  it('mounts the first track without dropping the rest of an empty-queue batch', async () => {
+    const tracks = makeTracks(3);
+    usePlayerStore.getState().enqueue(tracks, true);
+
+    expect(usePlayerStore.getState().queueItems.map(ref => ref.trackId)).toEqual(
+      tracks.map(track => track.id),
+    );
+    await vi.waitFor(() => {
+      expect(usePlayerStore.getState().currentTrack?.id).toBe(tracks[0].id);
+    });
+    expect(usePlayerStore.getState().queueIndex).toBe(0);
+  });
+
+  it('does not restart playback when appending to a non-empty queue', () => {
+    const current = makeTrack({ id: 'current' });
+    seedQueue([current], { currentTrack: current });
+    invokeMock.mockClear();
+
+    usePlayerStore.getState().enqueue([makeTrack({ id: 'upcoming' })], true);
+
+    expect(usePlayerStore.getState().queueItems.map(ref => ref.trackId)).toEqual([
+      'current',
+      'upcoming',
+    ]);
+    expect(invokeMock).not.toHaveBeenCalledWith('audio_play', expect.anything());
+  });
+
+  it('does not interrupt internet radio when adding the first queued track', () => {
+    const currentRadio = {
+      id: 'radio-1',
+      name: 'Test Radio',
+      streamUrl: 'https://radio.test/stream',
+    };
+    usePlayerStore.setState({ currentRadio, currentTrack: null, queueItems: [] });
+    invokeMock.mockClear();
+
+    usePlayerStore.getState().enqueue([makeTrack({ id: 'upcoming' })], true);
+
+    expect(usePlayerStore.getState().currentRadio).toEqual(currentRadio);
+    expect(usePlayerStore.getState().queueItems.map(ref => ref.trackId)).toEqual(['upcoming']);
+    expect(invokeMock).not.toHaveBeenCalledWith('audio_play', expect.anything());
   });
 
   it('keeps allowed Orbit-host tracks and reports rejected server owners', () => {
@@ -429,6 +493,17 @@ describe('undo / redo', () => {
 
   it('returns false on redo when the redo stack is empty', () => {
     expect(usePlayerStore.getState().redoLastQueueEdit()).toBe(false);
+  });
+
+  it('records one undo snapshot when the first enqueue mounts playback', () => {
+    usePlayerStore.getState().enqueue([makeTrack({ id: 'first' })], true);
+
+    expect(usePlayerStore.getState().undoLastQueueEdit()).toBe(true);
+    // Queue undo preserves the live current track even when the snapshot was empty.
+    expect(usePlayerStore.getState().queueItems).toEqual([
+      expect.objectContaining({ trackId: 'first' }),
+    ]);
+    expect(usePlayerStore.getState().undoLastQueueEdit()).toBe(false);
   });
 
   it('rolls back the most recent destructive edit', () => {

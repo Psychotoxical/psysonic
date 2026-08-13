@@ -169,6 +169,11 @@ export function createQueueMutationActions(set: SetState, get: GetState): Pick<
         });
         return;
       }
+      const stateBeforeEnqueue = get();
+      const shouldMountFirstTrack = stateBeforeEnqueue.queueItems.length === 0
+        && !stateBeforeEnqueue.currentTrack
+        && !stateBeforeEnqueue.currentRadio
+        && tracks.length > 0;
       if (!skipQueueUndo) pushQueueUndoFromGetter(get);
       ensureQueueServerPinned(tracks);
       set(state => {
@@ -185,6 +190,9 @@ export function createQueueMutationActions(set: SetState, get: GetState): Pick<
         prefetchLoudnessForEnqueuedTracks(newItems, state.queueIndex);
         return { queueItems: newItems };
       });
+      if (shouldMountFirstTrack) {
+        get().playTrack(tracks[0], undefined, true, true, 0, true);
+      }
     },
 
     setRadioArtistId: (artistId, serverId) => {

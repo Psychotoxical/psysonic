@@ -83,8 +83,10 @@ export interface PlayerState {
    *  by-id fallback, which otherwise resolves to the *first* occurrence
    *  and breaks navigation when the same track appears multiple times in
    *  the queue (issue #500). Ignored if out of range or if the track id
-   *  at that position doesn't match. */
-  playTrack: (track: Track, queue?: Track[], manual?: boolean, _orbitConfirmed?: boolean, targetQueueIndex?: number) => void;
+   *  at that position doesn't match. `_skipQueueUndo` is internal: queue
+   *  mutations that already captured an undo snapshot use it when mounting
+   *  their first track. */
+  playTrack: (track: Track, queue?: Track[], manual?: boolean, _orbitConfirmed?: boolean, targetQueueIndex?: number, _skipQueueUndo?: boolean) => void;
   /** Queue becomes `[track]` only; if already on this track, does not restart `audio_play`. */
   reseedQueueForInstantMix: (track: Track) => void;
   pause: () => void;
