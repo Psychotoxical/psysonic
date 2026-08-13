@@ -246,6 +246,11 @@ pub(crate) struct SizedDecoder {
     /// produces a `trim_end` — the decoder removes the front gap and leaves the
     /// padding. `build_source` keeps its manual end trim for that case.
     builtin_gapless_trims_end: bool,
+    /// The encoder delay the demuxer reported, in frames — what built-in gapless
+    /// removed from the front. `build_source` needs it to place an `iTunSMPB`
+    /// total, which counts from *its own* delay, against an already-trimmed
+    /// stream. Zero whenever built-in gapless is off.
+    builtin_gapless_delay: u32,
     /// Counts consecutive DecodeErrors in the hot-path. Reset to 0 on every
     /// successfully decoded frame. Used to detect fully undecodable streams.
     consecutive_decode_errors: usize,
@@ -428,7 +433,12 @@ impl SizedDecoder {
         // would take its trim away and leave it with none at all.
         let builtin_gapless = should_use_builtin_gapless(codec_info.codec_name)
             && encoder_gap_reported(track_delay, track_padding, true);
-        let builtin_gapless_trims_end = builtin_gapless && track_num_frames.is_some();
+        // `> 0` for the same reason the duration filters it: a Xing header that
+        // declares FRAMES and leaves it empty reports `Some(0)`, which describes no
+        // end at all.
+        let builtin_gapless_trims_end =
+            builtin_gapless && track_num_frames.is_some_and(|n| n > 0);
+        let builtin_gapless_delay = if builtin_gapless { track_delay.unwrap_or(0) } else { 0 };
         let mut decoder = psysonic_codec_registry()
             .make_audio_decoder(
                 &audio_params,
@@ -508,6 +518,7 @@ impl SizedDecoder {
             codec_info,
             builtin_gapless,
             builtin_gapless_trims_end,
+            builtin_gapless_delay,
             consecutive_decode_errors: 0,
         })
     }
@@ -664,16 +675,21 @@ impl SizedDecoder {
         // position the user asked for, so the readout and the audio drift apart for
         // the rest of the track.
         //
-        // Decided on the codec the probe resolved, not on the hint that went in.
-        // `ProbeSeekGate` hides seekability — which is what stops symphonia
-        // estimating at all — but it is selected from the caller's hint, and this
-        // constructor has no bytes to sniff. A server that labels an MP3 `ogg`,
-        // `aiff` or MP4 hits the gate's exception, and the estimate arrives anyway.
-        // The same `else` branch that estimates also means no LAME extension was
-        // read, so a reported encoder gap is exactly the signal that the count came
-        // from a header. Other codecs are unaffected: their frame count is exact.
-        let mp3_frame_count_is_estimated = should_use_builtin_gapless(codec_info.codec_name)
-            && !encoder_gap_reported(track_delay, track_padding, false);
+        // The estimate exists only where the probe ran on a seekable source, so the
+        // gate is the signal — not anything about the tag. `ProbeSeekGate` hides
+        // seekability for the whole probe, and symphonia estimates only when it is
+        // seekable; wherever the gate was installed, any count it reports came from
+        // a header. The gate is chosen from the caller's hint before the container
+        // is known, though, and it deliberately exempts Ogg, AIFF and MP4 — a
+        // server labelling an MP3 as one of those leaves the source seekable, and
+        // the estimate arrives after all.
+        //
+        // Reading provenance off the encoder gap instead would be wrong in both
+        // directions: symphonia reports no gap for a Xing header whose encoder
+        // string it does not recognise, and none for VBRI, while both carry an
+        // exact frame count.
+        let mp3_frame_count_may_be_estimated =
+            should_use_builtin_gapless(codec_info.codec_name) && !gate_needed;
         let total_duration = source_random_access
             .then(|| {
                 track.time_base.zip(track.num_frames).and_then(|(base, frames)| {
@@ -682,7 +698,7 @@ impl SizedDecoder {
             })
             .flatten()
             .filter(|t| t.as_secs_f64() > 0.0)
-            .filter(|_| !mp3_frame_count_is_estimated);
+            .filter(|_| !mp3_frame_count_may_be_estimated);
         // Same decision as `new`, restricted to random-access sources.
         //
         // `source_random_access` is true for local files *and* for the ranged-HTTP
@@ -704,7 +720,12 @@ impl SizedDecoder {
         let builtin_gapless = source_random_access
             && should_use_builtin_gapless(codec_info.codec_name)
             && encoder_gap_reported(track_delay, track_padding, false);
-        let builtin_gapless_trims_end = builtin_gapless && track_num_frames.is_some();
+        // `> 0` for the same reason the duration filters it: a Xing header that
+        // declares FRAMES and leaves it empty reports `Some(0)`, which describes no
+        // end at all.
+        let builtin_gapless_trims_end =
+            builtin_gapless && track_num_frames.is_some_and(|n| n > 0);
+        let builtin_gapless_delay = if builtin_gapless { track_delay.unwrap_or(0) } else { 0 };
         let mut decoder = try_make_radio_decoder(
             &audio_params,
             &AudioDecoderOptions::default().gapless(builtin_gapless),
@@ -779,7 +800,7 @@ impl SizedDecoder {
                 Err(e) => return Err(format!("{source_tag}: decode error: {e}")),
             }
         };
-        Ok(SizedDecoder { decoder, current_frame_offset: 0, format, total_duration, buffer, spec, codec_info, builtin_gapless, builtin_gapless_trims_end, consecutive_decode_errors: 0 })
+        Ok(SizedDecoder { decoder, current_frame_offset: 0, format, total_duration, buffer, spec, codec_info, builtin_gapless, builtin_gapless_trims_end, builtin_gapless_delay, consecutive_decode_errors: 0 })
     }
 
     /// Turn the decoder's last buffer into the initial `(spec, buffer)` pair when
@@ -854,6 +875,12 @@ impl SizedDecoder {
     /// omits `FRAMES`: there is no end timestamp, so only the front is trimmed.
     pub(crate) fn applies_builtin_end_trim(&self) -> bool {
         self.builtin_gapless_trims_end
+    }
+
+    /// Frames the decoder already removed from the front, zero when it removed
+    /// none.
+    pub(crate) fn builtin_gapless_delay_frames(&self) -> u32 {
+        self.builtin_gapless_delay
     }
 
     /// Refine position after a coarse seek — decode packets until we reach the
@@ -1298,10 +1325,17 @@ pub(crate) fn build_source(
     let dyn_src: DynSource = if (manual_trim || manual_end_trim_only)
         && (gapless.delay_samples > 0 || gapless.total_valid_samples.is_some())
     {
-        // `total_valid_samples` counts the real audio, so it measures the same
-        // span whether or not the decoder already removed the delay — but the
-        // delay itself must only be skipped once.
-        let delay_samples = if manual_trim { gapless.delay_samples } else { 0 };
+        // `total_valid_samples` counts the real audio from `iTunSMPB`'s own delay,
+        // which is not necessarily the delay the decoder removed — iTunes
+        // re-tagging a LAME-encoded file leaves both, and they can disagree. Skip
+        // only what is left of it, so the total lands on the same sample either
+        // way. When the decoder cut more than `iTunSMPB` claims, the difference is
+        // already gone and the total simply starts where the audio does.
+        let delay_samples = if manual_trim {
+            gapless.delay_samples
+        } else {
+            gapless.delay_samples.saturating_sub(decoder.builtin_gapless_delay_frames() as u64)
+        };
         let delay_dur = Duration::from_secs_f64(
             delay_samples as f64 / sample_rate.get() as f64
         );

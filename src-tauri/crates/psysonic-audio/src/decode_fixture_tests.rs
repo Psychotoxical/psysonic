@@ -960,3 +960,42 @@ fn a_lame_file_without_a_xing_frame_count_keeps_its_end_trim() {
          not be cut a second time"
     );
 }
+
+#[test]
+fn an_exact_frame_count_survives_an_unrecognised_encoder() {
+    // symphonia fills delay and padding only when the Xing extension names
+    // LAME, Lavf or Lavc; any other encoder gets `(0, 0)` while its `FRAMES`
+    // field still carries an exact count. VBRI behaves the same way. Deciding
+    // "estimated" from the absence of a gap would throw those counts away and
+    // cost the crossfade the length it schedules from.
+    let mut d = LAME_SINE_MP3.to_vec();
+    let tag = d
+        .windows(4)
+        .position(|w| w == b"Info" || w == b"Xing")
+        .expect("fixture must carry a Xing/Info tag");
+    let flags = u32::from_be_bytes(d[tag + 4..tag + 8].try_into().unwrap());
+    let mut ext = tag + 8;
+    if flags & 0x1 != 0 { ext += 4; }
+    if flags & 0x2 != 0 { ext += 4; }
+    if flags & 0x4 != 0 { ext += 100; }
+    if flags & 0x8 != 0 { ext += 4; }
+    d[ext..ext + 4].copy_from_slice(b"GOGO");
+    // Same length, so nothing else in the frame moves; zero the tag CRC, which
+    // symphonia otherwise uses to reject the whole extension.
+    d[ext + 34..ext + 36].copy_from_slice(&0u16.to_be_bytes());
+
+    let len = d.len() as u64;
+    let media: Box<dyn MediaSource> =
+        Box::new(SizedCursorSource { inner: Cursor::new(d), len });
+    let decoder = SizedDecoder::new_streaming(media, Some("mp3"), "test-stream", true, None)
+        .expect("fixture must still decode");
+
+    assert!(
+        !decoder.applies_builtin_gapless(),
+        "an unrecognised encoder reports no gap, so the manual path keeps the trim"
+    );
+    assert!(
+        decoder.total_duration().is_some(),
+        "the Xing frame count is exact and must still be reported"
+    );
+}
