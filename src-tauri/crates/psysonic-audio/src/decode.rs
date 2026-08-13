@@ -466,11 +466,11 @@ impl SizedDecoder {
                     // *entirely*: an MPEG-2/2.5 Layer III frame carries only 576
                     // samples while a LAME encoder delay is ~1105, so the first
                     // frame of a 22.05 kHz MP3 decodes to zero frames. That is not
-                    // end-of-stream — keep reading. Breaking here would leave an
-                    // empty initial buffer, `current_span_len()` would report
-                    // `Some(0)`, and rodio's `UniformSourceIterator` (resampling
-                    // path) reads a zero-length span as end-of-source: the track
-                    // would play nothing at all.
+                    // end-of-stream — keep reading. Breaking here would take the
+                    // stream's spec from a packet that carried no audio, and would
+                    // report a source as constructed without having decoded a
+                    // single frame; reaching real EOF that way is an error, not a
+                    // silent zero-length track.
                     let buffer = Self::make_buffer(&decoded);
                     if !buffer.is_empty() {
                         break (decoded.spec().clone(), buffer);
@@ -730,9 +730,9 @@ impl SizedDecoder {
                 // Same rule as `new`: with gapless trimming on, the first packet of
                 // an MPEG-2/2.5 Layer III stream (576 samples) is shorter than the
                 // encoder delay and decodes to zero frames. Keeping that as the
-                // initial buffer makes `current_span_len()` report `Some(0)`, which
-                // rodio's `UniformSourceIterator` reads as end-of-source — the whole
-                // track goes silent on the resampling path. Keep reading instead.
+                // initial buffer would take the spec from a packet carrying no
+                // audio and construct a source that never decoded a frame. Keep
+                // reading instead.
                 Ok(d) => {
                     let buffer = Self::make_buffer(&d);
                     if !buffer.is_empty() {
@@ -902,7 +902,7 @@ impl SizedDecoder {
         self.current_frame_offset = offset_frames as usize * self.spec.channels().count();
 
         // A packet that trimming emptied needs no special handling here:
-        // `current_span_len()` reports "unknown" rather than zero for an empty
+        // `current_span_len()` reports one frame rather than zero for an empty
         // buffer, so the source is not mistaken for finished, and `next()` reads
         // past it on its own. Refilling on this thread was tried and removed — it
         // put a blocking read on rodio's output callback and could still end with
@@ -991,11 +991,20 @@ impl Source for SizedDecoder {
         // out, the sample-rate and channel converters would stay pinned to
         // whatever spec was current while the buffer happened to be empty. A
         // stream that changes rate or channel count later would play the rest at
-        // the wrong pitch. `Some(1)` says "not finished, ask again": one sample is
-        // pulled — which refills the buffer — and the span ends immediately, so
-        // the next bootstrap sees the real spec.
+        // the wrong pitch. One frame says "not finished, ask again": the samples
+        // are pulled — which refills the buffer — and the span ends immediately,
+        // so the next bootstrap sees the real spec.
+        //
+        // A whole frame, not a single sample: every other span this reports is
+        // `buffer.len()`, an exact number of frames, and the consumers downstream
+        // count samples within a frame from the start of a span
+        // (`ChannelCountConverter::next_output_sample_pos`, reset on each
+        // bootstrap). Half a frame here would only stay harmless as long as
+        // that converter runs pass-through, which holds today because every
+        // `UniformSourceIterator` below is built with this source's own channel
+        // count — an invariant this value should not depend on.
         if self.buffer.is_empty() {
-            return Some(1);
+            return Some(self.channels().get() as usize);
         }
         Some(self.buffer.len())
     }
@@ -1067,9 +1076,9 @@ impl Source for SizedDecoder {
         // `transport_commands` keep the old one — they only update on `Ok`. That
         // split is pre-existing and unchanged here: a fix for it was built and
         // withdrawn in review, because committing to the target left the buffer
-        // empty and `current_span_len()` then reports `Some(0)`, which is the
-        // silent-source failure this whole change exists to remove. It needs its
-        // own pass, not a correction inside a seam fix.
+        // empty, which at that point reported `Some(0)` — the silent-source
+        // failure this whole change exists to remove. It needs its own pass, not
+        // a correction inside a seam fix.
         match seek_outcome {
             Ok(Ok(())) => {
                 self.current_frame_offset += to_skip;
@@ -1468,7 +1477,11 @@ mod tests {
     // ── SizedDecoder::new with a synthetic WAV ───────────────────────────────
 
     pub(super) fn build_mono_pcm16_wav(samples: &[i16], sample_rate: u32) -> Vec<u8> {
-        let num_channels: u16 = 1;
+        build_pcm16_wav(samples, sample_rate, 1)
+    }
+
+    /// `samples` is interleaved when `num_channels > 1`.
+    pub(super) fn build_pcm16_wav(samples: &[i16], sample_rate: u32, num_channels: u16) -> Vec<u8> {
         let bits_per_sample: u16 = 16;
         let byte_rate = sample_rate * (bits_per_sample as u32 / 8) * num_channels as u32;
         let block_align = num_channels * (bits_per_sample / 8);
@@ -1571,6 +1584,69 @@ mod tests {
     fn sized_decoder_returns_err_for_garbage_input() {
         let result = SizedDecoder::new(vec![0x00u8; 64], None, false);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn an_empty_buffer_reports_a_whole_frame_so_the_channels_stay_paired() {
+        // The span an empty buffer reports is handed to rodio's resampler, which
+        // takes `channels` samples for its current frame and `channels` for the
+        // next one (`conversions/sample_rate.rs`), and to the channel converter,
+        // which counts a frame's samples from the start of every span. Reporting
+        // half a frame is only harmless while that converter is pass-through.
+        //
+        // Measured, because the obvious failure does not happen: a partial frame
+        // is *not* dropped on re-bootstrap — `SampleRateConverter::next` drains
+        // `current_span` when it cannot interpolate — and no production call site
+        // asks for a channel count other than the source's own, so nothing here
+        // audibly breaks today. This test pins the frame alignment rather than
+        // that pair of coincidences.
+        //
+        // The empty buffer itself is reached by seeking near the end:
+        // `refine_position` hits EOF while refining and clears it.
+        const LEFT: i16 = 12_000;
+        const RIGHT: i16 = -12_000;
+        let frames = 4_096;
+        let mut interleaved = Vec::with_capacity(frames * 2);
+        for _ in 0..frames {
+            interleaved.push(LEFT);
+            interleaved.push(RIGHT);
+        }
+        let wav = build_pcm16_wav(&interleaved, 44_100, 2);
+
+        let mut decoder = SizedDecoder::new(wav, Some("wav"), false).expect("stereo WAV decode");
+        assert_eq!(decoder.channels().get(), 2, "fixture must be stereo");
+
+        // The state `refine_position` leaves behind at EOF.
+        decoder.buffer.clear();
+        decoder.current_frame_offset = 0;
+
+        let span = decoder
+            .current_span_len()
+            .expect("an empty buffer must not report an infinite span");
+        assert_eq!(
+            span % decoder.channels().get() as usize,
+            0,
+            "a span that is not a whole number of frames shifts the interleave phase"
+        );
+
+        // 44.1 kHz source on a 48 kHz device: the rate converter is in the chain,
+        // which is the only case where the span is consumed this way.
+        let resampled = UniformSourceIterator::new(
+            decoder,
+            std::num::NonZeroU16::new(2).unwrap(),
+            std::num::NonZeroU32::new(48_000).unwrap(),
+        );
+        let out: Vec<f32> = resampled.take(64).collect();
+        assert!(!out.is_empty(), "resampled source must still produce audio");
+
+        for (i, s) in out.iter().enumerate() {
+            let expected_left = i % 2 == 0;
+            assert_eq!(
+                *s > 0.0,
+                expected_left,
+                "sample {i} landed on the wrong channel: the interleave phase shifted"
+            );
+        }
     }
 
     #[test]
