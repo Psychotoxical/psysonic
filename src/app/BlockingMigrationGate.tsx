@@ -1,6 +1,7 @@
-import type { ReactNode } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { retryBlockingMigration } from '@/app/hooks/useMigrationOrchestrator';
+import { scheduleStartupSplashDismiss } from '@/app/startupSplash';
 import { useMigrationStore } from '../store/migrationStore';
 
 function MigrationModal() {
@@ -32,6 +33,10 @@ function MigrationModal() {
   const activeProgress = isNavidromeCanonical
     ? null
     : isGenreTags ? genreTagsProgress : isScopeBrowseProjection ? scopeBrowseProjectionProgress : progress;
+
+  useEffect(() => {
+    scheduleStartupSplashDismiss();
+  }, []);
 
   const migratedRows = (inspect?.library.totalLegacyRows ?? 0) + (inspect?.analysis.totalLegacyRows ?? 0);
   return (

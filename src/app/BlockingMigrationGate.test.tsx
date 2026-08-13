@@ -11,9 +11,16 @@ vi.mock('@/app/hooks/useMigrationOrchestrator', () => ({
   retryBlockingMigration: vi.fn(),
 }));
 
+vi.mock('@/app/startupSplash', () => ({
+  scheduleStartupSplashDismiss: vi.fn(),
+}));
+
+import { scheduleStartupSplashDismiss } from '@/app/startupSplash';
+
 describe('BlockingMigrationGate', () => {
   beforeEach(() => {
     useMigrationStore.setState({ phase: 'idle', step: null, lastError: null });
+    vi.mocked(scheduleStartupSplashDismiss).mockClear();
   });
 
   it('blocks the initial idle frame before the first inspect resolves', () => {
@@ -25,6 +32,7 @@ describe('BlockingMigrationGate', () => {
 
     expect(screen.queryByText('normal app')).toBeNull();
     expect(screen.getByText('migration.preparing')).toBeInTheDocument();
+    expect(scheduleStartupSplashDismiss).toHaveBeenCalledOnce();
   });
 
   it('does not mount normal application children while migration is blocking', () => {

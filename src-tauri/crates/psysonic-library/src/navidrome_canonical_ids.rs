@@ -351,7 +351,7 @@ fn collect_probe_candidates(
         let mut candidates = Vec::new();
         for (kind, table) in [(EntityKind::Track, "track"), (EntityKind::Album, "album")] {
             let sql = format!(
-                "SELECT id FROM {table} WHERE server_id = ?1{} ORDER BY id LIMIT ?2",
+                "SELECT id FROM {table} WHERE server_id = ?1{} ORDER BY synced_at DESC, id LIMIT ?2",
                 if table == "track" { " AND deleted = 0" } else { "" }
             );
             let ids = conn
@@ -1054,6 +1054,30 @@ mod tests {
         assert_eq!(value["contributors"][0]["artistId"], canonical_id(old));
         assert_eq!(value["contributors"][0]["musicBrainzId"], old);
         assert_eq!(value["musicBrainzId"], old);
+    }
+
+    #[test]
+    fn probe_candidates_prefer_recently_synced_rows() {
+        let store = LibraryStore::open_in_memory();
+        store
+            .with_conn("test.seed", |conn| {
+                for index in 0..MAX_PROBE_CANDIDATES {
+                    conn.execute(
+                        "INSERT INTO track(server_id,id,title,synced_at,raw_json) VALUES ('s1',?1,'Stale',1,'{}')",
+                        params![format!("{index:032x}")],
+                    )?;
+                }
+                conn.execute(
+                    "INSERT INTO track(server_id,id,title,synced_at,raw_json) VALUES ('s1','ffffffffffffffffffffffffffffffff','Live',2,'{}')",
+                    [],
+                )?;
+                Ok(())
+            })
+            .unwrap();
+
+        let candidates = collect_probe_candidates(&store, "s1").unwrap();
+        assert_eq!(candidates.len(), MAX_PROBE_CANDIDATES);
+        assert_eq!(candidates[0].old_id, "ffffffffffffffffffffffffffffffff");
     }
 
     #[test]
