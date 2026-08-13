@@ -10,6 +10,7 @@ pub mod autoeq_commands;
 mod analysis_dispatch;
 #[cfg(target_os = "linux")]
 mod alsa_rate;
+mod channel_fold;
 mod codec;
 pub mod commands;
 mod decode;

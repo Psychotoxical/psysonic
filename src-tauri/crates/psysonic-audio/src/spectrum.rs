@@ -212,41 +212,25 @@ impl<S: Source<Item = f32>> SpectrumTapSource<S> {
         self.capture_frame = false;
     }
 
-    /// Conventional linear fold for the layouts available through rodio's
-    /// channel-count-only API: L/R pass through, centre is -3 dB to both, LFE
-    /// is -6 dB to both, and surround pairs are -3 dB to their matching side.
+    /// Folds one interleaved sample into the left/right analysis lanes, using
+    /// the same gains the playback path folds with (`channel_fold`). Shared on
+    /// purpose: if the two ever drift, the waveform stops describing what comes
+    /// out of the speakers.
     #[inline]
     fn capture_sample(&mut self, sample: f32) {
-        const MINUS_3_DB: f32 = std::f32::consts::FRAC_1_SQRT_2;
-        const MINUS_6_DB: f32 = 0.5;
-
-        match self.channel_idx {
-            0 => {
-                self.left = sample;
+        let (left_gain, right_gain) =
+            crate::channel_fold::fold_gains(self.channel_idx, self.channels);
+        // Channel 0 and 1 assign rather than accumulate: they open the frame.
+        if self.channel_idx < 2 {
+            if self.channel_idx == 0 {
+                self.left = sample * left_gain;
+            } else {
+                self.right = sample * right_gain;
             }
-            1 => {
-                self.right = sample;
-            }
-            2 if self.channels == 4 => self.left += sample * MINUS_3_DB,
-            3 if self.channels == 4 => self.right += sample * MINUS_3_DB,
-            2 => {
-                self.left += sample * MINUS_3_DB;
-                self.right += sample * MINUS_3_DB;
-            }
-            3 if self.channels == 5 => self.left += sample * MINUS_3_DB,
-            4 if self.channels == 5 => self.right += sample * MINUS_3_DB,
-            3 => {
-                self.left += sample * MINUS_6_DB;
-                self.right += sample * MINUS_6_DB;
-            }
-            channel => {
-                if (channel - 4).is_multiple_of(2) {
-                    self.left += sample * MINUS_3_DB;
-                } else {
-                    self.right += sample * MINUS_3_DB;
-                }
-            }
+            return;
         }
+        self.left += sample * left_gain;
+        self.right += sample * right_gain;
     }
 }
 
