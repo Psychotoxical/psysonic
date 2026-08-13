@@ -333,6 +333,47 @@ describe('useMigrationOrchestrator', () => {
     expect(libraryNavidromeCanonicalFinalizeMock).toHaveBeenCalledWith('a.test');
   });
 
+  it('resumes a restart after native commit by replaying frontend persistence', async () => {
+    migrationInspectMock.mockResolvedValue({
+      needsMigration: false, hasSkippedUnknownServerRows: false, canRun: true, warnings: [],
+      unmappedEmptyBucket: false,
+      library: { totalLegacyRows: 0, skippedUnknownServerRows: 0, tables: {} },
+      analysis: { totalLegacyRows: 0, skippedUnknownServerRows: 0, tables: {} },
+      mappings: [{ legacyId: 'legacy-a', indexKey: 'a.test' }],
+    });
+    const mapping = { entityKind: 'track', oldId: 'old', newId: 'new' };
+    libraryNavidromeCanonicalInspectMock
+      .mockResolvedValueOnce({
+        serverId: 'a.test', state: 'frontend', canonicalVersion: 1,
+        probeKind: 'track', probeOldId: 'old', probeNewId: 'new', lastError: null,
+        mappings: [mapping],
+      })
+      .mockResolvedValueOnce({
+        serverId: 'a.test', state: 'resyncing', canonicalVersion: 1,
+        probeKind: 'track', probeOldId: 'old', probeNewId: 'new', lastError: null,
+        mappings: [mapping],
+      });
+    libraryNavidromeCanonicalAckFrontendMock.mockResolvedValue({
+      serverId: 'a.test', state: 'resyncing', canonicalVersion: 1,
+      probeKind: 'track', probeOldId: 'old', probeNewId: 'new', lastError: null,
+      mappings: [mapping],
+    });
+    libraryNavidromeCanonicalFinalizeMock.mockResolvedValue({
+      serverId: 'a.test', state: 'ready', canonicalVersion: 1,
+      probeKind: 'track', probeOldId: 'old', probeNewId: 'new', lastError: null,
+      mappings: [],
+    });
+
+    renderHook(() => useMigrationOrchestrator());
+
+    await waitFor(() => expect(useMigrationStore.getState().phase).toBe('completed'));
+    expect(libraryNavidromeCanonicalRewriteMock).not.toHaveBeenCalled();
+    expect(rewriteNavidromeCanonicalFrontendStateMock).toHaveBeenCalledTimes(2);
+    expect(libraryNavidromeCanonicalAckFrontendMock).toHaveBeenCalledWith('a.test');
+    expect(enqueueLibrarySyncMock).toHaveBeenCalledWith({ serverId: 'a.test', kind: 'full' });
+    expect(libraryNavidromeCanonicalFinalizeMock).toHaveBeenCalledWith('a.test');
+  });
+
   it('keeps the gate in error when the required full sync fails', async () => {
     migrationInspectMock.mockResolvedValue({
       needsMigration: false, hasSkippedUnknownServerRows: false, canRun: true, warnings: [],
@@ -352,6 +393,9 @@ describe('useMigrationOrchestrator', () => {
     await waitFor(() => expect(useMigrationStore.getState().phase).toBe('error'));
     expect(useMigrationStore.getState().step).toBe('navidromeCanonical');
     expect(useMigrationStore.getState().lastError).toBe('sync failed');
+    expect(rewriteNavidromeCanonicalFrontendStateMock).toHaveBeenCalledOnce();
+    expect(analysisDeleteAllForServerMock).toHaveBeenCalledWith('a.test');
+    expect(enqueueLibrarySyncMock).toHaveBeenCalledWith({ serverId: 'a.test', kind: 'full' });
     expect(libraryNavidromeCanonicalFinalizeMock).not.toHaveBeenCalled();
   });
 

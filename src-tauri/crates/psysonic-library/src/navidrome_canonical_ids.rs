@@ -905,8 +905,36 @@ fn now_unix_ms() -> i64 {
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeSet;
+    use std::path::PathBuf;
+    use std::sync::atomic::{AtomicU64, Ordering};
 
     use super::*;
+
+    static NEXT_TEST_DB: AtomicU64 = AtomicU64::new(1);
+
+    struct TestDatabase {
+        directory: PathBuf,
+        path: PathBuf,
+    }
+
+    impl TestDatabase {
+        fn new(label: &str) -> Self {
+            let id = NEXT_TEST_DB.fetch_add(1, Ordering::Relaxed);
+            let directory = std::env::temp_dir().join(format!(
+                "psysonic-canonical-{label}-{}-{id}",
+                std::process::id()
+            ));
+            std::fs::create_dir_all(&directory).unwrap();
+            let path = directory.join("library.sqlite");
+            Self { directory, path }
+        }
+    }
+
+    impl Drop for TestDatabase {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.directory);
+        }
+    }
 
     fn identity_shaped_columns(conn: &Connection, schema: &str) -> BTreeSet<String> {
         let mut tables = conn
@@ -1107,5 +1135,40 @@ mod tests {
         assert_eq!(first.state, "frontend");
         let second = rewrite(&store, "s1").unwrap();
         assert_eq!(second.state, "frontend");
+    }
+
+    #[test]
+    fn restart_resumes_after_journal_creation_and_native_commit() {
+        let database = TestDatabase::new("restart");
+        let old = "e3b7fc2ae9447bbec37a13bf916e3cf6";
+        {
+            let store = LibraryStore::open_path_for_test(&database.path).unwrap();
+            store
+                .with_conn("test.seed", |conn| {
+                    conn.execute(
+                        "INSERT INTO track(server_id,id,title,synced_at,raw_json) VALUES ('s1',?1,'Track',1,'{}')",
+                        params![old],
+                    )?;
+                    conn.execute(
+                        "INSERT INTO navidrome_canonical_migration(server_id, canonical_version, state, detected_at) VALUES ('s1',1,'required',1)",
+                        [],
+                    )?;
+                    Ok(())
+                })
+                .unwrap();
+            populate_journal(&store, "s1").unwrap();
+        }
+
+        {
+            let store = LibraryStore::open_path_for_test(&database.path).unwrap();
+            let pending = status(&store, "s1").unwrap();
+            assert_eq!(pending.state, "required");
+            assert!(!pending.mappings.is_empty());
+            assert_eq!(rewrite(&store, "s1").unwrap().state, "frontend");
+        }
+
+        let store = LibraryStore::open_path_for_test(&database.path).unwrap();
+        assert_eq!(status(&store, "s1").unwrap().state, "frontend");
+        assert_eq!(rewrite(&store, "s1").unwrap().state, "frontend");
     }
 }
