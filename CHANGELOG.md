@@ -425,12 +425,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * The genre name and the album count beside it now sit on one line instead of a couple of pixels apart, on the **Genres** overview as well as on a genre's own page. The alignment holds when the heading shrinks as you scroll.
 * The small icon between the two gives way to a dash, and a long genre name now shortens with its full text on hover instead of making the row taller.
 
-### App icon — a fresh look, and a Liquid Glass variant for macOS 26
+### App icon — a fresh look
 
 **By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1403](https://github.com/Psychotoxical/psysonic/pull/1403)**, reported by JU3RG and rtfact
 
 * Psysonic has a new app icon. It keeps the same rounded outline as before, so nothing shifts in the taskbar, dock or app launcher.
-* On **macOS 26**, the icon now ships as a Liquid Glass bundle instead of being shrunk onto a grey plate by the system's icon frame. Earlier macOS versions keep the previous rendering.
 
 ### Queue — start the first track added after clearing
 

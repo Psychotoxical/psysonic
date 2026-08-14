@@ -102,7 +102,7 @@ Within each section, order by **user impact** (most noticeable first) — not PR
 - Internet radio keeps UTF-8 track titles readable, preserves station homepage URLs after editing, and no longer blanks packaged Linux builds.
 - **Linux:** MangoWM is recognised as a tiling window manager; AppImage manager installs resolve the bundled icon correctly.
 - Device-sync migration refuses paths that would escape the folder you selected and clearly reports a drive that disappears mid-migration.
-- Psysonic has a refreshed app icon, including a native Liquid Glass bundle for **macOS 26**.
+- Psysonic has a refreshed app icon.
 - Secondary buttons have visible outlines before hover, compact form actions stay aligned, and genre-page controls have clearer labels and spacing.
 
 ## Under the hood
