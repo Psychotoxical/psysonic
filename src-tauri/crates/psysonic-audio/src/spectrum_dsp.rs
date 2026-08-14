@@ -154,7 +154,7 @@ pub(crate) fn combine_power_magnitudes(left: &[f32], right: &[f32], out: &mut [f
 
 // ── Band mapping ─────────────────────────────────────────────────────────────
 
-/// Inclusive bin range and tilt gain for one display band.
+/// Bin range, centre sampling mode, and tilt gain for one display band.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct Band {
     pub(crate) lo: usize,
@@ -162,6 +162,8 @@ pub(crate) struct Band {
     /// Fractional bin position of the band's centre frequency, for
     /// interpolating bands narrower than one FFT bin.
     pub(crate) centre_bin: f32,
+    /// Whether the band's frequency span is narrower than one FFT bin.
+    pub(crate) interpolate_centre: bool,
     pub(crate) tilt_db: f32,
 }
 
@@ -183,10 +185,11 @@ pub(crate) fn band_layout(sample_rate: u32) -> Vec<Band> {
 
         let centre = (f_lo * f_hi).sqrt().max(1.0);
         // Select FFT-bin centres that actually lie in this half-open frequency
-        // interval. If the interval is narrower than one bin, use the nearest
-        // real bin and let adjacent display bands share it. Assigning each such
-        // band a unique higher bin invents resolution and relabels midrange
-        // energy as bass, especially at high sample rates.
+        // interval. If none do, keep the nearest real bin as the band's range
+        // fallback. Assigning each such band a unique higher bin invents
+        // resolution and relabels midrange energy as bass, especially at high
+        // sample rates. Narrow bands are sampled at their fractional centre
+        // below, independently of whether a bin centre falls inside the range.
         let first = (f_lo / bin_hz).ceil() as usize;
         let last = ((f_hi / bin_hz).ceil() as usize).saturating_sub(1);
         let (lo, hi) = if first <= last && first <= max_bin {
@@ -196,9 +199,16 @@ pub(crate) fn band_layout(sample_rate: u32) -> Vec<Band> {
             (nearest, nearest)
         };
 
-        let centre_bin = (centre / bin_hz).clamp(1.0, max_bin as f32);
+        let centre_bin = (centre / bin_hz).clamp(0.0, max_bin as f32);
+        let interpolate_centre = f_hi - f_lo < bin_hz;
         let tilt_db = (TILT_DB_PER_OCTAVE * (centre / TILT_REF_HZ).log2()).clamp(0.0, TILT_MAX_DB);
-        bands.push(Band { lo, hi, centre_bin, tilt_db });
+        bands.push(Band {
+            lo,
+            hi,
+            centre_bin,
+            interpolate_centre,
+            tilt_db,
+        });
     }
     bands
 }
@@ -219,12 +229,12 @@ pub(crate) fn bands_from_magnitudes(mags: &[f32], layout: &[Band], out: &mut [f3
     for (band, slot) in layout.iter().zip(out.iter_mut()) {
         let hi = band.hi.min(mags.len().saturating_sub(1));
         let lo = band.lo.min(hi);
-        let mag = if lo == hi {
-            // Bands narrower than one FFT bin collapse onto a shared bin, and
-            // taking that bin's value verbatim renders runs of neighbouring
-            // bars as flat lockstep plateaus. Interpolating the spectrum at
-            // each band's own centre frequency keeps adjacent bars distinct
-            // without moving energy away from its true frequency.
+        let mag = if band.interpolate_centre {
+            // Bands narrower than one FFT bin can collapse onto a shared bin.
+            // Taking that bin's value verbatim renders runs of neighbouring
+            // bars as flat lockstep plateaus. Sampling the spectrum at each
+            // band's own centre keeps adjacent bars distinct without moving
+            // the band's frequency range.
             interpolated_magnitude(mags, band.centre_bin)
         } else {
             mags[lo..=hi].iter().copied().fold(0.0f32, f32::max)
@@ -239,7 +249,9 @@ fn interpolated_magnitude(mags: &[f32], centre_bin: f32) -> f32 {
     if max == 0 {
         return mags.first().copied().unwrap_or(0.0);
     }
-    let pos = centre_bin.clamp(1.0, max as f32);
+    // Bin zero is never a display band, but its windowed magnitude is a useful
+    // interpolation endpoint for real frequencies below the first positive bin.
+    let pos = centre_bin.clamp(0.0, max as f32);
     let i0 = pos.floor() as usize;
     let i1 = (i0 + 1).min(max);
     let frac = pos - i0 as f32;
@@ -678,6 +690,69 @@ mod tests {
             "bands sharing a bin still move in lockstep: {:?}",
             &bands[5..=14]
         );
+    }
+
+    #[test]
+    fn wide_single_bin_band_keeps_its_peak() {
+        let sample_rate = 48_000u32;
+        let layout = band_layout(sample_rate);
+        let band_index = 57usize;
+        let band = layout[band_index];
+        let bin_hz = sample_rate as f32 / FFT_SIZE as f32;
+        let ratio = (BAND_MAX_HZ / BAND_MIN_HZ).ln() / BAND_COUNT as f32;
+        let f_lo = BAND_MIN_HZ * (ratio * band_index as f32).exp();
+        let f_hi = BAND_MIN_HZ * (ratio * (band_index + 1) as f32).exp();
+
+        assert!(
+            f_hi - f_lo >= bin_hz,
+            "test band is no longer at least one bin wide"
+        );
+        assert_eq!(
+            band.lo, band.hi,
+            "test band no longer contains exactly one bin"
+        );
+
+        let mut mags = vec![0.0; FFT_SIZE / 2];
+        mags[band.lo] = 0.1;
+        let mut bands = vec![0.0; BAND_COUNT];
+        bands_from_magnitudes(&mags, &layout, &mut bands);
+
+        let expected = magnitude_to_level(0.1, band.tilt_db);
+        assert!(
+            (bands[band_index] - expected).abs() < 1e-6,
+            "wide one-bin band blended away from its owned peak: {} vs {expected}",
+            bands[band_index]
+        );
+    }
+
+    #[test]
+    fn hi_res_bands_below_bin_one_do_not_plateau() {
+        for sample_rate in [96_000u32, 192_000] {
+            let layout = band_layout(sample_rate);
+            let bin_hz = sample_rate as f32 / FFT_SIZE as f32;
+            let ratio = (BAND_MAX_HZ / BAND_MIN_HZ).ln() / BAND_COUNT as f32;
+            let below_first_bin = (0..BAND_COUNT)
+                .take_while(|band| {
+                    let centre = BAND_MIN_HZ * (ratio * (*band as f32 + 0.5)).exp();
+                    centre < bin_hz
+                })
+                .count();
+            assert!(below_first_bin > 1, "test rate has no sub-bin low-end group");
+
+            let mut mags = vec![0.0; FFT_SIZE / 2];
+            mags[0] = 0.2;
+            mags[1] = 0.8;
+            let mut bands = vec![0.0; BAND_COUNT];
+            bands_from_magnitudes(&mags, &layout, &mut bands);
+
+            assert!(
+                bands[..below_first_bin]
+                    .windows(2)
+                    .all(|pair| (pair[0] - pair[1]).abs() > 1e-6),
+                "rate {sample_rate}: bands below bin one still plateau: {:?}",
+                &bands[..below_first_bin]
+            );
+        }
     }
 
     #[test]

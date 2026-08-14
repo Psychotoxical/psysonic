@@ -1272,6 +1272,34 @@ pub(crate) mod tests {
     }
 
     #[test]
+    fn analyzer_hi_res_low_bands_do_not_plateau() {
+        for sample_rate in [96_000u32, 192_000] {
+            let mut analyzer = Analyzer::new();
+            let window: Vec<f32> = tone(60.0, sample_rate as f32, FFT_SIZE)
+                .into_iter()
+                .map(|sample| sample * 0.1)
+                .collect();
+            analyzer
+                .frame((&window, &window), sample_rate, 0.016, true)
+                .unwrap();
+
+            let below_first_bin = analyzer
+                .layout
+                .iter()
+                .take_while(|band| band.centre_bin < 1.0)
+                .count();
+            assert!(below_first_bin > 1, "test rate has no sub-bin low-end group");
+            assert!(
+                analyzer.bands[..below_first_bin]
+                    .windows(2)
+                    .all(|pair| (pair[0] - pair[1]).abs() > 1e-6),
+                "rate {sample_rate}: analyzer low bands still plateau: {:?}",
+                &analyzer.bands[..below_first_bin]
+            );
+        }
+    }
+
+    #[test]
     fn analyzer_falls_back_to_48k_for_an_unknown_rate() {
         let mut a = Analyzer::new();
         let window = tone(1_000.0, 48_000.0, FFT_SIZE);

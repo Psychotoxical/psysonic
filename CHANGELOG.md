@@ -451,6 +451,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * A 5.1 track played on stereo speakers or headphones now mixes every channel into the two you hear. Previously only the front left and right were played, so anything the recording placed in the centre, the bass channel or the rear — often a large part of the arrangement — was silently dropped.
 * Surround output is unaffected: on a device that can take all the channels, the track still plays with them.
 
+### Visualizer — smooth bass bars without shifting frequencies
+
+**By [@Manwe-777](https://github.com/Manwe-777), PR [#1416](https://github.com/Psychotoxical/psysonic/pull/1416)**
+
+* Narrow bass bands no longer move in flat lockstep plateaus when several bars share one FFT bin. Frequency positions stay correct at standard and Hi-Res sample rates, while bands with real bin coverage keep their peak response.
+
 ## [1.50.0]
 
 ## Added
