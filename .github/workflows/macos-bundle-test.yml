@@ -1,0 +1,120 @@
+name: macOS Bundle Test
+
+# Manual smoke test for macOS app bundling.
+#
+# reusable-channel-publish.yml is otherwise the only place that bundles for
+# macOS, so a bundling regression can only be found by spending a full release
+# run — which creates a tag and a draft release before it ever reaches the
+# bundler. This job builds the same way (same runner, same tauri arguments) but
+# skips signing, notarization and every release interaction, so it can be
+# repeated as often as needed without touching a draft or burning an RC number.
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Git ref to build (branch, tag or SHA). Defaults to the ref the run was started from."
+        required: false
+        type: string
+      target:
+        description: "Target triple to bundle for"
+        required: false
+        default: aarch64-apple-darwin
+        type: choice
+        options:
+          - aarch64-apple-darwin
+          - x86_64-apple-darwin
+
+permissions:
+  contents: read
+
+jobs:
+  bundle:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+      - name: setup node
+        uses: actions/setup-node@v5
+        with:
+          node-version: lts/*
+          cache: "npm"
+      - name: install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ inputs.target }}
+      - name: cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - name: install npm dependencies
+        run: npm install
+      # Which toolchain actually ran is the one fact a bundling failure always
+      # needs and the log never carries by itself.
+      - name: record toolchain
+        run: |
+          set -euo pipefail
+          sw_vers
+          xcodebuild -version
+          echo "actool: $(xcrun --find actool)"
+      # No --bundles: the release job does not pass one either, so bundle.targets
+      # from tauri.conf.json decides and the two runs stay comparable.
+      - name: build macOS bundle (unsigned)
+        env:
+          VITE_LASTFM_API_KEY: ${{ secrets.VITE_LASTFM_API_KEY }}
+          VITE_LASTFM_API_SECRET: ${{ secrets.VITE_LASTFM_API_SECRET }}
+        run: npm run tauri:build -- --target ${{ inputs.target }} --no-sign --verbose
+      - name: verify bundled icon
+        env:
+          TARGET: ${{ inputs.target }}
+        run: |
+          set -euo pipefail
+          APP="src-tauri/target/${TARGET}/release/bundle/macos/Psysonic.app"
+          if [ ! -d "$APP" ]; then
+            echo "::error::app bundle missing: $APP"
+            exit 1
+          fi
+          echo "--- Contents/Resources ---"
+          ls -la "$APP/Contents/Resources"
+          echo "--- Info.plist ---"
+          plutil -p "$APP/Contents/Info.plist"
+          # The shipped icon must be byte-identical to the one in the repo,
+          # otherwise the bundler silently fell back to a default or a stale
+          # embedded copy.
+          echo "--- icon identity ---"
+          REPO_SUM="$(shasum -a 256 src-tauri/icons/icon.icns | cut -d' ' -f1)"
+          BUNDLED="$APP/Contents/Resources/icon.icns"
+          if [ ! -f "$BUNDLED" ]; then
+            echo "::error::no icon.icns in the bundle"
+            exit 1
+          fi
+          APP_SUM="$(shasum -a 256 "$BUNDLED" | cut -d' ' -f1)"
+          echo "repo   : $REPO_SUM"
+          echo "bundled: $APP_SUM"
+          if [ "$REPO_SUM" != "$APP_SUM" ]; then
+            echo "::error::bundled icon differs from src-tauri/icons/icon.icns"
+            exit 1
+          fi
+          echo "icon matches the repo"
+      - name: show bundle output on failure
+        if: failure()
+        env:
+          TARGET: ${{ inputs.target }}
+        run: |
+          set -eu
+          echo "--- bundle directory ---"
+          ls -laR "src-tauri/target/${TARGET}/release/bundle" || echo "(no bundle directory)"
+      # tar, not the raw directory: upload-artifact zips its input and drops the
+      # symlinks and executable bits a .app needs to stay launchable.
+      - name: package app bundle
+        env:
+          TARGET: ${{ inputs.target }}
+        run: |
+          set -euo pipefail
+          tar czf "${GITHUB_WORKSPACE}/Psysonic-${TARGET}.app.tar.gz" \
+            -C "src-tauri/target/${TARGET}/release/bundle/macos" Psysonic.app
+      - uses: actions/upload-artifact@v4
+        with:
+          name: psysonic-macos-${{ inputs.target }}
+          path: Psysonic-${{ inputs.target }}.app.tar.gz
+          retention-days: 7
