@@ -301,6 +301,26 @@ jobs:
           mkdir -p ~/private_keys
           echo "${{ secrets.APPLE_API_KEY_B64 }}" | base64 --decode > ~/private_keys/AuthKey.p8
           echo "APPLE_API_KEY_PATH=$HOME/private_keys/AuthKey.p8" >> "$GITHUB_ENV"
+      # actool from Xcode 26.5 and later crashes on Icon Composer .icon bundles
+      # ("attempt to insert nil object from objects[0]", raised before it reads
+      # the bundle), so Assets.car is never produced and app bundling fails.
+      # 26.4.1 is the last release that compiles them. Apple feedback FB20183399.
+      # Remove this step once the regression is fixed upstream; fail loudly if
+      # the pinned version disappears from the runner image rather than silently
+      # falling back to a broken default.
+      - name: pin Xcode for app bundling (macOS only)
+        if: runner.os == 'macOS'
+        run: |
+          set -euo pipefail
+          PINNED="/Applications/Xcode_26.4.1.app/Contents/Developer"
+          if [ ! -d "$PINNED" ]; then
+            echo "::error::pinned Xcode not present: $PINNED"
+            exit 1
+          fi
+          echo "DEVELOPER_DIR=$PINNED" >> "$GITHUB_ENV"
+          export DEVELOPER_DIR="$PINNED"
+          xcodebuild -version
+          xcrun --find actool
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
