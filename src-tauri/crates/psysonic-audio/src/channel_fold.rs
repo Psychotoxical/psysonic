@@ -34,12 +34,16 @@ pub(crate) fn fold_gains(channel_idx: usize, channels: usize) -> (f32, f32) {
         3 if channels == 5 => (MINUS_3_DB, 0.0),
         4 if channels == 5 => (0.0, MINUS_3_DB),
         3 => (MINUS_6_DB, MINUS_6_DB),
-        // 6.1: a single back centre closes the layout, and like the front centre
-        // it belongs on both sides. Panning it hard left — which the alternation
-        // below would do — moves content that was meant to be behind the listener
-        // into one speaker.
-        6 if channels == 7 => (MINUS_3_DB, MINUS_3_DB),
+        // 6.1 breaks the pairing: its order is FL FR FC LFE **RC** SL SR, so the
+        // rear centre sits at index 4 where every other layout has a left
+        // surround, and the side pair follows one slot late. Read as pairs, the
+        // rear centre would be panned hard left and the side channels swapped.
+        // Order from symphonia's own FLAC channel map.
+        4 if channels == 7 => (MINUS_3_DB, MINUS_3_DB),
+        5 if channels == 7 => (MINUS_3_DB, 0.0),
+        6 if channels == 7 => (0.0, MINUS_3_DB),
         // Everything past the LFE comes in pairs: left, right, left, right.
+        // Holds for 5.1 (RL RR) and 7.1 (RL RR SL SR).
         channel => {
             if (channel - 4) % 2 == 0 {
                 (MINUS_3_DB, 0.0)
@@ -144,11 +148,21 @@ where
         // span up to a non-zero value leaves the queue reporting the finished
         // source's shape at a gapless boundary.
         self.inner.current_span_len().map(|len| {
-            let frames = len / self.channels;
-            // Whole output frames only — a span ending mid-frame is what makes
-            // rodio's converters start on the wrong channel — plus the right
-            // sample still owed from the frame already folded.
-            frames * 2 + usize::from(self.pending_right.is_some())
+            let owed = usize::from(self.pending_right.is_some());
+            if len == 0 {
+                // Genuinely finished — only the owed sample can still come out.
+                return owed;
+            }
+            // Whole output frames — a span ending mid-frame is what makes rodio's
+            // converters start on the wrong channel — plus the sample still owed
+            // from the frame already folded.
+            //
+            // At least one frame while the inner span is non-empty: a span that
+            // is not a whole number of input frames (a duration-derived one, as
+            // `TakeDuration` produces) would otherwise truncate to zero and read
+            // as exhausted while `next()` can still assemble a frame across the
+            // boundary.
+            (len / self.channels).max(1) * 2 + owed
         })
     }
 
@@ -357,11 +371,30 @@ mod tests {
     }
 
     #[test]
-    fn a_six_one_back_centre_feeds_both_sides() {
-        // Index 6 of a 7-channel layout is the single rear centre. The pair
-        // alternation would hard-pan it left, moving content meant to sit behind
-        // the listener into one speaker.
-        assert_eq!(fold_gains(6, 7), (MINUS_3_DB, MINUS_3_DB));
+    fn six_one_places_its_rear_centre_and_side_pair_correctly() {
+        // 6.1 is the one layout that does not continue the pairs: FL FR FC LFE
+        // RC SL SR. The rear centre is index 4 — where 5.1 and 7.1 have a left
+        // surround — and reading it as a pair puts the rear centre in the left
+        // speaker and swaps the sides. Indices per symphonia's FLAC channel map.
+        assert_eq!(fold_gains(4, 7), (MINUS_3_DB, MINUS_3_DB), "rear centre feeds both");
+        assert_eq!(fold_gains(5, 7), (MINUS_3_DB, 0.0), "side left stays left");
+        assert_eq!(fold_gains(6, 7), (0.0, MINUS_3_DB), "side right stays right");
+    }
+
+    #[test]
+    fn the_layouts_that_do_continue_the_pairs_are_unaffected() {
+        // 5.1: RL RR after the LFE. 7.1: RL RR SL SR. Both alternate, and the
+        // 6.1 exception must not disturb them.
+        assert_eq!(fold_gains(4, 6), (MINUS_3_DB, 0.0));
+        assert_eq!(fold_gains(5, 6), (0.0, MINUS_3_DB));
+        for (idx, expected) in [
+            (4, (MINUS_3_DB, 0.0)),
+            (5, (0.0, MINUS_3_DB)),
+            (6, (MINUS_3_DB, 0.0)),
+            (7, (0.0, MINUS_3_DB)),
+        ] {
+            assert_eq!(fold_gains(idx, 8), expected, "7.1 index {idx}");
+        }
     }
 
     #[test]

@@ -815,18 +815,25 @@ pub(crate) fn output_device_channels(engine: &AudioEngine) -> u16 {
 
 /// Channel count from the selected device's default config, or 0 when no device
 /// answers. Mirrors `probe_device_default_rate` for channels.
+///
+/// Runs on the per-track build path while no stream is open, and querying a
+/// device opens the PCM — on ALSA that prints plugin chatter to stderr, which
+/// lands in the app log. Suppressed the same way every other device query in
+/// this crate is.
 fn probe_output_device_channels(engine: &AudioEngine) -> u16 {
     use rodio::cpal::traits::{DeviceTrait, HostTrait};
 
     let selected = engine.selected_device.lock().ok().and_then(|name| name.clone());
-    let device = selected
-        .and_then(|name| crate::dev_io::resolve_output_device(&name))
-        .or_else(|| rodio::cpal::default_host().default_output_device());
+    crate::dev_io::with_suppressed_alsa_stderr(|| {
+        let device = selected
+            .and_then(|name| crate::dev_io::resolve_output_device(&name))
+            .or_else(|| rodio::cpal::default_host().default_output_device());
 
-    device
-        .and_then(|device| device.default_output_config().ok())
-        .map(|config| config.channels())
-        .unwrap_or(0)
+        device
+            .and_then(|device| device.default_output_config().ok())
+            .map(|config| config.channels())
+            .unwrap_or(0)
+    })
 }
 
 pub(crate) fn stream_rate_needs_switch(target_rate: u32, current_requested_rate: u32) -> bool {
