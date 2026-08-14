@@ -445,6 +445,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Migrating a device to the current folder layout now refuses any rename that would reach outside the folder you selected, and reports it per file instead of carrying it out. The paths came from a settings file stored on the device itself, so a device prepared elsewhere could name locations the migration was never pointed at.
 * A drive that disappears during a migration is reported as exactly that, rather than as a rejected path.
 
+### Surround tracks — hear all of the music on stereo speakers
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1413](https://github.com/Psychotoxical/psysonic/pull/1413)**, reported by [@tossmilestone](https://github.com/tossmilestone)
+
+* A 5.1 track played on stereo speakers or headphones now mixes every channel into the two you hear. Previously only the front left and right were played, so anything the recording placed in the centre, the bass channel or the rear — often a large part of the arrangement — was silently dropped.
+* Surround output is unaffected: on a device that can take all the channels, the track still plays with them.
+
 ## [1.50.0]
 
 ## Added
