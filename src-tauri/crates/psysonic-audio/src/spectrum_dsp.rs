@@ -159,6 +159,9 @@ pub(crate) fn combine_power_magnitudes(left: &[f32], right: &[f32], out: &mut [f
 pub(crate) struct Band {
     pub(crate) lo: usize,
     pub(crate) hi: usize,
+    /// Fractional bin position of the band's centre frequency, for
+    /// interpolating bands narrower than one FFT bin.
+    pub(crate) centre_bin: f32,
     pub(crate) tilt_db: f32,
 }
 
@@ -193,8 +196,9 @@ pub(crate) fn band_layout(sample_rate: u32) -> Vec<Band> {
             (nearest, nearest)
         };
 
+        let centre_bin = (centre / bin_hz).clamp(1.0, max_bin as f32);
         let tilt_db = (TILT_DB_PER_OCTAVE * (centre / TILT_REF_HZ).log2()).clamp(0.0, TILT_MAX_DB);
-        bands.push(Band { lo, hi, tilt_db });
+        bands.push(Band { lo, hi, centre_bin, tilt_db });
     }
     bands
 }
@@ -215,9 +219,31 @@ pub(crate) fn bands_from_magnitudes(mags: &[f32], layout: &[Band], out: &mut [f3
     for (band, slot) in layout.iter().zip(out.iter_mut()) {
         let hi = band.hi.min(mags.len().saturating_sub(1));
         let lo = band.lo.min(hi);
-        let peak = mags[lo..=hi].iter().copied().fold(0.0f32, f32::max);
-        *slot = magnitude_to_level(peak, band.tilt_db);
+        let mag = if lo == hi {
+            // Bands narrower than one FFT bin collapse onto a shared bin, and
+            // taking that bin's value verbatim renders runs of neighbouring
+            // bars as flat lockstep plateaus. Interpolating the spectrum at
+            // each band's own centre frequency keeps adjacent bars distinct
+            // without moving energy away from its true frequency.
+            interpolated_magnitude(mags, band.centre_bin)
+        } else {
+            mags[lo..=hi].iter().copied().fold(0.0f32, f32::max)
+        };
+        *slot = magnitude_to_level(mag, band.tilt_db);
     }
+}
+
+/// Linear interpolation of the magnitude spectrum at a fractional bin position.
+fn interpolated_magnitude(mags: &[f32], centre_bin: f32) -> f32 {
+    let max = mags.len().saturating_sub(1);
+    if max == 0 {
+        return mags.first().copied().unwrap_or(0.0);
+    }
+    let pos = centre_bin.clamp(1.0, max as f32);
+    let i0 = pos.floor() as usize;
+    let i1 = (i0 + 1).min(max);
+    let frac = pos - i0 as f32;
+    mags[i0] * (1.0 - frac) + mags[i1] * frac
 }
 
 // ── Smoothing ────────────────────────────────────────────────────────────────
@@ -624,6 +650,34 @@ mod tests {
                 "rate {rate}: unresolved bass bands were incorrectly forced unique"
             );
         }
+    }
+
+    #[test]
+    fn narrow_bass_bands_interpolate_instead_of_plateauing() {
+        // At 48 kHz, bands 5..=14 all collapse onto FFT bin 2. Reading that
+        // bin verbatim renders them as one flat lockstep plateau — the
+        // "squared" left edge. Interpolating at each band's centre frequency
+        // must keep neighbouring bars visually distinct.
+        let sample_rate = 48_000u32;
+        let layout = band_layout(sample_rate);
+        let plateau = &layout[5..=14];
+        assert!(
+            plateau.iter().all(|b| b.lo == b.hi && b.lo == plateau[0].lo),
+            "test premise broken: bands 5..=14 no longer share one bin: {plateau:?}"
+        );
+
+        let mags = windowed_spectrum(60.0, sample_rate as f32, 1.0);
+        let mut bands = vec![0.0; BAND_COUNT];
+        bands_from_magnitudes(&mags, &layout, &mut bands);
+        let distinct = bands[5..=14]
+            .windows(2)
+            .filter(|pair| (pair[0] - pair[1]).abs() > 1e-6)
+            .count();
+        assert!(
+            distinct >= 5,
+            "bands sharing a bin still move in lockstep: {:?}",
+            &bands[5..=14]
+        );
     }
 
     #[test]
