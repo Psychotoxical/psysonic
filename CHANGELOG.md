@@ -113,6 +113,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * `psysonic benchmark run` drives the running desktop app through representative core or all-page scenarios, with realistic and isolated profiles plus repeatable run counts.
 * JSON reports retain route readiness, React work, quiet time, long tasks and environment details, then compare each run with the previous matching report.
 
+### Random Mix — combine several genres in one playlist
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1421](https://github.com/Psychotoxical/psysonic/pull/1421)**, requested by Gypsy on the Psysonic Discord
+
+* Select several genre chips at once to build one random playlist instead of replacing the previous selection. Psysonic balances songs across the selected genres and removes duplicates before playback.
+* Selected genres stay visible when showing a different set of popular genres, and rapid changes keep only the newest mix.
+
 ## Changed
 
 ### Library index — designed for several live servers at once
