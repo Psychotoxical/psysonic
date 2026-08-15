@@ -138,6 +138,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Home, Albums, Artists, New Releases, Lossless Albums and Search reuse bounded local results instead of repeating large scoped reads while routes mount, paginate or restore their session.
 * Browse pages coordinate cover traffic and background catalogue work more carefully, so the first useful content appears before non-visible enrichment and prefetch work.
 
+### Analysis — reuse downloaded audio and prioritise playback
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1419](https://github.com/Psychotoxical/psysonic/pull/1419)**
+
+* Waveform, loudness and enrichment reuse audio already loaded for playback, preload, cache and local files, including large completed streams held on disk, instead of downloading the original again.
+* Background analysis stays within bounded memory and disk limits while active playback takes priority over library backfill. Range-stripping servers and unavailable source files also stop cleanly without repeated work.
+
 ## Fixed
 
 ### Cross-server ownership — IDs no longer collide or drift to the active server

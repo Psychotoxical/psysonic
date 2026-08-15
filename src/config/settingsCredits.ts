@@ -214,6 +214,7 @@ const CONTRIBUTOR_ENTRIES = [
       'Performance benchmark CLI and faster scoped library browsing (PR #1382)',
       'Startup window controls and lifecycle race fixes (PR #1392)',
       'AIFF/AIF/AIFC playback across streamed, cached, and local sources (PR #1396)',
+      'Analysis pipeline — reuse playback and completed-stream sources, bound backfill resources, and prioritise active playback (PR #1419)',
     ],
   },
   {
