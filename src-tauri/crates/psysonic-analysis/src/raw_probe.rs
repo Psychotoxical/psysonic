@@ -122,6 +122,40 @@ fn looks_like_subsonic_error(body: &[u8]) -> bool {
     trimmed.starts_with(b"{") || trimmed.starts_with(b"<?xml") || trimmed.starts_with(b"<subsonic")
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SubsonicStreamError {
+    pub code: i64,
+    pub message: String,
+}
+
+impl SubsonicStreamError {
+    pub fn is_source_unavailable(&self) -> bool {
+        let message = self.message.to_ascii_lowercase();
+        self.code == 70 || message.contains("no such file or directory")
+    }
+}
+
+fn parse_subsonic_stream_error(body: &[u8]) -> Option<SubsonicStreamError> {
+    let envelope: serde_json::Value = serde_json::from_slice(body).ok()?;
+    let response = envelope.get("subsonic-response")?;
+    let error = response.get("error")?;
+    Some(SubsonicStreamError {
+        code: error.get("code").and_then(|value| value.as_i64()).unwrap_or(-1),
+        message: error
+            .get("message")
+            .and_then(|value| value.as_str())
+            .unwrap_or_default()
+            .to_string(),
+    })
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TrustedOriginalProbeResult {
+    Trusted(String),
+    SubsonicError(SubsonicStreamError),
+    Unavailable,
+}
+
 /// Header-phase validation — runs BEFORE any body bytes are read, so a server
 /// that ignored the Range request (200 with the whole file) is rejected
 /// without buffering it. Returns the exact prefix length the body must have.
@@ -158,25 +192,29 @@ pub fn validate_prefix_body(body: &[u8], expected_len: usize) -> bool {
     body.len() == expected_len && !looks_like_subsonic_error(body)
 }
 
-/// Fetch the original file's first 16 KiB via `format=raw` and fingerprint it.
-/// `None` on any failure — the caller must then skip canonical analysis writes.
-pub async fn fetch_trusted_original_md5(
+/// Fetch the original file's first 16 KiB via `format=raw` and fingerprint it,
+/// preserving structured Subsonic errors for background analysis handling.
+pub async fn probe_trusted_original_md5(
     client: &reqwest::Client,
     registry: Option<&ServerHttpRegistry>,
     server_id: Option<&str>,
     stream_url: &str,
-) -> Option<String> {
-    let probe_url = capability_gated_raw_url(registry, server_id, stream_url)?;
+) -> TrustedOriginalProbeResult {
+    let Some(probe_url) = capability_gated_raw_url(registry, server_id, stream_url) else {
+        return TrustedOriginalProbeResult::Unavailable;
+    };
     // Same reverse-proxy gate headers as playback itself — a probe through
     // Pangolin/Cloudflare Access must not 403 while the stream succeeds.
     let req =
         apply_optional_registry_headers(registry, server_id, &probe_url, client.get(&probe_url));
-    let mut resp = req
+    let Ok(mut resp) = req
         .header("Range", format!("bytes=0-{RAW_PROBE_RANGE_END}"))
         .timeout(RAW_PROBE_TIMEOUT)
         .send()
         .await
-        .ok()?;
+    else {
+        return TrustedOriginalProbeResult::Unavailable;
+    };
     let status = resp.status().as_u16();
     let content_range = resp
         .headers()
@@ -195,10 +233,10 @@ pub async fn fetch_trusted_original_md5(
         crate::app_deprintln!(
             "[analysis][raw-probe] rejected pre-body status={status} content_range={content_range:?} content_length={content_length:?}"
         );
-        return None;
+        return TrustedOriginalProbeResult::Unavailable;
     };
     if target_len == 0 {
-        return None;
+        return TrustedOriginalProbeResult::Unavailable;
     }
     // Never buffer beyond the fingerprint window, including when a proxy
     // ignored Range and returned the complete original as 200 OK.
@@ -213,19 +251,35 @@ pub async fn fetch_trusted_original_md5(
                 }
             }
             Ok(None) => break,
-            Err(_) => return None,
+            Err(_) => return TrustedOriginalProbeResult::Unavailable,
         }
     }
     let valid_len = body.len() == target_len
         || (full_response && content_length.is_none() && !body.is_empty());
+    if let Some(error) = parse_subsonic_stream_error(&body) {
+        return TrustedOriginalProbeResult::SubsonicError(error);
+    }
     if !valid_len || looks_like_subsonic_error(&body) {
         crate::app_deprintln!(
             "[analysis][raw-probe] rejected body_len={} target={target_len}",
             body.len()
         );
-        return None;
+        return TrustedOriginalProbeResult::Unavailable;
     }
-    Some(crate::analysis_cache::md5_first_16kb(&body))
+    TrustedOriginalProbeResult::Trusted(crate::analysis_cache::md5_first_16kb(&body))
+}
+
+pub async fn fetch_trusted_original_md5(
+    client: &reqwest::Client,
+    registry: Option<&ServerHttpRegistry>,
+    server_id: Option<&str>,
+    stream_url: &str,
+) -> Option<String> {
+    match probe_trusted_original_md5(client, registry, server_id, stream_url).await {
+        TrustedOriginalProbeResult::Trusted(hash) => Some(hash),
+        TrustedOriginalProbeResult::SubsonicError(_)
+        | TrustedOriginalProbeResult::Unavailable => None,
+    }
 }
 
 /// Fetch the complete verified original through `format=raw`, bounded by the
@@ -255,6 +309,7 @@ pub async fn fetch_trusted_original_bytes(
 pub enum BoundedStreamFetchError {
     TooLarge { md5_16kb: String },
     HttpStatus(u16),
+    SubsonicApi(SubsonicStreamError),
     RequestFailed(String),
     BodyReadFailed(String),
     InvalidResponse,
@@ -271,6 +326,13 @@ impl std::fmt::Display for BoundedStreamFetchError {
         match self {
             Self::TooLarge { .. } => formatter.write_str("response exceeds analysis cap"),
             Self::HttpStatus(status) => write!(formatter, "HTTP {status}"),
+            Self::SubsonicApi(error) => {
+                write!(
+                    formatter,
+                    "Subsonic API error {}: {}",
+                    error.code, error.message
+                )
+            }
             Self::RequestFailed(message) => write!(formatter, "request failed: {message}"),
             Self::BodyReadFailed(message) => write!(formatter, "body read failed: {message}"),
             Self::InvalidResponse => formatter.write_str("invalid or empty response"),
@@ -336,6 +398,9 @@ pub async fn fetch_bounded_stream_bytes(
                 ));
             }
         }
+    }
+    if let Some(error) = parse_subsonic_stream_error(&body) {
+        return Err(BoundedStreamFetchError::SubsonicApi(error));
     }
     if body.is_empty() || looks_like_subsonic_error(&body) {
         return Err(BoundedStreamFetchError::InvalidResponse);
@@ -619,6 +684,19 @@ mod tests {
     }
 
     #[test]
+    fn subsonic_missing_source_error_preserves_code_and_reason() {
+        let body = br#"{"subsonic-response":{"status":"failed","error":{"code":0,"message":"open /music/a.flac: no such file or directory"}}}"#;
+        let error = parse_subsonic_stream_error(body).unwrap();
+
+        assert_eq!(error.code, 0);
+        assert_eq!(
+            error.message,
+            "open /music/a.flac: no such file or directory"
+        );
+        assert!(error.is_source_unavailable());
+    }
+
+    #[test]
     fn short_files_use_their_full_size_and_bodies_must_match_exactly() {
         // File smaller than the probe window: exact "0-(size-1)/size" accepted.
         assert_eq!(expected_prefix_len(206, Some("bytes 0-511/512")), Some(512));
@@ -749,6 +827,36 @@ mod http_tests {
         )
         .await;
         assert_eq!(got, None);
+    }
+
+    #[tokio::test]
+    async fn detailed_probe_returns_the_subsonic_error_reason() {
+        let server = MockServer::start().await;
+        let err = br#"{"subsonic-response":{"status":"failed","error":{"code":0,"message":"open /music/a.flac: no such file or directory"}}}"#.to_vec();
+        Mock::given(method("GET"))
+            .and(path("/rest/stream.view"))
+            .and(query_param("format", "raw"))
+            .respond_with(ResponseTemplate::new(200).set_body_bytes(err))
+            .mount(&server)
+            .await;
+        let url = format!("{}/rest/stream.view?id=missing", server.uri());
+        let registry = registry_for(&server.uri());
+
+        let result = probe_trusted_original_md5(
+            &reqwest::Client::new(),
+            Some(&registry),
+            Some("server-key"),
+            &url,
+        )
+        .await;
+
+        assert_eq!(
+            result,
+            TrustedOriginalProbeResult::SubsonicError(SubsonicStreamError {
+                code: 0,
+                message: "open /music/a.flac: no such file or directory".to_string(),
+            })
+        );
     }
 
     #[tokio::test]

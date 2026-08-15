@@ -328,6 +328,24 @@ impl AnalysisBackfillQueueState {
             .is_some_and(|retry_after| *retry_after > std::time::Instant::now())
     }
 
+    fn clear_failure_state(&mut self, server_id: &str, track_ids: &[String]) {
+        if track_ids.is_empty() {
+            let prefix = format!("{server_id}\u{1f}");
+            self.retry_state.retain(|key, _| !key.starts_with(&prefix));
+            self.terminal_failures
+                .retain(|key, _| !key.starts_with(&prefix));
+            return;
+        }
+        for track_id in track_ids {
+            let bare_track_id = track_id.strip_prefix("stream:").unwrap_or(track_id);
+            for variant in [bare_track_id.to_string(), format!("stream:{bare_track_id}")] {
+                let key = seed_key(server_id, &variant);
+                self.retry_state.remove(&key);
+                self.terminal_failures.remove(&key);
+            }
+        }
+    }
+
     pub fn enqueue(
         &mut self,
         server_id: String,
@@ -1151,6 +1169,7 @@ fn analysis_http_client() -> &'static reqwest::Client {
 }
 
 const ANALYSIS_BACKFILL_DOWNLOAD_MAX_BYTES: usize = 64 * 1024 * 1024;
+const ANALYSIS_SOURCE_UNAVAILABLE_REVISION: &str = "source-unavailable";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum AnalysisBackfillJobError {
@@ -1169,6 +1188,83 @@ impl std::fmt::Display for AnalysisBackfillJobError {
 impl AnalysisBackfillJobError {
     fn is_retryable(&self) -> bool {
         matches!(self, Self::Retryable(_))
+    }
+}
+
+fn source_unavailable_failure<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+    server_id: &str,
+    track_id: &str,
+    error: &crate::raw_probe::SubsonicStreamError,
+    generation: u64,
+) -> AnalysisBackfillJobError {
+    let message = error.message.lines().collect::<Vec<_>>().join(" ");
+    crate::app_deprintln!(
+        "[analysis][backfill] source unavailable track_id={track_id} code={} message={message}",
+        error.code
+    );
+    register_trusted_revision_generation(
+        server_id,
+        track_id,
+        ANALYSIS_SOURCE_UNAVAILABLE_REVISION,
+        generation,
+    );
+    let Some(cache) = app.try_state::<analysis_cache::AnalysisCache>() else {
+        return AnalysisBackfillJobError::Retryable(format!(
+            "analysis source unavailable (Subsonic code {}), but analysis cache is unavailable",
+            error.code
+        ));
+    };
+    let key = analysis_cache::TrackKey {
+        server_id: server_id.to_string(),
+        track_id: track_id.to_string(),
+        md5_16kb: ANALYSIS_SOURCE_UNAVAILABLE_REVISION.to_string(),
+    };
+    match cache.touch_track_status(&key, "failed") {
+        Ok(()) => AnalysisBackfillJobError::Terminal(format!(
+            "analysis source unavailable (Subsonic code {}): {message}",
+            error.code
+        )),
+        Err(cache_error) => AnalysisBackfillJobError::Retryable(format!(
+            "analysis source unavailable (Subsonic code {}), but failed to record it: {cache_error}",
+            error.code
+        )),
+    }
+}
+
+async fn probe_backfill_trusted_identity<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+    registry: Option<&ServerHttpRegistry>,
+    server_id: &str,
+    track_id: &str,
+    url: &str,
+    generation: u64,
+) -> Result<Option<String>, AnalysisBackfillJobError> {
+    match crate::raw_probe::probe_trusted_original_md5(
+        analysis_http_client(),
+        registry,
+        Some(server_id),
+        url,
+    )
+    .await
+    {
+        crate::raw_probe::TrustedOriginalProbeResult::Trusted(hash) => Ok(Some(hash)),
+        crate::raw_probe::TrustedOriginalProbeResult::SubsonicError(error)
+            if error.is_source_unavailable() =>
+        {
+            Err(source_unavailable_failure(
+                app, server_id, track_id, &error, generation,
+            ))
+        }
+        crate::raw_probe::TrustedOriginalProbeResult::SubsonicError(error) => {
+            let message = error.message.lines().collect::<Vec<_>>().join(" ");
+            crate::app_deprintln!(
+                "[analysis][backfill] raw identity probe rejected track_id={track_id} code={} message={message}",
+                error.code
+            );
+            Ok(None)
+        }
+        crate::raw_probe::TrustedOriginalProbeResult::Unavailable => Ok(None),
     }
 }
 
@@ -1241,15 +1337,17 @@ async fn analysis_backfill_download<R: tauri::Runtime>(
     let raw_supported =
         crate::raw_probe::raw_stream_supported(registry.as_deref(), Some(server_id), url);
     let mut trusted = if raw_supported {
-        match crate::raw_probe::resolve_trusted_identity(
-            analysis_http_client(),
+        match probe_backfill_trusted_identity(
+            app,
             registry.as_deref(),
-            Some(server_id),
+            server_id,
+            track_id,
             url,
+            operation_generation,
         )
         .await
         {
-            crate::raw_probe::TrustedProbeVerdict::Trusted(hash) => {
+            Ok(Some(hash)) => {
                 register_trusted_revision_generation(
                     server_id,
                     track_id,
@@ -1258,12 +1356,13 @@ async fn analysis_backfill_download<R: tauri::Runtime>(
                 );
                 Some(hash)
             }
-            crate::raw_probe::TrustedProbeVerdict::SkipCanonicalWrites => {
+            Ok(None) => {
                 crate::app_deprintln!(
                     "[analysis] raw identity probe unavailable track_id={track_id}; falling back to original download"
                 );
                 None
             }
+            Err(error) => return Err(error),
         }
     } else {
         None
@@ -1279,15 +1378,17 @@ async fn analysis_backfill_download<R: tauri::Runtime>(
             max_bytes,
         )
         .await;
-        let revalidated = crate::raw_probe::resolve_trusted_identity(
-            analysis_http_client(),
+        let revalidated = probe_backfill_trusted_identity(
+            app,
             registry.as_deref(),
-            Some(server_id),
+            server_id,
+            track_id,
             url,
+            operation_generation,
         )
         .await;
         match revalidated {
-            crate::raw_probe::TrustedProbeVerdict::Trusted(hash) => {
+            Ok(Some(hash)) => {
                 register_trusted_revision_generation(
                     server_id,
                     track_id,
@@ -1323,6 +1424,17 @@ async fn analysis_backfill_download<R: tauri::Runtime>(
                                 "analysis transcode exceeds cap of {max_bytes} bytes"
                             )));
                         }
+                        Err(crate::raw_probe::BoundedStreamFetchError::SubsonicApi(error))
+                            if error.is_source_unavailable() =>
+                        {
+                            return Err(source_unavailable_failure(
+                                app,
+                                server_id,
+                                track_id,
+                                &error,
+                                operation_generation,
+                            ));
+                        }
                         Err(error) => {
                             crate::app_deprintln!(
                                 "[analysis] transcode unavailable track_id={track_id}: {error}; falling back to original download"
@@ -1335,12 +1447,13 @@ async fn analysis_backfill_download<R: tauri::Runtime>(
                     );
                 }
             }
-            crate::raw_probe::TrustedProbeVerdict::SkipCanonicalWrites => {
+            Ok(None) => {
                 trusted = None;
                 crate::app_deprintln!(
                     "[analysis] raw identity revalidation unavailable track_id={track_id}; falling back to original download"
                 );
             }
+            Err(error) => return Err(error),
         }
     }
 
@@ -1387,6 +1500,17 @@ async fn analysis_backfill_download<R: tauri::Runtime>(
             return Err(AnalysisBackfillJobError::Terminal(format!(
                 "original download exceeds analysis cap of {max_bytes} bytes"
             )));
+        }
+        Err(crate::raw_probe::BoundedStreamFetchError::SubsonicApi(error))
+            if error.is_source_unavailable() =>
+        {
+            return Err(source_unavailable_failure(
+                app,
+                server_id,
+                track_id,
+                &error,
+                operation_generation,
+            ));
         }
         Err(error) => {
             let message = format!("original download unavailable: {error}");
@@ -1632,6 +1756,17 @@ pub fn analysis_backfill_queue_stats() -> (usize, usize, Option<String>) {
     } else {
         (0, 0, None)
     }
+}
+
+pub fn clear_analysis_backfill_failure_state(server_id: &str, track_ids: &[String]) {
+    let Some(shared) = ANALYSIS_BACKFILL.get() else {
+        return;
+    };
+    let mut state = shared
+        .state
+        .lock()
+        .unwrap_or_else(|error| error.into_inner());
+    state.clear_failure_state(server_id, track_ids);
 }
 
 pub fn analysis_track_in_cpu_pipeline(server_id: &str, track_id: &str) -> bool {
@@ -2990,6 +3125,54 @@ mod tests {
         );
     }
 
+    #[tokio::test]
+    async fn missing_source_is_recorded_without_original_download_fallback() {
+        use tauri::Manager;
+        use wiremock::matchers::{method, path, query_param};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+        let response = br#"{"subsonic-response":{"status":"failed","error":{"code":0,"message":"open /music/missing.flac: no such file or directory"}}}"#.to_vec();
+        Mock::given(method("GET"))
+            .and(path("/rest/stream.view"))
+            .and(query_param("format", "raw"))
+            .respond_with(ResponseTemplate::new(200).set_body_bytes(response))
+            .mount(&server)
+            .await;
+
+        let app = tauri::test::mock_app();
+        app.handle()
+            .manage(Arc::new(analysis_registry(&server.uri(), true)));
+        app.handle()
+            .manage(analysis_cache::AnalysisCache::open_in_memory());
+        let stream_url = format!("{}/rest/stream.view?id=missing&format=mp3", server.uri());
+
+        let result = analysis_backfill_download(
+            app.handle(),
+            "canonical-server",
+            "missing",
+            &stream_url,
+            ANALYSIS_BACKFILL_DOWNLOAD_MAX_BYTES,
+        )
+        .await;
+
+        let Err(AnalysisBackfillJobError::Terminal(message)) = result else {
+            panic!("missing source should be a recoverable terminal backfill failure");
+        };
+        assert!(message.contains("Subsonic code 0"));
+        assert!(message.contains("no such file or directory"));
+        let cache = app.handle().state::<analysis_cache::AnalysisCache>();
+        let failed = cache
+            .list_failed_tracks("canonical-server", None)
+            .unwrap();
+        assert_eq!(failed.len(), 1);
+        assert_eq!(failed[0].track_id, "missing");
+        assert_eq!(failed[0].md5_16kb, ANALYSIS_SOURCE_UNAVAILABLE_REVISION);
+        let requests = server.received_requests().await.unwrap();
+        assert_eq!(requests.len(), 1);
+        assert_eq!(requests[0].url.path(), "/rest/stream.view");
+    }
+
     #[test]
     fn explicit_backfill_server_hint_beats_url_transport_scope() {
         assert_eq!(
@@ -3351,6 +3534,29 @@ mod tests {
             AnalysisBackfillEnqueueKind::NewLow
         );
         assert!(state.terminal_failures.is_empty());
+    }
+
+    #[test]
+    fn clearing_failed_tracks_removes_matching_backfill_cooldowns() {
+        let mut state = AnalysisBackfillQueueState::default();
+        let bare_key = seed_key("server-1", "missing");
+        let stream_key = seed_key("server-1", "stream:missing");
+        let other_server_key = seed_key("server-2", "missing");
+        state.record_retryable_failure(&bare_key);
+        state.terminal_failures.insert(
+            stream_key.clone(),
+            std::time::Instant::now() + std::time::Duration::from_secs(60),
+        );
+        state.terminal_failures.insert(
+            other_server_key.clone(),
+            std::time::Instant::now() + std::time::Duration::from_secs(60),
+        );
+
+        state.clear_failure_state("server-1", &["missing".to_string()]);
+
+        assert!(!state.retry_state.contains_key(&bare_key));
+        assert!(!state.terminal_failures.contains_key(&stream_key));
+        assert!(state.terminal_failures.contains_key(&other_server_key));
     }
 
     #[test]

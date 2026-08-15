@@ -7,9 +7,9 @@ use std::collections::HashSet;
 
 use crate::analysis_cache;
 use crate::analysis_runtime::{
-    analysis_backfill_queue_stats, analysis_pipeline_queue_stats, enqueue_seed_from_url,
-    prune_analysis_queues, AnalysisBackfillPriority, EnqueueSeedFromUrlOutcome,
-    PlaybackPriorityHints,
+    analysis_backfill_queue_stats, analysis_pipeline_queue_stats,
+    clear_analysis_backfill_failure_state, enqueue_seed_from_url, prune_analysis_queues,
+    AnalysisBackfillPriority, EnqueueSeedFromUrlOutcome, PlaybackPriorityHints,
 };
 
 #[derive(serde::Serialize, specta::Type)]
@@ -295,7 +295,9 @@ pub fn analysis_clear_failed_tracks(
         .map(|id| id.trim().to_string())
         .filter(|id| !id.is_empty())
         .collect::<Vec<_>>();
-    cache.clear_failed_tracks(&server_id, &track_ids)
+    let cleared = cache.clear_failed_tracks(&server_id, &track_ids)?;
+    clear_analysis_backfill_failure_state(&server_id, &track_ids);
+    Ok(cleared)
 }
 
 #[tauri::command]
