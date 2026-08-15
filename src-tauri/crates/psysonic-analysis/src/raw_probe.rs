@@ -133,6 +133,20 @@ impl SubsonicStreamError {
         let message = self.message.to_ascii_lowercase();
         self.code == 70 || message.contains("no such file or directory")
     }
+
+    pub fn diagnostic_reason(&self) -> &'static str {
+        if self
+            .message
+            .to_ascii_lowercase()
+            .contains("no such file or directory")
+        {
+            "no_such_file_or_directory"
+        } else if self.code == 70 {
+            "requested_data_not_found"
+        } else {
+            "subsonic_api_error"
+        }
+    }
 }
 
 fn parse_subsonic_stream_error(body: &[u8]) -> Option<SubsonicStreamError> {
@@ -317,7 +331,7 @@ pub enum BoundedStreamFetchError {
 
 impl BoundedStreamFetchError {
     pub fn is_permanent_http(&self) -> bool {
-        matches!(self, Self::HttpStatus(status) if (400..500).contains(status) && !matches!(status, 408 | 425 | 429))
+        matches!(self, Self::HttpStatus(status) if (400..500).contains(status) && !matches!(status, 401 | 403 | 408 | 425 | 429))
     }
 }
 
@@ -329,8 +343,9 @@ impl std::fmt::Display for BoundedStreamFetchError {
             Self::SubsonicApi(error) => {
                 write!(
                     formatter,
-                    "Subsonic API error {}: {}",
-                    error.code, error.message
+                    "Subsonic API error {} ({})",
+                    error.code,
+                    error.diagnostic_reason(),
                 )
             }
             Self::RequestFailed(message) => write!(formatter, "request failed: {message}"),
@@ -677,7 +692,8 @@ mod tests {
     #[test]
     fn permanent_http_status_classification_excludes_retryable_responses() {
         assert!(BoundedStreamFetchError::HttpStatus(404).is_permanent_http());
-        assert!(BoundedStreamFetchError::HttpStatus(401).is_permanent_http());
+        assert!(!BoundedStreamFetchError::HttpStatus(401).is_permanent_http());
+        assert!(!BoundedStreamFetchError::HttpStatus(403).is_permanent_http());
         assert!(!BoundedStreamFetchError::HttpStatus(408).is_permanent_http());
         assert!(!BoundedStreamFetchError::HttpStatus(429).is_permanent_http());
         assert!(!BoundedStreamFetchError::HttpStatus(503).is_permanent_http());
@@ -694,6 +710,7 @@ mod tests {
             "open /music/a.flac: no such file or directory"
         );
         assert!(error.is_source_unavailable());
+        assert_eq!(error.diagnostic_reason(), "no_such_file_or_directory");
     }
 
     #[test]

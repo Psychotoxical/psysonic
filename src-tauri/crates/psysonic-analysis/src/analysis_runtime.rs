@@ -353,6 +353,17 @@ impl AnalysisBackfillQueueState {
         url: String,
         priority: AnalysisBackfillPriority,
     ) -> AnalysisBackfillEnqueueKind {
+        self.enqueue_with_force(server_id, tid, url, priority, false)
+    }
+
+    fn enqueue_with_force(
+        &mut self,
+        server_id: String,
+        tid: String,
+        url: String,
+        priority: AnalysisBackfillPriority,
+        force: bool,
+    ) -> AnalysisBackfillEnqueueKind {
         // Reservation/merge scope is (server, track): the same Subsonic id on
         // two servers is two different files and must not collide.
         let key = seed_key(&server_id, &tid);
@@ -377,10 +388,10 @@ impl AnalysisBackfillQueueState {
             self.push_new(priority, (tid, url, server_id));
             return AnalysisBackfillEnqueueKind::ReorderedHigher;
         }
-        if priority == AnalysisBackfillPriority::Low && self.retry_deferred(tref) {
+        if !force && priority == AnalysisBackfillPriority::Low && self.retry_deferred(tref) {
             return AnalysisBackfillEnqueueKind::RetryDeferred;
         }
-        if priority == AnalysisBackfillPriority::Low && self.terminal_deferred(tref) {
+        if !force && priority == AnalysisBackfillPriority::Low && self.terminal_deferred(tref) {
             return AnalysisBackfillEnqueueKind::TerminalSkipped;
         }
         if !self.terminal_deferred(tref) {
@@ -519,6 +530,27 @@ struct TrustedActivationState {
     current_by_track: HashMap<String, TrustedRevisionGeneration>,
 }
 
+impl TrustedActivationState {
+    fn register(&mut self, key: String, revision: &str, generation: u64) -> u64 {
+        if let Some(current) = self.current_by_track.get(&key) {
+            if current.revision == revision {
+                return current.generation;
+            }
+            if current.generation > generation {
+                return generation;
+            }
+        }
+        self.current_by_track.insert(
+            key,
+            TrustedRevisionGeneration {
+                revision: revision.to_string(),
+                generation,
+            },
+        );
+        generation
+    }
+}
+
 static TRUSTED_ACTIVATION_GENERATION: AtomicU64 = AtomicU64::new(0);
 static TRUSTED_ACTIVATIONS: OnceLock<Mutex<TrustedActivationState>> = OnceLock::new();
 
@@ -536,26 +568,32 @@ fn register_trusted_revision_generation(
     track_id: &str,
     revision: &str,
     generation: u64,
-) {
+) -> u64 {
     let key = canonical_activation_key(server_id, track_id);
     let mut state = TRUSTED_ACTIVATIONS
         .get_or_init(|| Mutex::new(TrustedActivationState::default()))
         .lock()
         .unwrap_or_else(|e| e.into_inner());
-    if state
+    state.register(key, revision, generation)
+}
+
+#[cfg(test)]
+fn trusted_revision_generation_is_current(
+    server_id: &str,
+    track_id: &str,
+    revision: &str,
+    generation: u64,
+) -> bool {
+    let key = canonical_activation_key(server_id, track_id);
+    TRUSTED_ACTIVATIONS
+        .get_or_init(|| Mutex::new(TrustedActivationState::default()))
+        .lock()
+        .unwrap_or_else(|error| error.into_inner())
         .current_by_track
         .get(&key)
-        .is_some_and(|current| current.generation > generation)
-    {
-        return;
-    }
-    state.current_by_track.insert(
-        key,
-        TrustedRevisionGeneration {
-            revision: revision.to_string(),
-            generation,
-        },
-    );
+        .is_some_and(|current| {
+            current.revision == revision && current.generation == generation
+        })
 }
 
 pub fn begin_trusted_revision(server_id: &str, track_id: &str, revision: &str) -> u64 {
@@ -1175,12 +1213,14 @@ const ANALYSIS_SOURCE_UNAVAILABLE_REVISION: &str = "source-unavailable";
 enum AnalysisBackfillJobError {
     Terminal(String),
     Retryable(String),
+    Superseded,
 }
 
 impl std::fmt::Display for AnalysisBackfillJobError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Terminal(message) | Self::Retryable(message) => formatter.write_str(message),
+            Self::Superseded => formatter.write_str("superseded by newer analysis work"),
         }
     }
 }
@@ -1188,6 +1228,10 @@ impl std::fmt::Display for AnalysisBackfillJobError {
 impl AnalysisBackfillJobError {
     fn is_retryable(&self) -> bool {
         matches!(self, Self::Retryable(_))
+    }
+
+    fn is_superseded(&self) -> bool {
+        matches!(self, Self::Superseded)
     }
 }
 
@@ -1198,17 +1242,31 @@ fn source_unavailable_failure<R: tauri::Runtime>(
     error: &crate::raw_probe::SubsonicStreamError,
     generation: u64,
 ) -> AnalysisBackfillJobError {
-    let message = error.message.lines().collect::<Vec<_>>().join(" ");
     crate::app_deprintln!(
-        "[analysis][backfill] source unavailable track_id={track_id} code={} message={message}",
-        error.code
+        "[analysis][backfill] source unavailable track_id={track_id} code={} reason={}",
+        error.code,
+        error.diagnostic_reason(),
     );
-    register_trusted_revision_generation(
-        server_id,
-        track_id,
+    let activation_key = canonical_activation_key(server_id, track_id);
+    let mut activation_state = TRUSTED_ACTIVATIONS
+        .get_or_init(|| Mutex::new(TrustedActivationState::default()))
+        .lock()
+        .unwrap_or_else(|error| error.into_inner());
+    let effective_generation = activation_state.register(
+        activation_key.clone(),
         ANALYSIS_SOURCE_UNAVAILABLE_REVISION,
         generation,
     );
+    let is_current = activation_state
+        .current_by_track
+        .get(&activation_key)
+        .is_some_and(|current| {
+            current.revision == ANALYSIS_SOURCE_UNAVAILABLE_REVISION
+                && current.generation == effective_generation
+        });
+    if !is_current {
+        return AnalysisBackfillJobError::Superseded;
+    }
     let Some(cache) = app.try_state::<analysis_cache::AnalysisCache>() else {
         return AnalysisBackfillJobError::Retryable(format!(
             "analysis source unavailable (Subsonic code {}), but analysis cache is unavailable",
@@ -1222,8 +1280,9 @@ fn source_unavailable_failure<R: tauri::Runtime>(
     };
     match cache.touch_track_status(&key, "failed") {
         Ok(()) => AnalysisBackfillJobError::Terminal(format!(
-            "analysis source unavailable (Subsonic code {}): {message}",
-            error.code
+            "analysis source unavailable (Subsonic code {}, reason={})",
+            error.code,
+            error.diagnostic_reason(),
         )),
         Err(cache_error) => AnalysisBackfillJobError::Retryable(format!(
             "analysis source unavailable (Subsonic code {}), but failed to record it: {cache_error}",
@@ -1257,10 +1316,10 @@ async fn probe_backfill_trusted_identity<R: tauri::Runtime>(
             ))
         }
         crate::raw_probe::TrustedOriginalProbeResult::SubsonicError(error) => {
-            let message = error.message.lines().collect::<Vec<_>>().join(" ");
             crate::app_deprintln!(
-                "[analysis][backfill] raw identity probe rejected track_id={track_id} code={} message={message}",
-                error.code
+                "[analysis][backfill] raw identity probe rejected track_id={track_id} code={} reason={}",
+                error.code,
+                error.diagnostic_reason(),
             );
             Ok(None)
         }
@@ -1331,6 +1390,7 @@ async fn analysis_backfill_download<R: tauri::Runtime>(
     max_bytes: usize,
 ) -> Result<AnalysisBackfillDownload, AnalysisBackfillJobError> {
     let operation_generation = next_trusted_generation();
+    let mut effective_generation = operation_generation;
     let registry = app
         .try_state::<Arc<ServerHttpRegistry>>()
         .map(|s| Arc::clone(&*s));
@@ -1348,7 +1408,7 @@ async fn analysis_backfill_download<R: tauri::Runtime>(
         .await
         {
             Ok(Some(hash)) => {
-                register_trusted_revision_generation(
+                effective_generation = register_trusted_revision_generation(
                     server_id,
                     track_id,
                     &hash,
@@ -1389,7 +1449,7 @@ async fn analysis_backfill_download<R: tauri::Runtime>(
         .await;
         match revalidated {
             Ok(Some(hash)) => {
-                register_trusted_revision_generation(
+                effective_generation = register_trusted_revision_generation(
                     server_id,
                     track_id,
                     &hash,
@@ -1406,7 +1466,7 @@ async fn analysis_backfill_download<R: tauri::Runtime>(
                                 format_hint: analysis_stream_format_hint(url),
                                 trusted_revision: Some(TrustedAnalysisRevision {
                                     md5_16kb: hash,
-                                    generation: operation_generation,
+                                    generation: effective_generation,
                                     analysis_bytes_transcoded: true,
                                     content_hash_server_id: None,
                                 }),
@@ -1418,22 +1478,11 @@ async fn analysis_backfill_download<R: tauri::Runtime>(
                                 server_id,
                                 track_id,
                                 &hash,
-                                operation_generation,
+                                effective_generation,
                             )?;
                             return Err(AnalysisBackfillJobError::Terminal(format!(
                                 "analysis transcode exceeds cap of {max_bytes} bytes"
                             )));
-                        }
-                        Err(crate::raw_probe::BoundedStreamFetchError::SubsonicApi(error))
-                            if error.is_source_unavailable() =>
-                        {
-                            return Err(source_unavailable_failure(
-                                app,
-                                server_id,
-                                track_id,
-                                &error,
-                                operation_generation,
-                            ));
                         }
                         Err(error) => {
                             crate::app_deprintln!(
@@ -1483,7 +1532,7 @@ async fn analysis_backfill_download<R: tauri::Runtime>(
             }
             let original_md5_16kb = trusted.as_deref().unwrap_or(&md5_16kb);
             if trusted.is_none() {
-                register_trusted_revision_generation(
+                effective_generation = register_trusted_revision_generation(
                     server_id,
                     track_id,
                     original_md5_16kb,
@@ -1495,7 +1544,7 @@ async fn analysis_backfill_download<R: tauri::Runtime>(
                 server_id,
                 track_id,
                 original_md5_16kb,
-                operation_generation,
+                effective_generation,
             )?;
             return Err(AnalysisBackfillJobError::Terminal(format!(
                 "original download exceeds analysis cap of {max_bytes} bytes"
@@ -1529,9 +1578,14 @@ async fn analysis_backfill_download<R: tauri::Runtime>(
         }
     }
     let md5_16kb = trusted.unwrap_or_else(|| analysis_cache::md5_first_16kb(&bytes));
-    register_trusted_revision_generation(server_id, track_id, &md5_16kb, operation_generation);
+    effective_generation = register_trusted_revision_generation(
+        server_id,
+        track_id,
+        &md5_16kb,
+        operation_generation,
+    );
     let trusted_revision = Some(TrustedAnalysisRevision {
-        generation: operation_generation,
+        generation: effective_generation,
         md5_16kb,
         analysis_bytes_transcoded: false,
         content_hash_server_id: None,
@@ -1707,6 +1761,7 @@ async fn spawn_backfill_slots(app: &tauri::AppHandle, shared: &Arc<AnalysisBackf
                 &track_id,
                 match &result {
                     Ok(_) => AnalysisBackfillFinish::Success,
+                    Err(error) if error.is_superseded() => AnalysisBackfillFinish::Success,
                     Err(error) if error.is_retryable() => {
                         AnalysisBackfillFinish::RetryableFailure
                     }
@@ -1721,6 +1776,12 @@ async fn spawn_backfill_slots(app: &tauri::AppHandle, shared: &Arc<AnalysisBackf
                     max,
                     track_id,
                     has_loudness
+                ),
+                Err(error) if error.is_superseded() => crate::app_deprintln!(
+                    "[analysis] backfill worker={}/{}: skipped stale track_id={}",
+                    worker_slot,
+                    max,
+                    track_id,
                 ),
                 Err(e) => crate::app_eprintln!(
                     "[analysis] backfill worker={}/{}: failed track_id={}: {}",
@@ -1986,7 +2047,13 @@ pub fn enqueue_seed_from_url(
             .state
             .lock()
             .map_err(|_| "analysis backfill lock poisoned".to_string())?;
-        st.enqueue(server_id, track_id.to_string(), url.to_string(), resolved)
+        st.enqueue_with_force(
+            server_id,
+            track_id.to_string(),
+            url.to_string(),
+            resolved,
+            force,
+        )
     };
     match kind {
         AnalysisBackfillEnqueueKind::NewLow
@@ -2817,7 +2884,7 @@ mod tests {
         let oversized = analysis_backfill_download(
             app.handle(),
             "canonical-server",
-            "oversized",
+            "oversized-transcode",
             &stream_url,
             8 * 1024,
         )
@@ -2831,7 +2898,7 @@ mod tests {
         let cache = app.handle().state::<analysis_cache::AnalysisCache>();
         assert_eq!(
             cache
-                .get_latest_status_for_track("canonical-server", "oversized")
+                .get_latest_status_for_track("canonical-server", "oversized-transcode")
                 .unwrap()
                 .map(|(status, _)| status),
             Some("failed".to_string())
@@ -2892,6 +2959,67 @@ mod tests {
         assert_eq!(
             trusted.md5_16kb,
             analysis_cache::md5_first_16kb(&download.bytes)
+        );
+        assert_eq!(server.received_requests().await.unwrap().len(), 4);
+    }
+
+    #[tokio::test]
+    async fn successful_raw_revalidation_wins_over_transcode_source_error() {
+        use tauri::Manager;
+        use wiremock::matchers::{method, path, query_param};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+        let mut original = vec![0x45; 24 * 1024];
+        original[..4].copy_from_slice(b"fLaC");
+        let source_error = br#"{"subsonic-response":{"status":"failed","error":{"code":0,"message":"open /private/music.flac: no such file or directory"}}}"#.to_vec();
+        Mock::given(method("GET"))
+            .and(path("/rest/stream.view"))
+            .and(query_param("format", "raw"))
+            .respond_with(RawOriginalResponder {
+                body: original.clone(),
+            })
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/rest/stream.view"))
+            .and(query_param("format", "mp3"))
+            .respond_with(ResponseTemplate::new(200).set_body_bytes(source_error))
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/rest/download.view"))
+            .respond_with(ResponseTemplate::new(200).set_body_bytes(original.clone()))
+            .mount(&server)
+            .await;
+
+        let app = tauri::test::mock_app();
+        app.handle()
+            .manage(Arc::new(analysis_registry(&server.uri(), true)));
+        app.handle()
+            .manage(analysis_cache::AnalysisCache::open_in_memory());
+        let stream_url = format!(
+            "{}/rest/stream.view?id=transcode-error&format=mp3",
+            server.uri()
+        );
+
+        let download = analysis_backfill_download(
+            app.handle(),
+            "canonical-server",
+            "transcode-source-error",
+            &stream_url,
+            ANALYSIS_BACKFILL_DOWNLOAD_MAX_BYTES,
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(download.bytes, original);
+        let cache = app.handle().state::<analysis_cache::AnalysisCache>();
+        assert_eq!(
+            cache
+                .get_latest_status_for_track("canonical-server", "transcode-source-error")
+                .unwrap(),
+            None
         );
         assert_eq!(server.received_requests().await.unwrap().len(), 4);
     }
@@ -3071,7 +3199,7 @@ mod tests {
         let oversized = analysis_backfill_download(
             app.handle(),
             "canonical-server",
-            "oversized",
+            "oversized-original",
             &stream_url,
             8 * 1024,
         )
@@ -3085,7 +3213,7 @@ mod tests {
         let cache = app.handle().state::<analysis_cache::AnalysisCache>();
         assert_eq!(
             cache
-                .get_latest_status_for_track("canonical-server", "oversized")
+                .get_latest_status_for_track("canonical-server", "oversized-original")
                 .unwrap()
                 .map(|(status, _)| status),
             Some("failed".to_string())
@@ -3160,7 +3288,8 @@ mod tests {
             panic!("missing source should be a recoverable terminal backfill failure");
         };
         assert!(message.contains("Subsonic code 0"));
-        assert!(message.contains("no such file or directory"));
+        assert!(message.contains("reason=no_such_file_or_directory"));
+        assert!(!message.contains("/music/"));
         let cache = app.handle().state::<analysis_cache::AnalysisCache>();
         let failed = cache
             .list_failed_tracks("canonical-server", None)
@@ -3537,6 +3666,27 @@ mod tests {
     }
 
     #[test]
+    fn forced_low_priority_retry_bypasses_terminal_cooldown() {
+        let mut state = AnalysisBackfillQueueState::default();
+        let key = seed_key("server-1", "manual-retry");
+        state
+            .in_progress
+            .insert(key.clone(), AnalysisBackfillPriority::Low);
+        state.finish_job(&key, AnalysisBackfillFinish::TerminalFailure);
+
+        assert_eq!(
+            state.enqueue_with_force(
+                "server-1".into(),
+                "manual-retry".into(),
+                "url".into(),
+                AnalysisBackfillPriority::Low,
+                true,
+            ),
+            AnalysisBackfillEnqueueKind::NewLow
+        );
+    }
+
+    #[test]
     fn clearing_failed_tracks_removes_matching_backfill_cooldowns() {
         let mut state = AnalysisBackfillQueueState::default();
         let bare_key = seed_key("server-1", "missing");
@@ -3594,6 +3744,75 @@ mod tests {
             "newer-fingerprint",
             newer_generation,
         ));
+    }
+
+    #[test]
+    fn same_revision_reuses_the_current_generation() {
+        let first_generation = next_trusted_generation();
+        let second_generation = next_trusted_generation();
+        let server_id = "same-revision-generation-server";
+        let track_id = "same-revision-track";
+
+        let first = register_trusted_revision_generation(
+            server_id,
+            track_id,
+            "same-fingerprint",
+            first_generation,
+        );
+        let second = register_trusted_revision_generation(
+            server_id,
+            track_id,
+            "same-fingerprint",
+            second_generation,
+        );
+
+        assert_eq!(first, first_generation);
+        assert_eq!(second, first_generation);
+        assert!(trusted_revision_generation_is_current(
+            server_id,
+            track_id,
+            "same-fingerprint",
+            first_generation,
+        ));
+    }
+
+    #[test]
+    fn stale_source_unavailable_response_does_not_write_failed_status() {
+        use tauri::Manager;
+
+        let app = tauri::test::mock_app();
+        app.handle()
+            .manage(analysis_cache::AnalysisCache::open_in_memory());
+        let server_id = "stale-unavailable-server";
+        let track_id = "stale-unavailable-track";
+        let stale_generation = next_trusted_generation();
+        let current_generation = next_trusted_generation();
+        register_trusted_revision_generation(
+            server_id,
+            track_id,
+            "current-fingerprint",
+            current_generation,
+        );
+
+        let outcome = source_unavailable_failure(
+            app.handle(),
+            server_id,
+            track_id,
+            &crate::raw_probe::SubsonicStreamError {
+                code: 0,
+                message: "open /private/music.flac: no such file or directory".to_string(),
+            },
+            stale_generation,
+        );
+
+        assert_eq!(outcome, AnalysisBackfillJobError::Superseded);
+        let cache = app.handle().state::<analysis_cache::AnalysisCache>();
+        assert_eq!(
+            cache
+                .get_latest_status_for_track(server_id, track_id)
+                .unwrap(),
+            None
+        );
     }
 
     #[test]
