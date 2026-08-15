@@ -216,6 +216,7 @@ const CONTRIBUTOR_ENTRIES = [
       'AIFF/AIF/AIFC playback across streamed, cached, and local sources (PR #1396)',
       'Analysis pipeline — reuse playback and completed-stream sources, bound backfill resources, and prioritise active playback (PR #1419)',
       'Random Mix — combine several selected genres into one balanced mix (request: Gypsy on Psysonic Discord, PR #1421)',
+      'Audio controls — configurable pause/resume fade for native playback and internet radio (PR #1422)',
     ],
   },
   {

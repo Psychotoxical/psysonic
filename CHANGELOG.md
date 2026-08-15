@@ -120,6 +120,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Select several genre chips at once to build one random playlist instead of replacing the previous selection. Psysonic balances songs across the selected genres and removes duplicates before playback.
 * Selected genres stay visible when showing a different set of popular genres, and rapid changes keep only the newest mix.
 
+### Audio controls — fade smoothly when pausing and resuming
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1422](https://github.com/Psychotoxical/psysonic/pull/1422)**
+
+* **Settings → Audio → Track transitions** can fade playback out before pausing and back in when resuming, with a configurable 0.1–2.0 second duration and a 1.0 second default.
+* The optional fade works with both ordinary playback and internet radio, while rapid pause, resume and stop actions cancel stale fades instead of changing playback later.
+
 ## Changed
 
 ### Library index — designed for several live servers at once
