@@ -87,8 +87,8 @@ export function useMediaAndWindowBridge(navigate: NavigateFunction) {
       {
         const u = await listen<number>('media:set-volume', e => {
           const p = e.payload;
-          if (typeof p !== 'number' || Number.isNaN(p)) return;
-          usePlayerStore.getState().setVolume(Math.min(1, Math.max(0, p / 100)));
+          if (typeof p !== 'number' || !Number.isFinite(p)) return;
+          usePlayerStore.getState().setVolume(Math.min(1, Math.max(0, p)));
         });
         if (cancelled) { u(); return; }
         unlisten.push(u);

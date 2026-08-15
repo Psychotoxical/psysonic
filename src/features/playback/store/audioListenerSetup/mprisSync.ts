@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import { mprisSetMetadata, mprisSetPlayback } from '@/lib/api/mpris';
+import { mprisSetMetadata, mprisSetPlayback, mprisSetVolume } from '@/lib/api/mpris';
 import { resolvePlaybackCoverScope } from '@/cover/ref';
 import { resolveTrackCoverRefFromLibrary } from '@/cover/resolveEntryLibrary';
 import { coverArtUrlForMpris } from '@/cover/integrations/mpris';
@@ -8,18 +8,26 @@ import { getPlaybackProgressSnapshot, subscribePlaybackProgress } from '@/featur
 import { ownedEntityKey } from '@/lib/util/ownedEntityKey';
 
 /**
- * MPRIS / OS media-controls sync. Whenever the current track or playback state
- * changes, pushes updates to the Rust souvlaki MediaControls so the OS media
- * overlay stays accurate. Returns a cleanup function.
+ * MPRIS / OS media-controls sync. Whenever the current track, playback state,
+ * or volume changes, pushes updates to the Rust souvlaki MediaControls so the
+ * OS media overlay stays accurate. Returns a cleanup function.
  */
 export function setupMprisSync(): () => void {
   let prevTrackId: string | null = null;
   let prevRadioKey: string | null = null;
   let prevIsPlaying: boolean | null = null;
+  let prevVolume = usePlayerStore.getState().volume;
   let lastMprisPositionUpdate = 0;
 
+  mprisSetVolume(prevVolume).catch(() => {});
+
   const unsubMpris = usePlayerStore.subscribe((state) => {
-    const { currentTrack, currentRadio, isPlaying } = state;
+    const { currentTrack, currentRadio, isPlaying, volume } = state;
+
+    if (volume !== prevVolume) {
+      prevVolume = volume;
+      mprisSetVolume(volume).catch(() => {});
+    }
 
     // Update metadata when track changes
     if (currentTrack && currentTrack.id !== prevTrackId) {

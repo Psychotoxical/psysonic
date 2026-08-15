@@ -170,6 +170,30 @@ pub(crate) fn mpris_set_playback(
         .map_err(|e| format!("MPRIS set_playback failed: {e:?}"))
 }
 
+#[tauri::command]
+#[specta::specta]
+pub(crate) fn mpris_set_volume(
+    controls: tauri::State<MprisControls>,
+    volume: f64,
+) -> Result<(), String> {
+    let volume = crate::normalize_mpris_volume(volume)
+        .ok_or_else(|| "MPRIS volume must be finite".to_string())?;
+
+    #[cfg(target_os = "linux")]
+    {
+        let mut guard = controls.lock().unwrap();
+        let Some(ctrl) = guard.as_mut() else { return Ok(()); };
+        ctrl.set_volume(volume)
+            .map_err(|e| format!("MPRIS set_volume failed: {e:?}"))
+    }
+
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = (controls, volume);
+        Ok(())
+    }
+}
+
 /// Returns true if `path` is an accessible directory (used for pre-flight checks in the frontend).
 #[tauri::command]
 #[specta::specta]

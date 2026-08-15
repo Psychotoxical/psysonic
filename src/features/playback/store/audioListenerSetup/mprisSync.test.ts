@@ -3,12 +3,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const hoisted = vi.hoisted(() => ({
   mprisSetMetadata: vi.fn(() => Promise.resolve()),
   mprisSetPlayback: vi.fn(() => Promise.resolve()),
+  mprisSetVolume: vi.fn(() => Promise.resolve()),
 }));
 
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn(() => Promise.resolve()) }));
 vi.mock('@/lib/api/mpris', () => ({
   mprisSetMetadata: hoisted.mprisSetMetadata,
   mprisSetPlayback: hoisted.mprisSetPlayback,
+  mprisSetVolume: hoisted.mprisSetVolume,
 }));
 vi.mock('@/cover/resolveEntryLibrary', () => ({
   resolveTrackCoverRefFromLibrary: vi.fn(() => Promise.resolve(null)),
@@ -30,6 +32,7 @@ describe('setupMprisSync radio ownership', () => {
     resetPlayerStore();
     hoisted.mprisSetMetadata.mockClear();
     hoisted.mprisSetPlayback.mockClear();
+    hoisted.mprisSetVolume.mockClear();
   });
 
   it('pushes metadata when radio ownership changes but the raw id is the same', () => {
@@ -59,6 +62,18 @@ describe('setupMprisSync radio ownership', () => {
     expect(hoisted.mprisSetMetadata).toHaveBeenNthCalledWith(2, expect.objectContaining({
       title: 'Beta Radio',
     }));
+    cleanup();
+  });
+
+  it('pushes the initial volume and subsequent changes', () => {
+    usePlayerStore.setState({ volume: 0.35 });
+    const cleanup = setupMprisSync();
+
+    expect(hoisted.mprisSetVolume).toHaveBeenNthCalledWith(1, 0.35);
+
+    usePlayerStore.setState({ volume: 0.7 });
+
+    expect(hoisted.mprisSetVolume).toHaveBeenNthCalledWith(2, 0.7);
     cleanup();
   });
 });

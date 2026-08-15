@@ -99,6 +99,24 @@ fn scheduler_idle_payload(
 /// `None` if souvlaki failed to initialize (e.g. no D-Bus session on Linux).
 type MprisControls = Mutex<Option<souvlaki::MediaControls>>;
 
+fn normalize_mpris_volume(volume: f64) -> Option<f64> {
+    volume.is_finite().then(|| volume.clamp(0.0, 1.0))
+}
+
+#[cfg(test)]
+mod mpris_volume_tests {
+    use super::normalize_mpris_volume;
+
+    #[test]
+    fn normalizes_mpris_volume_to_player_range() {
+        assert_eq!(normalize_mpris_volume(-0.5), Some(0.0));
+        assert_eq!(normalize_mpris_volume(0.42), Some(0.42));
+        assert_eq!(normalize_mpris_volume(1.5), Some(1.0));
+        assert_eq!(normalize_mpris_volume(f64::NAN), None);
+        assert_eq!(normalize_mpris_volume(f64::INFINITY), None);
+    }
+}
+
 /// Focus or CLI-hand off when a second instance of the same build channel launches.
 #[cfg(any(target_os = "linux", not(debug_assertions)))]
 fn on_second_instance<R: tauri::Runtime>(
@@ -357,6 +375,7 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             crate::lib_commands::app_api::integration::unregister_global_shortcut,
             crate::lib_commands::app_api::integration::mpris_set_metadata,
             crate::lib_commands::app_api::integration::mpris_set_playback,
+            crate::lib_commands::app_api::integration::mpris_set_volume,
             crate::lib_commands::app_api::integration::check_dir_accessible,
             crate::lib_commands::ui::mini::open_mini_player,
             crate::lib_commands::ui::mini::preload_mini_player,
@@ -1216,6 +1235,11 @@ pub fn run() {
                                         let secs = pos.0.as_secs_f64();
                                         let _ = app_handle.emit("media:seek-absolute", secs);
                                     }
+                                    MediaControlEvent::SetVolume(volume) => {
+                                        if let Some(volume) = normalize_mpris_volume(volume) {
+                                            let _ = app_handle.emit("media:set-volume", volume);
+                                        }
+                                    }
                                     _ => {}
                                 }
                             }) {
@@ -1392,6 +1416,7 @@ pub fn run() {
             unregister_global_shortcut,
             mpris_set_metadata,
             mpris_set_playback,
+            mpris_set_volume,
             audio::commands::audio_play,
             audio::transport_commands::audio_pause,
             audio::transport_commands::audio_resume,

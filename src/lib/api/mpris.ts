@@ -1,6 +1,6 @@
 /**
  * Typed facade over the generated MPRIS commands (Linux desktop media controls
- * + souvlaki bridge). Both commands are Result-wrapped: the facade re-throws on
+ * + souvlaki bridge). Commands are Result-wrapped: the facade re-throws on
  * error so the callers' `.catch()` fire-and-forget semantics stay unchanged.
  */
 import { commands } from '@/generated/bindings';
@@ -27,5 +27,10 @@ export async function mprisSetPlayback(args: {
   positionSecs: number | null;
 }): Promise<void> {
   const res = await commands.mprisSetPlayback(args.playing, args.positionSecs);
+  if (res.status === 'error') throw new Error(res.error);
+}
+
+export async function mprisSetVolume(volume: number): Promise<void> {
+  const res = await commands.mprisSetVolume(volume);
   if (res.status === 'error') throw new Error(res.error);
 }

@@ -39,8 +39,8 @@ pub(crate) use platform::{
     sync_wayland_text_profile_cache_from_disk,
 };
 pub(crate) use integration::{
-    check_dir_accessible, mpris_set_metadata, mpris_set_playback, register_global_shortcut,
-    unregister_global_shortcut,
+    check_dir_accessible, mpris_set_metadata, mpris_set_playback, mpris_set_volume,
+    register_global_shortcut, unregister_global_shortcut,
 };
 pub(crate) use migration::{migration_inspect, migration_run};
 pub(crate) use network::{
