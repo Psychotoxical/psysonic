@@ -37,6 +37,7 @@ import {
 } from '@/lib/perf/debugLoggingMode';
 import { createDiscordBannerActions } from './authDiscordBannerActions';
 import { setLibraryBrowseScopeSource } from '@/lib/library/libraryBrowseScope';
+import { PAUSE_RESUME_FADE_DEFAULT_SECS } from '@/lib/audio/pauseResumeFade';
 
 export const useAuthStore = create<AuthState>()(
   persist(
@@ -68,6 +69,8 @@ export const useAuthStore = create<AuthState>()(
       replayGainFallbackDb: 0,
       crossfadeEnabled: false,
       crossfadeSecs: 3,
+      pauseResumeFadeEnabled: false,
+      pauseResumeFadeSecs: PAUSE_RESUME_FADE_DEFAULT_SECS,
       crossfadeTrimSilence: false,
       autodjSmoothSkip: true,
       autodjOverlapCapMode: 'auto',

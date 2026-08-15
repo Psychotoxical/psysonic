@@ -37,6 +37,7 @@ import { markPlaybackActive } from '@/features/playback/store/queuePlaybackIdle'
 import { playbackReportPlaying } from '@/features/playback/store/playbackReportSession';
 import { resumeRadio } from '@/features/playback/store/radioPlayer';
 import { clearAllPlaybackScheduleTimers } from '@/features/playback/store/scheduleTimers';
+import { sanitizePauseResumeFadeSecs } from '@/lib/audio/pauseResumeFade';
 
 type SetState = (
   partial: Partial<PlayerState> | ((state: PlayerState) => Partial<PlayerState>),
@@ -75,6 +76,10 @@ export function runResume(set: SetState, get: GetState): void {
   // two songs ahead. Covers PlayerBar, media keys, MPRIS — everything
   // that funnels through resume().
   const orbit = orbitSnapshot();
+  const auth = useAuthStore.getState();
+  const fadeSecs = auth.pauseResumeFadeEnabled
+    ? sanitizePauseResumeFadeSecs(auth.pauseResumeFadeSecs)
+    : null;
   const hostState = orbit.state;
   if (orbit.role === 'guest' && hostState?.isPlaying && hostState.currentTrack) {
     const trackId = hostState.currentTrack.trackId;
@@ -92,7 +97,7 @@ export function runResume(set: SetState, get: GetState): void {
           // Bypasses this resume() branch re-entry via the early return below.
           get().seek(fraction);
           if (getIsAudioPaused()) {
-            audioResume().catch(console.error);
+            audioResume({ fadeSecs }).catch(console.error);
             setIsAudioPaused(false);
             set({ isPlaying: true });
             playbackReportPlaying(targetSec);
@@ -115,7 +120,7 @@ export function runResume(set: SetState, get: GetState): void {
   }
 
   if (get().currentRadio) {
-    resumeRadio().catch(console.error);
+    resumeRadio(fadeSecs ?? 0).catch(console.error);
     set({ isPlaying: true });
     return;
   }
@@ -130,7 +135,7 @@ export function runResume(set: SetState, get: GetState): void {
 
   if (getIsAudioPaused()) {
     // Rust engine has audio loaded but paused — just resume it.
-    audioResume().catch(console.error);
+    audioResume({ fadeSecs }).catch(console.error);
     setIsAudioPaused(false);
     set({ isPlaying: true });
     // Mirror pause(): tell the server immediately, don't wait for `audio:playing`.

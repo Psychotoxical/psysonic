@@ -21,6 +21,7 @@ const hoisted = vi.hoisted(() => {
     applyRadioOutputVolumeMock: vi.fn(),
     isRadioEqGraphActiveMock: vi.fn(() => false),
     tryAttachRadioEqGraphMock: vi.fn(() => Promise.resolve(false)),
+    resumeRadioEqContextMock: vi.fn(() => Promise.resolve()),
   };
 });
 
@@ -44,7 +45,7 @@ vi.mock('@/features/playback/utils/audio/radioEqGraph', () => ({
   applyRadioEqSettings: hoisted.applyRadioEqSettingsMock,
   applyRadioOutputVolume: hoisted.applyRadioOutputVolumeMock,
   isRadioEqGraphActive: hoisted.isRadioEqGraphActiveMock,
-  resumeRadioEqContext: vi.fn(() => Promise.resolve()),
+  resumeRadioEqContext: hoisted.resumeRadioEqContextMock,
   setRadioEqMasterVolume: vi.fn(),
   shouldUseRadioEqGraph: vi.fn(() => hoisted.eqEnabled),
   tryAttachRadioEqGraph: hoisted.tryAttachRadioEqGraphMock,
@@ -80,6 +81,8 @@ beforeEach(() => {
   hoisted.isRadioEqGraphActiveMock.mockReturnValue(false);
   hoisted.tryAttachRadioEqGraphMock.mockReset();
   hoisted.tryAttachRadioEqGraphMock.mockResolvedValue(false);
+  hoisted.resumeRadioEqContextMock.mockReset();
+  hoisted.resumeRadioEqContextMock.mockResolvedValue(undefined);
   hoisted.showToastMock.mockClear();
   hoisted.playerSetStateMock.mockClear();
   hoisted.playerStateGet.mockReset();
@@ -147,6 +150,62 @@ describe('pauseRadio / resumeRadio', () => {
   it('resume delegates to audio.play', async () => {
     await resumeRadio();
     expect(playSpy).toHaveBeenCalled();
+  });
+
+  it('fades out before pausing when a duration is provided', async () => {
+    await playRadioStream('https://x/y', 0.6);
+    pauseSpy.mockClear();
+
+    pauseRadio(0.3);
+    expect(pauseSpy).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(160);
+    expect(audio.volume).toBeGreaterThan(0);
+    expect(audio.volume).toBeLessThan(0.6);
+    vi.advanceTimersByTime(160);
+    expect(audio.volume).toBe(0);
+    expect(pauseSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('fades in from silence when resuming a paused stream', async () => {
+    setRadioVolume(0.6);
+    pausedSpy.mockReturnValue(true);
+
+    await resumeRadio(0.3);
+    expect(audio.volume).toBe(0);
+    vi.advanceTimersByTime(160);
+    expect(audio.volume).toBeGreaterThan(0);
+    expect(audio.volume).toBeLessThan(0.6);
+    vi.advanceTimersByTime(160);
+    expect(audio.volume).toBeCloseTo(0.6);
+  });
+
+  it('cancels an in-flight pause fade when playback resumes', async () => {
+    await playRadioStream('https://x/y', 0.6);
+    pauseSpy.mockClear();
+    pauseRadio(0.3);
+    vi.advanceTimersByTime(100);
+
+    await resumeRadio(0.3);
+    vi.advanceTimersByTime(400);
+
+    expect(pauseSpy).not.toHaveBeenCalled();
+    expect(audio.volume).toBeCloseTo(0.6);
+  });
+
+  it('does not restart playback when pause wins during async resume setup', async () => {
+    let finishResumeSetup!: () => void;
+    hoisted.resumeRadioEqContextMock.mockImplementationOnce(() => new Promise<void>((resolve) => {
+      finishResumeSetup = resolve;
+    }));
+
+    const resumePromise = resumeRadio(0.3);
+    await Promise.resolve();
+    pauseRadio();
+    finishResumeSetup();
+    await resumePromise;
+
+    expect(pauseSpy).toHaveBeenCalledTimes(1);
+    expect(playSpy).not.toHaveBeenCalled();
   });
 });
 

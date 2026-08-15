@@ -7,6 +7,10 @@ import {
   AUTODJ_OVERLAP_CAP_MIN_SEC,
 } from '@/lib/audio/autodjOverlapCap';
 import {
+  PAUSE_RESUME_FADE_MAX_SECS,
+  PAUSE_RESUME_FADE_MIN_SECS,
+} from '@/lib/audio/pauseResumeFade';
+import {
   getTransitionMode,
   setTransitionMode,
   type TransitionMode,
@@ -131,6 +135,33 @@ export function TrackTransitionsBlock({ t }: Props) {
           />
         </SettingsSubCard>
       )}
+      <SettingsSubCard style={{ marginTop: '0.85rem' }}>
+        <SettingsToggle
+          label={t('settings.pauseResumeFade')}
+          desc={t('settings.pauseResumeFadeDesc')}
+          checked={auth.pauseResumeFadeEnabled}
+          onChange={auth.setPauseResumeFadeEnabled}
+        />
+        {auth.pauseResumeFadeEnabled && (
+          <SettingsField label={t('settings.pauseResumeFadeDuration')}>
+            <SettingsRow>
+              <input
+                type="range"
+                min={PAUSE_RESUME_FADE_MIN_SECS}
+                max={PAUSE_RESUME_FADE_MAX_SECS}
+                step={0.1}
+                value={auth.pauseResumeFadeSecs}
+                onChange={e => auth.setPauseResumeFadeSecs(parseFloat(e.target.value))}
+                id="pause-resume-fade-secs-slider"
+                aria-label={t('settings.pauseResumeFadeDuration')}
+              />
+              <SettingsValue>
+                {t('settings.pauseResumeFadeSecs', { n: auth.pauseResumeFadeSecs.toFixed(1) })}
+              </SettingsValue>
+            </SettingsRow>
+          </SettingsField>
+        )}
+      </SettingsSubCard>
     </SettingsGroup>
   );
 }

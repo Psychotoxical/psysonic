@@ -14,6 +14,8 @@ import { tryAcquireTogglePlayLock } from '@/features/playback/store/togglePlayLo
 import { refreshWaveformForTrack } from '@/features/playback/store/waveformRefresh';
 import { clearAutodjTransitionUi } from '@/features/playback/store/autodjTransitionUi';
 import { analysisTrackRefForTrack } from '@/features/playback/store/analysisTrackRef';
+import { useAuthStore } from '@/store/authStore';
+import { sanitizePauseResumeFadeSecs } from '@/lib/audio/pauseResumeFade';
 
 type SetState = (
   partial: Partial<PlayerState> | ((state: PlayerState) => Partial<PlayerState>),
@@ -82,10 +84,14 @@ export function createTransportLightActions(set: SetState, get: GetState): Pick<
     pause: () => {
       clearAllPlaybackScheduleTimers();
       playListenSessionOnPause();
+      const auth = useAuthStore.getState();
+      const fadeSecs = auth.pauseResumeFadeEnabled
+        ? sanitizePauseResumeFadeSecs(auth.pauseResumeFadeSecs)
+        : null;
       if (get().currentRadio) {
-        pauseRadio();
+        pauseRadio(fadeSecs ?? 0);
       } else {
-        audioPause().catch(console.error);
+        audioPause({ fadeSecs }).catch(console.error);
         setIsAudioPaused(true);
         playbackReportPaused(get().currentTime);
         // Flush position so a quick close after pause still leaves the

@@ -1,6 +1,7 @@
 import { IS_LINUX } from '@/lib/util/platform';
 import { sanitizeHiResCrossfadeResampleHz } from '@/lib/audio/hiResCrossfadeResample';
 import { sanitizeStreamMaxBitRateKbps, sanitizeStreamRequestFormat } from '@/lib/audio/streamQuality';
+import { sanitizePauseResumeFadeSecs } from '@/lib/audio/pauseResumeFade';
 import {
   sanitizeAutodjOverlapCapMode,
   sanitizeAutodjOverlapCapSec,
@@ -368,6 +369,9 @@ export function computeAuthStoreRehydration(state: AuthState): Partial<AuthState
     ),
     autodjOverlapCapSec: sanitizeAutodjOverlapCapSec(
       (state as { autodjOverlapCapSec?: unknown }).autodjOverlapCapSec,
+    ),
+    pauseResumeFadeSecs: sanitizePauseResumeFadeSecs(
+      (state as { pauseResumeFadeSecs?: unknown }).pauseResumeFadeSecs,
     ),
     ...lyricsSourcesMigrated,
     ...youLyPlusRetired,

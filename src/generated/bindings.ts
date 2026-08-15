@@ -98,7 +98,7 @@ export const commands = {
 	libraryPurgeServer: (serverId: string, includeAnalysis: boolean | null, includeOffline: boolean | null) => typedError<PurgeReportDto, string>(__TAURI_INVOKE("library_purge_server", { serverId, includeAnalysis, includeOffline })),
 	libraryMigrateServerIndexKeys: (mappings: LibraryServerKeyMigrationDto[]) => typedError<null, string>(__TAURI_INVOKE("library_migrate_server_index_keys", { mappings })),
 	libraryDeleteServerData: (serverId: string) => typedError<null, string>(__TAURI_INVOKE("library_delete_server_data", { serverId })),
-	audioPause: () => __TAURI_INVOKE<void>("audio_pause"),
+	audioPause: (fadeSecs: number | null) => __TAURI_INVOKE<void>("audio_pause", { fadeSecs }),
 	/**
 	 *  Resume playback.
 	 *
@@ -109,7 +109,7 @@ export const commands = {
 	 *  ring buffer is created, its consumer is sent to `AudioStreamReader` (which
 	 *  swaps it in on the next `read()`), and a new download task is spawned.
 	 */
-	audioResume: () => typedError<null, string>(__TAURI_INVOKE("audio_resume")),
+	audioResume: (fadeSecs: number | null) => typedError<null, string>(__TAURI_INVOKE("audio_resume", { fadeSecs })),
 	audioStop: () => __TAURI_INVOKE<void>("audio_stop"),
 	audioSeek: (seconds: number | null) => typedError<null, string>(__TAURI_INVOKE("audio_seek", { seconds })),
 	audioSetVolume: (volume: number | null) => __TAURI_INVOKE<void>("audio_set_volume", { volume }),

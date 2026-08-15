@@ -52,6 +52,8 @@ describe('hydration — loads existing localStorage shape', () => {
     // Existing installs that predate the toggle have no persisted field — it
     // must default OFF so behaviour is unchanged until the user opts in.
     expect(s.crossfadeTrimSilence).toBe(false);
+    expect(s.pauseResumeFadeEnabled).toBe(false);
+    expect(s.pauseResumeFadeSecs).toBe(1);
     expect(s.gaplessEnabled).toBe(false);
     expect(s.replayGainEnabled).toBe(false);
     expect(s.normalizationEngine).toBe('off');
@@ -65,6 +67,8 @@ describe('hydration — loads existing localStorage shape', () => {
       crossfadeEnabled: true,
       gaplessEnabled: false,
       crossfadeSecs: 7,
+      pauseResumeFadeEnabled: true,
+      pauseResumeFadeSecs: 0.8,
     });
 
     await useAuthStore.persist.rehydrate();
@@ -73,6 +77,8 @@ describe('hydration — loads existing localStorage shape', () => {
     expect(s.trackPreviewsEnabled).toBe(false);
     expect(s.crossfadeEnabled).toBe(true);
     expect(s.crossfadeSecs).toBe(7);
+    expect(s.pauseResumeFadeEnabled).toBe(true);
+    expect(s.pauseResumeFadeSecs).toBe(0.8);
   });
 });
 

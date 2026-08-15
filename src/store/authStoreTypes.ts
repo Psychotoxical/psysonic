@@ -160,6 +160,10 @@ export interface AuthState {
   replayGainFallbackDb: number;  // gain for untagged files / radio (-6…0 dB)
   crossfadeEnabled: boolean;
   crossfadeSecs: number;
+  /** Fade audio around user pause/resume changes. Default off for existing installs. */
+  pauseResumeFadeEnabled: boolean;
+  /** Duration of each pause/resume fade in seconds (0.1–2.0). */
+  pauseResumeFadeSecs: number;
   /**
    * When crossfading, trim trailing silence of the outgoing track and leading
    * silence of the incoming one so the fade overlaps music, not dead air.
@@ -426,6 +430,8 @@ export interface AuthState {
   setReplayGainFallbackDb: (v: number) => void;
   setCrossfadeEnabled: (v: boolean) => void;
   setCrossfadeSecs: (v: number) => void;
+  setPauseResumeFadeEnabled: (v: boolean) => void;
+  setPauseResumeFadeSecs: (v: number) => void;
   setCrossfadeTrimSilence: (v: boolean) => void;
   setAutodjSmoothSkip: (v: boolean) => void;
   setAutodjOverlapCapMode: (v: 'auto' | 'limit') => void;

@@ -4,6 +4,7 @@ import {
   sanitizeAutodjOverlapCapSec,
 } from '@/lib/audio/autodjOverlapCap';
 import { sanitizeStreamMaxBitRateKbps, sanitizeStreamRequestFormat } from '@/lib/audio/streamQuality';
+import { sanitizePauseResumeFadeSecs } from '@/lib/audio/pauseResumeFade';
 import { DEFAULT_LOUDNESS_PRE_ANALYSIS_ATTENUATION_DB } from './authStoreDefaults';
 import {
   invalidatePlaybackPreloads,
@@ -35,6 +36,8 @@ export function createAudioSettingsActions(set: SetState): Pick<
   | 'setReplayGainFallbackDb'
   | 'setCrossfadeEnabled'
   | 'setCrossfadeSecs'
+  | 'setPauseResumeFadeEnabled'
+  | 'setPauseResumeFadeSecs'
   | 'setCrossfadeTrimSilence'
   | 'setAutodjSmoothSkip'
   | 'setAutodjOverlapCapMode'
@@ -82,6 +85,8 @@ export function createAudioSettingsActions(set: SetState): Pick<
     },
     setCrossfadeEnabled: (v) => set({ crossfadeEnabled: v }),
     setCrossfadeSecs: (v) => set({ crossfadeSecs: v }),
+    setPauseResumeFadeEnabled: (v) => set({ pauseResumeFadeEnabled: v }),
+    setPauseResumeFadeSecs: (v) => set({ pauseResumeFadeSecs: sanitizePauseResumeFadeSecs(v) }),
     setCrossfadeTrimSilence: (v) => set({ crossfadeTrimSilence: v }),
     setAutodjSmoothSkip: (v) => set({ autodjSmoothSkip: v }),
     setAutodjOverlapCapMode: (v) => set({ autodjOverlapCapMode: sanitizeAutodjOverlapCapMode(v) }),

@@ -119,8 +119,17 @@ describe('pause', () => {
   it('invokes audio_pause and clears isPlaying', () => {
     usePlayerStore.setState({ isPlaying: true, currentTrack: makeTrack() });
     usePlayerStore.getState().pause();
-    expect(invokeMock).toHaveBeenCalledWith('audio_pause');
+    expect(invokeMock).toHaveBeenCalledWith('audio_pause', { fadeSecs: null });
     expect(usePlayerStore.getState().isPlaying).toBe(false);
+  });
+
+  it('passes the configured fade duration to the engine', () => {
+    useAuthStore.setState({ pauseResumeFadeEnabled: true, pauseResumeFadeSecs: 0.7 });
+    usePlayerStore.setState({ isPlaying: true, currentTrack: makeTrack() });
+
+    usePlayerStore.getState().pause();
+
+    expect(invokeMock).toHaveBeenCalledWith('audio_pause', { fadeSecs: 0.7 });
   });
 
   it('still clears isPlaying when the engine invoke rejects (controlled error)', () => {
@@ -158,8 +167,19 @@ describe('resume — warm path (engine has the track loaded, just paused)', () =
     invokeMock.mockClear();
 
     usePlayerStore.getState().resume();
-    expect(invokeMock).toHaveBeenCalledWith('audio_resume');
+    expect(invokeMock).toHaveBeenCalledWith('audio_resume', { fadeSecs: null });
     expect(usePlayerStore.getState().isPlaying).toBe(true);
+  });
+
+  it('passes the configured fade duration to a warm resume', () => {
+    useAuthStore.setState({ pauseResumeFadeEnabled: true, pauseResumeFadeSecs: 0.7 });
+    usePlayerStore.setState({ currentTrack: makeTrack(), isPlaying: true });
+    usePlayerStore.getState().pause();
+    invokeMock.mockClear();
+
+    usePlayerStore.getState().resume();
+
+    expect(invokeMock).toHaveBeenCalledWith('audio_resume', { fadeSecs: 0.7 });
   });
 
   it('returns without invoking when there is no current track', () => {
@@ -173,7 +193,7 @@ describe('togglePlay', () => {
   it('calls pause when isPlaying is true', () => {
     usePlayerStore.setState({ isPlaying: true, currentTrack: makeTrack() });
     usePlayerStore.getState().togglePlay();
-    expect(invokeMock).toHaveBeenCalledWith('audio_pause');
+    expect(invokeMock).toHaveBeenCalledWith('audio_pause', { fadeSecs: null });
     expect(usePlayerStore.getState().isPlaying).toBe(false);
   });
 
@@ -184,7 +204,7 @@ describe('togglePlay', () => {
     invokeMock.mockClear();
 
     usePlayerStore.getState().togglePlay();
-    expect(invokeMock).toHaveBeenCalledWith('audio_resume');
+    expect(invokeMock).toHaveBeenCalledWith('audio_resume', { fadeSecs: null });
     expect(usePlayerStore.getState().isPlaying).toBe(true);
   });
 });

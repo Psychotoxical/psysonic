@@ -32,6 +32,9 @@ let radioStopping = false;
 let radioReconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let radioReconnectCount = 0;
 let lastVolume = 1;
+let transportGain = 1;
+let radioFadeGeneration = 0;
+let radioFadeTimer: ReturnType<typeof setInterval> | null = null;
 let radioGraphActive = false;
 let eqAttachUnsub: (() => void) | null = null;
 
@@ -43,14 +46,62 @@ function clampElementVolume(volume: number): number {
   return Math.max(0, Math.min(1, volume));
 }
 
-function applyOutputVolume(volume: number): void {
-  lastVolume = volume;
+function applyEffectiveOutputVolume(): void {
+  const volume = lastVolume * transportGain;
   applyRadioOutputVolume(volume, radioGraphActive);
   if (radioGraphActive && isRadioEqGraphActive()) {
     radioAudio.volume = 1;
     return;
   }
   radioAudio.volume = clampElementVolume(volume);
+}
+
+function applyOutputVolume(volume: number): void {
+  lastVolume = volume;
+  applyEffectiveOutputVolume();
+}
+
+function setTransportGain(gain: number): void {
+  transportGain = clampElementVolume(gain);
+  applyEffectiveOutputVolume();
+}
+
+function beginRadioFade(): number {
+  radioFadeGeneration += 1;
+  if (radioFadeTimer) {
+    clearInterval(radioFadeTimer);
+    radioFadeTimer = null;
+  }
+  return radioFadeGeneration;
+}
+
+function fadeTransportGain(
+  generation: number,
+  to: number,
+  durationSecs: number,
+  onComplete?: () => void,
+): void {
+  const from = transportGain;
+  const durationMs = Math.max(100, Math.min(2000, durationSecs * 1000));
+  const steps = Math.max(1, Math.round(durationMs / 20));
+  let step = 0;
+  const timer = setInterval(() => {
+    if (generation !== radioFadeGeneration) {
+      clearInterval(timer);
+      if (radioFadeTimer === timer) radioFadeTimer = null;
+      return;
+    }
+    step += 1;
+    const t = Math.min(1, step / steps);
+    const eased = t * t * (3 - 2 * t);
+    setTransportGain(from + (to - from) * eased);
+    if (step >= steps) {
+      clearInterval(timer);
+      if (radioFadeTimer === timer) radioFadeTimer = null;
+      onComplete?.();
+    }
+  }, 20);
+  radioFadeTimer = timer;
 }
 
 export function clearRadioReconnectTimer(): void {
@@ -133,6 +184,8 @@ async function maybeAttachEqGraph(): Promise<boolean> {
 }
 
 export async function playRadioStream(streamUrl: string, volume: number): Promise<void> {
+  beginRadioFade();
+  transportGain = 1;
   radioReconnectCount = 0;
   radioGraphActive = isRadioEqGraphActive();
 
@@ -161,22 +214,35 @@ export async function playRadioStream(streamUrl: string, volume: number): Promis
   }
 }
 
-export function pauseRadio(): void {
+export function pauseRadio(fadeSecs = 0): void {
   clearRadioReconnectTimer();
-  radioAudio.pause();
+  const generation = beginRadioFade();
+  if (fadeSecs <= 0) {
+    radioAudio.pause();
+    return;
+  }
+  fadeTransportGain(generation, 0, fadeSecs, () => radioAudio.pause());
 }
 
-export async function resumeRadio(): Promise<void> {
+export async function resumeRadio(fadeSecs = 0): Promise<void> {
+  const generation = beginRadioFade();
   warmRadioEqContextFromUserGesture();
   if (usePlayerStore.getState().currentRadio && shouldUseRadioEqGraph()) {
     await maybeAttachEqGraph();
     if (radioGraphActive) applyOutputVolume(lastVolume);
   }
   await resumeRadioEqContext().catch(() => {});
-  return radioAudio.play();
+  if (generation !== radioFadeGeneration) return;
+  if (fadeSecs > 0 && radioAudio.paused) setTransportGain(0);
+  await radioAudio.play();
+  if (generation !== radioFadeGeneration) return;
+  if (fadeSecs > 0) fadeTransportGain(generation, 1, fadeSecs);
+  else setTransportGain(1);
 }
 
 export function stopRadio(): void {
+  beginRadioFade();
+  transportGain = 1;
   radioStopping = true;
   radioAudio.pause();
   radioAudio.src = '';
@@ -232,6 +298,8 @@ export function _resetRadioPlayerForTest(): void {
   radioReconnectCount = 0;
   radioGraphActive = false;
   lastVolume = 1;
+  transportGain = 1;
+  beginRadioFade();
   clearRadioReconnectTimer();
   radioAudio.pause();
   radioAudio.src = '';

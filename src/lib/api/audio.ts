@@ -22,8 +22,8 @@ type EqGains = Parameters<typeof commands.audioSetEq>[0];
 
 // ── plain passthrough (reject on Rust error, like invoke) ────────────────────
 
-export function audioPause(): Promise<void> {
-  return commands.audioPause();
+export function audioPause(args: { fadeSecs?: number | null } = {}): Promise<void> {
+  return commands.audioPause(args.fadeSecs ?? null);
 }
 
 export function audioStop(): Promise<void> {
@@ -156,8 +156,8 @@ export function audioCanonicalizeSelectedDevice(): Promise<string | null> {
 
 // ── Result-wrapped (facade re-throws so callers keep reject semantics) ────────
 
-export async function audioResume(): Promise<void> {
-  const res = await commands.audioResume();
+export async function audioResume(args: { fadeSecs?: number | null } = {}): Promise<void> {
+  const res = await commands.audioResume(args.fadeSecs ?? null);
   if (res.status === 'error') throw new Error(res.error);
 }
 

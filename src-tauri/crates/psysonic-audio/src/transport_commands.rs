@@ -11,6 +11,10 @@ use ringbuf::HeapRb;
 use tauri::{AppHandle, State};
 
 use super::engine::{audio_http_client, AudioEngine};
+use super::helpers::{
+    cancel_sink_volume_ramp, cancel_transport_sink_volume_ramp,
+    ramp_sink_volume_smooth_over_secs_then, sink_volume_now, MASTER_HEADROOM,
+};
 use super::playback_rate::{
     content_position_from_samples, raw_counter_samples_for_content_position,
 };
@@ -19,21 +23,54 @@ use super::stream::{radio_download_task, RADIO_BUF_CAPACITY};
 
 #[tauri::command]
 #[specta::specta]
-pub fn audio_pause(state: State<'_, AudioEngine>) {
-    let mut cur = state.current.lock().unwrap();
-    if let Some(sink) = &cur.sink {
-        if !sink.is_paused() {
-            let pos = content_position_from_samples(
-                state.samples_played.load(Ordering::Relaxed),
-                state.current_sample_rate.load(Ordering::Relaxed),
-                state.current_channels.load(Ordering::Relaxed),
-                &state.playback_rate,
-            )
-            .min(cur.duration_secs.max(0.001));
-            sink.pause();
-            cur.paused_at = Some(pos);
-            cur.play_started = None;
+pub fn audio_pause(fade_secs: Option<f32>, state: State<'_, AudioEngine>) {
+    cancel_sink_volume_ramp();
+    cancel_transport_sink_volume_ramp();
+    let fade_secs = sanitize_pause_resume_fade_secs(fade_secs);
+    if let Some(fade_secs) = fade_secs {
+        let sink = {
+            let cur = state.current.lock().unwrap();
+            cur.sink
+                .as_ref()
+                .filter(|sink| !sink.is_paused())
+                .cloned()
+        };
+        if let Some(sink) = sink {
+            let current = Arc::clone(&state.current);
+            let samples_played = Arc::clone(&state.samples_played);
+            let sample_rate = Arc::clone(&state.current_sample_rate);
+            let channels = Arc::clone(&state.current_channels);
+            let playback_rate = state.playback_rate.clone();
+            let completion_sink = Arc::clone(&sink);
+            let from = sink_volume_now(&sink);
+            ramp_sink_volume_smooth_over_secs_then(
+                sink,
+                from,
+                0.0,
+                fade_secs,
+                move || {
+                    let mut cur = current.lock().unwrap();
+                    let Some(active_sink) = cur.sink.as_ref() else {
+                        return;
+                    };
+                    if !Arc::ptr_eq(active_sink, &completion_sink) || active_sink.is_paused() {
+                        return;
+                    }
+                    let pos = content_position_from_samples(
+                        samples_played.load(Ordering::Relaxed),
+                        sample_rate.load(Ordering::Relaxed),
+                        channels.load(Ordering::Relaxed),
+                        &playback_rate,
+                    )
+                    .min(cur.duration_secs.max(0.001));
+                    active_sink.pause();
+                    cur.paused_at = Some(pos);
+                    cur.play_started = None;
+                },
+            );
         }
+    } else {
+        pause_current_sink(&state);
     }
     // Notify the download task so it can start measuring the hard-pause stall timer.
     if let Some(rs) = state.radio_state.lock().unwrap().as_ref() {
@@ -51,7 +88,14 @@ pub fn audio_pause(state: State<'_, AudioEngine>) {
 /// swaps it in on the next `read()`), and a new download task is spawned.
 #[tauri::command]
 #[specta::specta]
-pub async fn audio_resume(state: State<'_, AudioEngine>, app: AppHandle) -> Result<(), String> {
+pub async fn audio_resume(
+    fade_secs: Option<f32>,
+    state: State<'_, AudioEngine>,
+    app: AppHandle,
+) -> Result<(), String> {
+    cancel_sink_volume_ramp();
+    cancel_transport_sink_volume_ramp();
+    let fade_secs = sanitize_pause_resume_fade_secs(fade_secs);
     // If a preview is running, cancel it first — otherwise sink.play() on the
     // main sink would mix on top of the preview sink.
     preview_clear_for_new_main_playback(&state, &app);
@@ -95,17 +139,46 @@ pub async fn audio_resume(state: State<'_, AudioEngine>, app: AppHandle) -> Resu
     }
 
     // Resume the rodio Sink (works for both warm and cold resume).
-    {
+    let resume_ramp = {
         let mut cur = state.current.lock().unwrap();
-        if let Some(sink) = &cur.sink {
+        if let Some(sink) = cur.sink.clone() {
+            let target = (cur.base_volume * cur.replay_gain_linear * MASTER_HEADROOM)
+                .clamp(0.0, 1.0);
             if sink.is_paused() {
                 let pos = cur.paused_at.unwrap_or(cur.seek_offset);
+                if fade_secs.is_some() {
+                    sink.set_volume(0.0);
+                } else {
+                    sink.set_volume(target);
+                }
                 sink.play();
                 cur.seek_offset  = pos;
                 cur.play_started = Some(Instant::now());
                 cur.paused_at    = None;
+            } else if fade_secs.is_none() {
+                sink.set_volume(target);
             }
+            fade_secs.map(|secs| (Arc::clone(&sink), sink_volume_now(&sink), target, secs))
+        } else {
+            None
         }
+    };
+    if let Some((sink, from, target, secs)) = resume_ramp {
+        let current = Arc::clone(&state.current);
+        let completion_sink = Arc::clone(&sink);
+        ramp_sink_volume_smooth_over_secs_then(sink, from, target, secs, move || {
+            let cur = current.lock().unwrap();
+            if cur
+                .sink
+                .as_ref()
+                .is_some_and(|active_sink| Arc::ptr_eq(active_sink, &completion_sink))
+            {
+                completion_sink.set_volume(
+                    (cur.base_volume * cur.replay_gain_linear * MASTER_HEADROOM)
+                        .clamp(0.0, 1.0),
+                );
+            }
+        });
     }
     if let Some(rs) = state.radio_state.lock().unwrap().as_ref() {
         rs.flags.is_paused.store(false, Ordering::Release);
@@ -113,9 +186,54 @@ pub async fn audio_resume(state: State<'_, AudioEngine>, app: AppHandle) -> Resu
     Ok(())
 }
 
+fn sanitize_pause_resume_fade_secs(fade_secs: Option<f32>) -> Option<f32> {
+    fade_secs
+        .filter(|secs| secs.is_finite() && *secs > 0.0)
+        .map(|secs| secs.clamp(0.1, 2.0))
+}
+
+fn pause_current_sink(state: &AudioEngine) {
+    let mut cur = state.current.lock().unwrap();
+    if let Some(sink) = &cur.sink {
+        if !sink.is_paused() {
+            let pos = content_position_from_samples(
+                state.samples_played.load(Ordering::Relaxed),
+                state.current_sample_rate.load(Ordering::Relaxed),
+                state.current_channels.load(Ordering::Relaxed),
+                &state.playback_rate,
+            )
+            .min(cur.duration_secs.max(0.001));
+            sink.pause();
+            cur.paused_at = Some(pos);
+            cur.play_started = None;
+        }
+    }
+}
+
+#[cfg(test)]
+mod pause_resume_fade_tests {
+    use super::sanitize_pause_resume_fade_secs;
+
+    #[test]
+    fn disabled_or_invalid_fade_stays_immediate() {
+        assert_eq!(sanitize_pause_resume_fade_secs(None), None);
+        assert_eq!(sanitize_pause_resume_fade_secs(Some(0.0)), None);
+        assert_eq!(sanitize_pause_resume_fade_secs(Some(f32::NAN)), None);
+    }
+
+    #[test]
+    fn fade_duration_is_clamped_to_the_settings_range() {
+        assert_eq!(sanitize_pause_resume_fade_secs(Some(0.01)), Some(0.1));
+        assert_eq!(sanitize_pause_resume_fade_secs(Some(0.3)), Some(0.3));
+        assert_eq!(sanitize_pause_resume_fade_secs(Some(9.0)), Some(2.0));
+    }
+}
+
 #[tauri::command]
 #[specta::specta]
 pub fn audio_stop(state: State<'_, AudioEngine>, app: AppHandle) {
+    cancel_sink_volume_ramp();
+    cancel_transport_sink_volume_ramp();
     preview_clear_for_new_main_playback(&state, &app);
     let stop_generation = {
         let _commit_guard = state.playback_commit_lock.lock().unwrap();
