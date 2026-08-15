@@ -464,6 +464,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * Narrow bass bands no longer move in flat lockstep plateaus when several bars share one FFT bin. Frequency positions stay correct at standard and Hi-Res sample rates, while bands with real bin coverage keep their peak response.
 
+### Linux media controls — keep volume in sync
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1420](https://github.com/Psychotoxical/psysonic/pull/1420)**, reported by [@Logey](https://github.com/Logey)
+
+* Changing volume through `playerctl` or other MPRIS controls now updates Psysonic, and volume changes inside Psysonic are reflected back to the desktop controls instead of the two levels drifting apart.
+
 ## [1.50.0]
 
 ## Added
