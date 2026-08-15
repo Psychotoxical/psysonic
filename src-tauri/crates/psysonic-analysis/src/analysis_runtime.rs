@@ -113,7 +113,7 @@ pub enum AnalysisBackfillEnqueueKind {
     RunningSkipped,
     /// Automatic backfill recently failed before CPU admission.
     RetryDeferred,
-    /// Automatic backfill hit a permanent HTTP failure in this app session.
+    /// Automatic backfill is cooling down after a terminal failure.
     TerminalSkipped,
 }
 
@@ -133,6 +133,9 @@ type BackfillJob = (String, String, String);
 
 const ANALYSIS_BACKFILL_RETRY_BASE_SECS: u64 = 30;
 const ANALYSIS_BACKFILL_RETRY_MAX_SECS: u64 = 30 * 60;
+// A track id can later point at new content, so even terminal HTTP/size
+// failures must not suppress automatic analysis for the whole app session.
+const ANALYSIS_BACKFILL_TERMINAL_RETRY_SECS: u64 = 60 * 60;
 
 #[derive(Debug, Clone, Copy)]
 struct AnalysisBackfillRetryState {
@@ -158,7 +161,7 @@ pub struct AnalysisBackfillQueueState {
     /// This reservation prevents a second download without consuming an HTTP slot.
     awaiting_cpu: HashSet<String>,
     retry_state: HashMap<String, AnalysisBackfillRetryState>,
-    terminal_failures: HashSet<String>,
+    terminal_failures: HashMap<String, std::time::Instant>,
 }
 
 impl AnalysisBackfillQueueState {
@@ -299,7 +302,11 @@ impl AnalysisBackfillQueueState {
             }
             AnalysisBackfillFinish::TerminalFailure => {
                 self.retry_state.remove(key);
-                self.terminal_failures.insert(key.to_string());
+                self.terminal_failures.insert(
+                    key.to_string(),
+                    std::time::Instant::now()
+                        + std::time::Duration::from_secs(ANALYSIS_BACKFILL_TERMINAL_RETRY_SECS),
+                );
             }
         }
     }
@@ -313,6 +320,12 @@ impl AnalysisBackfillQueueState {
         self.retry_state
             .get(key)
             .is_some_and(|state| state.retry_after > std::time::Instant::now())
+    }
+
+    fn terminal_deferred(&self, key: &str) -> bool {
+        self.terminal_failures
+            .get(key)
+            .is_some_and(|retry_after| *retry_after > std::time::Instant::now())
     }
 
     pub fn enqueue(
@@ -349,8 +362,11 @@ impl AnalysisBackfillQueueState {
         if priority == AnalysisBackfillPriority::Low && self.retry_deferred(tref) {
             return AnalysisBackfillEnqueueKind::RetryDeferred;
         }
-        if priority == AnalysisBackfillPriority::Low && self.terminal_failures.contains(tref) {
+        if priority == AnalysisBackfillPriority::Low && self.terminal_deferred(tref) {
             return AnalysisBackfillEnqueueKind::TerminalSkipped;
+        }
+        if !self.terminal_deferred(tref) {
+            self.terminal_failures.remove(tref);
         }
         let kind = match priority {
             AnalysisBackfillPriority::High => AnalysisBackfillEnqueueKind::NewHigh,
@@ -1649,6 +1665,22 @@ pub fn analysis_track_in_cpu_pipeline(server_id: &str, track_id: &str) -> bool {
     false
 }
 
+pub fn analysis_revision_in_cpu_pipeline(
+    server_id: &str,
+    track_id: &str,
+    revision: &str,
+) -> bool {
+    let tid = track_id.trim();
+    if tid.is_empty() || revision.is_empty() {
+        return false;
+    }
+    let Some(shared) = ANALYSIS_CPU_SEED.get() else {
+        return false;
+    };
+    let st = shared.state.lock().unwrap_or_else(|e| e.into_inner());
+    st.contains_revision(server_id, tid, revision)
+}
+
 pub fn analysis_pipeline_queue_stats() -> AnalysisPipelineQueueStatsDto {
     let pipeline_workers = ANALYSIS_BACKFILL
         .get()
@@ -1853,7 +1885,7 @@ pub fn enqueue_seed_from_url(
         }
         AnalysisBackfillEnqueueKind::TerminalSkipped => {
             crate::app_deprintln!(
-                "[analysis] backfill suppressed after permanent HTTP failure: track_id={}",
+                "[analysis] backfill deferred during terminal-failure cooldown: track_id={}",
                 tid_log,
             );
             Ok(EnqueueSeedFromUrlOutcome::Skipped)
@@ -1982,6 +2014,11 @@ impl AnalysisCpuSeedQueueState {
             }
         }
         None
+    }
+
+    fn contains_revision(&self, server_id: &str, track_id: &str, revision: &str) -> bool {
+        let key = seed_revision_key(server_id, track_id, revision);
+        self.running.contains_key(&key) || self.locate_queued(&key).is_some()
     }
 
     fn push_new(&mut self, priority: AnalysisBackfillPriority, job: AnalysisCpuSeedJob) {
@@ -3292,6 +3329,31 @@ mod tests {
     }
 
     #[test]
+    fn terminal_failure_cooldown_allows_a_later_low_priority_retry() {
+        let mut state = AnalysisBackfillQueueState::default();
+        let key = seed_key("server-1", "changed-after-terminal");
+        state
+            .in_progress
+            .insert(key.clone(), AnalysisBackfillPriority::Low);
+        state.finish_job(&key, AnalysisBackfillFinish::TerminalFailure);
+        state.terminal_failures.insert(
+            key,
+            std::time::Instant::now() - std::time::Duration::from_secs(1),
+        );
+
+        assert_eq!(
+            state.enqueue(
+                "server-1".into(),
+                "changed-after-terminal".into(),
+                "url".into(),
+                AnalysisBackfillPriority::Low,
+            ),
+            AnalysisBackfillEnqueueKind::NewLow
+        );
+        assert!(state.terminal_failures.is_empty());
+    }
+
+    #[test]
     fn late_registration_cannot_replace_a_newer_trusted_revision() {
         let app = tauri::test::mock_app();
         let older_generation = next_trusted_generation();
@@ -3499,6 +3561,8 @@ mod tests {
             seed_revision_key(&job_a.server_id, &job_a.track_id, &job_a.revision),
             Arc::new(Mutex::new(Vec::new())),
         );
+        assert!(s.contains_revision("srv", "t1", "revision-a"));
+        assert!(!s.contains_revision("srv", "t1", "revision-b"));
 
         let (kind, _r2) = s.enqueue(
             "srv".into(),

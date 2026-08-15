@@ -109,30 +109,11 @@ pub(crate) fn emit_stream_provenance_if_current(
     );
 }
 
-fn max_bytes_for_dispatch(
-    origin: TrackAnalysisOrigin,
-    priority: AnalysisBackfillPriority,
-) -> usize {
+fn max_bytes_for_dispatch(origin: TrackAnalysisOrigin) -> usize {
     match origin {
         TrackAnalysisOrigin::LocalFilePlayback => LOCAL_FILE_PLAYBACK_SEED_MAX_BYTES,
-        // A completed spill at high priority is the track that is still being
-        // listened to. Analyse that capture regardless of file size; preload,
-        // cache, and no-longer-current work keep the bounded background cap.
-        TrackAnalysisOrigin::StreamSpillFile if priority == AnalysisBackfillPriority::High => {
-            usize::MAX
-        }
         _ => TRACK_STREAM_PROMOTE_MAX_BYTES,
     }
-}
-
-fn use_oversized_active_transcode(
-    origin: TrackAnalysisOrigin,
-    priority: AnalysisBackfillPriority,
-    byte_len: usize,
-) -> bool {
-    origin == TrackAnalysisOrigin::StreamSpillFile
-        && priority == AnalysisBackfillPriority::High
-        && byte_len > TRACK_STREAM_PROMOTE_MAX_BYTES
 }
 
 /// Playback server scope: explicit IPC value, else pinned engine scope.
@@ -299,7 +280,11 @@ fn trusted_original_fetch_needed(
     trusted_md5_16kb: &str,
 ) -> bool {
     should_fetch_trusted_original(
-        psysonic_analysis::analysis_runtime::analysis_track_in_cpu_pipeline(server_id, track_id),
+        psysonic_analysis::analysis_runtime::analysis_revision_in_cpu_pipeline(
+            server_id,
+            track_id,
+            trusted_md5_16kb,
+        ),
         psysonic_analysis::track_analysis_plan::plan_track_analysis(
             app,
             server_id,
@@ -339,7 +324,7 @@ pub(crate) async fn dispatch_track_analysis_bytes(
             StreamProvenance::Original
         });
     }
-    let max = max_bytes_for_dispatch(origin, priority);
+    let max = max_bytes_for_dispatch(origin);
     crate::app_deprintln!(
         "[analysis][dispatch] origin={origin:?} track_id={track_id} server_id={} size_mib={:.2} priority={priority:?}",
         if server_id.is_empty() { "''" } else { server_id },
@@ -364,6 +349,15 @@ pub(crate) async fn dispatch_track_analysis_bytes(
         match verdict {
             TrustedProbeVerdict::Trusted(trusted) => {
                 let provenance = provenance_from_trusted_bytes(&bytes, &trusted);
+                if generation_guard
+                    .is_some_and(|guard| !generation_guard_is_current(guard))
+                {
+                    return Ok(provenance);
+                }
+                let trusted_generation =
+                    psysonic_analysis::analysis_runtime::begin_trusted_revision(
+                        server_id, track_id, &trusted,
+                    );
                 emit_stream_provenance_if_current(
                     app,
                     origin,
@@ -373,6 +367,29 @@ pub(crate) async fn dispatch_track_analysis_bytes(
                     provenance,
                     generation_guard,
                 );
+                if provenance == StreamProvenance::Transcoded
+                    && !psysonic_analysis::track_analysis_plan::plan_track_analysis(
+                        app, server_id, track_id, &trusted,
+                    )
+                    .any()
+                {
+                    return psysonic_analysis::analysis_runtime::enqueue_track_analysis_trusted_owned(
+                        app,
+                        server_id,
+                        track_id,
+                        bytes,
+                        None,
+                        psysonic_analysis::analysis_runtime::TrustedAnalysisRevision {
+                            md5_16kb: trusted,
+                            generation: trusted_generation,
+                            analysis_bytes_transcoded: true,
+                            content_hash_server_id: None,
+                        },
+                        priority,
+                    )
+                    .await
+                    .map(|_| provenance);
+                }
                 let (analysis_bytes, analysis_bytes_transcoded) = if provenance
                     == StreamProvenance::Original
                 {
@@ -384,17 +401,6 @@ pub(crate) async fn dispatch_track_analysis_bytes(
                         return Ok(provenance);
                     }
                     (bytes, false)
-                } else if use_oversized_active_transcode(origin, priority, bytes.len()) {
-                    if !trusted_original_fetch_needed(app, server_id, track_id, &trusted) {
-                        crate::app_deprintln!(
-                            "[analysis][dispatch] skip active spill track_id={track_id}: analysis complete or already queued"
-                        );
-                        return Ok(provenance);
-                    }
-                    crate::app_deprintln!(
-                        "[analysis][dispatch] active spill exceeds background cap track_id={track_id}; analysing played transcode under trusted original identity"
-                    );
-                    (bytes, true)
                 } else {
                     if !trusted_original_fetch_needed(app, server_id, track_id, &trusted) {
                         crate::app_deprintln!(
@@ -423,10 +429,6 @@ pub(crate) async fn dispatch_track_analysis_bytes(
                     };
                     (original, false)
                 };
-                let trusted_generation =
-                    psysonic_analysis::analysis_runtime::begin_trusted_revision(
-                        server_id, track_id, &trusted,
-                    );
                 psysonic_analysis::analysis_runtime::enqueue_track_analysis_trusted_owned(
                     app,
                     server_id,
@@ -549,7 +551,7 @@ pub(crate) fn spawn_track_analysis_file(
         {
             return;
         }
-        let max = max_bytes_for_dispatch(origin, priority);
+        let max = max_bytes_for_dispatch(origin);
         let file_len = match tokio::fs::metadata(&file_path).await {
             Ok(metadata) => metadata.len(),
             Err(_) => return,
@@ -649,54 +651,28 @@ mod provenance_tests {
     }
 
     #[test]
-    fn raw_original_fetch_requires_work_outside_the_cpu_pipeline() {
+    fn raw_original_fetch_requires_work_outside_the_same_revision_cpu_pipeline() {
         assert!(should_fetch_trusted_original(false, true));
         assert!(!should_fetch_trusted_original(true, true));
         assert!(!should_fetch_trusted_original(false, false));
     }
 
     #[test]
-    fn only_active_stream_spills_bypass_the_background_size_cap() {
+    fn stream_spills_keep_the_background_size_cap_even_when_active() {
         assert_eq!(
-            max_bytes_for_dispatch(
-                TrackAnalysisOrigin::StreamSpillFile,
-                AnalysisBackfillPriority::High,
-            ),
-            usize::MAX,
-        );
-        assert_eq!(
-            max_bytes_for_dispatch(
-                TrackAnalysisOrigin::StreamSpillFile,
-                AnalysisBackfillPriority::Middle,
-            ),
+            max_bytes_for_dispatch(TrackAnalysisOrigin::StreamSpillFile),
             TRACK_STREAM_PROMOTE_MAX_BYTES,
         );
         assert_eq!(
-            max_bytes_for_dispatch(
-                TrackAnalysisOrigin::PrefetchOrCacheFile,
-                AnalysisBackfillPriority::High,
-            ),
+            max_bytes_for_dispatch(TrackAnalysisOrigin::PrefetchOrCacheFile),
             TRACK_STREAM_PROMOTE_MAX_BYTES,
         );
     }
 
     #[test]
-    fn oversized_active_spill_uses_the_played_transcode_without_an_unbounded_raw_fetch() {
-        assert!(use_oversized_active_transcode(
-            TrackAnalysisOrigin::StreamSpillFile,
-            AnalysisBackfillPriority::High,
-            TRACK_STREAM_PROMOTE_MAX_BYTES + 1,
-        ));
-        assert!(!use_oversized_active_transcode(
-            TrackAnalysisOrigin::StreamSpillFile,
-            AnalysisBackfillPriority::High,
-            TRACK_STREAM_PROMOTE_MAX_BYTES,
-        ));
-        assert!(!use_oversized_active_transcode(
-            TrackAnalysisOrigin::StreamSpillFile,
-            AnalysisBackfillPriority::Middle,
-            TRACK_STREAM_PROMOTE_MAX_BYTES + 1,
-        ));
+    fn oversized_active_spill_is_rejected_before_the_file_is_read() {
+        assert!(TRACK_STREAM_PROMOTE_MAX_BYTES + 1
+            > max_bytes_for_dispatch(TrackAnalysisOrigin::StreamSpillFile));
     }
 
     #[test]
