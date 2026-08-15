@@ -3,7 +3,8 @@ import { useTranslation } from 'react-i18next';
 import { Play, RefreshCw } from 'lucide-react';
 
 interface Props {
-  selectedGenre: string | null;
+  hasSelectedGenres: boolean;
+  selectedGenreLabel: string | null;
   loading: boolean;
   genreMixLoading: boolean;
   genreMixComplete: boolean;
@@ -15,14 +16,20 @@ interface Props {
 }
 
 export default function RandomMixHeader({
-  selectedGenre, loading, genreMixLoading, genreMixComplete,
+  hasSelectedGenres, selectedGenreLabel, loading, genreMixLoading, genreMixComplete,
   genreMixSongsLength, filteredSongsLength, randomMixSize,
   onRefresh, onPlayAll,
 }: Props) {
   const { t } = useTranslation();
-  const isGenreLoading = selectedGenre && !genreMixComplete;
+  const isGenreLoading = hasSelectedGenres && !genreMixComplete;
   const isPlayDisabled = loading
-    || (selectedGenre ? !genreMixComplete || genreMixSongsLength === 0 : filteredSongsLength === 0);
+    || (hasSelectedGenres ? !genreMixComplete || genreMixSongsLength === 0 : filteredSongsLength === 0);
+  const remixLabel = selectedGenreLabel
+    ? t('randomMix.remixGenre', { genre: selectedGenreLabel })
+    : t('randomMix.remix');
+  const remixTooltip = selectedGenreLabel
+    ? t('randomMix.remixTooltipGenre', { genre: selectedGenreLabel })
+    : t('randomMix.remixTooltip');
 
   return (
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
@@ -32,15 +39,12 @@ export default function RandomMixHeader({
         <button
           className="btn btn-surface"
           onClick={onRefresh}
-          disabled={selectedGenre ? genreMixLoading : loading}
-          aria-label={selectedGenre ? t('randomMix.remixGenre', { genre: selectedGenre }) : t('randomMix.remix')}
-          data-tooltip={selectedGenre
-            ? t('randomMix.remixTooltipGenre', { genre: selectedGenre })
-            : t('randomMix.remixTooltip')
-          }
+          disabled={hasSelectedGenres ? genreMixLoading : loading}
+          aria-label={remixLabel}
+          data-tooltip={remixTooltip}
         >
-          <RefreshCw size={18} className={(selectedGenre ? genreMixLoading : loading) ? 'spin' : ''} />
-          <span className="compact-btn-label">{selectedGenre ? t('randomMix.remixGenre', { genre: selectedGenre }) : t('randomMix.remix')}</span>
+          <RefreshCw size={18} className={(hasSelectedGenres ? genreMixLoading : loading) ? 'spin' : ''} />
+          <span className="compact-btn-label">{remixLabel}</span>
         </button>
         <button
           className={`btn ${isGenreLoading ? 'btn-surface' : 'btn-primary'}`}

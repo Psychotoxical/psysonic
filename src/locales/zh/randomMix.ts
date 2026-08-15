@@ -28,7 +28,7 @@ export const randomMix = {
   artistClickHint: '点击屏蔽此艺术家',
   blacklistToggle: '关键词过滤',
   genreMixTitle: '流派混音',
-  genreMixDesc: '按歌曲数量排列的前 20 个流派 — 点击获取随机混音',
+  genreMixDesc: '从歌曲数量最多的 20 个流派中选择一个或多个',
   genreMixAll: '所有歌曲',
   genreMixLoadMore: '加载 10 首更多',
   genreMixNoGenres: '服务器上未找到流派。',

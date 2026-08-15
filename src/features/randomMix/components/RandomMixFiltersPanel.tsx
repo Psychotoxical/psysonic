@@ -9,8 +9,8 @@ interface Props {
   setFiltersExpanded: React.Dispatch<React.SetStateAction<boolean>>;
   randomMixSize: number;
   setRandomMixSize: (n: number) => void;
-  selectedGenre: string | null;
-  loadGenreMix: (genre: string, overrideSize?: number) => void;
+  selectedGenres: string[];
+  loadGenreMix: (genres: string[], overrideSize?: number) => void;
   fetchSongs: (overrideSize?: number) => void;
   excludeAudiobooks: boolean;
   setExcludeAudiobooks: (v: boolean) => void;
@@ -24,7 +24,7 @@ interface Props {
 
 export default function RandomMixFiltersPanel({
   isMobile, filtersExpanded, setFiltersExpanded,
-  randomMixSize, setRandomMixSize, selectedGenre, loadGenreMix, fetchSongs,
+  randomMixSize, setRandomMixSize, selectedGenres, loadGenreMix, fetchSongs,
   excludeAudiobooks, setExcludeAudiobooks,
   blacklistOpen, setBlacklistOpen,
   customGenreBlacklist, setCustomGenreBlacklist,
@@ -75,7 +75,7 @@ export default function RandomMixFiltersPanel({
                 onClick={() => {
                   if (n === randomMixSize) return;
                   setRandomMixSize(n);
-                  if (selectedGenre) loadGenreMix(selectedGenre, n);
+                  if (selectedGenres.length > 0) loadGenreMix(selectedGenres, n);
                   else fetchSongs(n);
                 }}
               >{n}</button>

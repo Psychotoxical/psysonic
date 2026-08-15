@@ -28,7 +28,7 @@ export const randomMix = {
   artistClickHint: 'クリックしてこのアーティストを除外',
   blacklistToggle: 'キーワードフィルター',
   genreMixTitle: 'ジャンルミックス',
-  genreMixDesc: '曲数上位 20 ジャンル。クリックしてランダムミックスを読み込み',
+  genreMixDesc: '曲数上位 20 ジャンルから 1 つ以上選択',
   genreMixAll: 'すべての曲',
   genreMixLoadMore: 'さらに 10 件読み込む',
   genreMixNoGenres: 'サーバーにジャンルが見つかりません。',

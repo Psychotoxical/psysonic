@@ -10,17 +10,17 @@ interface Props {
   serverGenresLength: number;
   displayedGenres: string[];
   allAvailableGenresLength: number;
-  selectedGenre: string | null;
+  selectedGenres: string[];
   genreMixLoading: boolean;
   onSelectAll: () => void;
-  onSelectGenre: (genre: string) => void;
+  onToggleGenre: (genre: string) => void;
   onShuffle: () => void;
 }
 
 export default function RandomMixGenrePanel({
   isMobile, genreMixExpanded, setGenreMixExpanded,
   genresLoading, serverGenresLength, displayedGenres, allAvailableGenresLength,
-  selectedGenre, genreMixLoading, onSelectAll, onSelectGenre, onShuffle,
+  selectedGenres, genreMixLoading, onSelectAll, onToggleGenre, onShuffle,
 }: Props) {
   const { t } = useTranslation();
 
@@ -51,20 +51,22 @@ export default function RandomMixGenrePanel({
             ) : (
               <>
                 <button
-                  className={`btn ${selectedGenre === null ? 'btn-primary' : 'btn-surface'}`}
+                  type="button"
+                  className={`btn ${selectedGenres.length === 0 ? 'btn-primary' : 'btn-surface'}`}
                   style={{ fontSize: 12, padding: '4px 12px' }}
                   onClick={onSelectAll}
-                  disabled={genreMixLoading}
+                  aria-pressed={selectedGenres.length === 0}
                 >
                   {t('randomMix.genreMixAll')}
                 </button>
                 {displayedGenres.map(genre => (
                   <button
                     key={genre}
-                    className={`btn ${selectedGenre === genre ? 'btn-primary' : 'btn-surface'}`}
+                    type="button"
+                    className={`btn ${selectedGenres.includes(genre) ? 'btn-primary' : 'btn-surface'}`}
                     style={{ fontSize: 12, padding: '4px 12px' }}
-                    onClick={() => onSelectGenre(genre)}
-                    disabled={genreMixLoading}
+                    onClick={() => onToggleGenre(genre)}
+                    aria-pressed={selectedGenres.includes(genre)}
                   >
                     {genre}
                   </button>

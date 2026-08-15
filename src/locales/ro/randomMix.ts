@@ -28,7 +28,7 @@ export const randomMix = {
   artistClickHint: 'Clic pentru a bloca acest artist',
   blacklistToggle: 'Filtru de cuvinte cheie',
   genreMixTitle: 'Mix de Genuri',
-  genreMixDesc: 'Top 20 genuri după numărul de piese - clic pentru a încărca un mix aleatoriu',
+  genreMixDesc: 'Selectează unul sau mai multe dintre primele 20 de genuri după numărul de piese',
   genreMixAll: 'Toate piesele',
   genreMixLoadMore: 'Încarcă încă 10',
   genreMixNoGenres: 'Niciun gen găsit pe server.',

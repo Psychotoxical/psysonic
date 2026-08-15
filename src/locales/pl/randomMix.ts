@@ -28,7 +28,7 @@ export const randomMix = {
   artistClickHint: 'Kliknij, aby wykluczyć tego wykonawcę',
   blacklistToggle: 'Filtr słów kluczowych',
   genreMixTitle: 'Miks gatunków',
-  genreMixDesc: '20 najczęstszych gatunków według liczby utworów — kliknij, aby wczytać losowy miks',
+  genreMixDesc: 'Wybierz jeden lub więcej z 20 najczęstszych gatunków według liczby utworów',
   genreMixAll: 'Wszystkie utwory',
   genreMixLoadMore: 'Załaduj 10 więcej',
   genreMixNoGenres: 'Nie znaleziono gatunków na serwerze.',

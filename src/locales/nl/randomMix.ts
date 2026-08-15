@@ -28,7 +28,7 @@ export const randomMix = {
   artistClickHint: 'Klik om deze artiest te blokkeren',
   blacklistToggle: 'Trefwoordfilter',
   genreMixTitle: 'Genremix',
-  genreMixDesc: 'Top 20 genres op aantal nummers — klik voor een willekeurige mix',
+  genreMixDesc: 'Selecteer een of meer van de 20 populairste genres op aantal nummers',
   genreMixAll: 'Alle nummers',
   genreMixLoadMore: '10 meer laden',
   genreMixNoGenres: 'Geen genres gevonden op server.',

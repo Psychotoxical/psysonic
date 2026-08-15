@@ -1,5 +1,6 @@
 import type { SubsonicSong } from '@/lib/api/subsonicTypes';
 import { passesMixMinRatings, type MixMinRatingsConfig } from '@/features/playback/utils/mixRatingFilter';
+import { ownedEntityKey } from '@/lib/util/ownedEntityKey';
 
 export const AUDIOBOOK_GENRES = [
   'hörbuch', 'hoerbuch', 'hörspiel', 'hoerspiel',
@@ -37,4 +38,24 @@ export function filterRandomMixSongs(songs: SubsonicSong[], args: FilterArgs): S
     if (song.artist && matchesExcludedText(song.artist)) return false;
     return true;
   });
+}
+
+export function mergeGenreMixBatches(batches: SubsonicSong[][], targetSize: number): SubsonicSong[] {
+  const songs: SubsonicSong[] = [];
+  const seen = new Set<string>();
+  const longestBatch = Math.max(0, ...batches.map(batch => batch.length));
+
+  for (let songIndex = 0; songIndex < longestBatch && songs.length < targetSize; songIndex++) {
+    for (const batch of batches) {
+      const song = batch[songIndex];
+      if (!song) continue;
+      const key = ownedEntityKey(song);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      songs.push(song);
+      if (songs.length >= targetSize) break;
+    }
+  }
+
+  return songs;
 }

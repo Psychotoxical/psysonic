@@ -28,7 +28,7 @@ export const randomMix = {
   artistClickHint: 'Klikk for å blokkere denne artisten',
   blacklistToggle: 'Nøkkelordfilter',
   genreMixTitle: 'Sjangermiks',
-  genreMixDesc: 'Topp 20 sjangre etter antall sanger - klikk for å laste en tilfeldig miks',
+  genreMixDesc: 'Velg én eller flere av de 20 største sjangrene etter antall sanger',
   genreMixAll: 'Alle sanger',
   genreMixLoadMore: 'Last 10 til',
   genreMixNoGenres: 'Ingen sjangre funnet på tjeneren.',

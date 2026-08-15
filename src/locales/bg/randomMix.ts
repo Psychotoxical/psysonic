@@ -28,7 +28,7 @@ export const randomMix = {
   artistClickHint: 'Кликнете, за да блокирате този изпълнител',
   blacklistToggle: 'Филтър по ключови думи',
   genreMixTitle: 'Микс по жанр',
-  genreMixDesc: 'Топ 20 жанра по брой песни — кликнете, за да заредите случаен микс',
+  genreMixDesc: 'Изберете един или повече от 20-те жанра с най-много песни',
   genreMixAll: 'Всички песни',
   genreMixLoadMore: 'Зареди още 10',
   genreMixNoGenres: 'Не са намерени жанрове на сървъра.',

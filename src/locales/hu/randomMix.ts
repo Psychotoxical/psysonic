@@ -28,7 +28,7 @@ export const randomMix = {
   artistClickHint: 'Kattints az előadó letiltásához',
   blacklistToggle: 'Kulcsszószűrő',
   genreMixTitle: 'Műfaj-mix',
-  genreMixDesc: 'A 20 legnagyobb műfaj dalszám szerint — kattints egy véletlen mix betöltéséhez',
+  genreMixDesc: 'Válassz egyet vagy többet a 20 legtöbb dalt tartalmazó műfaj közül',
   genreMixAll: 'Összes dal',
   genreMixLoadMore: 'Még 10 betöltése',
   genreMixNoGenres: 'Nem található műfaj a szerveren.',

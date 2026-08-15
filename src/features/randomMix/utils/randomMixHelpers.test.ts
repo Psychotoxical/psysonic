@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { SubsonicSong } from '@/lib/api/subsonicTypes';
-import { filterRandomMixSongs } from '@/features/randomMix/utils/randomMixHelpers';
+import { filterRandomMixSongs, mergeGenreMixBatches } from '@/features/randomMix/utils/randomMixHelpers';
 
 function song(id: string): SubsonicSong {
   return {
@@ -41,5 +41,19 @@ describe('filterRandomMixSongs', () => {
       mixRatingCfg: { enabled: false, minSong: 0, minAlbum: 0, minArtist: 0 },
     });
     expect(out).toEqual([song('2')]);
+  });
+});
+
+describe('mergeGenreMixBatches', () => {
+  it('interleaves genres, deduplicates owned songs, and respects the target size', () => {
+    const rockOne = { ...song('1'), serverId: 'server-a' };
+    const jazzSameServer = { ...song('1'), serverId: 'server-a' };
+    const jazzOtherServer = { ...song('1'), serverId: 'server-b' };
+    const out = mergeGenreMixBatches([
+      [rockOne, song('2'), song('3')],
+      [jazzSameServer, jazzOtherServer, song('4')],
+    ], 4);
+
+    expect(out).toEqual([rockOne, song('2'), jazzOtherServer, song('3')]);
   });
 });

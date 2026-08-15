@@ -28,7 +28,7 @@ export const randomMix = {
   artistClickHint: 'Click para bloquear este artista',
   blacklistToggle: 'Filtro de Palabras Clave',
   genreMixTitle: 'Mezcla por Género',
-  genreMixDesc: 'Top 20 géneros por cantidad de canciones — click para cargar mezcla aleatoria',
+  genreMixDesc: 'Selecciona uno o más de los 20 géneros principales por cantidad de canciones',
   genreMixAll: 'Todas las Canciones',
   genreMixLoadMore: 'Cargar 10 más',
   genreMixNoGenres: 'No se encontraron géneros en el servidor.',
