@@ -28,8 +28,9 @@ use super::{
     TRACK_STREAM_PROMOTE_MAX_BYTES, StreamDownloadControl,
 };
 use crate::analysis_dispatch::{
-    analysis_priority_for_app, dispatch_track_analysis_bytes, resolve_server_id_for_app,
-    spawn_track_analysis_file, TrackAnalysisDispatchOptions, TrackAnalysisOrigin,
+    analysis_priority_for_app, dispatch_track_analysis_bytes, prepare_track_analysis_file,
+    resolve_server_id_for_app, spawn_track_analysis_prepared_file, TrackAnalysisDispatchOptions,
+    TrackAnalysisOrigin,
 };
 use crate::helpers::{install_stream_completed_spill_if, write_stream_spill_file};
 use crate::state::StreamCompletedSpill;
@@ -619,7 +620,7 @@ pub(crate) async fn ranged_download_task(
     http_headers: PlaybackHttpHeaders,
     // Armed synchronously before this task is spawned so frontend refresh cannot
     // race a duplicate HTTP backfill ahead of the downloader.
-    _analysis_seed_hold: Option<AnalysisSeedHoldGuard>,
+    mut analysis_seed_hold: Option<AnalysisSeedHoldGuard>,
     playback_armed: Arc<AtomicBool>,
     format_hint: Option<String>,
     tail_ready: Arc<AtomicBool>,
@@ -816,9 +817,10 @@ pub(crate) async fn ranged_download_task(
                 *slot = Some(PreloadedTrack { url: url.clone(), data });
             }
             crate::app_deprintln!("[stream] promoted to stream_completed_cache for replay");
-            if let Some((track_id, analysis_data)) = analysis_input
-                .filter(|_| download_control.claim_downloader_analysis())
-            {
+            if let Some((track_id, analysis_data)) = analysis_input {
+                if !download_control.downloader_analysis_selected().await {
+                    return;
+                }
                 let sid = resolve_server_id_for_app(&app, server_id.as_deref());
                 let priority = analysis_priority_for_app(&app, &sid, &track_id, None);
                 let guard = (gen, gen_arc.clone());
@@ -869,6 +871,11 @@ pub(crate) async fn ranged_download_task(
                         let _ = std::fs::remove_file(&path);
                         return;
                     }
+                    let prepared_file = prepare_track_analysis_file(
+                        TrackAnalysisOrigin::StreamSpillFile,
+                        &track_id,
+                        &path,
+                    );
                     let spill_stream_url = url.clone();
                     if !install_stream_completed_spill_if(
                         &spill_cache_slot,
@@ -883,17 +890,20 @@ pub(crate) async fn ranged_download_task(
                     }
                     let sid = resolve_server_id_for_app(&app, server_id.as_deref());
                     let priority = analysis_priority_for_app(&app, &sid, &track_id, None);
-                    if download_control.claim_downloader_analysis() {
-                        spawn_track_analysis_file(
-                            app.clone(),
-                            TrackAnalysisOrigin::StreamSpillFile,
-                            sid,
-                            track_id,
-                            path,
-                            Some(spill_stream_url), // spilled HTTP bytes keep stream provenance
-                            priority,
-                            Some((gen, gen_arc.clone())),
-                        );
+                    if download_control.downloader_analysis_selected().await {
+                        if let Some(prepared_file) = prepared_file {
+                            spawn_track_analysis_prepared_file(
+                                app.clone(),
+                                TrackAnalysisOrigin::StreamSpillFile,
+                                sid,
+                                track_id,
+                                prepared_file,
+                                Some(spill_stream_url), // spilled HTTP bytes keep stream provenance
+                                priority,
+                                Some((gen, gen_arc.clone())),
+                                analysis_seed_hold.take(),
+                            );
+                        }
                     }
                 }
                 Err(e) => {

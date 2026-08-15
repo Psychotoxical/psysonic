@@ -4,6 +4,8 @@
 //! when a partial stream buffer can't be probed yet). Split out of
 //! `play_input.rs` so source *selection* stays separate from source *building*.
 
+use std::io::Read;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
@@ -11,7 +13,8 @@ use std::time::Duration;
 use tauri::{AppHandle, State};
 
 use super::analysis_dispatch::{
-    prepare_playback_analysis, spawn_track_analysis_bytes, TrackAnalysisOrigin,
+    prepare_playback_analysis, prepare_track_analysis_file, spawn_track_analysis_bytes,
+    spawn_track_analysis_prepared_file, PreparedTrackAnalysisFile, TrackAnalysisOrigin,
 };
 use super::decode::{build_source, build_streaming_source, BuiltSource, SizedDecoder};
 use super::engine::AudioEngine;
@@ -22,7 +25,8 @@ use super::helpers::{
 use super::play_input::PlayInput;
 use super::state::{PreloadedTrack, StreamCompletedSpill};
 use super::stream::{
-    StreamDownloadControl, TRACK_READ_TIMEOUT_SECS, TRACK_STREAM_PROMOTE_MAX_BYTES,
+    AnalysisSeedHoldGuard, StreamDownloadControl, TRACK_READ_TIMEOUT_SECS,
+    TRACK_STREAM_PROMOTE_MAX_BYTES,
 };
 
 /// Arguments forwarded from `audio_play` into the source-build pipeline.
@@ -55,7 +59,75 @@ struct PlaybackSourceShape {
 
 struct FallbackBytes {
     data: Vec<u8>,
-    consumed_spill_path: Option<std::path::PathBuf>,
+    consumed_spill_path: Option<PathBuf>,
+}
+
+enum PublishedFallbackLocation {
+    Memory,
+    Spill {
+        path: PathBuf,
+        analysis_file: Option<PreparedTrackAnalysisFile>,
+    },
+    Uncached,
+}
+
+enum FallbackPublication {
+    Published(PublishedFallbackLocation),
+    StaleSpill(PublishedFallbackLocation),
+    Stale,
+}
+
+enum FallbackAnalysisDispatch {
+    Bytes,
+    File(Option<PreparedTrackAnalysisFile>),
+}
+
+struct FallbackAnalysisContext {
+    server_id: String,
+    track_id: String,
+    priority: psysonic_analysis::analysis_runtime::AnalysisBackfillPriority,
+    seed_hold: Option<AnalysisSeedHoldGuard>,
+}
+
+fn fallback_analysis_dispatch(
+    location: PublishedFallbackLocation,
+) -> FallbackAnalysisDispatch {
+    match location {
+        PublishedFallbackLocation::Spill { analysis_file, .. } => {
+            FallbackAnalysisDispatch::File(analysis_file)
+        }
+        PublishedFallbackLocation::Memory | PublishedFallbackLocation::Uncached => {
+            FallbackAnalysisDispatch::Bytes
+        }
+    }
+}
+
+fn stale_fallback_spill_should_unlink(candidate: &Path, source_spill_path: Option<&Path>) -> bool {
+    source_spill_path != Some(candidate)
+}
+
+struct AnalysisSelectionGuard {
+    download_control: Option<Arc<StreamDownloadControl>>,
+}
+
+impl AnalysisSelectionGuard {
+    fn new(download_control: Option<Arc<StreamDownloadControl>>) -> Self {
+        Self { download_control }
+    }
+
+    fn select_fallback(&self) -> bool {
+        self.download_control
+            .as_ref()
+            .is_some_and(|control| control.select_fallback_analysis())
+    }
+}
+
+impl Drop for AnalysisSelectionGuard {
+    fn drop(&mut self) {
+        if let Some(download_control) = self.download_control.as_ref() {
+            download_control.select_downloader_analysis();
+        }
+    }
 }
 
 /// Output of `build_source_from_play_input`: the wrapped rodio source plus
@@ -94,23 +166,49 @@ fn publish_validated_fallback_bytes(
     track_id: Option<&str>,
     gen: u64,
     data: &[u8],
-) -> bool {
+    source_spill_path: Option<&Path>,
+) -> FallbackPublication {
+    let source_spill_path = source_spill_path.map(Path::to_path_buf);
     let candidate_spill = if data.len() > TRACK_STREAM_PROMOTE_MAX_BYTES {
-        let Some(track_id) = track_id.map(str::trim).filter(|id| !id.is_empty()) else {
-            return state.generation.load(Ordering::SeqCst) == gen;
-        };
-        match write_stream_spill_file(app, &format!("{track_id}-fallback-{gen}"), data) {
-            Ok(path) => Some(path),
-            Err(e) => {
-                crate::app_eprintln!(
-                    "[stream] validated fallback spill failed track_id={track_id}: {e}"
-                );
-                return state.generation.load(Ordering::SeqCst) == gen;
+        if let Some(path) = source_spill_path.clone() {
+            Some(path)
+        } else {
+            let Some(track_id) = track_id.map(str::trim).filter(|id| !id.is_empty()) else {
+                return if state.generation.load(Ordering::SeqCst) == gen {
+                    FallbackPublication::Published(PublishedFallbackLocation::Uncached)
+                } else {
+                    FallbackPublication::Stale
+                };
+            };
+            match write_stream_spill_file(app, &format!("{track_id}-fallback-{gen}"), data) {
+                Ok(path) => Some(path),
+                Err(e) => {
+                    crate::app_eprintln!(
+                        "[stream] validated fallback spill failed track_id={track_id}: {e}"
+                    );
+                    return if state.generation.load(Ordering::SeqCst) == gen {
+                        FallbackPublication::Published(PublishedFallbackLocation::Uncached)
+                    } else {
+                        FallbackPublication::Stale
+                    };
+                }
             }
         }
     } else {
         None
     };
+    let prepared_analysis_file = candidate_spill.as_ref().and_then(|path| {
+        track_id
+            .map(str::trim)
+            .filter(|id| !id.is_empty())
+            .and_then(|track_id| {
+                prepare_track_analysis_file(
+                    TrackAnalysisOrigin::StreamSpillFile,
+                    track_id,
+                    path,
+                )
+            })
+    });
 
     let mut cache = state.stream_completed_cache.lock().unwrap();
     let mut spill = state.stream_completed_spill.lock().unwrap();
@@ -118,29 +216,48 @@ fn publish_validated_fallback_bytes(
         drop(spill);
         drop(cache);
         if let Some(path) = candidate_spill {
-            let _ = std::fs::remove_file(path);
+            let analysis_path = path.clone();
+            if stale_fallback_spill_should_unlink(&path, source_spill_path.as_deref()) {
+                let _ = std::fs::remove_file(&path);
+            }
+            return FallbackPublication::StaleSpill(PublishedFallbackLocation::Spill {
+                path: analysis_path,
+                analysis_file: prepared_analysis_file,
+            });
         }
-        return false;
+        return FallbackPublication::Stale;
     }
     let old_spill = spill.take().map(|entry| entry.path);
-    if let Some(path) = candidate_spill {
+    let location = if let Some(path) = candidate_spill {
+        let analysis_path = path.clone();
         *cache = None;
         *spill = Some(StreamCompletedSpill {
             url: url.to_string(),
             path,
         });
+        PublishedFallbackLocation::Spill {
+            path: analysis_path,
+            analysis_file: prepared_analysis_file,
+        }
     } else {
         *cache = Some(PreloadedTrack {
             url: url.to_string(),
             data: data.to_vec(),
         });
-    }
+        PublishedFallbackLocation::Memory
+    };
     drop(spill);
     drop(cache);
-    if let Some(path) = old_spill {
-        let _ = std::fs::remove_file(path);
+    let retained_spill = match &location {
+        PublishedFallbackLocation::Spill { path, .. } => Some(path),
+        PublishedFallbackLocation::Memory | PublishedFallbackLocation::Uncached => None,
+    };
+    for path in old_spill.into_iter().chain(source_spill_path) {
+        if retained_spill != Some(&path) {
+            let _ = std::fs::remove_file(path);
+        }
     }
-    true
+    FallbackPublication::Published(location)
 }
 
 /// A stream probe/decode failed in a way that may succeed after the background
@@ -157,21 +274,21 @@ fn is_stream_probe_failure_with_full_buffer_retry(err: &str, format_hint: Option
     ranged_failure || legacy_aiff_failure
 }
 
-/// Take ownership of completed download bytes so they cannot be promoted while
-/// fallback validation is in progress. Valid bytes are republished afterwards.
-async fn try_take_completed_stream_bytes(
+/// Read a stable snapshot of completed download bytes while leaving the shared
+/// replay entry in place until validated fallback bytes replace it.
+async fn try_read_completed_stream_bytes(
     url: &str,
     gen: u64,
     state: &State<'_, AudioEngine>,
 ) -> Option<FallbackBytes> {
     let ram = {
-        let mut guard = state.stream_completed_cache.lock().unwrap();
+        let guard = state.stream_completed_cache.lock().unwrap();
         if state.generation.load(Ordering::SeqCst) == gen
             && guard
                 .as_ref()
                 .is_some_and(|p| same_playback_target(&p.url, url))
         {
-            guard.take().map(|p| p.data)
+            guard.as_ref().map(|p| p.data.clone())
         } else {
             None
         }
@@ -182,21 +299,30 @@ async fn try_take_completed_stream_bytes(
             consumed_spill_path: None,
         });
     }
-    let spill_path = {
-        let mut guard = state.stream_completed_spill.lock().unwrap();
+    let spill_source = {
+        let guard = state.stream_completed_spill.lock().unwrap();
         if state.generation.load(Ordering::SeqCst) == gen
             && guard
                 .as_ref()
                 .is_some_and(|p| same_playback_target(&p.url, url))
         {
-            guard.take().map(|p| p.path)
+            guard.as_ref().and_then(|p| {
+                std::fs::File::open(&p.path)
+                    .ok()
+                    .map(|file| (p.path.clone(), file))
+            })
         } else {
             None
         }
     };
-    if let Some(path) = spill_path {
-        let data = tokio::fs::read(&path).await.ok();
-        let data = data?;
+    if let Some((path, mut file)) = spill_source {
+        let data = tokio::task::spawn_blocking(move || {
+            let mut data = Vec::new();
+            file.read_to_end(&mut data).map(|_| data)
+        })
+        .await
+        .ok()?
+        .ok()?;
         if !data.is_empty() {
             return Some(FallbackBytes {
                 data,
@@ -257,7 +383,7 @@ async fn wait_or_fetch_bytes_for_stream_fallback(
         if state.generation.load(Ordering::SeqCst) != gen {
             return Ok(None);
         }
-        if let Some(data) = try_take_completed_stream_bytes(url, gen, state).await {
+        if let Some(data) = try_read_completed_stream_bytes(url, gen, state).await {
             crate::app_deprintln!(
                 "[stream] full-buffer fallback: using completed download ({} KiB)",
                 data.data.len() / 1024
@@ -325,6 +451,7 @@ pub(crate) async fn build_playback_source_with_probe_fallback(
     } = args;
     let media_hint = play_media_format_hint(&play_input);
     let download_control = play_input_download_control(&play_input);
+    let analysis_selection = AnalysisSelectionGuard::new(download_control.clone());
     let effective_hint = resolve_playback_format_hint(
         url_format_hint,
         stream_format_suffix,
@@ -360,7 +487,6 @@ pub(crate) async fn build_playback_source_with_probe_fallback(
             let Some(download_control) = download_control.as_ref() else {
                 return Err(e);
             };
-            download_control.request_fallback_analysis();
             let fallback = match wait_or_fetch_bytes_for_stream_fallback(
                 url,
                 gen,
@@ -394,29 +520,69 @@ pub(crate) async fn build_playback_source_with_probe_fallback(
                     effective_hint
                 );
             }
-            let dispatch_fallback_analysis = |analysis_data: Vec<u8>| -> bool {
-                if !download_control.claim_fallback_analysis() {
-                    return false;
-                }
-                if let Some(track_id) = cache_id_for_tasks
+            let prepare_fallback_analysis = || -> Result<Option<FallbackAnalysisContext>, String> {
+                let Some(track_id) = cache_id_for_tasks
                     .map(str::trim)
                     .filter(|s| !s.is_empty())
-                {
-                    let (sid, high) =
-                        prepare_playback_analysis(app, state, server_id, track_id, None);
-                    spawn_track_analysis_bytes(
-                        app.clone(),
-                        TrackAnalysisOrigin::StreamDownloadComplete,
-                        sid,
-                        track_id.to_string(),
-                        analysis_data,
-                        Some(url.to_string()),
-                        high,
-                        Some((gen, state.generation.clone())),
-                    );
+                else {
+                    return Ok(None);
+                };
+                let seed_hold = AnalysisSeedHoldGuard::arm(
+                    Some(&state.playback_analysis_seed_hold),
+                    Some(track_id),
+                    gen,
+                    &state.generation,
+                );
+                if seed_hold.is_none() && state.generation.load(Ordering::SeqCst) != gen {
+                    return Err("ranged-stream: superseded during analysis handoff".into());
                 }
-                true
+                let (server_id, priority) =
+                    prepare_playback_analysis(app, state, server_id, track_id, None);
+                Ok(Some(FallbackAnalysisContext {
+                    server_id,
+                    track_id: track_id.to_string(),
+                    priority,
+                    seed_hold,
+                }))
             };
+            let dispatch_fallback_analysis =
+                |analysis_data: Vec<u8>,
+                 location: PublishedFallbackLocation,
+                 context: Option<FallbackAnalysisContext>| {
+                    let Some(context) = context else {
+                        return;
+                    };
+                    match fallback_analysis_dispatch(location) {
+                        FallbackAnalysisDispatch::Bytes => spawn_track_analysis_bytes(
+                            app.clone(),
+                            TrackAnalysisOrigin::StreamDownloadComplete,
+                            context.server_id,
+                            context.track_id,
+                            analysis_data,
+                            Some(url.to_string()),
+                            context.priority,
+                            Some((gen, state.generation.clone())),
+                            context.seed_hold,
+                        ),
+                        FallbackAnalysisDispatch::File(Some(prepared_file)) => {
+                            spawn_track_analysis_prepared_file(
+                                app.clone(),
+                                TrackAnalysisOrigin::StreamSpillFile,
+                                context.server_id,
+                                context.track_id,
+                                prepared_file,
+                                Some(url.to_string()),
+                                context.priority,
+                                Some((gen, state.generation.clone())),
+                                context.seed_hold,
+                            )
+                        }
+                        FallbackAnalysisDispatch::File(None) => crate::app_eprintln!(
+                            "[analysis][dispatch] fallback spill unavailable track_id={}",
+                            context.track_id
+                        ),
+                    }
+                };
             match build_source_from_play_input(
                 PlayInput::Bytes(data.clone()),
                 state,
@@ -431,25 +597,37 @@ pub(crate) async fn build_playback_source_with_probe_fallback(
                             "ranged-stream: superseded during full-buffer fallback".into()
                         );
                     }
+                    let analysis_context = prepare_fallback_analysis()?;
                     download_control.mark_fallback_succeeded();
-                    if !publish_validated_fallback_bytes(
+                    let publication = publish_validated_fallback_bytes(
                         state,
                         app,
                         url,
                         cache_id_for_tasks,
                         gen,
                         &data,
-                    ) {
-                        return Err(
-                            "ranged-stream: superseded during full-buffer fallback".into()
-                        );
-                    }
-                    if dispatch_fallback_analysis(data) {
-                        if let Some(path) = consumed_spill_path {
-                            let _ = std::fs::remove_file(path);
+                        consumed_spill_path.as_deref(),
+                    );
+                    match publication {
+                        FallbackPublication::Published(location) => {
+                            if !analysis_selection.select_fallback() {
+                                return Err(
+                                    "ranged-stream: analysis source already selected".into()
+                                );
+                            }
+                            dispatch_fallback_analysis(data, location, analysis_context);
+                            Ok(p)
+                        }
+                        FallbackPublication::StaleSpill(location) => {
+                            if analysis_selection.select_fallback() {
+                                dispatch_fallback_analysis(data, location, analysis_context);
+                            }
+                            Err("ranged-stream: superseded during full-buffer fallback".into())
+                        }
+                        FallbackPublication::Stale => {
+                            Err("ranged-stream: superseded during full-buffer fallback".into())
                         }
                     }
-                    Ok(p)
                 }
                 Err(pe) if is_in_memory_probe_failure(&pe) => {
                     if super::stream::container_hint_is_mp4(bytes_hint.as_deref()) {
@@ -499,22 +677,41 @@ pub(crate) async fn build_playback_source_with_probe_fallback(
                                 "ranged-stream: superseded during full-buffer fallback".into()
                             );
                         }
+                        let analysis_context = prepare_fallback_analysis()?;
                         download_control.mark_fallback_succeeded();
-                        if !publish_validated_fallback_bytes(
+                        let publication = publish_validated_fallback_bytes(
                             state,
                             app,
                             url,
                             cache_id_for_tasks,
                             gen,
                             &fresh,
-                        ) {
-                            return Err(
-                                "ranged-stream: superseded during full-buffer fallback".into()
-                            );
-                        }
-                        if dispatch_fallback_analysis(fresh) {
-                            if let Some(path) = consumed_spill_path {
-                                let _ = std::fs::remove_file(path);
+                            None,
+                        );
+                        match publication {
+                            FallbackPublication::Published(location) => {
+                                if !analysis_selection.select_fallback() {
+                                    return Err(
+                                        "ranged-stream: analysis source already selected".into()
+                                    );
+                                }
+                                dispatch_fallback_analysis(fresh, location, analysis_context);
+                                if let Some(path) = consumed_spill_path {
+                                    let _ = std::fs::remove_file(path);
+                                }
+                            }
+                            FallbackPublication::StaleSpill(location) => {
+                                if analysis_selection.select_fallback() {
+                                    dispatch_fallback_analysis(fresh, location, analysis_context);
+                                }
+                                return Err(
+                                    "ranged-stream: superseded during full-buffer fallback".into()
+                                );
+                            }
+                            FallbackPublication::Stale => {
+                                return Err(
+                                    "ranged-stream: superseded during full-buffer fallback".into()
+                                );
                             }
                         }
                     }
@@ -644,7 +841,42 @@ async fn build_source_from_play_input(
 
 #[cfg(test)]
 mod tests {
-    use super::is_stream_probe_failure_with_full_buffer_retry;
+    use std::path::PathBuf;
+
+    use super::{
+        fallback_analysis_dispatch, is_stream_probe_failure_with_full_buffer_retry,
+        FallbackAnalysisDispatch, PublishedFallbackLocation,
+    };
+
+    #[test]
+    fn published_fallback_spill_routes_analysis_from_the_file() {
+        let path = PathBuf::from("fallback-spill.flac");
+        match fallback_analysis_dispatch(PublishedFallbackLocation::Spill {
+            path,
+            analysis_file: None,
+        }) {
+            FallbackAnalysisDispatch::File(_) => {}
+            FallbackAnalysisDispatch::Bytes => panic!("spill analysis must use the file path"),
+        }
+    }
+
+    #[test]
+    fn in_memory_fallback_keeps_byte_analysis() {
+        assert!(matches!(
+            fallback_analysis_dispatch(PublishedFallbackLocation::Memory),
+            FallbackAnalysisDispatch::Bytes
+        ));
+    }
+
+    #[test]
+    fn stale_reused_spill_keeps_the_shared_cache_path() {
+        let path = PathBuf::from("shared-spill.flac");
+        assert!(!super::stale_fallback_spill_should_unlink(
+            &path,
+            Some(&path)
+        ));
+        assert!(super::stale_fallback_spill_should_unlink(&path, None));
+    }
 
     #[test]
     fn retries_ranged_probe_timeouts_from_full_buffer() {

@@ -17,8 +17,9 @@ mod ranged_http;
 mod reader;
 mod track_stream;
 
-use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, AtomicU8, Ordering};
 use std::sync::{Arc, Mutex};
+use tokio::sync::Notify;
 
 pub(crate) use mp4::{
     container_hint_is_mp4, isobmff_buffer_looks_complete, log_isobmff_buffer_diagnostic,
@@ -55,11 +56,13 @@ pub(crate) use reader::AudioStreamReader;
 pub(crate) use track_stream::track_download_task;
 
 pub(crate) type AnalysisSeedHold = Arc<Mutex<Option<(String, u64)>>>;
+static ANALYSIS_SEED_HOLD_TOKEN: AtomicU64 = AtomicU64::new(0);
 
 /// Shared ownership state between an HTTP downloader and a full-buffer fallback.
 pub(crate) struct StreamDownloadControl {
     pub(crate) done: Arc<AtomicBool>,
-    analysis_owner: AtomicU8,
+    analysis_selection: AtomicU8,
+    analysis_selection_notify: Notify,
     fallback_succeeded: AtomicBool,
     ended_without_reusable_bytes: AtomicBool,
 }
@@ -68,32 +71,47 @@ impl StreamDownloadControl {
     pub(crate) fn new() -> Arc<Self> {
         Arc::new(Self {
             done: Arc::new(AtomicBool::new(false)),
-            analysis_owner: AtomicU8::new(0),
+            analysis_selection: AtomicU8::new(0),
+            analysis_selection_notify: Notify::new(),
             fallback_succeeded: AtomicBool::new(false),
             ended_without_reusable_bytes: AtomicBool::new(false),
         })
     }
 
-    pub(crate) fn claim_downloader_analysis(&self) -> bool {
-        self.analysis_owner
+    pub(crate) fn select_downloader_analysis(&self) {
+        if self
+            .analysis_selection
             .compare_exchange(0, 1, Ordering::SeqCst, Ordering::SeqCst)
             .is_ok()
+        {
+            self.analysis_selection_notify.notify_one();
+        }
+    }
+
+    pub(crate) fn select_fallback_analysis(&self) -> bool {
+        let selected = self
+            .analysis_selection
+            .compare_exchange(0, 2, Ordering::SeqCst, Ordering::SeqCst)
+            .is_ok();
+        if selected {
+            self.analysis_selection_notify.notify_one();
+        }
+        selected
+    }
+
+    pub(crate) async fn downloader_analysis_selected(&self) -> bool {
+        loop {
+            let notified = self.analysis_selection_notify.notified();
+            match self.analysis_selection.load(Ordering::SeqCst) {
+                1 => return true,
+                2 => return false,
+                _ => notified.await,
+            }
+        }
     }
 
     pub(crate) fn mark_fallback_succeeded(&self) {
         self.fallback_succeeded.store(true, Ordering::SeqCst);
-    }
-
-    pub(crate) fn request_fallback_analysis(&self) {
-        let _ = self
-            .analysis_owner
-            .compare_exchange(0, 2, Ordering::SeqCst, Ordering::SeqCst);
-    }
-
-    pub(crate) fn claim_fallback_analysis(&self) -> bool {
-        self.analysis_owner
-            .compare_exchange(2, 3, Ordering::SeqCst, Ordering::SeqCst)
-            .is_ok()
     }
 
     pub(crate) fn fallback_succeeded(&self) -> bool {
@@ -116,7 +134,7 @@ impl StreamDownloadControl {
 pub(crate) struct AnalysisSeedHoldGuard {
     slot: AnalysisSeedHold,
     track_id: String,
-    generation: u64,
+    token: u64,
 }
 
 impl AnalysisSeedHoldGuard {
@@ -124,6 +142,7 @@ impl AnalysisSeedHoldGuard {
         slot: Option<&AnalysisSeedHold>,
         track_id: Option<&str>,
         generation: u64,
+        generation_arc: &AtomicU64,
     ) -> Option<Self> {
         let slot = slot?;
         let track_id = track_id?.trim();
@@ -131,22 +150,26 @@ impl AnalysisSeedHoldGuard {
             return None;
         }
         if let Ok(mut guard) = slot.lock() {
-            *guard = Some((track_id.to_string(), generation));
+            if generation_arc.load(Ordering::SeqCst) != generation {
+                return None;
+            }
+            let token = ANALYSIS_SEED_HOLD_TOKEN.fetch_add(1, Ordering::Relaxed);
+            *guard = Some((track_id.to_string(), token));
+            Some(Self {
+                slot: Arc::clone(slot),
+                track_id: track_id.to_string(),
+                token,
+            })
         } else {
-            return None;
+            None
         }
-        Some(Self {
-            slot: Arc::clone(slot),
-            track_id: track_id.to_string(),
-            generation,
-        })
     }
 }
 
 impl Drop for AnalysisSeedHoldGuard {
     fn drop(&mut self) {
         if let Ok(mut guard) = self.slot.lock() {
-            if matches!(&*guard, Some((track_id, generation)) if track_id == &self.track_id && *generation == self.generation) {
+            if matches!(&*guard, Some((track_id, token)) if track_id == &self.track_id && *token == self.token) {
                 *guard = None;
             }
         }
@@ -288,13 +311,13 @@ mod container_hint_tests {
 mod stream_download_control_tests {
     use super::*;
 
-    #[test]
-    fn analysis_has_one_owner_and_fallback_state_is_shared() {
+    #[tokio::test]
+    async fn fallback_selection_wakes_downloader_and_keeps_one_owner() {
         let control = StreamDownloadControl::new();
-        control.request_fallback_analysis();
-        assert!(!control.claim_downloader_analysis());
-        assert!(control.claim_fallback_analysis());
-        assert!(!control.claim_fallback_analysis());
+        assert!(control.select_fallback_analysis());
+        assert!(!control.downloader_analysis_selected().await);
+        control.select_downloader_analysis();
+        assert!(!control.select_fallback_analysis());
         assert!(!control.fallback_succeeded());
         assert!(!control.ended_without_reusable_bytes());
         control.mark_fallback_succeeded();
@@ -304,12 +327,17 @@ mod stream_download_control_tests {
         assert!(control.done.load(Ordering::SeqCst));
     }
 
-    #[test]
-    fn downloader_claim_prevents_late_fallback_claim() {
+    #[tokio::test]
+    async fn downloader_selection_wakes_waiter_and_prevents_late_fallback() {
         let control = StreamDownloadControl::new();
-        assert!(control.claim_downloader_analysis());
-        control.request_fallback_analysis();
-        assert!(!control.claim_fallback_analysis());
+        let waiter = {
+            let control = control.clone();
+            tokio::spawn(async move { control.downloader_analysis_selected().await })
+        };
+        tokio::task::yield_now().await;
+        control.select_downloader_analysis();
+        assert!(waiter.await.unwrap());
+        assert!(!control.select_fallback_analysis());
     }
 }
 
@@ -318,27 +346,54 @@ mod analysis_seed_hold_tests {
     use super::*;
 
     #[test]
-    fn guard_sets_and_clears_matching_generation() {
+    fn guard_sets_and_clears_matching_token() {
         let slot: AnalysisSeedHold = Arc::new(Mutex::new(None));
-        let guard = AnalysisSeedHoldGuard::arm(Some(&slot), Some("track-1"), 7)
+        let generation = Arc::new(AtomicU64::new(7));
+        let guard = AnalysisSeedHoldGuard::arm(Some(&slot), Some("track-1"), 7, &generation)
             .expect("valid track should arm hold");
-        assert_eq!(*slot.lock().unwrap(), Some(("track-1".to_string(), 7)));
+        assert!(matches!(
+            &*slot.lock().unwrap(),
+            Some((track_id, _)) if track_id == "track-1"
+        ));
 
         drop(guard);
         assert_eq!(*slot.lock().unwrap(), None);
     }
 
     #[test]
-    fn stale_guard_does_not_clear_newer_playback_hold() {
+    fn stale_guard_does_not_clear_rearmed_hold_for_the_same_track() {
         let slot: AnalysisSeedHold = Arc::new(Mutex::new(None));
-        let stale = AnalysisSeedHoldGuard::arm(Some(&slot), Some("track-1"), 7)
+        let generation = Arc::new(AtomicU64::new(7));
+        let stale = AnalysisSeedHoldGuard::arm(Some(&slot), Some("track-1"), 7, &generation)
             .expect("valid track should arm hold");
-        let current = AnalysisSeedHoldGuard::arm(Some(&slot), Some("track-2"), 8)
-            .expect("new playback should replace hold");
+        let stale_token = slot.lock().unwrap().as_ref().unwrap().1;
+        let current = AnalysisSeedHoldGuard::arm(Some(&slot), Some("track-1"), 7, &generation)
+            .expect("analysis handoff should replace hold");
+        let current_token = slot.lock().unwrap().as_ref().unwrap().1;
+        assert_ne!(stale_token, current_token);
 
         drop(stale);
-        assert_eq!(*slot.lock().unwrap(), Some(("track-2".to_string(), 8)));
+        assert_eq!(
+            *slot.lock().unwrap(),
+            Some(("track-1".to_string(), current_token))
+        );
         drop(current);
         assert_eq!(*slot.lock().unwrap(), None);
+    }
+
+    #[test]
+    fn stale_generation_cannot_overwrite_a_newer_playback_hold() {
+        let slot: AnalysisSeedHold = Arc::new(Mutex::new(None));
+        let generation = Arc::new(AtomicU64::new(8));
+        let current = AnalysisSeedHoldGuard::arm(Some(&slot), Some("track-2"), 8, &generation)
+            .expect("current playback should arm hold");
+        let current_token = slot.lock().unwrap().as_ref().unwrap().1;
+
+        assert!(AnalysisSeedHoldGuard::arm(Some(&slot), Some("track-1"), 7, &generation).is_none());
+        assert_eq!(
+            *slot.lock().unwrap(),
+            Some(("track-2".to_string(), current_token))
+        );
+        drop(current);
     }
 }

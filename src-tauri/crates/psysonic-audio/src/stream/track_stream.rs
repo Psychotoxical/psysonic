@@ -89,8 +89,7 @@ fn finish_legacy_stream_download(
     gen: u64,
     gen_arc: &AtomicU64,
     playback_armed: &AtomicBool,
-    after_publish: impl FnOnce(),
-) {
+) -> bool {
     let run_after_publish = if let Some(completed) = completed {
         let mut slot = promote_cache_slot.lock().unwrap();
         if gen_arc.load(Ordering::SeqCst) == gen && !download_control.fallback_succeeded() {
@@ -104,9 +103,7 @@ fn finish_legacy_stream_download(
     };
     playback_armed.store(true, Ordering::SeqCst);
     download_control.done.store(true, Ordering::SeqCst);
-    if run_after_publish {
-        after_publish();
-    }
+    run_after_publish
 }
 
 fn push_slice_or_skip_closed_consumer(prod: &mut HeapProd<u8>, bytes: &[u8]) -> (usize, bool) {
@@ -134,7 +131,7 @@ pub(crate) async fn track_download_task(
     cache_track_id: Option<String>,
     // Playback server scope for the analysis-cache write key (empty/`None` → legacy '').
     server_id: Option<String>,
-    _analysis_seed_hold: Option<AnalysisSeedHoldGuard>,
+    analysis_seed_hold: Option<AnalysisSeedHoldGuard>,
     http_headers: PlaybackHttpHeaders,
     playback_armed: Arc<AtomicBool>,
 ) {
@@ -304,6 +301,11 @@ pub(crate) async fn track_download_task(
                 downloaded as f64 / (1024.0 * 1024.0),
                 path.display()
             );
+            let prepared_file = crate::analysis_dispatch::prepare_track_analysis_file(
+                crate::analysis_dispatch::TrackAnalysisOrigin::StreamSpillFile,
+                &track_id,
+                &path,
+            );
             if !install_stream_completed_spill_if(
                 &spill_cache_slot,
                 url.clone(),
@@ -317,14 +319,16 @@ pub(crate) async fn track_download_task(
                 return;
             }
             let analysis_gen_arc = gen_arc.clone();
-            finish_legacy_stream_download(
+            let published = finish_legacy_stream_download(
                 None,
                 &promote_cache_slot,
                 &download_control,
                 gen,
                 &gen_arc,
                 &playback_armed,
-                || {
+            );
+            if published && download_control.downloader_analysis_selected().await {
+                if let Some(prepared_file) = prepared_file {
                     let sid = crate::analysis_dispatch::resolve_server_id_for_app(
                         &app,
                         server_id.as_deref(),
@@ -332,20 +336,19 @@ pub(crate) async fn track_download_task(
                     let priority = crate::analysis_dispatch::analysis_priority_for_app(
                         &app, &sid, &track_id, None,
                     );
-                    if download_control.claim_downloader_analysis() {
-                        crate::analysis_dispatch::spawn_track_analysis_file(
-                            app,
-                            crate::analysis_dispatch::TrackAnalysisOrigin::StreamSpillFile,
-                            sid,
-                            track_id,
-                            path,
-                            Some(url),
-                            priority,
-                            Some((gen, analysis_gen_arc)),
-                        );
-                    }
-                },
-            );
+                    crate::analysis_dispatch::spawn_track_analysis_prepared_file(
+                        app,
+                        crate::analysis_dispatch::TrackAnalysisOrigin::StreamSpillFile,
+                        sid,
+                        track_id,
+                        prepared_file,
+                        Some(url),
+                        priority,
+                        Some((gen, analysis_gen_arc)),
+                        analysis_seed_hold,
+                    );
+                }
+            }
             return;
         }
         if download_control.fallback_succeeded() {
@@ -372,18 +375,17 @@ pub(crate) async fn track_download_task(
             download_control.mark_ended_without_reusable_bytes();
         }
         let analysis_gen_arc = gen_arc.clone();
-        finish_legacy_stream_download(
+        let published = finish_legacy_stream_download(
             completed,
             &promote_cache_slot,
             &download_control,
             gen,
             &gen_arc,
             &playback_armed,
-            || {
-                if let (Some(track_id), Some(capture)) = (cache_track_id, analysis_capture) {
-                    if !download_control.claim_downloader_analysis() {
-                        return;
-                    }
+        );
+        if published {
+            if let (Some(track_id), Some(capture)) = (cache_track_id, analysis_capture) {
+                if download_control.downloader_analysis_selected().await {
                     crate::app_deprintln!(
                         "[stream] legacy stream: capture complete track_id={} capture_mib={:.2} — full-track analysis (cpu-seed queue)",
                         track_id,
@@ -405,10 +407,11 @@ pub(crate) async fn track_download_task(
                         Some(url),
                         priority,
                         Some((gen, analysis_gen_arc)),
+                        analysis_seed_hold,
                     );
                 }
-            },
-        );
+            }
+        }
         return;
     }
 }
@@ -442,7 +445,7 @@ mod tests {
         let analysis_started = AtomicBool::new(false);
         let generation = AtomicU64::new(7);
 
-        finish_legacy_stream_download(
+        let published = finish_legacy_stream_download(
             Some(PreloadedTrack {
                 url: "https://example.test/stream".to_string(),
                 data: body.clone(),
@@ -452,14 +455,14 @@ mod tests {
             7,
             &generation,
             &playback_armed,
-            || {
-                let completed = completed.lock().unwrap();
-                assert_eq!(completed.as_ref().unwrap().data, body);
-                assert!(playback_armed.load(Ordering::SeqCst));
-                assert!(done.load(Ordering::SeqCst));
-                analysis_started.store(true, Ordering::SeqCst);
-            },
         );
+        if published {
+            let completed = completed.lock().unwrap();
+            assert_eq!(completed.as_ref().unwrap().data, body);
+            assert!(playback_armed.load(Ordering::SeqCst));
+            assert!(done.load(Ordering::SeqCst));
+            analysis_started.store(true, Ordering::SeqCst);
+        }
 
         assert!(analysis_started.load(Ordering::SeqCst));
         assert!(done.load(Ordering::SeqCst));

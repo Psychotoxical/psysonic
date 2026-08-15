@@ -779,6 +779,7 @@ pub async fn audio_chain_preload(
             Some(url.clone()),
             priority,
             Some((snapshot.generation, state.generation.clone())),
+            None,
         );
     }
 

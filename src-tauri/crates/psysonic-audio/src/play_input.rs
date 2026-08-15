@@ -105,7 +105,12 @@ fn spawn_playback_analysis_bytes(
         Some(ctx.url.to_string()),
         high,
         Some((ctx.gen, state.generation.clone())),
+        None,
     );
+}
+
+fn ranged_analysis_seed_hold_allowed(total_size: usize) -> bool {
+    total_size <= super::stream::LOCAL_FILE_PLAYBACK_SEED_MAX_BYTES
 }
 
 /// Resolves the play input for `audio_play` honouring (in priority order):
@@ -139,6 +144,7 @@ pub(super) async fn select_play_input(
                 Some(ctx.url.to_string()),
                 high,
                 Some((ctx.gen, state.generation.clone())),
+                None,
             );
         }
         return Ok(Some(PlayInput::Bytes(d)));
@@ -212,6 +218,7 @@ fn open_local_file_input(
             None, // genuine local file — original by definition
             high,
             Some((ctx.gen, state.generation.clone())),
+            None,
         );
     }
     let reader = LocalFileSource { file, len };
@@ -332,12 +339,13 @@ async fn open_ranged_or_streaming_input(
             gen: ctx.gen,
             format_hint: stream_hint.clone(),
         });
-        let analysis_seed_hold = (total_usize <= super::stream::TRACK_STREAM_PROMOTE_MAX_BYTES)
+        let analysis_seed_hold = ranged_analysis_seed_hold_allowed(total_usize)
             .then(|| {
                 super::stream::AnalysisSeedHoldGuard::arm(
                     Some(&state.playback_analysis_seed_hold),
                     ctx.cache_id_for_tasks,
                     ctx.gen,
+                    &state.generation,
                 )
             })
             .flatten();
@@ -430,6 +438,7 @@ async fn open_ranged_or_streaming_input(
         Some(&state.playback_analysis_seed_hold),
         ctx.cache_id_for_tasks,
         ctx.gen,
+        &state.generation,
     );
     tokio::spawn(track_download_task(
         ctx.gen,
@@ -498,7 +507,20 @@ pub(crate) fn url_stream_cap_kbps(url: &str) -> Option<u32> {
 
 #[cfg(test)]
 mod url_param_tests {
-    use super::{url_format_hint, url_stream_cap_kbps};
+    use super::{ranged_analysis_seed_hold_allowed, url_format_hint, url_stream_cap_kbps};
+
+    #[test]
+    fn ranged_analysis_hold_covers_disk_spill_sizes() {
+        assert!(ranged_analysis_seed_hold_allowed(
+            super::super::stream::TRACK_STREAM_PROMOTE_MAX_BYTES + 1
+        ));
+        assert!(ranged_analysis_seed_hold_allowed(
+            super::super::stream::LOCAL_FILE_PLAYBACK_SEED_MAX_BYTES
+        ));
+        assert!(!ranged_analysis_seed_hold_allowed(
+            super::super::stream::LOCAL_FILE_PLAYBACK_SEED_MAX_BYTES + 1
+        ));
+    }
 
     #[test]
     fn extracts_aiff_format_hint_from_url_path() {

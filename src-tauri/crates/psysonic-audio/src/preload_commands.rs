@@ -122,6 +122,7 @@ fn seed_preload_analysis_bytes(
         Some(url.to_string()),
         priority,
         Some((generation, state.generation.clone())),
+        None,
     );
 }
 
@@ -156,6 +157,7 @@ fn seed_preload_analysis_file(
         file_path,
         None,
         priority,
+        None,
         None,
     );
 }
