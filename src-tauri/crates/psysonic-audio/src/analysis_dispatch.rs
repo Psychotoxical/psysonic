@@ -390,6 +390,7 @@ pub(crate) async fn dispatch_track_analysis_bytes(
                     .await
                     .map(|_| provenance);
                 }
+                let mut trusted_fetch_permit = None;
                 let (analysis_bytes, analysis_bytes_transcoded) = if provenance
                     == StreamProvenance::Original
                 {
@@ -411,6 +412,19 @@ pub(crate) async fn dispatch_track_analysis_bytes(
                     crate::app_deprintln!(
                         "[analysis][dispatch] captured bytes differ from trusted original track_id={track_id}; fetching bounded raw original"
                     );
+                    let permit = psysonic_analysis::analysis_runtime::reserve_trusted_analysis_fetch(
+                        server_id, track_id, &trusted,
+                    )
+                    .await;
+                    if permit.waited()
+                        && !trusted_original_fetch_needed(app, server_id, track_id, &trusted)
+                    {
+                        crate::app_deprintln!(
+                            "[analysis][dispatch] skip completed duplicate raw original fetch track_id={track_id}"
+                        );
+                        return Ok(provenance);
+                    }
+                    trusted_fetch_permit = Some(permit);
                     let Some(original) =
                         psysonic_analysis::raw_probe::fetch_trusted_original_bytes(
                             &client,
@@ -429,7 +443,7 @@ pub(crate) async fn dispatch_track_analysis_bytes(
                     };
                     (original, false)
                 };
-                psysonic_analysis::analysis_runtime::enqueue_track_analysis_trusted_owned(
+                let result = psysonic_analysis::analysis_runtime::enqueue_track_analysis_trusted_owned(
                     app,
                     server_id,
                     track_id,
@@ -444,7 +458,9 @@ pub(crate) async fn dispatch_track_analysis_bytes(
                     priority,
                 )
                 .await
-                .map(|_| provenance)
+                .map(|_| provenance);
+                drop(trusted_fetch_permit);
+                result
             }
             TrustedProbeVerdict::SkipCanonicalWrites => {
                 // No positive provenance for these HTTP-stream bytes (the

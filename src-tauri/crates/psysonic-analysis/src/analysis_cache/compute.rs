@@ -42,6 +42,7 @@ pub enum SeedFromBytesOutcome {
 
 /// Full Symphonia + (optional) EBU decode for waveform + loudness. Call only from the
 /// single CPU-seed worker in `lib.rs` (`spawn_blocking`) so at most one heavy decode runs.
+#[allow(clippy::too_many_arguments)]
 pub fn seed_from_bytes_execute<R: Runtime>(
     app: &tauri::AppHandle<R>,
     server_id: &str,
@@ -49,6 +50,7 @@ pub fn seed_from_bytes_execute<R: Runtime>(
     bytes: &[u8],
     format_hint: Option<&str>,
     trusted_md5_16kb: Option<&str>,
+    trusted_generation: Option<u64>,
     notify_ui: bool,
 ) -> Result<(SeedFromBytesOutcome, AnalysisSeedTimings), String> {
     seed_from_bytes_execute_with_policy(
@@ -58,6 +60,7 @@ pub fn seed_from_bytes_execute<R: Runtime>(
         bytes,
         format_hint,
         trusted_md5_16kb,
+        trusted_generation,
         true,
         notify_ui,
     )
@@ -65,6 +68,7 @@ pub fn seed_from_bytes_execute<R: Runtime>(
 
 /// Analyse a server-generated transcode while storing the result under a
 /// separately verified fingerprint of the original file.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn seed_transcoded_bytes_execute<R: Runtime>(
     app: &tauri::AppHandle<R>,
     server_id: &str,
@@ -72,6 +76,7 @@ pub(crate) fn seed_transcoded_bytes_execute<R: Runtime>(
     bytes: &[u8],
     format_hint: Option<&str>,
     trusted_md5_16kb: &str,
+    trusted_generation: u64,
     notify_ui: bool,
 ) -> Result<(SeedFromBytesOutcome, AnalysisSeedTimings), String> {
     seed_from_bytes_execute_with_policy(
@@ -81,6 +86,7 @@ pub(crate) fn seed_transcoded_bytes_execute<R: Runtime>(
         bytes,
         format_hint,
         Some(trusted_md5_16kb),
+        Some(trusted_generation),
         false,
         notify_ui,
     )
@@ -94,6 +100,7 @@ fn seed_from_bytes_execute_with_policy<R: Runtime>(
     bytes: &[u8],
     format_hint: Option<&str>,
     trusted_md5_16kb: Option<&str>,
+    trusted_generation: Option<u64>,
     verify_trusted_prefix: bool,
     notify_ui: bool,
 ) -> Result<(SeedFromBytesOutcome, AnalysisSeedTimings), String> {
@@ -142,6 +149,7 @@ fn seed_from_bytes_execute_with_policy<R: Runtime>(
             track_id,
             bytes,
             trusted_md5_16kb,
+            trusted_generation.map(|generation| (server_id, generation)),
             notify_ui,
         );
         if matches!(enrichment_outcome, TrackEnrichmentOutcome::Failed) {
@@ -1579,8 +1587,9 @@ mod tests {
         let app = tauri::test::mock_app();
         let wav = build_mono_pcm16_wav(&sine_440_at_minus_6db(44_100, 0.25), 44_100);
         let handle = app.handle().clone();
-        let (outcome, timings) = seed_from_bytes_execute(&handle, "s", "t", &wav, None, None, true)
-            .expect("seed execute should return a graceful skip");
+        let (outcome, timings) =
+            seed_from_bytes_execute(&handle, "s", "t", &wav, None, None, None, true)
+                .expect("seed execute should return a graceful skip");
         assert_eq!(outcome, SeedFromBytesOutcome::SkippedNoAnalysisCache);
         assert_eq!(timings.seed_ms, 0);
         assert_eq!(timings.bpm_ms, 0);
@@ -1594,14 +1603,32 @@ mod tests {
         let handle = app.handle().clone();
 
         let (first, timings_first) =
-            seed_from_bytes_execute(&handle, "server-a", "track-exec", &wav, None, None, true)
-                .unwrap();
+            seed_from_bytes_execute(
+                &handle,
+                "server-a",
+                "track-exec",
+                &wav,
+                None,
+                None,
+                None,
+                true,
+            )
+            .unwrap();
         assert_eq!(first, SeedFromBytesOutcome::Upserted);
         assert!(timings_first.seed_ms <= 30_000);
 
         let (second, timings_second) =
-            seed_from_bytes_execute(&handle, "server-a", "track-exec", &wav, None, None, true)
-                .unwrap();
+            seed_from_bytes_execute(
+                &handle,
+                "server-a",
+                "track-exec",
+                &wav,
+                None,
+                None,
+                None,
+                true,
+            )
+            .unwrap();
         assert_eq!(second, SeedFromBytesOutcome::SkippedWaveformCacheHit);
         assert!(timings_second.seed_ms <= 30_000);
     }

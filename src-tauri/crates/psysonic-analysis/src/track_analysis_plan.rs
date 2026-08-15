@@ -5,12 +5,12 @@
 
 use psysonic_core::track_analysis::TrackAnalysisPlan;
 use psysonic_core::track_enrichment::TrackEnrichmentPort;
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, Manager, Runtime};
 
 use crate::analysis_cache::{AnalysisCache, TrackKey};
 
-pub fn plan_track_analysis(
-    app: &AppHandle,
+pub fn plan_track_analysis<R: Runtime>(
+    app: &AppHandle<R>,
     server_id: &str,
     track_id: &str,
     content_hash: &str,
@@ -20,8 +20,8 @@ pub fn plan_track_analysis(
 
 /// Offline/library download: waveform cache and enrichment facts may live under the
 /// playback index key while library rows use the UUID — try every scope before seeding.
-pub fn plan_track_analysis_offline_library(
-    app: &AppHandle,
+pub fn plan_track_analysis_offline_library<R: Runtime>(
+    app: &AppHandle<R>,
     cache_server_ids: &[&str],
     _enrichment_server_id: &str,
     track_id: &str,
@@ -38,8 +38,8 @@ pub fn plan_track_analysis_offline_library(
 }
 
 /// Plan from the latest cached fingerprint when bytes are not available yet (HTTP backfill gate).
-pub fn plan_track_analysis_from_cache(
-    app: &AppHandle,
+pub fn plan_track_analysis_from_cache<R: Runtime>(
+    app: &AppHandle<R>,
     server_id: &str,
     track_id: &str,
 ) -> Result<TrackAnalysisPlan, String> {
@@ -60,8 +60,8 @@ pub fn plan_track_analysis_from_cache(
     Ok(plan_track_analysis(app, server_id, track_id, &md5))
 }
 
-pub fn track_analysis_needs_work(
-    app: &AppHandle,
+pub fn track_analysis_needs_work<R: Runtime>(
+    app: &AppHandle<R>,
     server_id: &str,
     track_id: &str,
 ) -> Result<bool, String> {
@@ -102,8 +102,8 @@ pub fn track_analysis_needs_work(
     Ok(plan_track_analysis_from_cache(app, server_id, track_id)?.any())
 }
 
-fn cache_gaps(
-    app: &AppHandle,
+fn cache_gaps<R: Runtime>(
+    app: &AppHandle<R>,
     server_id: &str,
     track_id: &str,
     content_hash: &str,
@@ -116,8 +116,8 @@ fn cache_gaps(
     )
 }
 
-fn cache_gaps_multi(
-    app: &AppHandle,
+fn cache_gaps_multi<R: Runtime>(
+    app: &AppHandle<R>,
     server_ids: &[&str],
     track_id: &str,
     content_hash: &str,
@@ -142,8 +142,8 @@ fn cache_gaps_multi(
     (need_waveform, need_loudness)
 }
 
-fn enrichment_plan(
-    app: &AppHandle,
+fn enrichment_plan<R: Runtime>(
+    app: &AppHandle<R>,
     server_id: &str,
     track_id: &str,
     content_hash: &str,
@@ -156,8 +156,8 @@ fn enrichment_plan(
         .unwrap_or_default()
 }
 
-fn enrichment_plan_multi(
-    app: &AppHandle,
+fn enrichment_plan_multi<R: Runtime>(
+    app: &AppHandle<R>,
     server_ids: &[&str],
     track_id: &str,
     content_hash: &str,

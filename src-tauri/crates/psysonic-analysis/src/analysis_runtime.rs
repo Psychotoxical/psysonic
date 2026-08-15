@@ -267,6 +267,24 @@ impl AnalysisBackfillQueueState {
         None
     }
 
+    fn try_pop_next_with_cpu_backpressure(
+        &mut self,
+        max_concurrent: usize,
+        cpu_load: usize,
+        cpu_cap: usize,
+    ) -> Option<BackfillJob> {
+        let high_pending = !self.high.is_empty();
+        if should_idle_for_cpu_backpressure(
+            cpu_load,
+            self.in_progress.len(),
+            cpu_cap,
+            high_pending,
+        ) {
+            return None;
+        }
+        self.try_pop_next(max_concurrent)
+    }
+
     fn record_retryable_failure(&mut self, key: &str) {
         let failures = self
             .retry_state
@@ -553,6 +571,64 @@ impl TrustedActivationState {
 
 static TRUSTED_ACTIVATION_GENERATION: AtomicU64 = AtomicU64::new(0);
 static TRUSTED_ACTIVATIONS: OnceLock<Mutex<TrustedActivationState>> = OnceLock::new();
+type TrustedAnalysisFetchWaiter = tokio::sync::oneshot::Sender<()>;
+static TRUSTED_ANALYSIS_FETCHES: OnceLock<
+    Mutex<HashMap<String, Vec<TrustedAnalysisFetchWaiter>>>,
+> = OnceLock::new();
+
+#[derive(Debug)]
+pub struct TrustedAnalysisFetchPermit {
+    key: String,
+    waited: bool,
+}
+
+impl TrustedAnalysisFetchPermit {
+    pub fn waited(&self) -> bool {
+        self.waited
+    }
+}
+
+impl Drop for TrustedAnalysisFetchPermit {
+    fn drop(&mut self) {
+        let waiters = TRUSTED_ANALYSIS_FETCHES
+            .get_or_init(|| Mutex::new(HashMap::new()))
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .remove(&self.key)
+            .unwrap_or_default();
+        for waiter in waiters {
+            let _ = waiter.send(());
+        }
+    }
+}
+
+pub async fn reserve_trusted_analysis_fetch(
+    server_id: &str,
+    track_id: &str,
+    revision: &str,
+) -> TrustedAnalysisFetchPermit {
+    let canonical_track_id = track_id.strip_prefix("stream:").unwrap_or(track_id);
+    let key = seed_revision_key(server_id, canonical_track_id, revision);
+    let mut waited = false;
+    loop {
+        let receiver = {
+            let mut reservations = TRUSTED_ANALYSIS_FETCHES
+                .get_or_init(|| Mutex::new(HashMap::new()))
+                .lock()
+                .unwrap_or_else(|error| error.into_inner());
+            if let Some(waiters) = reservations.get_mut(&key) {
+                let (sender, receiver) = tokio::sync::oneshot::channel();
+                waiters.push(sender);
+                Some(receiver)
+            } else {
+                reservations.insert(key.clone(), Vec::new());
+                return TrustedAnalysisFetchPermit { key, waited };
+            }
+        };
+        let _ = receiver.expect("occupied fetch must provide a waiter").await;
+        waited = true;
+    }
+}
 
 fn canonical_activation_key(server_id: &str, track_id: &str) -> String {
     let canonical_track_id = track_id.strip_prefix("stream:").unwrap_or(track_id);
@@ -732,7 +808,10 @@ fn activate_trusted_enrichment<R: tauri::Runtime>(
     generation: u64,
     outcome: TrackEnrichmentOutcome,
 ) -> bool {
-    if matches!(outcome, TrackEnrichmentOutcome::Failed) {
+    if matches!(
+        outcome,
+        TrackEnrichmentOutcome::Failed | TrackEnrichmentOutcome::SkippedSuperseded
+    ) {
         return false;
     }
     activate_trusted_identity(
@@ -743,6 +822,27 @@ fn activate_trusted_enrichment<R: tauri::Runtime>(
         content_hash,
         generation,
     )
+}
+
+pub(crate) fn commit_trusted_enrichment_if_current<T>(
+    server_id: &str,
+    track_id: &str,
+    content_hash: &str,
+    generation: u64,
+    commit: impl FnOnce() -> T,
+) -> Option<T> {
+    let activation_key = canonical_activation_key(server_id, track_id);
+    let state = TRUSTED_ACTIVATIONS
+        .get_or_init(|| Mutex::new(TrustedActivationState::default()))
+        .lock()
+        .unwrap_or_else(|error| error.into_inner());
+    let is_current = state
+        .current_by_track
+        .get(&activation_key)
+        .is_some_and(|current| {
+            current.revision == content_hash && current.generation == generation
+        });
+    is_current.then(commit)
 }
 
 /// Like [`enqueue_track_analysis`] but with a verified original fingerprint.
@@ -878,12 +978,16 @@ async fn enqueue_track_analysis_with_fetch(
             content_hash
         );
         let bpm_started = std::time::Instant::now();
+        let trusted_guard = trusted_revision
+            .as_ref()
+            .map(|trusted| (server_id.to_string(), trusted.generation));
         let outcome = run_track_enrichment_from_owned_bytes(
             app,
             server_id,
             track_id,
             bytes.into_owned(),
             Some(content_hash.clone()),
+            trusted_guard,
             analysis_emits_ui_events(priority),
         )
         .await;
@@ -938,6 +1042,7 @@ pub async fn run_track_enrichment_from_bytes(
         track_id,
         bytes.to_vec(),
         trusted_md5_16kb,
+        None,
         notify_ui,
     )
     .await
@@ -949,6 +1054,7 @@ async fn run_track_enrichment_from_owned_bytes(
     track_id: &str,
     data: Vec<u8>,
     trusted_md5_16kb: Option<String>,
+    trusted_guard: Option<(String, u64)>,
     notify_ui: bool,
 ) -> TrackEnrichmentOutcome {
     if server_id.is_empty() {
@@ -964,6 +1070,9 @@ async fn run_track_enrichment_from_owned_bytes(
             &tid,
             &data,
             trusted_md5_16kb.as_deref(),
+            trusted_guard
+                .as_ref()
+                .map(|(server_id, generation)| (server_id.as_str(), *generation)),
             notify_ui,
         )
     })
@@ -1141,12 +1250,17 @@ async fn enqueue_track_analysis_offline_library_with_plan(
             content_hash
         );
         let bpm_started = std::time::Instant::now();
-        let outcome = run_track_enrichment_from_bytes(
+        let trusted_guard = args
+            .trusted_revision
+            .as_ref()
+            .map(|trusted| (args.cache_server_id.to_string(), trusted.generation));
+        let outcome = run_track_enrichment_from_owned_bytes(
             args.app,
             args.enrichment_server_id,
             args.track_id,
-            args.bytes,
+            args.bytes.to_vec(),
             Some(content_hash.clone()),
+            trusted_guard,
             analysis_emits_ui_events(args.priority),
         )
         .await;
@@ -1334,12 +1448,13 @@ fn analysis_stream_format_hint(url: &str) -> Option<String> {
         .find_map(|(key, value)| (key == "format" && value != "raw").then(|| value.into_owned()))
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug)]
 struct AnalysisBackfillDownload {
     bytes: Vec<u8>,
     fetch_ms: u64,
     format_hint: Option<String>,
     trusted_revision: Option<TrustedAnalysisRevision>,
+    trusted_fetch_permit: Option<TrustedAnalysisFetchPermit>,
 }
 
 fn record_oversized_trusted_analysis<R: tauri::Runtime>(
@@ -1470,6 +1585,7 @@ async fn analysis_backfill_download<R: tauri::Runtime>(
                                     analysis_bytes_transcoded: true,
                                     content_hash_server_id: None,
                                 }),
+                                trusted_fetch_permit: None,
                             });
                         }
                         Err(crate::raw_probe::BoundedStreamFetchError::TooLarge { .. }) => {
@@ -1511,6 +1627,21 @@ async fn analysis_backfill_download<R: tauri::Runtime>(
             "original download endpoint unavailable for analysis fallback".to_string(),
         )
     })?;
+    let trusted_fetch_permit = if let Some(revision) = trusted.as_deref() {
+        let permit = reserve_trusted_analysis_fetch(server_id, track_id, revision).await;
+        if permit.waited()
+            && (analysis_revision_in_cpu_pipeline(server_id, track_id, revision)
+                || !crate::track_analysis_plan::plan_track_analysis(
+                    app, server_id, track_id, revision,
+                )
+                .any())
+        {
+            return Err(AnalysisBackfillJobError::Superseded);
+        }
+        Some(permit)
+    } else {
+        None
+    };
     let bytes = match crate::raw_probe::fetch_bounded_stream_bytes(
         analysis_http_client(),
         registry.as_deref(),
@@ -1595,6 +1726,7 @@ async fn analysis_backfill_download<R: tauri::Runtime>(
         fetch_ms: fetch_started.elapsed().as_millis() as u64,
         format_hint: None,
         trusted_revision,
+        trusted_fetch_permit,
     })
 }
 
@@ -1619,6 +1751,7 @@ async fn process_analysis_backfill_job(
         fetch_ms,
         format_hint,
         trusted_revision,
+        trusted_fetch_permit,
     } = download;
     let outcome = enqueue_track_analysis_with_fetch(
         app,
@@ -1632,7 +1765,9 @@ async fn process_analysis_backfill_job(
         Some(cpu_admitted),
     )
     .await
-    .map_err(AnalysisBackfillJobError::Retryable)?;
+    .map_err(AnalysisBackfillJobError::Retryable);
+    drop(trusted_fetch_permit);
+    let outcome = outcome?;
     Ok(!matches!(outcome, EnqueueTrackAnalysisOutcome::Complete))
 }
 
@@ -1693,10 +1828,17 @@ fn cpu_seed_pipeline_cap(max_parallel: usize) -> usize {
     max_parallel.saturating_mul(2).max(2)
 }
 
-/// Decide whether the HTTP backfill worker should idle right now. High-tier
-/// (now-playing) jobs always bypass the cap so playback is never starved.
-fn should_idle_for_cpu_backpressure(cpu_load: usize, cpu_cap: usize, high_pending: bool) -> bool {
-    !high_pending && cpu_load >= cpu_cap
+/// Decide whether the HTTP backfill worker should idle right now. Active HTTP
+/// downloads reserve their prospective CPU-buffer slots before another job is
+/// popped. High-tier work gets one slot beyond the ordinary cap.
+fn should_idle_for_cpu_backpressure(
+    cpu_load: usize,
+    http_active: usize,
+    cpu_cap: usize,
+    high_pending: bool,
+) -> bool {
+    let admission_cap = cpu_cap.saturating_add(usize::from(high_pending));
+    cpu_load.saturating_add(http_active) >= admission_cap
 }
 
 async fn spawn_backfill_slots(app: &tauri::AppHandle, shared: &Arc<AnalysisBackfillShared>) {
@@ -1706,20 +1848,17 @@ async fn spawn_backfill_slots(app: &tauri::AppHandle, shared: &Arc<AnalysisBackf
         // (Vec<u8>, tens of MB for FLAC) sit in `AnalysisCpuSeedJob.bytes` until
         // Symphonia decode + R128 finish — much slower than HTTP. Without a cap,
         // aggressive library backfill on large libraries grows RAM unbounded.
-        // High-tier (now-playing) jobs always proceed.
+        // High-tier (now-playing) jobs get one reserved slot beyond the normal
+        // cap, but cannot grow an unbounded backlog during rapid track skips.
         let cpu_load = cpu_seed_pipeline_load();
         let cpu_cap = cpu_seed_pipeline_cap(max);
         let job_bundle = {
             let mut st = shared.state.lock().unwrap_or_else(|e| e.into_inner());
-            let high_pending = !st.high.is_empty();
-            if should_idle_for_cpu_backpressure(cpu_load, cpu_cap, high_pending) {
-                None
-            } else {
-                st.try_pop_next(max).map(|job| {
+            st.try_pop_next_with_cpu_backpressure(max, cpu_load, cpu_cap)
+                .map(|job| {
                     let worker_slot = st.in_progress.len();
                     (job, worker_slot)
                 })
-            }
         };
         let Some(((track_id, url, server_id), worker_slot)) = job_bundle else {
             if cpu_load >= cpu_cap {
@@ -2353,6 +2492,20 @@ impl AnalysisCpuSeedQueueState {
             .or_else(|| self.middle.pop_front())
             .or_else(|| self.low.pop_front())
     }
+
+    fn finish_running(&mut self, key: &str) -> Vec<SeedDoneSender> {
+        self.running_tiers.remove(key);
+        self.running
+            .remove(key)
+            .map(|followers| {
+                followers
+                    .lock()
+                    .unwrap_or_else(|error| error.into_inner())
+                    .drain(..)
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
 }
 
 struct AnalysisCpuSeedShared {
@@ -2464,11 +2617,11 @@ async fn spawn_cpu_seed_slots(app: &tauri::AppHandle, shared: &Arc<AnalysisCpuSe
                     st.running.insert(run_key.clone(), followers.clone());
                     st.running_tiers.insert(run_key, job_priority);
                     let worker_slot = st.running.len();
-                    (j, followers, worker_slot)
+                    (j, worker_slot)
                 })
             }
         };
-        let Some((job, followers, worker_slot)) = job_bundle else {
+        let Some((job, worker_slot)) = job_bundle else {
             break;
         };
         let tid_log = job.track_id.clone();
@@ -2500,6 +2653,10 @@ async fn spawn_cpu_seed_slots(app: &tauri::AppHandle, shared: &Arc<AnalysisCpuSe
                 .trusted_revision
                 .as_ref()
                 .map(|trusted| trusted.md5_16kb.clone());
+            let trusted_generation = job
+                .trusted_revision
+                .as_ref()
+                .map(|trusted| trusted.generation);
             let seed_result = tokio::task::spawn_blocking(move || {
                 if analysis_bytes_transcoded {
                     let trusted = trusted_md5_16kb.as_deref().ok_or_else(|| {
@@ -2512,6 +2669,9 @@ async fn spawn_cpu_seed_slots(app: &tauri::AppHandle, shared: &Arc<AnalysisCpuSe
                         &bytes,
                         format_hint.as_deref(),
                         trusted,
+                        trusted_generation.ok_or_else(|| {
+                            "trusted analysis transcode missing generation".to_string()
+                        })?,
                         notify_ui,
                     )
                 } else {
@@ -2522,6 +2682,7 @@ async fn spawn_cpu_seed_slots(app: &tauri::AppHandle, shared: &Arc<AnalysisCpuSe
                         &bytes,
                         format_hint.as_deref(),
                         trusted_md5_16kb.as_deref(),
+                        trusted_generation,
                         notify_ui,
                     )
                 }
@@ -2551,22 +2712,15 @@ async fn spawn_cpu_seed_slots(app: &tauri::AppHandle, shared: &Arc<AnalysisCpuSe
                 }
             }
 
-            let mut extra = followers
-                .lock()
-                .unwrap_or_else(|e| e.into_inner())
-                .drain(..)
-                .collect::<Vec<_>>();
+            let mut extra = {
+                let mut st = shared.state.lock().unwrap_or_else(|e| e.into_inner());
+                st.finish_running(&run_key_log)
+            };
             for tx in job.waiters {
                 let _ = tx.send(seed_result.clone());
             }
             for tx in extra.drain(..) {
                 let _ = tx.send(seed_result.clone());
-            }
-
-            {
-                let mut st = shared.state.lock().unwrap_or_else(|e| e.into_inner());
-                st.running.remove(&run_key_log);
-                st.running_tiers.remove(&run_key_log);
             }
             // Decode slot freed → wake HTTP backfill in case it was idling on
             // the `cpu_seed_pipeline_cap` backpressure check.
@@ -2890,10 +3044,10 @@ mod tests {
         )
         .await;
         assert_eq!(
-            oversized,
-            Err(AnalysisBackfillJobError::Terminal(
+            oversized.unwrap_err(),
+            AnalysisBackfillJobError::Terminal(
                 "analysis transcode exceeds cap of 8192 bytes".to_string()
-            ))
+            )
         );
         let cache = app.handle().state::<analysis_cache::AnalysisCache>();
         assert_eq!(
@@ -3137,10 +3291,10 @@ mod tests {
         .await;
 
         assert_eq!(
-            result,
-            Err(AnalysisBackfillJobError::Retryable(
+            result.unwrap_err(),
+            AnalysisBackfillJobError::Retryable(
                 "oversized original download does not match raw-probed identity".to_string()
-            ))
+            )
         );
         let cache = app.handle().state::<analysis_cache::AnalysisCache>();
         assert_eq!(
@@ -3205,10 +3359,10 @@ mod tests {
         )
         .await;
         assert_eq!(
-            oversized,
-            Err(AnalysisBackfillJobError::Terminal(
+            oversized.unwrap_err(),
+            AnalysisBackfillJobError::Terminal(
                 "original download exceeds analysis cap of 8192 bytes".to_string()
-            ))
+            )
         );
         let cache = app.handle().state::<analysis_cache::AnalysisCache>();
         assert_eq!(
@@ -3246,10 +3400,11 @@ mod tests {
                 &stream_url,
                 ANALYSIS_BACKFILL_DOWNLOAD_MAX_BYTES,
             )
-            .await,
-            Err(AnalysisBackfillJobError::Terminal(
+            .await
+            .unwrap_err(),
+            AnalysisBackfillJobError::Terminal(
                 "original download unavailable: HTTP 404".to_string()
-            ))
+            )
         );
     }
 
@@ -4106,6 +4261,35 @@ mod tests {
     }
 
     #[test]
+    fn cpu_seed_finish_running_closes_follower_registration_before_drain() {
+        let mut s = AnalysisCpuSeedQueueState::default();
+        let revision = analysis_cache::md5_first_16kb(&[]);
+        let key = seed_revision_key("", "active", &revision);
+        let followers = Arc::new(Mutex::new(Vec::new()));
+        let (existing_tx, _existing_rx) = tokio::sync::oneshot::channel();
+        followers.lock().unwrap().push(existing_tx);
+        s.running.insert(key.clone(), followers);
+        s.running_tiers
+            .insert(key.clone(), AnalysisBackfillPriority::Low);
+
+        let drained = s.finish_running(&key);
+        assert_eq!(drained.len(), 1);
+        assert!(!s.running.contains_key(&key));
+        assert!(!s.running_tiers.contains_key(&key));
+
+        let (kind, _rx) = s.enqueue(
+            String::new(),
+            "active".into(),
+            vec![],
+            None,
+            None,
+            AnalysisBackfillPriority::Low,
+            0,
+        );
+        assert_eq!(kind, AnalysisCpuSeedEnqueueKind::NewLow);
+    }
+
+    #[test]
     fn cpu_seed_prune_returns_removed_jobs_and_waiter_count() {
         let mut s = AnalysisCpuSeedQueueState::default();
         let (_, _r1) = s.enqueue(
@@ -4189,19 +4373,96 @@ mod tests {
 
     #[test]
     fn backpressure_idles_when_cpu_load_meets_cap_and_no_high() {
-        assert!(should_idle_for_cpu_backpressure(12, 12, false));
-        assert!(should_idle_for_cpu_backpressure(20, 12, false));
+        assert!(should_idle_for_cpu_backpressure(12, 0, 12, false));
+        assert!(should_idle_for_cpu_backpressure(20, 0, 12, false));
     }
 
     #[test]
     fn backpressure_allows_pop_when_cpu_load_below_cap() {
-        assert!(!should_idle_for_cpu_backpressure(11, 12, false));
-        assert!(!should_idle_for_cpu_backpressure(0, 12, false));
+        assert!(!should_idle_for_cpu_backpressure(11, 0, 12, false));
+        assert!(!should_idle_for_cpu_backpressure(0, 0, 12, false));
+        assert!(should_idle_for_cpu_backpressure(11, 1, 12, false));
     }
 
     #[test]
-    fn backpressure_bypassed_for_high_priority_jobs() {
-        assert!(!should_idle_for_cpu_backpressure(100, 12, true));
+    fn backpressure_reserves_one_extra_slot_for_high_priority_jobs() {
+        assert!(!should_idle_for_cpu_backpressure(12, 0, 12, true));
+        assert!(should_idle_for_cpu_backpressure(12, 1, 12, true));
+        assert!(should_idle_for_cpu_backpressure(13, 0, 12, true));
+        assert!(should_idle_for_cpu_backpressure(100, 0, 12, true));
+    }
+
+    #[test]
+    fn backpressure_admits_only_one_high_download_beyond_cpu_cap() {
+        let mut state = AnalysisBackfillQueueState::default();
+        state.enqueue(
+            "backpressure-server".into(),
+            "first".into(),
+            "u1".into(),
+            AnalysisBackfillPriority::High,
+        );
+        state.enqueue(
+            "backpressure-server".into(),
+            "second".into(),
+            "u2".into(),
+            AnalysisBackfillPriority::High,
+        );
+
+        assert!(state
+            .try_pop_next_with_cpu_backpressure(20, 12, 12)
+            .is_some());
+        assert!(state
+            .try_pop_next_with_cpu_backpressure(20, 12, 12)
+            .is_none());
+        assert_eq!(state.in_progress.len(), 1);
+        assert_eq!(state.queued_len(), 1);
+    }
+
+    #[tokio::test]
+    async fn trusted_fetch_reservation_waits_for_stream_track_alias_owner() {
+        let first = reserve_trusted_analysis_fetch(
+            "fetch-reservation-server",
+            "stream:fetch-reservation-track",
+            "fetch-reservation-revision",
+        )
+        .await;
+        assert!(!first.waited());
+
+        let mut waiter = tokio::spawn(async {
+            reserve_trusted_analysis_fetch(
+                "fetch-reservation-server",
+                "fetch-reservation-track",
+                "fetch-reservation-revision",
+            )
+            .await
+        });
+        let key = seed_revision_key(
+            "fetch-reservation-server",
+            "fetch-reservation-track",
+            "fetch-reservation-revision",
+        );
+        loop {
+            let registered = TRUSTED_ANALYSIS_FETCHES
+                .get_or_init(|| Mutex::new(HashMap::new()))
+                .lock()
+                .unwrap()
+                .get(&key)
+                .is_some_and(|waiters| !waiters.is_empty());
+            if registered {
+                break;
+            }
+            tokio::task::yield_now().await;
+        }
+        assert!(tokio::time::timeout(std::time::Duration::from_millis(10), &mut waiter)
+            .await
+            .is_err());
+
+        drop(first);
+        let second = tokio::time::timeout(std::time::Duration::from_secs(1), waiter)
+            .await
+            .expect("waiter should wake when the owner releases")
+            .expect("waiter task should complete");
+        assert!(second.waited());
     }
 }
 
@@ -4344,6 +4605,35 @@ mod complete_repair_tests {
                 .has_waveform
         );
         assert_eq!(&*recorded.lock().unwrap(), &["newer-fp".to_string()]);
+    }
+
+    #[test]
+    fn trusted_enrichment_commit_rejects_superseded_generation() {
+        let server_id = "srv-enrichment-generation-guard";
+        let track_id = "t1";
+        let older_generation = begin_trusted_revision(server_id, track_id, "older-fp");
+        let newer_generation = begin_trusted_revision(server_id, track_id, "newer-fp");
+        let committed = std::sync::atomic::AtomicBool::new(false);
+
+        assert!(commit_trusted_enrichment_if_current(
+            server_id,
+            track_id,
+            "older-fp",
+            older_generation,
+            || committed.store(true, Ordering::Relaxed),
+        )
+        .is_none());
+        assert!(!committed.load(Ordering::Relaxed));
+
+        assert!(commit_trusted_enrichment_if_current(
+            server_id,
+            track_id,
+            "newer-fp",
+            newer_generation,
+            || committed.store(true, Ordering::Relaxed),
+        )
+        .is_some());
+        assert!(committed.load(Ordering::Relaxed));
     }
 
     #[test]

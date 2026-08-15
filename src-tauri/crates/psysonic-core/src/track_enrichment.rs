@@ -45,6 +45,8 @@ pub enum TrackEnrichmentOutcome {
     SkippedComplete,
     /// Oximedia analysis or persistence failed; facts were not stored (retry on next seed).
     Failed,
+    /// A newer trusted revision became current before facts could be stored.
+    SkippedSuperseded,
     SkippedNoServer,
     SkippedNoPort,
 }
