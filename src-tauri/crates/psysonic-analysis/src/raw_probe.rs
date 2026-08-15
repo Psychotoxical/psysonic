@@ -54,10 +54,9 @@ pub fn build_original_download_url(stream_url: &str) -> Option<String> {
     let (base, query) = stream_url.split_once('?')?;
     let download_base = if let Some(prefix) = base.strip_suffix("/stream.view") {
         format!("{prefix}/download.view")
-    } else if let Some(prefix) = base.strip_suffix("/stream") {
-        format!("{prefix}/download")
     } else {
-        return None;
+        let prefix = base.strip_suffix("/stream")?;
+        format!("{prefix}/download")
     };
     let params: Vec<&str> = query
         .split('&')
