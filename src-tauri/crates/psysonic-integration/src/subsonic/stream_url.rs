@@ -43,7 +43,6 @@ pub fn build_stream_view_url(
         q.append_pair("f", "json");
         q.append_pair("format", ANALYSIS_TRANSCODE_FORMAT);
         q.append_pair("maxBitRate", ANALYSIS_TRANSCODE_BITRATE_KBPS);
-        q.append_pair("estimateContentLength", "true");
     }
     url.to_string()
 }
@@ -62,6 +61,6 @@ mod tests {
         assert!(url.contains("&s="));
         assert!(url.contains("format=mp3"));
         assert!(url.contains("maxBitRate=64"));
-        assert!(url.contains("estimateContentLength=true"));
+        assert!(!url.contains("estimateContentLength"));
     }
 }

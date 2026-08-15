@@ -8,11 +8,10 @@
 //! yields the same `md5_16kb` fingerprint the untranscoded playback path would
 //! compute, so all bitrate representations resolve to one analysis identity.
 //!
-//! Probe contract: accept the prefix only when the
-//! response is `206 Partial Content`, its `Content-Range` starts at byte zero
-//! and matches the body length, and the body is not a Subsonic JSON/XML error
-//! envelope. On any failure the caller must treat the stream as having NO
-//! trusted identity — playback continues, canonical writes are skipped.
+//! Probe contract: prefer a strict `206 Partial Content` whose `Content-Range`
+//! starts at byte zero. Some reverse proxies strip `Range`; for a verified
+//! Navidrome raw endpoint, a `200 OK` response is consumed only through the
+//! first 16 KiB and then dropped. Error envelopes are never trusted.
 
 use std::time::Duration;
 
@@ -178,40 +177,50 @@ pub async fn fetch_trusted_original_md5(
         .send()
         .await
         .ok()?;
-    // Validate status + Content-Range BEFORE touching the body: a server that
-    // ignored the Range request would otherwise make us buffer the whole file.
     let status = resp.status().as_u16();
     let content_range = resp
         .headers()
         .get("Content-Range")
         .and_then(|v| v.to_str().ok())
         .map(str::to_string);
-    let Some(expected_len) = expected_prefix_len(status, content_range.as_deref()) else {
+    let content_length = resp.content_length();
+    let full_response = status == 200 && content_range.is_none();
+    let target_len = if full_response {
+        content_length
+            .unwrap_or(RAW_PROBE_RANGE_END + 1)
+            .min(RAW_PROBE_RANGE_END + 1) as usize
+    } else if let Some(expected_len) = expected_prefix_len(status, content_range.as_deref()) {
+        expected_len
+    } else {
         crate::app_deprintln!(
-            "[analysis][raw-probe] rejected pre-body status={status} content_range={content_range:?}"
+            "[analysis][raw-probe] rejected pre-body status={status} content_range={content_range:?} content_length={content_length:?}"
         );
         return None;
     };
-    // Stream the body with a hard cap — never trust the headers alone.
-    let mut body: Vec<u8> = Vec::with_capacity(expected_len);
+    if target_len == 0 {
+        return None;
+    }
+    // Never buffer beyond the fingerprint window, including when a proxy
+    // ignored Range and returned the complete original as 200 OK.
+    let mut body: Vec<u8> = Vec::with_capacity(target_len);
     loop {
         match resp.chunk().await {
             Ok(Some(chunk)) => {
-                if body.len() + chunk.len() > expected_len {
-                    crate::app_deprintln!(
-                        "[analysis][raw-probe] rejected: body exceeds advertised range"
-                    );
-                    return None;
+                let remaining = target_len.saturating_sub(body.len());
+                body.extend_from_slice(&chunk[..chunk.len().min(remaining)]);
+                if body.len() == target_len {
+                    break;
                 }
-                body.extend_from_slice(&chunk);
             }
             Ok(None) => break,
             Err(_) => return None,
         }
     }
-    if !validate_prefix_body(&body, expected_len) {
+    let valid_len = body.len() == target_len
+        || (full_response && content_length.is_none() && !body.is_empty());
+    if !valid_len || looks_like_subsonic_error(&body) {
         crate::app_deprintln!(
-            "[analysis][raw-probe] rejected body_len={} expected={expected_len}",
+            "[analysis][raw-probe] rejected body_len={} target={target_len}",
             body.len()
         );
         return None;
@@ -245,7 +254,28 @@ pub async fn fetch_trusted_original_bytes(
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum BoundedStreamFetchError {
     TooLarge { md5_16kb: String },
-    Unavailable,
+    HttpStatus(u16),
+    RequestFailed(String),
+    BodyReadFailed(String),
+    InvalidResponse,
+}
+
+impl BoundedStreamFetchError {
+    pub fn is_permanent_http(&self) -> bool {
+        matches!(self, Self::HttpStatus(status) if (400..500).contains(status) && !matches!(status, 408 | 425 | 429))
+    }
+}
+
+impl std::fmt::Display for BoundedStreamFetchError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::TooLarge { .. } => formatter.write_str("response exceeds analysis cap"),
+            Self::HttpStatus(status) => write!(formatter, "HTTP {status}"),
+            Self::RequestFailed(message) => write!(formatter, "request failed: {message}"),
+            Self::BodyReadFailed(message) => write!(formatter, "body read failed: {message}"),
+            Self::InvalidResponse => formatter.write_str("invalid or empty response"),
+        }
+    }
 }
 
 /// Fetch one already-constructed stream URL into a bounded buffer. This does
@@ -258,7 +288,7 @@ pub async fn fetch_bounded_stream_bytes(
     max_bytes: usize,
 ) -> Result<Vec<u8>, BoundedStreamFetchError> {
     if max_bytes == 0 {
-        return Err(BoundedStreamFetchError::Unavailable);
+        return Err(BoundedStreamFetchError::InvalidResponse);
     }
     let request =
         apply_optional_registry_headers(registry, server_id, stream_url, client.get(stream_url));
@@ -266,9 +296,13 @@ pub async fn fetch_bounded_stream_bytes(
         .timeout(RAW_FULL_FETCH_TIMEOUT)
         .send()
         .await
-        .map_err(|_| BoundedStreamFetchError::Unavailable)?;
+        .map_err(|error| {
+            BoundedStreamFetchError::RequestFailed(error.without_url().to_string())
+        })?;
     if response.status() != reqwest::StatusCode::OK {
-        return Err(BoundedStreamFetchError::Unavailable);
+        return Err(BoundedStreamFetchError::HttpStatus(
+            response.status().as_u16(),
+        ));
     }
     let content_length = response.content_length();
     let mut too_large = content_length.is_some_and(|length| length > max_bytes as u64);
@@ -296,11 +330,15 @@ pub async fn fetch_bounded_stream_bytes(
                 }
             }
             Ok(None) => break,
-            Err(_) => return Err(BoundedStreamFetchError::Unavailable),
+            Err(error) => {
+                return Err(BoundedStreamFetchError::BodyReadFailed(
+                    error.without_url().to_string(),
+                ));
+            }
         }
     }
     if body.is_empty() || looks_like_subsonic_error(&body) {
-        return Err(BoundedStreamFetchError::Unavailable);
+        return Err(BoundedStreamFetchError::InvalidResponse);
     }
     if too_large {
         return Err(BoundedStreamFetchError::TooLarge {
@@ -321,13 +359,13 @@ pub async fn fetch_trusted_original_bytes_result(
     max_bytes: usize,
 ) -> Result<Vec<u8>, BoundedStreamFetchError> {
     if max_bytes == 0 || trusted_md5_16kb.is_empty() {
-        return Err(BoundedStreamFetchError::Unavailable);
+        return Err(BoundedStreamFetchError::InvalidResponse);
     }
     let raw_url = capability_gated_raw_url(registry, server_id, stream_url)
-        .ok_or(BoundedStreamFetchError::Unavailable)?;
+        .ok_or(BoundedStreamFetchError::InvalidResponse)?;
     let body = fetch_bounded_stream_bytes(client, registry, server_id, &raw_url, max_bytes).await?;
     if !bytes_match_trusted(&body, trusted_md5_16kb) {
-        return Err(BoundedStreamFetchError::Unavailable);
+        return Err(BoundedStreamFetchError::InvalidResponse);
     }
     Ok(body)
 }
@@ -550,7 +588,8 @@ mod tests {
             expected_prefix_len(206, Some("bytes 0-16383/9999999")),
             Some(16384)
         );
-        // 200 = Range ignored → reject BEFORE reading any body.
+        // The strict 206 parser still rejects 200; the HTTP probe handles a
+        // verified raw 200 separately with a hard 16 KiB read cap.
         assert_eq!(
             expected_prefix_len(200, Some("bytes 0-16383/9999999")),
             None
@@ -568,6 +607,15 @@ mod tests {
         assert_eq!(expected_prefix_len(206, Some("bytes 0-16383/*")), None);
         // Missing header entirely.
         assert_eq!(expected_prefix_len(206, None), None);
+    }
+
+    #[test]
+    fn permanent_http_status_classification_excludes_retryable_responses() {
+        assert!(BoundedStreamFetchError::HttpStatus(404).is_permanent_http());
+        assert!(BoundedStreamFetchError::HttpStatus(401).is_permanent_http());
+        assert!(!BoundedStreamFetchError::HttpStatus(408).is_permanent_http());
+        assert!(!BoundedStreamFetchError::HttpStatus(429).is_permanent_http());
+        assert!(!BoundedStreamFetchError::HttpStatus(503).is_permanent_http());
     }
 
     #[test]
@@ -651,12 +699,13 @@ mod http_tests {
     }
 
     #[tokio::test]
-    async fn probe_rejects_a_200_that_ignored_the_range_request() {
-        // Range ignored → whole-file 200. Must be rejected on headers alone.
+    async fn probe_bounds_a_200_that_ignored_the_range_request_to_the_fingerprint_window() {
         let server = MockServer::start().await;
+        let body = prefix(64 * 1024);
         Mock::given(method("GET"))
             .and(path("/rest/stream.view"))
-            .respond_with(ResponseTemplate::new(200).set_body_bytes(prefix(64 * 1024)))
+            .and(header("Range", "bytes=0-16383"))
+            .respond_with(ResponseTemplate::new(200).set_body_bytes(body.clone()))
             .mount(&server)
             .await;
         let url = format!("{}/rest/stream.view?id=t1&maxBitRate=128", server.uri());
@@ -668,7 +717,10 @@ mod http_tests {
             &url,
         )
         .await;
-        assert_eq!(got, None);
+        assert_eq!(
+            got,
+            Some(crate::analysis_cache::md5_first_16kb(&body))
+        );
     }
 
     #[tokio::test]

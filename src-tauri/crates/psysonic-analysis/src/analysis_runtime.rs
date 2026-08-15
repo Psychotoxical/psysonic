@@ -113,6 +113,8 @@ pub enum AnalysisBackfillEnqueueKind {
     RunningSkipped,
     /// Automatic backfill recently failed before CPU admission.
     RetryDeferred,
+    /// Automatic backfill hit a permanent HTTP failure in this app session.
+    TerminalSkipped,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, specta::Type)]
@@ -138,6 +140,13 @@ struct AnalysisBackfillRetryState {
     retry_after: std::time::Instant,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum AnalysisBackfillFinish {
+    Success,
+    RetryableFailure,
+    TerminalFailure,
+}
+
 #[derive(Default)]
 pub struct AnalysisBackfillQueueState {
     high: VecDeque<BackfillJob>,
@@ -149,6 +158,7 @@ pub struct AnalysisBackfillQueueState {
     /// This reservation prevents a second download without consuming an HTTP slot.
     awaiting_cpu: HashSet<String>,
     retry_state: HashMap<String, AnalysisBackfillRetryState>,
+    terminal_failures: HashSet<String>,
 }
 
 impl AnalysisBackfillQueueState {
@@ -275,13 +285,22 @@ impl AnalysisBackfillQueueState {
         }
     }
 
-    fn finish_job(&mut self, key: &str, retryable_failure: bool) {
+    fn finish_job(&mut self, key: &str, finish: AnalysisBackfillFinish) {
         self.in_progress.remove(key);
         self.awaiting_cpu.remove(key);
-        if retryable_failure {
-            self.record_retryable_failure(key);
-        } else {
-            self.retry_state.remove(key);
+        match finish {
+            AnalysisBackfillFinish::Success => {
+                self.retry_state.remove(key);
+                self.terminal_failures.remove(key);
+            }
+            AnalysisBackfillFinish::RetryableFailure => {
+                self.terminal_failures.remove(key);
+                self.record_retryable_failure(key);
+            }
+            AnalysisBackfillFinish::TerminalFailure => {
+                self.retry_state.remove(key);
+                self.terminal_failures.insert(key.to_string());
+            }
         }
     }
 
@@ -329,6 +348,9 @@ impl AnalysisBackfillQueueState {
         }
         if priority == AnalysisBackfillPriority::Low && self.retry_deferred(tref) {
             return AnalysisBackfillEnqueueKind::RetryDeferred;
+        }
+        if priority == AnalysisBackfillPriority::Low && self.terminal_failures.contains(tref) {
+            return AnalysisBackfillEnqueueKind::TerminalSkipped;
         }
         let kind = match priority {
             AnalysisBackfillPriority::High => AnalysisBackfillEnqueueKind::NewHigh,
@@ -1285,9 +1307,9 @@ async fn analysis_backfill_download<R: tauri::Runtime>(
                                 "analysis transcode exceeds cap of {max_bytes} bytes"
                             )));
                         }
-                        Err(crate::raw_probe::BoundedStreamFetchError::Unavailable) => {
+                        Err(error) => {
                             crate::app_deprintln!(
-                                "[analysis] transcode unavailable track_id={track_id}; falling back to original download"
+                                "[analysis] transcode unavailable track_id={track_id}: {error}; falling back to original download"
                             );
                         }
                     }
@@ -1350,10 +1372,13 @@ async fn analysis_backfill_download<R: tauri::Runtime>(
                 "original download exceeds analysis cap of {max_bytes} bytes"
             )));
         }
-        Err(crate::raw_probe::BoundedStreamFetchError::Unavailable) => {
-            return Err(AnalysisBackfillJobError::Retryable(
-                "original download unavailable".to_string(),
-            ));
+        Err(error) => {
+            let message = format!("original download unavailable: {error}");
+            return Err(if error.is_permanent_http() {
+                AnalysisBackfillJobError::Terminal(message)
+            } else {
+                AnalysisBackfillJobError::Retryable(message)
+            });
         }
     };
     if let Some(trusted_md5_16kb) = trusted.as_deref() {
@@ -1421,14 +1446,14 @@ fn release_backfill_reservation(
     shared: &AnalysisBackfillShared,
     server_id: &str,
     track_id: &str,
-    retryable_failure: bool,
+    finish: AnalysisBackfillFinish,
 ) {
     {
         let mut state = shared
             .state
             .lock()
             .unwrap_or_else(|error| error.into_inner());
-        state.finish_job(&seed_key(server_id, track_id), retryable_failure);
+        state.finish_job(&seed_key(server_id, track_id), finish);
     }
     shared.ping_worker();
 }
@@ -1540,9 +1565,13 @@ async fn spawn_backfill_slots(app: &tauri::AppHandle, shared: &Arc<AnalysisBackf
                 &shared,
                 &server_id,
                 &track_id,
-                result
-                    .as_ref()
-                    .is_err_and(AnalysisBackfillJobError::is_retryable),
+                match &result {
+                    Ok(_) => AnalysisBackfillFinish::Success,
+                    Err(error) if error.is_retryable() => {
+                        AnalysisBackfillFinish::RetryableFailure
+                    }
+                    Err(_) => AnalysisBackfillFinish::TerminalFailure,
+                },
             );
 
             match &result {
@@ -1818,6 +1847,13 @@ pub fn enqueue_seed_from_url(
         AnalysisBackfillEnqueueKind::RetryDeferred => {
             crate::app_deprintln!(
                 "[analysis] backfill retry deferred after transient failure: track_id={}",
+                tid_log,
+            );
+            Ok(EnqueueSeedFromUrlOutcome::Skipped)
+        }
+        AnalysisBackfillEnqueueKind::TerminalSkipped => {
+            crate::app_deprintln!(
+                "[analysis] backfill suppressed after permanent HTTP failure: track_id={}",
                 tid_log,
             );
             Ok(EnqueueSeedFromUrlOutcome::Skipped)
@@ -2557,7 +2593,7 @@ mod tests {
         app.handle()
             .manage(analysis_cache::AnalysisCache::open_in_memory());
         let stream_url = format!(
-            "{}/rest/stream.view?id=t1&format=mp3&maxBitRate=64&estimateContentLength=true",
+            "{}/rest/stream.view?id=t1&format=mp3&maxBitRate=64",
             server.uri()
         );
         assert_eq!(
@@ -2601,6 +2637,10 @@ mod tests {
                 .count(),
             1
         );
+        assert!(requests.iter().all(|request| !request
+            .url
+            .query_pairs()
+            .any(|(key, _)| key == "estimateContentLength")));
 
         let oversized = analysis_backfill_download(
             app.handle(),
@@ -2880,6 +2920,39 @@ mod tests {
         );
     }
 
+    #[tokio::test]
+    async fn permanent_original_download_http_failure_is_terminal() {
+        use tauri::Manager;
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/rest/download.view"))
+            .respond_with(ResponseTemplate::new(404))
+            .mount(&server)
+            .await;
+
+        let app = tauri::test::mock_app();
+        app.handle()
+            .manage(Arc::new(analysis_registry(&server.uri(), false)));
+        let stream_url = format!("{}/rest/stream.view?id=missing", server.uri());
+
+        assert_eq!(
+            analysis_backfill_download(
+                app.handle(),
+                "canonical-server",
+                "missing",
+                &stream_url,
+                ANALYSIS_BACKFILL_DOWNLOAD_MAX_BYTES,
+            )
+            .await,
+            Err(AnalysisBackfillJobError::Terminal(
+                "original download unavailable: HTTP 404".to_string()
+            ))
+        );
+    }
+
     #[test]
     fn explicit_backfill_server_hint_beats_url_transport_scope() {
         assert_eq!(
@@ -3094,7 +3167,7 @@ mod tests {
         let key = seed_key("server-1", "retry");
         s.in_progress
             .insert(key.clone(), AnalysisBackfillPriority::Low);
-        s.finish_job(&key, true);
+        s.finish_job(&key, AnalysisBackfillFinish::RetryableFailure);
 
         let kind = s.enqueue(
             "server-1".into(),
@@ -3113,7 +3186,7 @@ mod tests {
         let key = seed_key("server-1", "retry");
         s.in_progress
             .insert(key.clone(), AnalysisBackfillPriority::Low);
-        s.finish_job(&key, true);
+        s.finish_job(&key, AnalysisBackfillFinish::RetryableFailure);
 
         assert_eq!(
             s.enqueue(
@@ -3125,7 +3198,10 @@ mod tests {
             AnalysisBackfillEnqueueKind::NewHigh
         );
         let job = s.try_pop_next(1).unwrap();
-        s.finish_job(&seed_key(&job.2, &job.0), false);
+        s.finish_job(
+            &seed_key(&job.2, &job.0),
+            AnalysisBackfillFinish::Success,
+        );
 
         assert_eq!(
             s.enqueue(
@@ -3145,7 +3221,7 @@ mod tests {
         state
             .in_progress
             .insert(key.clone(), AnalysisBackfillPriority::Low);
-        state.finish_job(&key, true);
+        state.finish_job(&key, AnalysisBackfillFinish::RetryableFailure);
         assert_eq!(
             state.retry_state.get(&key).map(|retry| retry.failures),
             Some(1)
@@ -3174,12 +3250,44 @@ mod tests {
             AnalysisBackfillEnqueueKind::RunningSkipped
         );
 
-        state.finish_job(&seed_key(&job.2, &job.0), true);
+        state.finish_job(
+            &seed_key(&job.2, &job.0),
+            AnalysisBackfillFinish::RetryableFailure,
+        );
 
         assert!(state.retry_deferred(&key));
         assert_eq!(
             state.retry_state.get(&key).map(|retry| retry.failures),
             Some(2)
+        );
+    }
+
+    #[test]
+    fn permanent_http_failure_suppresses_low_priority_until_high_priority_retries() {
+        let mut state = AnalysisBackfillQueueState::default();
+        let key = seed_key("server-1", "permanent");
+        state
+            .in_progress
+            .insert(key.clone(), AnalysisBackfillPriority::Low);
+        state.finish_job(&key, AnalysisBackfillFinish::TerminalFailure);
+
+        assert_eq!(
+            state.enqueue(
+                "server-1".into(),
+                "permanent".into(),
+                "url".into(),
+                AnalysisBackfillPriority::Low,
+            ),
+            AnalysisBackfillEnqueueKind::TerminalSkipped
+        );
+        assert_eq!(
+            state.enqueue(
+                "server-1".into(),
+                "permanent".into(),
+                "url".into(),
+                AnalysisBackfillPriority::High,
+            ),
+            AnalysisBackfillEnqueueKind::NewHigh
         );
     }
 
