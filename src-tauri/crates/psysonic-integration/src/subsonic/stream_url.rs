@@ -5,6 +5,9 @@ use url::Url;
 use super::auth::SubsonicCredentials;
 use super::client::{SUBSONIC_API_VERSION, SUBSONIC_CLIENT_ID};
 
+const ANALYSIS_TRANSCODE_FORMAT: &str = "mp3";
+const ANALYSIS_TRANSCODE_BITRATE_KBPS: &str = "64";
+
 /// `{origin}/rest` — mirrors frontend `restBaseFromUrl`.
 pub fn rest_base_from_url(server_url: &str) -> String {
     let trimmed = server_url.trim().trim_end_matches('/');
@@ -16,7 +19,9 @@ pub fn rest_base_from_url(server_url: &str) -> String {
     format!("{base}/rest")
 }
 
-/// Authenticated `stream.view` URL for a library track id.
+/// Authenticated low-bandwidth `stream.view` URL for native library analysis.
+/// The original fingerprint is probed separately through `format=raw`; only the
+/// bytes decoded for waveform/loudness/BPM are transcoded.
 pub fn build_stream_view_url(
     server_url: &str,
     username: &str,
@@ -25,8 +30,8 @@ pub fn build_stream_view_url(
 ) -> String {
     let creds = SubsonicCredentials::from_password(username, password);
     let base = rest_base_from_url(server_url);
-    let mut url =
-        Url::parse(&format!("{base}/stream.view")).unwrap_or_else(|_| Url::parse("http://invalid/rest/stream.view").unwrap());
+    let mut url = Url::parse(&format!("{base}/stream.view"))
+        .unwrap_or_else(|_| Url::parse("http://invalid/rest/stream.view").unwrap());
     {
         let mut q = url.query_pairs_mut();
         q.append_pair("id", track_id);
@@ -36,6 +41,9 @@ pub fn build_stream_view_url(
         q.append_pair("v", SUBSONIC_API_VERSION);
         q.append_pair("c", SUBSONIC_CLIENT_ID);
         q.append_pair("f", "json");
+        q.append_pair("format", ANALYSIS_TRANSCODE_FORMAT);
+        q.append_pair("maxBitRate", ANALYSIS_TRANSCODE_BITRATE_KBPS);
+        q.append_pair("estimateContentLength", "true");
     }
     url.to_string()
 }
@@ -46,16 +54,14 @@ mod tests {
 
     #[test]
     fn stream_url_contains_track_and_auth_params() {
-        let url = build_stream_view_url(
-            "https://music.example",
-            "alice",
-            "secret",
-            "tr-42",
-        );
+        let url = build_stream_view_url("https://music.example", "alice", "secret", "tr-42");
         assert!(url.contains("stream.view"));
         assert!(url.contains("id=tr-42"));
         assert!(url.contains("u=alice"));
         assert!(url.contains("&t="));
         assert!(url.contains("&s="));
+        assert!(url.contains("format=mp3"));
+        assert!(url.contains("maxBitRate=64"));
+        assert!(url.contains("estimateContentLength=true"));
     }
 }

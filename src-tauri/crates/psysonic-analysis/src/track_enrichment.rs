@@ -2,8 +2,8 @@
 
 use oximedia_mir::{mood, tempo, MirConfig};
 use psysonic_core::track_enrichment::{
-    TrackEnrichmentFacts, TrackEnrichmentIntFact, TrackEnrichmentOutcome, TrackEnrichmentPort,
-    TrackEnrichmentPlan, TrackEnrichmentRealFact,
+    TrackEnrichmentFacts, TrackEnrichmentIntFact, TrackEnrichmentOutcome, TrackEnrichmentPlan,
+    TrackEnrichmentPort, TrackEnrichmentRealFact,
 };
 use tauri::{AppHandle, Emitter, Manager, Runtime};
 
@@ -44,8 +44,8 @@ pub fn run_track_enrichment_if_needed<R: Runtime>(
     let Some(port) = app.try_state::<TrackEnrichmentPort>() else {
         return TrackEnrichmentOutcome::SkippedNoPort;
     };
-    // Trusted original bytes carry their verified fingerprint so facts stay
-    // keyed/current against the same canonical file revision.
+    // A trusted identity comes from the original bytes or the separate raw
+    // prefix probe used by bounded background transcodes.
     let content_hash = trusted_md5_16kb
         .map(str::to_string)
         .unwrap_or_else(|| md5_first_16kb(bytes));
@@ -89,8 +89,7 @@ fn analyze_and_store(
 ) -> Result<(), String> {
     let total_duration = audio_duration_from_bytes(bytes).unwrap_or(0.0);
     let window = analysis_pcm_window(total_duration, ENRICHMENT_WINDOW_SEC);
-    let (mono, sample_rate) =
-        decode_mono_pcm_window(bytes, window.start_sec, window.duration_sec)?;
+    let (mono, sample_rate) = decode_mono_pcm_window(bytes, window.start_sec, window.duration_sec)?;
     if mono.is_empty() || sample_rate <= 0.0 {
         return Err("empty PCM window".to_string());
     }
@@ -125,9 +124,8 @@ fn analyze_and_store(
             });
         }
         if plan.need_moods && !mood.moods.is_empty() {
-            facts.moods = Some(
-                serde_json::to_string(&mood.moods).map_err(|e| format!("moods json: {e}"))?,
-            );
+            facts.moods =
+                Some(serde_json::to_string(&mood.moods).map_err(|e| format!("moods json: {e}"))?);
         }
     }
 

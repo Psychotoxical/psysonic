@@ -1,6 +1,7 @@
 mod compute;
 mod store;
 
+pub(crate) use compute::seed_transcoded_bytes_execute;
 pub use compute::{
     analysis_pcm_window, audio_duration_from_bytes, decode_mono_pcm_limited,
     decode_mono_pcm_window, md5_first_16kb, recommended_gain_for_target, seed_from_bytes_execute,

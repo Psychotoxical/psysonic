@@ -2,6 +2,7 @@ use std::io::Cursor;
 use std::time::Instant;
 
 use ebur128::{EbuR128, Mode as Ebur128Mode};
+use psysonic_core::track_enrichment::TrackEnrichmentOutcome;
 use symphonia::core::codecs::audio::{AudioDecoder, AudioDecoderOptions};
 use symphonia::core::errors::Error as SymphoniaError;
 use symphonia::core::formats::probe::Hint;
@@ -10,7 +11,6 @@ use symphonia::core::io::MediaSourceStream;
 use symphonia::core::meta::MetadataOptions;
 use symphonia::core::units::Time;
 use tauri::{Manager, Runtime};
-use psysonic_core::track_enrichment::TrackEnrichmentOutcome;
 
 use crate::analysis_perf::AnalysisSeedTimings;
 use crate::codec::make_decoder;
@@ -51,6 +51,52 @@ pub fn seed_from_bytes_execute<R: Runtime>(
     trusted_md5_16kb: Option<&str>,
     notify_ui: bool,
 ) -> Result<(SeedFromBytesOutcome, AnalysisSeedTimings), String> {
+    seed_from_bytes_execute_with_policy(
+        app,
+        server_id,
+        track_id,
+        bytes,
+        format_hint,
+        trusted_md5_16kb,
+        true,
+        notify_ui,
+    )
+}
+
+/// Analyse a server-generated transcode while storing the result under a
+/// separately verified fingerprint of the original file.
+pub(crate) fn seed_transcoded_bytes_execute<R: Runtime>(
+    app: &tauri::AppHandle<R>,
+    server_id: &str,
+    track_id: &str,
+    bytes: &[u8],
+    format_hint: Option<&str>,
+    trusted_md5_16kb: &str,
+    notify_ui: bool,
+) -> Result<(SeedFromBytesOutcome, AnalysisSeedTimings), String> {
+    seed_from_bytes_execute_with_policy(
+        app,
+        server_id,
+        track_id,
+        bytes,
+        format_hint,
+        Some(trusted_md5_16kb),
+        false,
+        notify_ui,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn seed_from_bytes_execute_with_policy<R: Runtime>(
+    app: &tauri::AppHandle<R>,
+    server_id: &str,
+    track_id: &str,
+    bytes: &[u8],
+    format_hint: Option<&str>,
+    trusted_md5_16kb: Option<&str>,
+    verify_trusted_prefix: bool,
+    notify_ui: bool,
+) -> Result<(SeedFromBytesOutcome, AnalysisSeedTimings), String> {
     let seed_started = Instant::now();
     let Some(cache) = app.try_state::<AnalysisCache>() else {
         crate::app_deprintln!(
@@ -63,8 +109,15 @@ pub fn seed_from_bytes_execute<R: Runtime>(
             AnalysisSeedTimings::default(),
         ));
     };
-    let (outcome, md5_16kb) =
-        seed_from_bytes_into_cache(&cache, server_id, track_id, bytes, format_hint, trusted_md5_16kb)?;
+    let (outcome, md5_16kb) = seed_from_bytes_into_cache_with_policy(
+        &cache,
+        server_id,
+        track_id,
+        bytes,
+        format_hint,
+        trusted_md5_16kb,
+        verify_trusted_prefix,
+    )?;
     let seed_ms = seed_started.elapsed().as_millis() as u64;
     // E2 bridge for byte-owned originals (local/offline paths). Trusted HTTP
     // revisions activate in `analysis_runtime` after its per-track generation
@@ -115,10 +168,7 @@ pub fn seed_from_bytes_execute<R: Runtime>(
     } else {
         0
     };
-    Ok((
-        outcome,
-        AnalysisSeedTimings { seed_ms, bpm_ms },
-    ))
+    Ok((outcome, AnalysisSeedTimings { seed_ms, bpm_ms }))
 }
 
 /// AppHandle-free entry point for [`seed_from_bytes_execute`]: takes the cache
@@ -136,14 +186,36 @@ pub fn seed_from_bytes_into_cache(
     format_hint: Option<&str>,
     trusted_md5_16kb: Option<&str>,
 ) -> Result<(SeedFromBytesOutcome, String), String> {
+    seed_from_bytes_into_cache_with_policy(
+        cache,
+        server_id,
+        track_id,
+        bytes,
+        format_hint,
+        trusted_md5_16kb,
+        true,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn seed_from_bytes_into_cache_with_policy(
+    cache: &AnalysisCache,
+    server_id: &str,
+    track_id: &str,
+    bytes: &[u8],
+    format_hint: Option<&str>,
+    trusted_md5_16kb: Option<&str>,
+    verify_trusted_prefix: bool,
+) -> Result<(SeedFromBytesOutcome, String), String> {
     let started = Instant::now();
-    if let Some(trusted) = trusted_md5_16kb {
+    if let Some(trusted) = trusted_md5_16kb.filter(|_| verify_trusted_prefix) {
         if md5_first_16kb(bytes) != trusted {
             return Err("trusted original fingerprint does not match analysis bytes".to_string());
         }
     }
-    // Write under the playback server's scope. A trusted identity is accepted
-    // only when the analysed bytes carry that exact original prefix.
+    // Write under the playback server's scope. Ordinary trusted callers must
+    // carry the original prefix; the narrow transcode entry point establishes
+    // that identity separately with a raw-original probe.
     let key = TrackKey {
         server_id: server_id.to_string(),
         track_id: track_id.to_string(),
@@ -159,7 +231,10 @@ pub fn seed_from_bytes_into_cache(
             key.md5_16kb,
             started.elapsed().as_millis()
         );
-        return Ok((SeedFromBytesOutcome::SkippedWaveformCacheHit, key.md5_16kb.clone()));
+        return Ok((
+            SeedFromBytesOutcome::SkippedWaveformCacheHit,
+            key.md5_16kb.clone(),
+        ));
     }
     if coverage.has_waveform && !coverage.has_loudness {
         crate::app_deprintln!(
@@ -184,15 +259,13 @@ pub fn seed_from_bytes_into_cache(
 
         let (wf_bins, loudness_opt, used_pcm_decode) =
             match analyze_loudness_and_waveform(bytes, -16.0, 500, format_hint) {
-            Some((integrated_lufs, true_peak, recommended_gain_db, target_lufs, bins)) => {
-                (
+                Some((integrated_lufs, true_peak, recommended_gain_db, target_lufs, bins)) => (
                     bins,
                     Some((integrated_lufs, true_peak, recommended_gain_db, target_lufs)),
                     true,
-                )
-            }
-            None => (derive_waveform_bins(bytes, 500), None, false),
-        };
+                ),
+                None => (derive_waveform_bins(bytes, 500), None, false),
+            };
         let bins_len = wf_bins.len();
         let waveform = WaveformEntry {
             bins: wf_bins,
@@ -265,7 +338,9 @@ fn derive_waveform_bins(bytes: &[u8], bin_count: usize) -> Vec<u8> {
     let mut peak_half = vec![0u8; bin_count];
     for (i, slot) in peak_half.iter_mut().enumerate() {
         let start = i * bytes.len() / bin_count;
-        let end = ((i + 1) * bytes.len() / bin_count).max(start + 1).min(bytes.len());
+        let end = ((i + 1) * bytes.len() / bin_count)
+            .max(start + 1)
+            .min(bytes.len());
         let mut peak: u8 = 0;
         for &b in &bytes[start..end] {
             let centered = b.abs_diff(128);
@@ -299,7 +374,14 @@ fn analyze_loudness_and_waveform(
     if decoded_frames == 0 {
         return None;
     }
-    let scanned = decode_scan_pcm(bytes, bin_count, decoded_frames, timeline_hint, Some(target_lufs), format_hint)?;
+    let scanned = decode_scan_pcm(
+        bytes,
+        bin_count,
+        decoded_frames,
+        timeline_hint,
+        Some(target_lufs),
+        format_hint,
+    )?;
     let (i, t, r, tgt) = scanned.loudness?;
     Some((i, t, r, tgt, scanned.bins))
 }
@@ -351,7 +433,12 @@ fn open_decode_session(bytes: &[u8], format_hint: Option<&str>) -> Option<Decode
         hint.with_extension(ext);
     }
     let format = symphonia::default::get_probe()
-        .probe(&hint, mss, FormatOptions::default(), MetadataOptions::default())
+        .probe(
+            &hint,
+            mss,
+            FormatOptions::default(),
+            MetadataOptions::default(),
+        )
         .ok()?;
     // Prefer an audio track that reports both sample rate and channels; fall back to
     // the first audio track with a known codec (skips e.g. MJPEG cover-art tracks).
@@ -368,23 +455,38 @@ fn open_decode_session(bytes: &[u8], format_hint: Option<&str>) -> Option<Decode
     let track_id = track.id;
     let timeline_hint = track.num_frames.filter(|&n| n > 0);
     let audio_params = track.codec_params.as_ref()?.audio()?.clone();
-    let decoder = match make_decoder(&audio_params, &AudioDecoderOptions::default().gapless(false)) {
+    let decoder = match make_decoder(
+        &audio_params,
+        &AudioDecoderOptions::default().gapless(false),
+    ) {
         Ok(v) => v,
         Err(e) => {
             crate::app_deprintln!("[analysis] decoder make failed: {}", e);
             return None;
         }
     };
-    Some(DecodeSession { format, decoder, track_id, timeline_hint })
+    Some(DecodeSession {
+        format,
+        decoder,
+        track_id,
+        timeline_hint,
+    })
 }
 
 /// Returns `(decoded_mono_frames, container_timeline_frames)` where the second is
 /// `codec_params.n_frames` when the container reports total track length — used
 /// as a **fixed** waveform time axis so partial decodes do not remap every bin
 /// when the buffer grows.
-fn count_mono_frames_from_audio_bytes(bytes: &[u8], format_hint: Option<&str>) -> Option<(u64, Option<u64>)> {
-    let DecodeSession { mut format, mut decoder, track_id, timeline_hint } =
-        open_decode_session(bytes, format_hint)?;
+fn count_mono_frames_from_audio_bytes(
+    bytes: &[u8],
+    format_hint: Option<&str>,
+) -> Option<(u64, Option<u64>)> {
+    let DecodeSession {
+        mut format,
+        mut decoder,
+        track_id,
+        timeline_hint,
+    } = open_decode_session(bytes, format_hint)?;
 
     let mut total: u64 = 0;
     let mut loop_i: u32 = 0;
@@ -448,7 +550,12 @@ fn decode_scan_pcm(
     loudness_target_lufs: Option<f64>,
     format_hint: Option<&str>,
 ) -> Option<PcmScanResult> {
-    let DecodeSession { mut format, mut decoder, track_id, .. } = open_decode_session(bytes, format_hint)?;
+    let DecodeSession {
+        mut format,
+        mut decoder,
+        track_id,
+        ..
+    } = open_decode_session(bytes, format_hint)?;
 
     let mut bin_max = vec![0.0f32; bin_count];
     let mut bin_sum = vec![0.0f32; bin_count];
@@ -672,7 +779,8 @@ pub fn decode_mono_pcm_window(
         mut decoder,
         track_id,
         ..
-    } = open_decode_session(bytes, None).ok_or_else(|| "failed to open audio decode session".to_string())?;
+    } = open_decode_session(bytes, None)
+        .ok_or_else(|| "failed to open audio decode session".to_string())?;
 
     if start_sec.is_finite() && start_sec > 0.0 {
         let time = Time::try_from_secs_f64(start_sec.max(0.0))
@@ -704,7 +812,8 @@ pub fn decode_mono_pcm_limited(
         mut decoder,
         track_id,
         ..
-    } = open_decode_session(bytes, None).ok_or_else(|| "failed to open audio decode session".to_string())?;
+    } = open_decode_session(bytes, None)
+        .ok_or_else(|| "failed to open audio decode session".to_string())?;
     decode_mono_pcm_from_session(&mut format, &mut decoder, track_id, max_seconds)
 }
 
@@ -871,7 +980,10 @@ mod tests {
         // 128 is the unsigned-PCM midpoint: abs_diff(128) == 0 for every sample.
         let silence = vec![128u8; 64];
         let out = derive_waveform_bins(&silence, 8);
-        assert!(out.iter().all(|&b| b == 0), "silence must produce all-zero bins, got {out:?}");
+        assert!(
+            out.iter().all(|&b| b == 0),
+            "silence must produce all-zero bins, got {out:?}"
+        );
     }
 
     #[test]
@@ -889,7 +1001,10 @@ mod tests {
         // (127/127)^0.5 = 1.0 → 255 in u8.
         let bytes = vec![0u8; 16];
         let out = derive_waveform_bins(&bytes, 4);
-        assert!(out.iter().all(|&b| b == 255), "max amplitude must yield 255 bins");
+        assert!(
+            out.iter().all(|&b| b == 255),
+            "max amplitude must yield 255 bins"
+        );
     }
 
     // ── normalize_peak_bins ───────────────────────────────────────────────────
@@ -998,8 +1113,8 @@ mod tests {
     #[test]
     fn count_mono_frames_returns_decoded_length_for_synthetic_wav() {
         let wav = build_mono_pcm16_wav(&sine_440_at_minus_6db(44_100, 1.0), 44_100);
-        let (frames, _hint) = count_mono_frames_from_audio_bytes(&wav, None)
-            .expect("WAV decode must succeed");
+        let (frames, _hint) =
+            count_mono_frames_from_audio_bytes(&wav, None).expect("WAV decode must succeed");
         // 1 second × 44.1 kHz mono = 44 100 frames; allow ±1 packet tolerance.
         assert!(
             (43_900..=44_300).contains(&frames),
@@ -1013,7 +1128,10 @@ mod tests {
         assert_eq!(format_hint_from_bytes(&aiff), Some("aiff".into()));
         let (frames, hint) =
             count_mono_frames_from_audio_bytes(&aiff, None).expect("AIFF decode must succeed");
-        assert!((43_900..=44_300).contains(&frames), "expected ~44100 frames, got {frames}");
+        assert!(
+            (43_900..=44_300).contains(&frames),
+            "expected ~44100 frames, got {frames}"
+        );
         assert_eq!(hint, Some(44_100));
     }
 
@@ -1030,10 +1148,14 @@ mod tests {
     #[test]
     fn analyze_loudness_and_waveform_returns_loudness_for_synthetic_sine() {
         let wav = build_mono_pcm16_wav(&sine_440_at_minus_6db(44_100, 1.5), 44_100);
-        let result = analyze_loudness_and_waveform(&wav, -14.0, 100, None)
-            .expect("WAV decode must succeed");
+        let result =
+            analyze_loudness_and_waveform(&wav, -14.0, 100, None).expect("WAV decode must succeed");
         let (integrated_lufs, true_peak, recommended_gain_db, target_lufs, bins) = result;
-        assert_eq!(bins.len(), 200, "bins layout is peak_u8 + mean_u8 = 2 * bin_count");
+        assert_eq!(
+            bins.len(),
+            200,
+            "bins layout is peak_u8 + mean_u8 = 2 * bin_count"
+        );
         assert_eq!(target_lufs, -14.0);
         // -6 dBFS sine ≈ -9 LUFS integrated for 1.5 s. EBU R128 needs >=400 ms
         // of audio; we have 1.5 s so the measurement is valid.
@@ -1070,11 +1192,19 @@ mod tests {
         let wav = build_mono_pcm16_wav(&sine_440_at_minus_6db(44_100, 1.0), 44_100);
         let original_md5 = md5_first_16kb(&wav);
         let (outcome, md5) = seed_from_bytes_into_cache(
-            &cache, "server-a", "original-track", &wav, None, Some(&original_md5),
+            &cache,
+            "server-a",
+            "original-track",
+            &wav,
+            None,
+            Some(&original_md5),
         )
         .unwrap();
         assert_eq!(outcome, SeedFromBytesOutcome::Upserted);
-        assert_eq!(md5, original_md5, "row keyed under the trusted original fingerprint");
+        assert_eq!(
+            md5, original_md5,
+            "row keyed under the trusted original fingerprint"
+        );
     }
 
     #[test]
@@ -1083,7 +1213,12 @@ mod tests {
         let original = build_mono_pcm16_wav(&sine_440_at_minus_6db(44_100, 1.0), 44_100);
         let original_md5 = md5_first_16kb(&original);
         let (first, _) = seed_from_bytes_into_cache(
-            &cache, "server-a", "track-x", &original, None, Some(&original_md5),
+            &cache,
+            "server-a",
+            "track-x",
+            &original,
+            None,
+            Some(&original_md5),
         )
         .unwrap();
         assert_eq!(first, SeedFromBytesOutcome::Upserted);
@@ -1102,6 +1237,33 @@ mod tests {
     }
 
     #[test]
+    fn explicitly_trusted_transcode_is_keyed_under_original_fingerprint() {
+        let cache = AnalysisCache::open_in_memory();
+        let original = build_mono_pcm16_wav(&sine_440_at_minus_6db(44_100, 1.0), 44_100);
+        let trusted = md5_first_16kb(&original);
+        let transcode = build_mono_pcm16_wav(&sine_440_at_minus_6db(48_000, 1.5), 48_000);
+        assert_ne!(md5_first_16kb(&transcode), trusted);
+
+        let (outcome, stored_md5) = seed_from_bytes_into_cache_with_policy(
+            &cache,
+            "server-a",
+            "track-transcode",
+            &transcode,
+            None,
+            Some(&trusted),
+            false,
+        )
+        .unwrap();
+
+        assert_eq!(outcome, SeedFromBytesOutcome::Upserted);
+        assert_eq!(stored_md5, trusted);
+        assert!(cache
+            .content_cache_coverage("server-a", "track-transcode", &stored_md5)
+            .unwrap()
+            .complete());
+    }
+
+    #[test]
     fn verified_row_purges_stale_fingerprint_variants() {
         // A pre-existing row under a stale (e.g. transcode-derived) fingerprint
         // must disappear once a verified trusted row is active, so latest-row
@@ -1116,7 +1278,8 @@ mod tests {
         let original = build_mono_pcm16_wav(&sine_440_at_minus_6db(44_100, 1.0), 44_100);
         let trusted = md5_first_16kb(&original);
         let (second, _) =
-            seed_from_bytes_into_cache(&cache, "srv", "t1", &original, None, Some(&trusted)).unwrap();
+            seed_from_bytes_into_cache(&cache, "srv", "t1", &original, None, Some(&trusted))
+                .unwrap();
         assert_eq!(second, SeedFromBytesOutcome::Upserted);
         let key = TrackKey {
             server_id: "srv".into(),
@@ -1130,7 +1293,9 @@ mod tests {
             track_id: "t1".into(),
             md5_16kb: stale_md5,
         };
-        assert!(!cache.loudness_row_exists_for_key(&stale_key).unwrap_or(true));
+        assert!(!cache
+            .loudness_row_exists_for_key(&stale_key)
+            .unwrap_or(true));
         // The trusted row survives.
         let cov = cache.content_cache_coverage("srv", "t1", &trusted).unwrap();
         assert!(cov.has_waveform);
@@ -1140,9 +1305,14 @@ mod tests {
     fn seed_from_bytes_into_cache_upserts_waveform_and_loudness_for_wav() {
         let cache = AnalysisCache::open_in_memory();
         let wav = build_mono_pcm16_wav(&sine_440_at_minus_6db(44_100, 1.5), 44_100);
-        let (outcome, md5) = seed_from_bytes_into_cache(&cache, "server-a", "wav-track", &wav, None, None).unwrap();
+        let (outcome, md5) =
+            seed_from_bytes_into_cache(&cache, "server-a", "wav-track", &wav, None, None).unwrap();
         assert_eq!(outcome, SeedFromBytesOutcome::Upserted);
-        assert_eq!(md5, md5_first_16kb(&wav), "outcome carries the content fingerprint");
+        assert_eq!(
+            md5,
+            md5_first_16kb(&wav),
+            "outcome carries the content fingerprint"
+        );
 
         // Both a waveform AND a loudness row must exist after a successful
         // PCM decode + EBU R128 analysis.
@@ -1169,22 +1339,32 @@ mod tests {
             track_id: "scoped-track".to_string(),
             md5_16kb: md5.clone(),
         };
-        assert!(cache.get_waveform(&scoped).unwrap().is_some(), "row lands under server scope");
+        assert!(
+            cache.get_waveform(&scoped).unwrap().is_some(),
+            "row lands under server scope"
+        );
         let other = TrackKey {
             server_id: "server-y".to_string(),
             track_id: "scoped-track".to_string(),
             md5_16kb: md5,
         };
-        assert!(cache.get_waveform(&other).unwrap().is_none(), "row stays under the exact server");
+        assert!(
+            cache.get_waveform(&other).unwrap().is_none(),
+            "row stays under the exact server"
+        );
     }
 
     #[test]
     fn seed_from_bytes_into_cache_returns_skipped_on_second_call() {
         let cache = AnalysisCache::open_in_memory();
         let wav = build_mono_pcm16_wav(&sine_440_at_minus_6db(44_100, 1.0), 44_100);
-        let (first, _) = seed_from_bytes_into_cache(&cache, "server-a", "wav-track-2", &wav, None, None).unwrap();
+        let (first, _) =
+            seed_from_bytes_into_cache(&cache, "server-a", "wav-track-2", &wav, None, None)
+                .unwrap();
         assert_eq!(first, SeedFromBytesOutcome::Upserted);
-        let (second, _) = seed_from_bytes_into_cache(&cache, "server-a", "wav-track-2", &wav, None, None).unwrap();
+        let (second, _) =
+            seed_from_bytes_into_cache(&cache, "server-a", "wav-track-2", &wav, None, None)
+                .unwrap();
         assert_eq!(
             second,
             SeedFromBytesOutcome::SkippedWaveformCacheHit,
@@ -1198,7 +1378,8 @@ mod tests {
         // Garbage bytes — Symphonia probe fails, the pipeline falls back to
         // `derive_waveform_bins` (no loudness row gets cached).
         let bytes = vec![0xAAu8; 8 * 1024];
-        let (outcome, _) = seed_from_bytes_into_cache(&cache, "server-a", "garbage", &bytes, None, None).unwrap();
+        let (outcome, _) =
+            seed_from_bytes_into_cache(&cache, "server-a", "garbage", &bytes, None, None).unwrap();
         assert_eq!(outcome, SeedFromBytesOutcome::Upserted);
 
         let key = TrackKey {
@@ -1206,7 +1387,10 @@ mod tests {
             track_id: "garbage".to_string(),
             md5_16kb: md5_first_16kb(&bytes),
         };
-        let waveform = cache.get_waveform(&key).unwrap().expect("byte-envelope waveform cached");
+        let waveform = cache
+            .get_waveform(&key)
+            .unwrap()
+            .expect("byte-envelope waveform cached");
         assert_eq!(waveform.bin_count, 500);
         assert!(
             !cache.loudness_row_exists_for_key(&key).unwrap(),
@@ -1280,8 +1464,10 @@ mod tests {
     #[test]
     fn decode_scan_pcm_supports_waveform_only_mode_without_loudness() {
         let wav = build_mono_pcm16_wav(&sine_440_at_minus_6db(44_100, 1.0), 44_100);
-        let (frames, hint) = count_mono_frames_from_audio_bytes(&wav, None).expect("frame counting");
-        let scanned = decode_scan_pcm(&wav, 64, frames, hint, None, None).expect("scan must succeed");
+        let (frames, hint) =
+            count_mono_frames_from_audio_bytes(&wav, None).expect("frame counting");
+        let scanned =
+            decode_scan_pcm(&wav, 64, frames, hint, None, None).expect("scan must succeed");
         assert_eq!(scanned.bins.len(), 128);
         assert!(scanned.loudness.is_none());
     }
@@ -1289,8 +1475,10 @@ mod tests {
     #[test]
     fn decode_scan_pcm_with_loudness_target_returns_loudness_tuple() {
         let wav = build_mono_pcm16_wav(&sine_440_at_minus_6db(44_100, 1.0), 44_100);
-        let (frames, hint) = count_mono_frames_from_audio_bytes(&wav, None).expect("frame counting");
-        let scanned = decode_scan_pcm(&wav, 64, frames, hint, Some(-14.0), None).expect("scan must succeed");
+        let (frames, hint) =
+            count_mono_frames_from_audio_bytes(&wav, None).expect("frame counting");
+        let scanned =
+            decode_scan_pcm(&wav, 64, frames, hint, Some(-14.0), None).expect("scan must succeed");
         assert_eq!(scanned.bins.len(), 128);
         let (integrated_lufs, true_peak, recommended_gain_db, target_lufs) =
             scanned.loudness.expect("loudness tuple must be present");
@@ -1332,7 +1520,8 @@ mod tests {
         assert!(!cache.loudness_row_exists_for_key(&key).unwrap());
 
         let (outcome, _) =
-            seed_from_bytes_into_cache(&cache, "server-a", "track-reseed", &wav, None, None).unwrap();
+            seed_from_bytes_into_cache(&cache, "server-a", "track-reseed", &wav, None, None)
+                .unwrap();
         assert_eq!(outcome, SeedFromBytesOutcome::Upserted);
         assert!(cache.loudness_row_exists_for_key(&key).unwrap());
     }
@@ -1379,7 +1568,8 @@ mod tests {
     #[test]
     fn decode_scan_pcm_ignores_oversized_timeline_hint() {
         let wav = build_mono_pcm16_wav(&sine_440_at_minus_6db(44_100, 1.0), 44_100);
-        let (frames, _hint) = count_mono_frames_from_audio_bytes(&wav, None).expect("frame counting");
+        let (frames, _hint) =
+            count_mono_frames_from_audio_bytes(&wav, None).expect("frame counting");
         let scanned = decode_scan_pcm(&wav, 64, frames, Some(frames * 10), None, None).unwrap();
         assert_eq!(scanned.bins.len(), 128);
     }
@@ -1404,12 +1594,14 @@ mod tests {
         let handle = app.handle().clone();
 
         let (first, timings_first) =
-            seed_from_bytes_execute(&handle, "server-a", "track-exec", &wav, None, None, true).unwrap();
+            seed_from_bytes_execute(&handle, "server-a", "track-exec", &wav, None, None, true)
+                .unwrap();
         assert_eq!(first, SeedFromBytesOutcome::Upserted);
         assert!(timings_first.seed_ms <= 30_000);
 
         let (second, timings_second) =
-            seed_from_bytes_execute(&handle, "server-a", "track-exec", &wav, None, None, true).unwrap();
+            seed_from_bytes_execute(&handle, "server-a", "track-exec", &wav, None, None, true)
+                .unwrap();
         assert_eq!(second, SeedFromBytesOutcome::SkippedWaveformCacheHit);
         assert!(timings_second.seed_ms <= 30_000);
     }

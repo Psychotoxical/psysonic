@@ -46,6 +46,30 @@ pub fn build_raw_probe_url(stream_url: &str) -> Option<String> {
     Some(format!("{base}?{}", params.join("&")))
 }
 
+/// Rebuild a `stream.view` URL as the standard Subsonic original-download
+/// endpoint, retaining track/auth parameters but removing transcode controls.
+pub fn build_original_download_url(stream_url: &str) -> Option<String> {
+    if !stream_url.starts_with("http://") && !stream_url.starts_with("https://") {
+        return None;
+    }
+    let (base, query) = stream_url.split_once('?')?;
+    let download_base = if let Some(prefix) = base.strip_suffix("/stream.view") {
+        format!("{prefix}/download.view")
+    } else if let Some(prefix) = base.strip_suffix("/stream") {
+        format!("{prefix}/download")
+    } else {
+        return None;
+    };
+    let params: Vec<&str> = query
+        .split('&')
+        .filter(|kv| {
+            let key = kv.split('=').next().unwrap_or("");
+            !matches!(key, "maxBitRate" | "format" | "estimateContentLength")
+        })
+        .collect();
+    Some(format!("{download_base}?{}", params.join("&")))
+}
+
 /// Whether the request endpoint belongs to a registered profile whose current
 /// saved identity explicitly supports Navidrome's `format=raw` contract.
 pub fn raw_stream_supported(
@@ -53,9 +77,7 @@ pub fn raw_stream_supported(
     server_id: Option<&str>,
     stream_url: &str,
 ) -> bool {
-    registry.is_some_and(|registry| {
-        registry.supports_raw_stream_for_request(server_id, stream_url)
-    })
+    registry.is_some_and(|registry| registry.supports_raw_stream_for_request(server_id, stream_url))
 }
 
 /// Whether this exact request is the capability-bound Navidrome raw-original
@@ -148,12 +170,8 @@ pub async fn fetch_trusted_original_md5(
     let probe_url = capability_gated_raw_url(registry, server_id, stream_url)?;
     // Same reverse-proxy gate headers as playback itself — a probe through
     // Pangolin/Cloudflare Access must not 403 while the stream succeeds.
-    let req = apply_optional_registry_headers(
-        registry,
-        server_id,
-        &probe_url,
-        client.get(&probe_url),
-    );
+    let req =
+        apply_optional_registry_headers(registry, server_id, &probe_url, client.get(&probe_url));
     let mut resp = req
         .header("Range", format!("bytes=0-{RAW_PROBE_RANGE_END}"))
         .timeout(RAW_PROBE_TIMEOUT)
@@ -212,56 +230,107 @@ pub async fn fetch_trusted_original_bytes(
     trusted_md5_16kb: &str,
     max_bytes: usize,
 ) -> Option<Vec<u8>> {
-    if max_bytes == 0 || trusted_md5_16kb.is_empty() {
-        return None;
-    }
-    let raw_url = capability_gated_raw_url(registry, server_id, stream_url)?;
-    let request = apply_optional_registry_headers(
+    fetch_trusted_original_bytes_result(
+        client,
         registry,
         server_id,
-        &raw_url,
-        client.get(&raw_url),
-    );
+        stream_url,
+        trusted_md5_16kb,
+        max_bytes,
+    )
+    .await
+    .ok()
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum BoundedStreamFetchError {
+    TooLarge { md5_16kb: String },
+    Unavailable,
+}
+
+/// Fetch one already-constructed stream URL into a bounded buffer. This does
+/// not establish content identity; callers must do that independently.
+pub async fn fetch_bounded_stream_bytes(
+    client: &reqwest::Client,
+    registry: Option<&ServerHttpRegistry>,
+    server_id: Option<&str>,
+    stream_url: &str,
+    max_bytes: usize,
+) -> Result<Vec<u8>, BoundedStreamFetchError> {
+    if max_bytes == 0 {
+        return Err(BoundedStreamFetchError::Unavailable);
+    }
+    let request =
+        apply_optional_registry_headers(registry, server_id, stream_url, client.get(stream_url));
     let mut response = request
         .timeout(RAW_FULL_FETCH_TIMEOUT)
         .send()
         .await
-        .ok()?;
-    if response.status() != reqwest::StatusCode::OK
-        || response
-            .content_length()
-            .is_some_and(|length| length > max_bytes as u64)
-    {
-        return None;
+        .map_err(|_| BoundedStreamFetchError::Unavailable)?;
+    if response.status() != reqwest::StatusCode::OK {
+        return Err(BoundedStreamFetchError::Unavailable);
     }
-
-    let mut body = Vec::with_capacity(
-        response
-            .content_length()
-            .unwrap_or(0)
-            .min(max_bytes as u64) as usize,
-    );
+    let content_length = response.content_length();
+    let mut too_large = content_length.is_some_and(|length| length > max_bytes as u64);
+    let fingerprint_len = RAW_PROBE_RANGE_END as usize + 1;
+    let initial_capacity = if too_large {
+        fingerprint_len
+    } else {
+        content_length.unwrap_or(0).min(max_bytes as u64) as usize
+    };
+    let mut body = Vec::with_capacity(initial_capacity);
     loop {
         match response.chunk().await {
             Ok(Some(chunk)) => {
-                if body.len().saturating_add(chunk.len()) > max_bytes {
-                    return None;
+                if !too_large && body.len().saturating_add(chunk.len()) > max_bytes {
+                    too_large = true;
                 }
-                body.extend_from_slice(&chunk);
+                if too_large {
+                    let remaining = fingerprint_len.saturating_sub(body.len());
+                    body.extend_from_slice(&chunk[..chunk.len().min(remaining)]);
+                    if body.len() >= fingerprint_len {
+                        break;
+                    }
+                } else {
+                    body.extend_from_slice(&chunk);
+                }
             }
             Ok(None) => break,
-            Err(_) => return None,
+            Err(_) => return Err(BoundedStreamFetchError::Unavailable),
         }
     }
-    if body.is_empty()
-        || looks_like_subsonic_error(&body)
-        || !bytes_match_trusted(&body, trusted_md5_16kb)
-    {
-        return None;
+    if body.is_empty() || looks_like_subsonic_error(&body) {
+        return Err(BoundedStreamFetchError::Unavailable);
     }
-    Some(body)
+    if too_large {
+        return Err(BoundedStreamFetchError::TooLarge {
+            md5_16kb: crate::analysis_cache::md5_first_16kb(&body),
+        });
+    }
+    Ok(body)
 }
 
+/// Detailed variant for background jobs that must distinguish a permanent
+/// full-buffer size rejection from a transient HTTP/provenance failure.
+pub async fn fetch_trusted_original_bytes_result(
+    client: &reqwest::Client,
+    registry: Option<&ServerHttpRegistry>,
+    server_id: Option<&str>,
+    stream_url: &str,
+    trusted_md5_16kb: &str,
+    max_bytes: usize,
+) -> Result<Vec<u8>, BoundedStreamFetchError> {
+    if max_bytes == 0 || trusted_md5_16kb.is_empty() {
+        return Err(BoundedStreamFetchError::Unavailable);
+    }
+    let raw_url = capability_gated_raw_url(registry, server_id, stream_url)
+        .ok_or(BoundedStreamFetchError::Unavailable)?;
+    let body = fetch_bounded_stream_bytes(client, registry, server_id, &raw_url, max_bytes).await?;
+    if !bytes_match_trusted(&body, trusted_md5_16kb) {
+        return Err(BoundedStreamFetchError::Unavailable);
+    }
+    Ok(body)
+}
 
 /// Whether captured stream bytes ARE the verified original: their own 16 KiB
 /// fingerprint equals the trusted one. Used to gate stream-to-local promotion
@@ -318,8 +387,8 @@ mod byte_match_tests {
 mod capability_tests {
     use super::*;
     use psysonic_core::server_http::{
-        CustomHeaderEntryWire, CustomHeadersApplyTo, EndpointKind,
-        ServerHttpContextSyncWire, ServerHttpEndpointWire,
+        CustomHeaderEntryWire, CustomHeadersApplyTo, EndpointKind, ServerHttpContextSyncWire,
+        ServerHttpEndpointWire,
     };
     use wiremock::matchers::{method, path};
     use wiremock::{Mock, MockServer, ResponseTemplate};
@@ -356,7 +425,10 @@ mod capability_tests {
         let url = format!("{}/rest/stream.view?id=t1", server.uri());
         let registry = registry_for(&server.uri(), true);
         let got = resolve_trusted_identity(
-            &reqwest::Client::new(), Some(&registry), Some("server-key"), &url,
+            &reqwest::Client::new(),
+            Some(&registry),
+            Some("server-key"),
+            &url,
         )
         .await;
         assert_eq!(got, TrustedProbeVerdict::SkipCanonicalWrites);
@@ -372,10 +444,8 @@ mod capability_tests {
             .await;
         let url = format!("{}/rest/stream.view?id=t1", server.uri());
 
-        let unknown = resolve_trusted_identity(
-            &reqwest::Client::new(), None, Some("server-key"), &url,
-        )
-        .await;
+        let unknown =
+            resolve_trusted_identity(&reqwest::Client::new(), None, Some("server-key"), &url).await;
         let unsupported_registry = registry_for(&server.uri(), false);
         let unsupported = resolve_trusted_identity(
             &reqwest::Client::new(),
@@ -414,8 +484,27 @@ mod tests {
 
     #[test]
     fn probe_url_rejects_local_and_non_stream_urls() {
-        assert_eq!(build_raw_probe_url("psysonic-local:///library/t.flac"), None);
-        assert_eq!(build_raw_probe_url("https://s.example/rest/getCoverArt.view?id=c"), None);
+        assert_eq!(
+            build_raw_probe_url("psysonic-local:///library/t.flac"),
+            None
+        );
+        assert_eq!(
+            build_raw_probe_url("https://s.example/rest/getCoverArt.view?id=c"),
+            None
+        );
+    }
+
+    #[test]
+    fn original_download_url_replaces_endpoint_and_strips_transcode_params() {
+        let url = "https://s.example/rest/stream.view?id=t1&u=a&t=tok&format=mp3&maxBitRate=64&estimateContentLength=true";
+        let download = build_original_download_url(url).unwrap();
+        assert!(download.starts_with("https://s.example/rest/download.view?"));
+        assert!(download.contains("id=t1"));
+        assert!(download.contains("u=a"));
+        assert!(download.contains("t=tok"));
+        assert!(!download.contains("format="));
+        assert!(!download.contains("maxBitRate="));
+        assert!(!download.contains("estimateContentLength="));
     }
 
     #[test]
@@ -457,11 +546,20 @@ mod tests {
     #[test]
     fn header_validation_requires_206_zero_start_and_exact_window() {
         // Full window on a large file.
-        assert_eq!(expected_prefix_len(206, Some("bytes 0-16383/9999999")), Some(16384));
+        assert_eq!(
+            expected_prefix_len(206, Some("bytes 0-16383/9999999")),
+            Some(16384)
+        );
         // 200 = Range ignored → reject BEFORE reading any body.
-        assert_eq!(expected_prefix_len(200, Some("bytes 0-16383/9999999")), None);
+        assert_eq!(
+            expected_prefix_len(200, Some("bytes 0-16383/9999999")),
+            None
+        );
         // Range not starting at zero.
-        assert_eq!(expected_prefix_len(206, Some("bytes 100-16483/9999999")), None);
+        assert_eq!(
+            expected_prefix_len(206, Some("bytes 100-16483/9999999")),
+            None
+        );
         // Truncated prefix of a large file — wrong fingerprint window.
         assert_eq!(expected_prefix_len(206, Some("bytes 0-999/9999999")), None);
         // Range end past the advertised total (inconsistent).
@@ -492,8 +590,8 @@ mod tests {
 mod http_tests {
     use super::*;
     use psysonic_core::server_http::{
-        CustomHeaderEntryWire, CustomHeadersApplyTo, EndpointKind,
-        ServerHttpContextSyncWire, ServerHttpEndpointWire,
+        CustomHeaderEntryWire, CustomHeadersApplyTo, EndpointKind, ServerHttpContextSyncWire,
+        ServerHttpEndpointWire,
     };
     use wiremock::matchers::{header, method, path, query_param};
     use wiremock::{Mock, MockServer, ResponseTemplate};
@@ -628,7 +726,7 @@ mod http_tests {
         .await;
         assert_eq!(fetched.as_deref(), Some(original.as_slice()));
 
-        let oversized = fetch_trusted_original_bytes(
+        let oversized = fetch_trusted_original_bytes_result(
             &reqwest::Client::new(),
             Some(&registry),
             Some("server-key"),
@@ -637,7 +735,12 @@ mod http_tests {
             original.len() - 1,
         )
         .await;
-        assert_eq!(oversized, None);
+        assert_eq!(
+            oversized,
+            Err(BoundedStreamFetchError::TooLarge {
+                md5_16kb: trusted.clone(),
+            })
+        );
 
         let wrong_prefix = fetch_trusted_original_bytes(
             &reqwest::Client::new(),
@@ -671,6 +774,9 @@ mod http_tests {
             original.len(),
         )
         .await;
-        assert_eq!(partial, None, "partial responses are not complete originals");
+        assert_eq!(
+            partial, None,
+            "partial responses are not complete originals"
+        );
     }
 }
