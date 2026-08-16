@@ -30,6 +30,7 @@ Within each section, order by **user impact** (most noticeable first) — not PR
 - **Now Playing** and every fullscreen-player style can show a spectrum, oscilloscope, radial scope, or stereo field using cover-derived or theme colours, with an expanded window view.
 - Configure sensitivity, response, frame rate, and peak markers under **Settings → Appearance → Visualizer**. Separate switches let you enable it for Now Playing, fullscreen, or both.
 - Internet radio is supported while its equalizer audio graph is active.
+- Narrow bass bands now move smoothly instead of forming flat plateaus, while their frequency positions remain accurate at standard and Hi-Res sample rates.
 
 ### Themes — local assets and easier discovery
 
@@ -48,19 +49,27 @@ Within each section, order by **user impact** (most noticeable first) — not PR
 - Multi-disc albums show each disc's own cover beside **CD N** when the server provides distinct artwork. The queue, mini-cover, and listener view use the same per-disc art on Navidrome.
 - Playing a multi-disc album from its header now queues disc 1 in full before disc 2 instead of interleaving tracks by track number.
 
+### Random Mix — combine several genres
+
+- Select several genre chips to build one balanced random playlist instead of replacing the previous selection. Duplicate tracks are removed before playback.
+- Selected genres remain visible while you browse another set of popular genres, and rapid changes keep only the newest mix.
+
+### Timeline — replay from any point in listening history
+
+- Right-click a past Timeline track and choose **Play from Here** to replay that occurrence, every later history entry, and the existing **Up Next** list in their original order, including mixed-server ownership.
+
+### Audio controls — fade smoothly when pausing and resuming
+
+- **Settings → Audio → Track transitions** can fade playback out before pausing and back in when resuming, with a configurable **0.1–2.0 second** duration. Rapid pause, resume, and stop actions cancel stale fades safely.
+
 ### Fullscreen player — volume everywhere
 
 - **Minimal** and **Immersive** now include the same mute button and always-visible volume slider already available in **Prism**.
 
-### Mixed-server playback
-
-- One queue can play tracks from different servers, with each item resolving its own stream, cover, lyrics, ReplayGain, and analysis from the server that owns it.
-- Queue restore, shuffle, history, gapless, crossfade, infinite queue, Hot Cache, and server play-queue sync preserve that ownership.
-- When the selected copy cannot play, Psysonic can offer equivalent copies from your other selected servers. Source controls on albums, artists, and tracks let you choose a particular copy when needed.
-
 ## Improved
 
 - Large libraries do less repeated work while Home, Albums, Artists, New Releases, Lossless Albums, and Search mount, paginate, or restore. Useful content appears before non-visible enrichment and cover prefetching.
+- Waveform, loudness, and enrichment reuse audio already loaded for playback, preload, cache, and local files instead of downloading the original again. Background analysis stays bounded while active playback takes priority.
 - Back from an album opened through an artist or related release now returns to the page you just left, and a second Back restores the original browse page and state.
 - **Highly Rated** reshuffles within each rating tier when rerolled instead of returning the same fixed selection.
 - The dead **YouLyPlus** lyrics source has been removed. If it was your only enabled source, **LRCLIB** is switched on automatically; embedded and Navidrome word-by-word lyrics are unaffected.
@@ -70,7 +79,9 @@ Within each section, order by **user impact** (most noticeable first) — not PR
 ### Playback and audio
 
 - Gapless MP3 albums no longer insert encoder silence between tracks when the files provide standard delay and padding information.
+- Surround tracks played through stereo speakers or headphones now mix every channel into the two you hear instead of dropping the centre, bass, and rear channels. Devices that support surround keep the original channel layout.
 - **Linux:** playback remains smooth under heavy CPU load, and ALSA or PipeWire sample-rate negotiation no longer causes half-speed, double-speed, or pitch-shifted audio. Hi-Res and gapless playback advance the queue reliably.
+- **Linux:** volume changes through desktop media controls now stay in sync with Psysonic in both directions.
 - AIFF, AIF, and AIFC tracks now play from servers, local files, and caches, including servers without byte-range support.
 - Resuming after a long pause no longer lets Now Playing run several tracks ahead of the audio.
 - Adding a track to a queue you cleared now mounts and starts the first track immediately.
