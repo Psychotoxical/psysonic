@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Psysonic",
-  "version": "1.51.0-dev",
+  "version": "1.52.0-dev",
   "identifier": "dev.psysonic.player",
   "build": {
     "beforeDevCommand": "npm run dev",
@@ -69,10 +69,16 @@
         "bundleMediaFramework": true
       },
       "deb": {
-        "depends": ["gstreamer1.0-plugins-good", "gstreamer1.0-plugins-bad"]
+        "depends": [
+          "gstreamer1.0-plugins-good",
+          "gstreamer1.0-plugins-bad"
+        ]
       },
       "rpm": {
-        "recommends": ["gstreamer1-plugins-good", "gstreamer1-plugins-bad-free"]
+        "recommends": [
+          "gstreamer1-plugins-good",
+          "gstreamer1-plugins-bad-free"
+        ]
       }
     },
     "macOS": {
@@ -84,7 +90,7 @@
         "installMode": "currentUser"
       },
       "wix": {
-        "version": "1.51.0.1"
+        "version": "1.52.0.1"
       }
     }
   }
