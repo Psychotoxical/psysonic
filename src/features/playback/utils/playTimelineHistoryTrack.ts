@@ -50,3 +50,15 @@ export async function playTimelineHistoryTrack(
   ];
   playTrack(track, newQueue, undefined, undefined, insertAt);
 }
+
+/** Replace the queue with the visible timeline sequence starting at a history row. */
+export async function playTimelineFromHere(refs: QueueItemRef[]): Promise<void> {
+  if (refs.length === 0) return;
+
+  await resolveBatch(refs);
+  const queue = getQueueTracksView(refs);
+  const track = queue[0];
+  if (!track) return;
+
+  usePlayerStore.getState().playTrack(track, queue, undefined, undefined, 0);
+}

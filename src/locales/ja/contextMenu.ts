@@ -1,6 +1,7 @@
 export const contextMenu = {
   playNow: '今すぐ再生',
   playNext: '次に再生',
+  playFromHere: 'ここから再生',
   addToQueue: 'キューに追加',
   enqueueAlbum: 'アルバムをキューに追加',
   enqueueAlbums_one: '{{count}} 枚のアルバムをキューに追加',

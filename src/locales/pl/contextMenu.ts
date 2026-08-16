@@ -1,6 +1,7 @@
 export const contextMenu = {
   playNow: 'Odtwarzane teraz',
   playNext: 'Odtwarzane jako następne',
+  playFromHere: 'Odtwórz od tego miejsca',
   addToQueue: 'Dodaj do kolejki',
   enqueueAlbum: 'Dodaj album do kolejki',
   enqueueAlbums_one: 'Dodaj {{count}} album do kolejki',

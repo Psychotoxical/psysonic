@@ -1,6 +1,7 @@
 export const contextMenu = {
   playNow: '立即播放',
   playNext: '下一首播放',
+  playFromHere: '从此处开始播放',
   addToQueue: '添加到队列',
   enqueueAlbum: '专辑加入队列',
   enqueueAlbums_one: '{{count}} 张专辑加入队列',

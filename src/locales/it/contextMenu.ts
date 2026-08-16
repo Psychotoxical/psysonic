@@ -1,6 +1,7 @@
 export const contextMenu = {
   playNow: 'Riproduci ora',
   playNext: 'Riproduci dopo',
+  playFromHere: 'Riproduci da qui',
   addToQueue: 'Aggiungi alla coda',
   enqueueAlbum: 'Aggiungi album alla coda',
   enqueueAlbums_one: 'Aggiungi {{count}} album alla coda',

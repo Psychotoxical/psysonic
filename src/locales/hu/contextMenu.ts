@@ -1,6 +1,7 @@
 export const contextMenu = {
   playNow: 'Lejátszás most',
   playNext: 'Lejátszás következőként',
+  playFromHere: 'Lejátszás innen',
   addToQueue: 'Hozzáadás a sorhoz',
   enqueueAlbum: 'Album a sorba',
   enqueueAlbums_one: '{{count}} album a sorba',

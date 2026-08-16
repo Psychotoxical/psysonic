@@ -3,7 +3,10 @@ import { usePlayerStore } from '@/features/playback/store/playerStore';
 import { resetPlayerStore } from '@/test/helpers/storeReset';
 import { makeTrack, seedQueue } from '@/test/helpers/factories';
 import { seedQueueResolver } from '@/features/playback/store/queueTrackResolver';
-import { playTimelineHistoryTrack } from '@/features/playback/utils/playTimelineHistoryTrack';
+import {
+  playTimelineFromHere,
+  playTimelineHistoryTrack,
+} from '@/features/playback/utils/playTimelineHistoryTrack';
 
 vi.mock('@/features/playback/store/queueTrackResolver', async importOriginal => {
   const actual = await importOriginal<typeof import('@/features/playback/store/queueTrackResolver')>();
@@ -95,5 +98,32 @@ describe('playTimelineHistoryTrack', () => {
     const [, queue, , , targetIdx] = playTrack.mock.calls[0]!;
     expect(targetIdx).toBe(3);
     expect(queue?.map((t: { id: string }) => t.id)).toEqual(['shared', 'shared', 'b', 'shared']);
+  });
+
+  it('replaces the queue with the timeline sequence from the selected row', async () => {
+    const h2 = makeTrack({ id: 'h2', serverId: 's2' });
+    const h3 = makeTrack({ id: 'h3', serverId: 's1' });
+    const current = makeTrack({ id: 'current', serverId: 's1' });
+    const next = makeTrack({ id: 'next', serverId: 's1' });
+    seedQueueResolver('s1', [h3, current, next]);
+    seedQueueResolver('s2', [h2]);
+    const playTrack = vi.fn();
+    usePlayerStore.setState({ playTrack });
+
+    await playTimelineFromHere([
+      { serverId: 's2', trackId: 'h2' },
+      { serverId: 's1', trackId: 'h3' },
+      { serverId: 's1', trackId: 'current' },
+      { serverId: 's1', trackId: 'next', playNextAdded: true },
+    ]);
+
+    expect(playTrack).toHaveBeenCalledTimes(1);
+    const [track, queue, , , targetIdx] = playTrack.mock.calls[0]!;
+    expect(track).toEqual(expect.objectContaining({ id: 'h2', serverId: 's2' }));
+    expect(queue?.map((item: { id: string }) => item.id)).toEqual([
+      'h2', 'h3', 'current', 'next',
+    ]);
+    expect(queue?.[3]).toEqual(expect.objectContaining({ playNextAdded: true }));
+    expect(targetIdx).toBe(0);
   });
 });

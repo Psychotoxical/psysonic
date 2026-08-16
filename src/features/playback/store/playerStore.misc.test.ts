@@ -116,6 +116,29 @@ describe('openContextMenu / closeContextMenu', () => {
     expect(cm.x).toBe(50);
     expect(cm.type).toBe('song');
   });
+
+  it('stores the timeline playback order for history-row menus', () => {
+    const track = makeTrack({ id: 'history' });
+    const refs = [
+      { serverId: 's1', trackId: 'history' },
+      { serverId: 's1', trackId: 'current' },
+    ];
+    usePlayerStore.getState().openContextMenu(
+      50,
+      50,
+      track,
+      'song',
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      refs,
+    );
+
+    expect(usePlayerStore.getState().contextMenu.timelineFromHereRefs).toEqual(refs);
+  });
 });
 
 describe('openSongInfo / closeSongInfo', () => {

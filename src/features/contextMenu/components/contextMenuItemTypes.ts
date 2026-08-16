@@ -19,6 +19,7 @@ export interface ContextMenuItemsProps {
   playlistId?: string;
   playlistSongIndex?: number;
   playlistSongRemove?: () => void | Promise<void>;
+  timelineFromHereRefs?: QueueItemRef[];
   shareKindOverride?: EntityShareKind;
   playTrack: (track: Track, queue?: Track[], manual?: boolean, orbitConfirmed?: boolean, targetQueueIndex?: number) => void;
   playNext: (tracks: Track[]) => void;

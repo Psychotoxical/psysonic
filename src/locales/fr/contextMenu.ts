@@ -1,6 +1,7 @@
 export const contextMenu = {
   playNow: 'Lire maintenant',
   playNext: 'Lire ensuite',
+  playFromHere: 'Lire à partir d’ici',
   addToQueue: 'Ajouter à la file',
   enqueueAlbum: 'Mettre l\'album en file',
   enqueueAlbums_one: 'Mettre {{count}} album en file',

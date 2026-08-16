@@ -18,7 +18,10 @@ import {
 import { collectQueueResolveRefs } from '@/features/queue/utils/collectQueueResolveRefs';
 import { findQueueItemRefIndex } from '@/features/playback/utils/playback/queueIdentity';
 import type { TimelineDisplayRow } from '@/features/playback/utils/buildTimelineDisplayRows';
-import { findTimelineScrollLocalIndex } from '@/features/playback/utils/buildTimelineDisplayRows';
+import {
+  buildTimelineQueueFromHistory,
+  findTimelineScrollLocalIndex,
+} from '@/features/playback/utils/buildTimelineDisplayRows';
 import { playTimelineHistoryTrack } from '@/features/playback/utils/playTimelineHistoryTrack';
 import { OptionalQueueTrackRowCoverThumb } from '@/cover/TrackRowCoverThumb';
 import { useTrackListCoverArtEnabled } from '@/cover/useTrackListCoverArtSettings';
@@ -178,7 +181,7 @@ export function QueueList({
         data-timeline-local-idx={localIndex}
         {...(isHistory ? { 'data-timeline-kind': 'history' } : {})}
         {...(absIdx != null ? { 'data-queue-idx': absIdx } : {})}
-        className={`queue-item${showCovers ? ' queue-item--with-cover' : ''} ${isPlaying ? 'active' : ''} ${contextMenu.isOpen && contextMenu.type === (absIdx != null ? 'queue-item' : 'song') && (absIdx != null ? contextMenu.queueIndex === absIdx : contextMenu.item === track) ? 'context-active' : ''}`}
+        className={`queue-item${showCovers ? ' queue-item--with-cover' : ''} ${isPlaying ? 'active' : ''} ${contextMenu.isOpen && contextMenu.type === (isHistory || absIdx == null ? 'song' : 'queue-item') && (isHistory || absIdx == null ? contextMenu.item === track : contextMenu.queueIndex === absIdx) ? 'context-active' : ''}`}
         onClick={() => {
           if (isHistory) {
             playHistoryRow(base?.serverId ?? track.serverId ?? '', track.id);
@@ -190,8 +193,23 @@ export function QueueList({
         }}
         onContextMenu={(e) => {
           e.preventDefault();
-          if (isHistory && absIdx == null) {
-            usePlayerStore.getState().openContextMenu(e.clientX, e.clientY, track, 'song');
+          if (isHistory) {
+            const timelineFromHereRefs = timelineRows
+              ? buildTimelineQueueFromHistory(timelineRows, localIndex)
+              : [];
+            usePlayerStore.getState().openContextMenu(
+              e.clientX,
+              e.clientY,
+              track,
+              'song',
+              undefined,
+              undefined,
+              undefined,
+              undefined,
+              undefined,
+              undefined,
+              timelineFromHereRefs,
+            );
             return;
           }
           if (absIdx == null) return;

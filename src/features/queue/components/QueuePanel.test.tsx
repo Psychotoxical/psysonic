@@ -40,6 +40,7 @@ import * as offlineApi from '@/features/offline';
 import { resetAllStores } from '@/test/helpers/storeReset';
 import { makeTrack, makeTracks, seedQueue } from '@/test/helpers/factories';
 import { onInvoke, registerDefaultCoverInvokeHandlers } from '@/test/mocks/tauri';
+import { appendTimelineSessionPlay } from '@/features/playback/store/timelineSessionHistory';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -171,6 +172,30 @@ describe('QueuePanel — display mode', () => {
     const { container } = renderWithProviders(<QueuePanel />);
     const idxs = [...container.querySelectorAll('[data-queue-idx]')].map(r => r.getAttribute('data-queue-idx'));
     expect(idxs).toEqual(['1', '2', '3']);
+  });
+
+  it('timeline history context menu captures playback order from that occurrence', () => {
+    const tracks = makeTracks(4);
+    const serverId = useAuthStore.getState().activeServerId!;
+    useAuthStore.getState().setQueueDisplayMode('timeline');
+    seedQueue(tracks, { index: 1, currentTrack: tracks[1], serverId });
+    const historyRef = usePlayerStore.getState().queueItems[0]!;
+    appendTimelineSessionPlay({
+      serverId: historyRef.serverId,
+      trackId: historyRef.trackId,
+      playedAtMs: 1,
+    });
+    const { container } = renderWithProviders(<QueuePanel />);
+    const historyRow = container.querySelector<HTMLElement>('[data-timeline-kind="history"]');
+
+    expect(historyRow).not.toBeNull();
+    fireEvent.contextMenu(historyRow!);
+
+    const menu = usePlayerStore.getState().contextMenu;
+    expect(menu.type).toBe('song');
+    expect(menu.timelineFromHereRefs?.map(ref => ref.trackId)).toEqual(
+      tracks.map(track => track.id),
+    );
   });
 });
 

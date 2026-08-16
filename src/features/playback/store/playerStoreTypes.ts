@@ -200,6 +200,8 @@ export interface PlayerState {
     shareKindOverride?: 'track' | 'album' | 'artist' | 'composer';
     /** Menu actions target {@link queueServerId} (set for queue-item and player-sourced album menus). */
     pinToPlaybackServer?: boolean;
+    /** Timeline order from the selected history row through the current Up Next list. */
+    timelineFromHereRefs?: QueueItemRef[];
   };
   openContextMenu: (
     x: number,
@@ -212,6 +214,7 @@ export interface PlayerState {
     shareKindOverride?: 'track' | 'album' | 'artist' | 'composer',
     pinToPlaybackServer?: boolean,
     playlistSongRemove?: () => void | Promise<void>,
+    timelineFromHereRefs?: QueueItemRef[],
   ) => void;
   closeContextMenu: () => void;
 

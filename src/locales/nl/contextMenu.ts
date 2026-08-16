@@ -1,6 +1,7 @@
 export const contextMenu = {
   playNow: 'Nu afspelen',
   playNext: 'Volgende afspelen',
+  playFromHere: 'Vanaf hier afspelen',
   addToQueue: 'Aan wachtrij toevoegen',
   enqueueAlbum: 'Album in wachtrij',
   enqueueAlbums_one: '{{count}} album in wachtrij',

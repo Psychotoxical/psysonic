@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { buildTimelineDisplayRows, findTimelineScrollLocalIndex } from '@/features/playback/utils/buildTimelineDisplayRows';
+import {
+  buildTimelineDisplayRows,
+  buildTimelineQueueFromHistory,
+  findTimelineScrollLocalIndex,
+} from '@/features/playback/utils/buildTimelineDisplayRows';
 import type { QueueItemRef } from '@/lib/media/trackTypes';
 
 const ref = (trackId: string, extra?: Partial<QueueItemRef>): QueueItemRef => ({
@@ -27,5 +31,24 @@ describe('buildTimelineDisplayRows', () => {
       queueIndex: 0,
     });
     expect(findTimelineScrollLocalIndex(rows)).toBe(2);
+  });
+
+  it('builds playback order from a selected history occurrence through Up Next', () => {
+    const rows = buildTimelineDisplayRows({
+      historyRefs: [
+        { serverId: 's1', trackId: 'h1', playedAtMs: 1 },
+        { serverId: 's2', trackId: 'h2', playedAtMs: 2 },
+        { serverId: 's1', trackId: 'h3', playedAtMs: 3 },
+      ],
+      queueItems: [ref('c'), ref('u1', { playNextAdded: true })],
+      queueIndex: 0,
+    });
+
+    expect(buildTimelineQueueFromHistory(rows, 2)).toEqual([
+      { serverId: 's2', trackId: 'h2' },
+      { serverId: 's1', trackId: 'h3' },
+      { serverId: 's1', trackId: 'c' },
+      { serverId: 's1', trackId: 'u1', playNextAdded: true },
+    ]);
   });
 });

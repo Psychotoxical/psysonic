@@ -1,6 +1,7 @@
 export const contextMenu = {
   playNow: 'Play Now',
   playNext: 'Play Next',
+  playFromHere: 'Play from Here',
   addToQueue: 'Add to Queue',
   enqueueAlbum: 'Enqueue Album',
   enqueueAlbums_one: 'Enqueue {{count}} Album',

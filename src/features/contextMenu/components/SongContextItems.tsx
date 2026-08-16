@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next';
-import { Play, ListPlus, Radio, Heart, ChevronRight, ChevronsRight, User, Disc3, ListMusic, Info, Sparkles, Star, Trash2, HeartCrack, Share2, Orbit as OrbitIcon } from 'lucide-react';
+import { Play, ListPlus, ListStart, Radio, Heart, ChevronRight, ChevronsRight, User, Disc3, ListMusic, Info, Sparkles, Star, Trash2, HeartCrack, Share2, Orbit as OrbitIcon } from 'lucide-react';
 import { useNavigateToAlbum } from '@/features/album';
 import { useNavigateToArtist } from '@/features/artist';
 import { resolveAlbum, resolveMediaServerId } from '@/features/offline';
@@ -16,10 +16,11 @@ import StarRating from '@/ui/StarRating';
 import { AddToPlaylistSubmenu } from '@/features/contextMenu/components/AddToPlaylistSubmenu';
 import type { ContextMenuItemsProps } from '@/features/contextMenu/components/contextMenuItemTypes';
 import { appendServerQuery } from '@/lib/navigation/detailServerScope';
+import { playTimelineFromHere } from '@/features/playback';
 
 export default function SongContextItems(props: ContextMenuItemsProps) {
   const {
-    type, item, playlistId, playlistSongIndex, playlistSongRemove,
+    type, item, playlistId, playlistSongIndex, playlistSongRemove, timelineFromHereRefs,
     playTrack, playNext, enqueue, closeContextMenu,
     networkLovedCache, setNetworkLovedForSong,
     openSongInfo, userRatingOverrides, setKeyboardRating, keyboardRating,
@@ -50,6 +51,11 @@ export default function SongContextItems(props: ContextMenuItemsProps) {
               <div className="context-menu-item" onClick={() => handleAction(() => playNext([song]))}>
                 <ChevronsRight size={14} /> {t('contextMenu.playNext')}
               </div>
+              {timelineFromHereRefs && timelineFromHereRefs.length > 0 && (
+                <div className="context-menu-item" onClick={() => handleAction(() => playTimelineFromHere(timelineFromHereRefs))}>
+                  <ListStart size={14} /> {t('contextMenu.playFromHere')}
+                </div>
+              )}
               <div className="context-menu-item" onClick={() => handleAction(() => enqueue([song]))}>
                 <ListPlus size={14} /> {t('contextMenu.addToQueue')}
               </div>

@@ -1,6 +1,7 @@
 export const contextMenu = {
   playNow: 'Direkt abspielen',
   playNext: 'Als Nächstes abspielen',
+  playFromHere: 'Ab hier abspielen',
   addToQueue: 'Zur Warteschlange hinzufügen',
   enqueueAlbum: 'Ganzes Album einreihen',
   enqueueAlbums_one: '{{count}} Album einreihen',

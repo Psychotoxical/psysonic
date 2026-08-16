@@ -1,6 +1,7 @@
 export const contextMenu = {
   playNow: 'Пусни сега',
   playNext: 'Пусни следващо',
+  playFromHere: 'Пусни оттук',
   addToQueue: 'Добави в опашката',
   enqueueAlbum: 'Добави албума в опашката',
   enqueueAlbums_one: 'Добави {{count}} албум в опашката',

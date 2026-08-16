@@ -57,8 +57,9 @@ import { usePlayerStore } from '@/features/playback/store/playerStore';
 import { useAuthStore } from '@/store/authStore';
 import { resetAllStores } from '@/test/helpers/storeReset';
 import { makeTrack, makeServer, seedQueue } from '@/test/helpers/factories';
+import { seedQueueResolver } from '@/features/playback/store/queueTrackResolver';
 import { onInvoke } from '@/test/mocks/tauri';
-import { fireEvent } from '@testing-library/react';
+import { fireEvent, waitFor } from '@testing-library/react';
 
 function setUpActiveServer(): ServerProfile {
   const server = makeServer();
@@ -70,8 +71,25 @@ function setUpActiveServer(): ServerProfile {
   return { ...server, id };
 }
 
-function openMenuFor(type: 'song' | 'album' | 'artist' | 'queue-item' | 'album-song', item: unknown, queueIndex?: number): void {
-  usePlayerStore.getState().openContextMenu(100, 100, item as never, type, queueIndex);
+function openMenuFor(
+  type: 'song' | 'album' | 'artist' | 'queue-item' | 'album-song',
+  item: unknown,
+  queueIndex?: number,
+  timelineFromHereRefs?: { serverId: string; trackId: string }[],
+): void {
+  usePlayerStore.getState().openContextMenu(
+    100,
+    100,
+    item as never,
+    type,
+    queueIndex,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    timelineFromHereRefs,
+  );
 }
 
 beforeEach(() => {
@@ -138,6 +156,50 @@ describe('ContextMenu — type=song', () => {
     expect(playNextSpy).toHaveBeenCalledTimes(1);
     expect(playNextSpy.mock.calls[0]?.[0]).toHaveLength(1);
     expect(playNextSpy.mock.calls[0]?.[0][0].id).toBe('tr-pn');
+  });
+
+  it('shows Play from Here after Play Next only for a timeline history row', () => {
+    const track = makeTrack({ id: 'history' });
+    openMenuFor('song', track, undefined, [
+      { serverId: 'srv-1', trackId: 'history' },
+      { serverId: 'srv-1', trackId: 'current' },
+    ]);
+    const { container } = renderWithProviders(<ContextMenu />);
+    const labels = [...container.querySelectorAll('.context-menu-item')]
+      .map(item => item.textContent?.trim());
+
+    expect(labels.slice(0, 4)).toEqual([
+      'Play Now',
+      'Play Next',
+      'Play from Here',
+      'Add to Queue',
+    ]);
+  });
+
+  it('does not show Play from Here for a regular song menu', () => {
+    openMenuFor('song', makeTrack({ id: 'regular' }));
+    const { queryByText } = renderWithProviders(<ContextMenu />);
+
+    expect(queryByText('Play from Here')).not.toBeInTheDocument();
+  });
+
+  it('replaces playback with the captured timeline order', async () => {
+    const history = makeTrack({ id: 'history-action', serverId: 'srv-1' });
+    const current = makeTrack({ id: 'current-action', serverId: 'srv-1' });
+    seedQueueResolver('srv-1', [history, current]);
+    const playTrackSpy = vi.spyOn(usePlayerStore.getState(), 'playTrack');
+    openMenuFor('song', history, undefined, [
+      { serverId: 'srv-1', trackId: 'history-action' },
+      { serverId: 'srv-1', trackId: 'current-action' },
+    ]);
+    const { getByText } = renderWithProviders(<ContextMenu />);
+
+    fireEvent.click(getByText('Play from Here'));
+
+    await waitFor(() => expect(playTrackSpy).toHaveBeenCalled());
+    const [track, queue] = playTrackSpy.mock.calls[playTrackSpy.mock.calls.length - 1]!;
+    expect(track.id).toBe('history-action');
+    expect(queue?.map(item => item.id)).toEqual(['history-action', 'current-action']);
   });
 
   it('"Add to Queue" click calls playerStore.enqueue', () => {

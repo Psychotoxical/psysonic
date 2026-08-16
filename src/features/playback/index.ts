@@ -24,3 +24,4 @@ export {
 } from './utils/audio/radioEqGraph';
 export { sameQueueTrack } from './utils/playback/queueIdentity';
 export { queueTrackIdsForServerProfile } from './utils/playback/trackServerScope';
+export { playTimelineFromHere } from './utils/playTimelineHistoryTrack';

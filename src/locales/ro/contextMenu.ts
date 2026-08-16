@@ -1,6 +1,7 @@
 export const contextMenu = {
   playNow: 'Redă acum',
   playNext: 'Redă următorul',
+  playFromHere: 'Redă de aici',
   addToQueue: 'Adaugă la coadă',
   enqueueAlbum: 'Adaugă Albumul la coadă',
   enqueueAlbums_one: 'Adaugă la coadă {{count}} Album',

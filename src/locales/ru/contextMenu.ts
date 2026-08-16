@@ -1,6 +1,7 @@
 export const contextMenu = {
   playNow: 'Играть сейчас',
   playNext: 'Играть следующим',
+  playFromHere: 'Играть отсюда',
   addToQueue: 'В конец очереди',
   enqueueAlbum: 'Альбом в очередь',
   enqueueAlbums_one: '{{count}} альбом в очередь',

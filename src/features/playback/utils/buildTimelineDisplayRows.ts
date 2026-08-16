@@ -78,3 +78,22 @@ export function findTimelineScrollLocalIndex(rows: TimelineDisplayRow[]): number
   const firstUpcoming = rows.find(r => r.kind === 'upcoming');
   return firstUpcoming?.localIndex ?? null;
 }
+
+/** Build the playback order shown from a selected history row through Up Next. */
+export function buildTimelineQueueFromHistory(
+  rows: TimelineDisplayRow[],
+  historyLocalIndex: number,
+): QueueItemRef[] {
+  const start = rows.findIndex(
+    row => row.kind === 'history' && row.localIndex === historyLocalIndex,
+  );
+  if (start < 0) return [];
+
+  return rows.slice(start).flatMap(row => {
+    if (row.kind === 'divider') return [];
+    if (row.kind === 'history') {
+      return [{ serverId: row.ref.serverId, trackId: row.ref.trackId }];
+    }
+    return [row.ref];
+  });
+}

@@ -1,6 +1,7 @@
 export const contextMenu = {
   playNow: 'Spill nå',
   playNext: 'Spill neste',
+  playFromHere: 'Spill herfra',
   addToQueue: 'Legg til i kø',
   enqueueAlbum: 'Legg albumet i kø',
   enqueueAlbums_one: 'Legg {{count}} album i kø',
