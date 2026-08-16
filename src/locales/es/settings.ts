@@ -504,6 +504,7 @@ export const settings = {
   playerBarStarRating: 'Calificación con estrellas',
   playerBarFavorite: 'Favorito (corazón)',
   playerBarLastfmLove: 'Botón Me gusta',
+  playerBarScrobble: 'Force scrobble',
   playerBarPlaybackRate: 'Velocidad de reproducción',
   playerBarEqualizer: 'Ecualizador',
   playerBarMiniPlayer: 'Mini reproductor',

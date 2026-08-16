@@ -10,6 +10,7 @@ export type PlayerBarLayoutItemId =
   // renamed to 'networkLove') because it is persisted in user layouts — renaming
   // would silently drop the button from existing configs. Label is provider-neutral.
   | 'lastfmLove'
+  | 'scrobble'
   | 'playbackRate'
   | 'equalizer'
   | 'miniPlayer';
@@ -32,6 +33,7 @@ export const PLAYER_BAR_LAYOUT_ZONES: Record<PlayerBarLayoutItemId, PlayerBarLay
   starRating:   'actions',
   favorite:     'actions',
   lastfmLove:   'actions',
+  scrobble:     'actions',
   playbackRate: 'actions',
   equalizer:    'actions',
   miniPlayer:   'actions',
@@ -53,6 +55,7 @@ export const DEFAULT_PLAYER_BAR_LAYOUT_ITEMS: PlayerBarLayoutItemConfig[] = [
   { id: 'starRating',  visible: true },
   { id: 'favorite',    visible: true },
   { id: 'lastfmLove',  visible: true },
+  { id: 'scrobble',     visible: true },
   { id: 'playbackRate', visible: true },
   { id: 'equalizer',   visible: true },
   { id: 'miniPlayer',  visible: true },

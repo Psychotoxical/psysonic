@@ -26,6 +26,7 @@ import { useFsIdleFade } from '@/features/fullscreenPlayer/hooks/useFsIdleFade';
 import { useQueueTrackAt } from '@/features/queue';
 import { VisualizerPanel } from '@/features/visualizer';
 import { prepareTransientUiOpen } from '@/lib/dom/transientUi';
+import { ScrobbleActionButton } from '@/features/playback/components/playerBar/ScrobbleStatus';
 
 interface FullscreenPlayerProps {
   onClose: () => void;
@@ -255,6 +256,11 @@ export default function FullscreenPlayer({ onClose }: FullscreenPlayerProps) {
               <Heart size={14} fill={isStarred ? 'currentColor' : 'none'} />
             </button>
           )}
+          <ScrobbleActionButton
+            t={t}
+            className="fs-btn fs-btn-sm"
+            iconSize={14}
+          />
           <div style={{ position: 'relative', zIndex: 9 }}>
             <FsLyricsMenu open={lyricsMenuOpen} onClose={closeLyricsMenu} accentColor={dynamicAccent} triggerRef={lyricsMenuTriggerRef} />
             <button

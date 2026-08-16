@@ -564,6 +564,7 @@ export const settings = {
   playerBarStarRating: 'Оценка звёздами',
   playerBarFavorite: 'Избранное (сердечко)',
   playerBarLastfmLove: 'Кнопка «Нравится»',
+  playerBarScrobble: 'Force scrobble',
   playerBarPlaybackRate: 'Скорость',
   playerBarEqualizer: 'Эквалайзер',
   playerBarMiniPlayer: 'Мини-плеер',

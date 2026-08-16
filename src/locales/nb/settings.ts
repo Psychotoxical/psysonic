@@ -491,6 +491,7 @@ export const settings = {
   playerBarStarRating: 'Stjernevurdering',
   playerBarFavorite: 'Favoritt (hjerte)',
   playerBarLastfmLove: 'Lik-knapp',
+  playerBarScrobble: 'Force scrobble',
   playerBarPlaybackRate: 'Avspillingshastighet',
   playerBarEqualizer: 'Equalizer',
   playerBarMiniPlayer: 'Miniavspiller',

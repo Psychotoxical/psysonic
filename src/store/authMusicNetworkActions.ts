@@ -1,4 +1,5 @@
 import type { PersistedAccount } from '../music-network';
+import { clampScrobbleThresholdPercent } from './authStoreDefaults';
 import type { AuthState } from './authStoreTypes';
 
 type SetState = (
@@ -12,7 +13,10 @@ type SetState = (
  */
 export function createMusicNetworkActions(set: SetState): Pick<
   AuthState,
-  'setMusicNetworkAccounts' | 'setEnrichmentPrimaryId' | 'setScrobblingMasterEnabled'
+  | 'setMusicNetworkAccounts'
+  | 'setEnrichmentPrimaryId'
+  | 'setScrobblingMasterEnabled'
+  | 'setScrobbleThresholdPercent'
 > {
   return {
     setMusicNetworkAccounts: (accounts: PersistedAccount[]) =>
@@ -21,5 +25,7 @@ export function createMusicNetworkActions(set: SetState): Pick<
       set({ enrichmentPrimaryId: id }),
     setScrobblingMasterEnabled: (v: boolean) =>
       set({ scrobblingMasterEnabled: v }),
+    setScrobbleThresholdPercent: (v: number) =>
+      set({ scrobbleThresholdPercent: clampScrobbleThresholdPercent(v) }),
   };
 }

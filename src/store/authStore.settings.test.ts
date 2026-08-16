@@ -110,6 +110,20 @@ describe('trivial pass-through setters', () => {
 });
 
 describe('setters with validation / clamping', () => {
+  it('setScrobbleThresholdPercent clamps to [25, 90] and rounds', () => {
+    useAuthStore.getState().setScrobbleThresholdPercent(10);
+    expect(useAuthStore.getState().scrobbleThresholdPercent).toBe(25);
+
+    useAuthStore.getState().setScrobbleThresholdPercent(99);
+    expect(useAuthStore.getState().scrobbleThresholdPercent).toBe(90);
+
+    useAuthStore.getState().setScrobbleThresholdPercent(33.4);
+    expect(useAuthStore.getState().scrobbleThresholdPercent).toBe(33);
+
+    useAuthStore.getState().setScrobbleThresholdPercent(Number.NaN);
+    expect(useAuthStore.getState().scrobbleThresholdPercent).toBe(50);
+  });
+
   it('setTrackPreviewStartRatio clamps to [0, 0.9]', () => {
     useAuthStore.getState().setTrackPreviewStartRatio(1.5);
     expect(useAuthStore.getState().trackPreviewStartRatio).toBe(0.9);

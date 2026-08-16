@@ -1,6 +1,6 @@
 import React, { useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Gauge, GripVertical, Heart, PictureInPicture2, Shuffle, SlidersVertical, Square, Star } from 'lucide-react';
+import { Gauge, GripVertical, Heart, PictureInPicture2, SendHorizontal, Shuffle, SlidersVertical, Square, Star } from 'lucide-react';
 import LastfmIcon from '@/ui/LastfmIcon';
 import {
   usePlayerBarLayoutStore,
@@ -20,6 +20,7 @@ const PLAYER_BAR_LAYOUT_LABEL_KEYS: Record<PlayerBarLayoutItemId, string> = {
   starRating: 'settings.playerBarStarRating',
   favorite:   'settings.playerBarFavorite',
   lastfmLove: 'settings.playerBarLastfmLove',
+  scrobble:   'settings.playerBarScrobble',
   playbackRate: 'settings.playerBarPlaybackRate',
   equalizer:  'settings.playerBarEqualizer',
   miniPlayer: 'settings.playerBarMiniPlayer',
@@ -35,6 +36,7 @@ const PLAYER_BAR_LAYOUT_ICONS: Record<PlayerBarLayoutItemId, React.ReactNode> = 
       <LastfmIcon size={16} />
     </span>
   ),
+  scrobble: <SendHorizontal size={16} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />,
   playbackRate: <Gauge size={16} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />,
   equalizer:  <SlidersVertical size={16} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />,
   miniPlayer: <PictureInPicture2 size={16} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />,

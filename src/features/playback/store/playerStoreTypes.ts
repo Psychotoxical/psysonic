@@ -176,6 +176,8 @@ export interface PlayerState {
   /** Ctrl+Shift+Z / Cmd+Shift+Z — opposite of `undoLastQueueEdit` while redo stack is non-empty. */
   redoLastQueueEdit: () => boolean;
 
+  /** Submit the current play immediately. Returns false when already sent or unavailable. */
+  forceScrobbleCurrentTrack: () => boolean;
   toggleNetworkLove: () => void;
   setNetworkLoved: (v: boolean) => void;
   setNetworkLovedForSong: (title: string, artist: string, v: boolean) => void;

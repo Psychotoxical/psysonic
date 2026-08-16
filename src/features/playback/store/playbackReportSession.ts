@@ -17,7 +17,7 @@ import { usePlaybackRateStore } from '@/features/playback/store/playbackRateStor
  * `playListenSession`. This gives `getNowPlaying` a real transport state and an
  * extrapolated position. `ignoreScrobble=true` keeps the server from applying
  * scrobble / play-count side effects, because psysonic still owns play counts on
- * the dedicated `scrobble.view` channel (the 50% rule in `audioEventHandlers`).
+ * the dedicated `scrobble.view` channel (the configured threshold in `audioEventHandlers`).
  *
  * On servers without the extension every entry point degrades to the legacy
  * `scrobble.view?submission=false` presence call (`reportNowPlaying`), so the

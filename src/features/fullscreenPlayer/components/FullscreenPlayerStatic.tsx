@@ -23,6 +23,7 @@ import { FsVolume } from '@/features/fullscreenPlayer/components/FsVolume';
 import { ownedOverrideValue } from '@/lib/util/ownedEntityKey';
 import { VisualizerPanel } from '@/features/visualizer';
 import { prepareTransientUiOpen } from '@/lib/dom/transientUi';
+import { ScrobbleActionButton } from '@/features/playback/components/playerBar/ScrobbleStatus';
 
 interface Props {
   onClose: () => void;
@@ -296,6 +297,11 @@ export default function FullscreenPlayerStatic({ onClose }: Props) {
                 <Heart size={20} fill={isStarred ? 'currentColor' : 'none'} />
               </button>
             )}
+            <ScrobbleActionButton
+              t={t}
+              className="fsp-btn fsp-btn-sm"
+              iconSize={20}
+            />
             <button
               className={`fsp-btn fsp-btn-sm${repeatMode !== 'off' ? ' active' : ''}`}
               onClick={toggleRepeat}

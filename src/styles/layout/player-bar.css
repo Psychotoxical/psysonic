@@ -338,11 +338,79 @@ html[data-platform="windows"] .player-bar.floating {
   min-width: 2.5rem;
 }
 
-.player-waveform-section > .player-time:first-child {
+.player-waveform-section > .player-time:first-child,
+.player-waveform-section > .player-time-scrobble {
   flex: 0 0 calc(var(--playbar-clock-body-ch, 4) * 1ch);
   width: calc(var(--playbar-clock-body-ch, 4) * 1ch);
   min-width: unset;
   text-align: right;
+}
+
+.player-time-scrobble {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  padding: 2px 0;
+  cursor: pointer;
+  border-radius: 4px;
+  color: inherit;
+  font: inherit;
+}
+
+.player-time-scrobble:hover,
+.player-time-scrobble.is-open,
+.player-time-scrobble:focus-visible {
+  background-color: var(--player-time-toggle-hover);
+  color: var(--text-primary);
+}
+
+.player-scrobble-popover {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35);
+  color: var(--text-primary);
+  font-size: 12px;
+}
+
+.player-scrobble-popover__progress {
+  color: var(--text-secondary);
+}
+
+.player-scrobble-popover__blocked {
+  color: var(--text-muted);
+}
+
+.player-scrobble-popover__force {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--text-primary);
+  border-radius: 6px;
+  padding: 6px 8px;
+  cursor: pointer;
+  font: inherit;
+}
+
+.player-scrobble-popover__force:hover {
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
+.player-scrobble-btn.active {
+  color: var(--accent);
+}
+
+.player-overflow-menu-btn--icon {
+  flex: 0 0 auto;
+  padding-inline: 9px;
 }
 
 .player-time:last-child {

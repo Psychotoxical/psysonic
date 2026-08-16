@@ -549,6 +549,7 @@ export const settings = {
   playerBarStarRating: 'Valutazione a stelle',
   playerBarFavorite: 'Preferito (cuore)',
   playerBarLastfmLove: 'Pulsante Love',
+  playerBarScrobble: 'Force scrobble',
   playerBarPlaybackRate: 'Velocità di riproduzione',
   playerBarEqualizer: 'Equalizzatore',
   playerBarMiniPlayer: 'Mini player',

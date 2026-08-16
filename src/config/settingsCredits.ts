@@ -535,6 +535,13 @@ const CONTRIBUTOR_ENTRIES = [
       'Internet radio metadata — preserve UTF-8 titles with Latin-1 fallback (PR #1389)',
     ],
   },
+  {
+    github: 'JayDawgThaGOAT',
+    since: '1.51.0',
+    contributions: [
+      'Configurable scrobble threshold and force-scrobble action',
+    ],
+  },
 ] as const;
 
 // PR number of a contributor's first listed contribution, used as the

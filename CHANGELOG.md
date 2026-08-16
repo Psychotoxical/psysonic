@@ -134,6 +134,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Right-click a past Timeline track and choose **Play from Here** to replay that occurrence, every later history entry and the existing **Up Next** list in their original order.
 * Mixed-server ownership and queue-only flags stay attached to each rebuilt entry, so the restored sequence plays from the correct servers.
 
+### Scrobbling — configurable threshold and force scrobble
+
+**By [@JayDawgThaGOAT](https://github.com/JayDawgThaGOAT)**
+
+* Settings → Integrations → Music Network now has a 25–90% scrobble threshold (default remains 50%).
+* Use the configurable Force scrobble action in the player bar or fullscreen player, or hover/focus the elapsed time, to see progress and submit the current track to the media server and every enabled Music Network destination. The action uses a Send icon before submission and a checked badge afterward.
+
 ## Changed
 
 ### Library index — designed for several live servers at once

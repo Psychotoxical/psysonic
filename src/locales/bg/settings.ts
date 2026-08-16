@@ -549,6 +549,7 @@ export const settings = {
   playerBarStarRating: 'Оценка със звезди',
   playerBarFavorite: 'Любими (сърце)',
   playerBarLastfmLove: 'Бутон „Харесва ми“',
+  playerBarScrobble: 'Force scrobble',
   playerBarPlaybackRate: 'Скорост на възпроизвеждане',
   playerBarEqualizer: 'Еквалайзер',
   playerBarMiniPlayer: 'Мини плейър',

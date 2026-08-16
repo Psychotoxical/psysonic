@@ -491,6 +491,7 @@ export const settings = {
   playerBarStarRating: '星级评分',
   playerBarFavorite: '收藏（心形）',
   playerBarLastfmLove: '喜欢按钮',
+  playerBarScrobble: 'Force scrobble',
   playerBarPlaybackRate: '播放速度',
   playerBarEqualizer: '均衡器',
   playerBarMiniPlayer: '迷你播放器',

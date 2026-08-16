@@ -17,6 +17,7 @@ import { FsLyricsApple } from './FsLyricsApple';
 import { FsQueueModal } from './FsQueueModal';
 import { VisualizerPanel } from '@/features/visualizer';
 import { prepareTransientUiOpen } from '@/lib/dom/transientUi';
+import { ScrobbleActionButton } from '@/features/playback/components/playerBar/ScrobbleStatus';
 
 /** The now-playing pill's integrated progress line — imperative width + scrub seek. */
 const PrismProgress = memo(function PrismProgress() {
@@ -146,6 +147,12 @@ export default function FullscreenPlayerPrism({ onClose }: { onClose: () => void
 
         {/* Utilities */}
         <div className="fsp2-bar-right" data-visualizer-transport="fullscreen">
+          <ScrobbleActionButton
+            t={t}
+            className="fsp2-btn"
+            activeClassName="fsp2-btn-active"
+            iconSize={18}
+          />
           <FsVolume
             className="fsp2-volume"
             buttonClassName="fsp2-btn"

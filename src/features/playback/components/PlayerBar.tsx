@@ -30,6 +30,7 @@ import { PlayerSeekbarSection } from '@/features/playback/components/playerBar/P
 import { PlayerPlaybackRate } from '@/features/playback/components/playerBar/PlayerPlaybackRate';
 import { PlayerVolume } from '@/features/playback/components/playerBar/PlayerVolume';
 import { PlayerOverflowMenu } from '@/features/playback/components/playerBar/PlayerOverflowMenu';
+import { ScrobbleActionButton } from '@/features/playback/components/playerBar/ScrobbleStatus';
 import { useFloatingPlayerBar } from '@/features/playback/hooks/useFloatingPlayerBar';
 import { useUtilityOverflowMenu } from '@/features/playback/hooks/useUtilityOverflowMenu';
 import {
@@ -281,6 +282,13 @@ export default function PlayerBar() {
         </div>
       ) : (
         <>
+          {isLayoutVisible('scrobble') && (
+            <ScrobbleActionButton
+              t={t}
+              className="player-btn player-btn-sm player-scrobble-btn"
+            />
+          )}
+
           {isLayoutVisible('playbackRate') && (
             <PlayerPlaybackRate t={t} />
           )}
