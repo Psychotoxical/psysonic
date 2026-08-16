@@ -1,6 +1,6 @@
 {
   "name": "psysonic",
-  "version": "1.51.0-dev",
+  "version": "1.51.0-rc.3",
   "private": true,
   "engines": {
     "node": ">=22.22.0"
