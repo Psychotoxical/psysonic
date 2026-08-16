@@ -127,6 +127,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * **Settings → Audio → Track transitions** can fade playback out before pausing and back in when resuming, with a configurable 0.1–2.0 second duration and a 1.0 second default.
 * The optional fade works with both ordinary playback and internet radio, while rapid pause, resume and stop actions cancel stale fades instead of changing playback later.
 
+### Timeline — replay from any point in listening history
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1423](https://github.com/Psychotoxical/psysonic/pull/1423)**
+
+* Right-click a past Timeline track and choose **Play from Here** to replay that occurrence, every later history entry and the existing **Up Next** list in their original order.
+* Mixed-server ownership and queue-only flags stay attached to each rebuilt entry, so the restored sequence plays from the correct servers.
+
 ## Changed
 
 ### Library index — designed for several live servers at once
