@@ -1,6 +1,7 @@
 export const common = {
   albums: '专辑',
   album: '专辑',
+  albumByArtist: '{{artist}} 的 {{album}}',
   loading: '加载中…',
   loadingMore: '加载中…',
   loadingPlaylists: '正在加载播放列表…',
