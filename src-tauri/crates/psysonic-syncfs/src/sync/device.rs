@@ -1,6 +1,13 @@
 use tauri::{Emitter, Manager};
 
-use crate::file_transfer::{apply_server_http_get, finalize_streamed_download, subsonic_http_client};
+use crate::file_transfer::{
+    apply_server_http_get, finalize_streamed_download, subsonic_http_client,
+};
+
+mod rename;
+
+use rename::rename_pairs_within_root;
+pub use rename::RenameResult;
 
 // ─── Device Sync ─────────────────────────────────────────────────────────────
 
@@ -82,88 +89,6 @@ pub fn read_device_manifest(dest_dir: String) -> Option<serde_json::Value> {
     serde_json::from_str(&content).ok()
 }
 
-/// Joins a migration path onto the device root, or returns `None` if it could
-/// end up anywhere else.
-///
-/// These paths are rendered from `filenameTemplate` in `psysonic-sync.json`,
-/// which lives on the device — untrusted input, whatever wrote it. Three shapes
-/// leave the root, and `Path::join` helps none of them:
-///
-/// * `..` walks out of the directory the user picked;
-/// * an absolute path (`/etc/x`, `C:\Windows\x`) makes `join` **discard the
-///   root entirely** and return the absolute path as-is;
-/// * a Windows prefix does the same, including UNC (`\\server\share`), which
-///   would reach across the network.
-///
-/// Only `Normal` components — and `.`, which goes nowhere — are accepted.
-fn resolve_within_root(root: &std::path::Path, rel: &str) -> Option<std::path::PathBuf> {
-    use std::path::Component;
-    if rel.trim().is_empty() {
-        return None;
-    }
-    let candidate = std::path::Path::new(rel);
-    for component in candidate.components() {
-        match component {
-            Component::Normal(_) | Component::CurDir => {}
-            Component::ParentDir | Component::RootDir | Component::Prefix(_) => return None,
-        }
-    }
-    Some(root.join(candidate))
-}
-
-/// Whether `path` still resolves inside `root` once the filesystem has had its
-/// say. `resolve_within_root` reads the path as text and cannot see a symlink;
-/// a device that ships `Artist -> /somewhere/else` passes the syntax check and
-/// lands outside anyway.
-///
-/// The error is kept rather than folded into `false`: a drive pulled mid-
-/// migration fails to canonicalize too, and reporting that as a containment
-/// violation would tell the user something untrue about their own device.
-fn resolved_path_stays_within(
-    root: &std::path::Path,
-    path: &std::path::Path,
-) -> std::io::Result<bool> {
-    let canonical_root = root.canonicalize()?;
-    let canonical_path = path.canonicalize()?;
-    Ok(canonical_path.starts_with(&canonical_root))
-}
-
-/// Same question for a path that does not exist yet: walks up to the closest
-/// ancestor that does and checks that one.
-///
-/// Needed because the target's parent is created before anything is moved
-/// there. Checking only after `create_dir_all` is too late — the directories
-/// would already exist, outside the root, which is half of what this guards
-/// against even when the rename itself is then refused.
-fn planned_path_stays_within(
-    root: &std::path::Path,
-    path: &std::path::Path,
-) -> std::io::Result<bool> {
-    let mut current = path;
-    loop {
-        if current.exists() {
-            return resolved_path_stays_within(root, current);
-        }
-        match current.parent() {
-            Some(parent) => current = parent,
-            // Ran out of ancestors without meeting anything real: the path does
-            // not belong to the device tree at all.
-            None => return Ok(false),
-        }
-    }
-}
-
-/// Per-entry result for `rename_device_files`.
-#[derive(serde::Serialize, specta::Type)]
-pub struct RenameResult {
-    #[serde(rename = "oldPath")]
-    old_path: String,
-    #[serde(rename = "newPath")]
-    new_path: String,
-    ok: bool,
-    error: Option<String>,
-}
-
 /// Atomically renames files on the device from their old path to the new fixed-
 /// schema path. Intended for the migration flow when switching away from the
 /// user-configurable template. All paths are relative to `target_dir`.
@@ -190,133 +115,6 @@ pub fn rename_device_files(
     Ok(rename_pairs_within_root(&root, pairs))
 }
 
-/// Checks both ends of one rename against the root and returns the message to
-/// report, or `None` when the pair is contained. Runs before anything is
-/// created or moved.
-fn containment_refusal(
-    root: &std::path::Path,
-    old_abs: &std::path::Path,
-    new_abs: &std::path::Path,
-) -> Option<String> {
-    match (
-        resolved_path_stays_within(root, old_abs),
-        planned_path_stays_within(root, new_abs),
-    ) {
-        (Ok(true), Ok(true)) => None,
-        // A definite escape on either side outranks an unresolved other side:
-        // what is known beats what is not.
-        (Ok(false), _) | (_, Ok(false)) => Some("path escapes the device root".to_string()),
-        // Either side failed to resolve. A drive pulled mid-migration looks like
-        // this, and calling that a containment violation would be a lie.
-        (Err(e), _) | (_, Err(e)) => Some(format!("could not resolve path: {e}")),
-    }
-}
-
-/// The renaming itself, separated from the volume checks above so the path
-/// containment can be tested: `is_path_on_mounted_volume` rejects a temporary
-/// directory, which is where a test would put its fixture.
-fn rename_pairs_within_root(
-    root: &std::path::Path,
-    pairs: Vec<(String, String)>,
-) -> Vec<RenameResult> {
-    let mut results = Vec::with_capacity(pairs.len());
-    for (old_rel, new_rel) in pairs {
-        // Both sides are checked, not just the one the template renders: the
-        // command is part of the Tauri surface and cannot assume its caller.
-        let (Some(old_abs), Some(new_abs)) =
-            (resolve_within_root(root, &old_rel), resolve_within_root(root, &new_rel))
-        else {
-            results.push(RenameResult {
-                old_path: old_rel,
-                new_path: new_rel,
-                ok: false,
-                error: Some("path escapes the device root".to_string()),
-            });
-            continue;
-        };
-
-        let entry = if old_rel == new_rel {
-            // Nothing to do, count as success so the UI can show "already correct".
-            RenameResult { old_path: old_rel, new_path: new_rel, ok: true, error: None }
-        } else if !old_abs.exists() {
-            RenameResult {
-                old_path: old_rel, new_path: new_rel,
-                ok: false, error: Some("source not found".to_string()),
-            }
-        } else if let Some(refusal) = containment_refusal(root, &old_abs, &new_abs) {
-            RenameResult {
-                old_path: old_rel, new_path: new_rel,
-                ok: false, error: Some(refusal),
-            }
-        } else if new_abs.exists() {
-            RenameResult {
-                old_path: old_rel, new_path: new_rel,
-                ok: false, error: Some("target already exists".to_string()),
-            }
-        } else {
-            // Ensure target parent exists.
-            if let Some(parent) = new_abs.parent() {
-                if let Err(e) = std::fs::create_dir_all(parent) {
-                    results.push(RenameResult {
-                        old_path: old_rel, new_path: new_rel,
-                        ok: false, error: Some(format!("mkdir: {}", e)),
-                    });
-                    continue;
-                }
-                // Containment was settled before this ran (`containment_refusal`),
-                // so nothing here can land outside the root.
-            }
-            match std::fs::rename(&old_abs, &new_abs) {
-                Ok(_) => RenameResult { old_path: old_rel, new_path: new_rel, ok: true, error: None },
-                Err(e) => RenameResult {
-                    old_path: old_rel, new_path: new_rel,
-                    ok: false, error: Some(e.to_string()),
-                },
-            }
-        };
-        results.push(entry);
-    }
-
-    // Clean up directories emptied by the renames. Walk depth-first and remove
-    // any dir whose only remaining contents were the files we moved out.
-    fn remove_empty_dirs(dir: &std::path::Path, root: &std::path::Path) {
-        if dir == root { return; }
-        let rd = match std::fs::read_dir(dir) {
-            Ok(r) => r,
-            Err(_) => return,
-        };
-        let mut empty = true;
-        let mut children: Vec<std::path::PathBuf> = Vec::new();
-        for entry in rd.flatten() {
-            // `file_type()` reports the entry itself; `path().is_dir()` would
-            // follow a symlink, and this walk deletes what it finds empty — a
-            // device carrying `Artist -> /somewhere/else` would send it out of
-            // the root. A symlink counts as content, so its parent stays too.
-            //
-            // Inert today: the only caller passes `root` as `dir`, which the
-            // guard above turns into an immediate return, so this walk has never
-            // removed anything. Left correct rather than left to be discovered
-            // by whoever makes it run — that belongs in its own change, not in
-            // a containment fix.
-            match entry.file_type() {
-                Ok(file_type) if file_type.is_dir() => children.push(entry.path()),
-                _ => empty = false,
-            }
-        }
-        for child in children {
-            remove_empty_dirs(&child, root);
-        }
-        // Re-check after recursion cleared subdirs.
-        let still_empty = std::fs::read_dir(dir).map(|r| r.count() == 0).unwrap_or(false);
-        if empty && still_empty {
-            let _ = std::fs::remove_dir(dir);
-        }
-    }
-    remove_empty_dirs(root, root);
-
-    results
-}
-
 /// Writes an Extended-M3U playlist at `{dest_dir}/Playlists/{name}/{name}.m3u8`.
 /// References are sibling filenames (just `01 - Artist - Title.ext`) so the
 /// playlist is self-contained — moving/copying the folder anywhere keeps it
@@ -329,7 +127,9 @@ pub fn write_playlist_m3u8(
     tracks: Vec<TrackSyncInfo>,
 ) -> Result<(), String> {
     let safe_name = sanitize_or(&playlist_name, "Unnamed Playlist");
-    let playlist_dir = std::path::Path::new(&dest_dir).join("Playlists").join(&safe_name);
+    let playlist_dir = std::path::Path::new(&dest_dir)
+        .join("Playlists")
+        .join(&safe_name);
     std::fs::create_dir_all(&playlist_dir).map_err(|e| e.to_string())?;
     let file_path = playlist_dir.join(format!("{}.m3u8", safe_name));
 
@@ -337,13 +137,25 @@ pub fn write_playlist_m3u8(
     for (i, track) in tracks.iter().enumerate() {
         let idx = (i as u32) + 1;
         let duration = track.duration.map(|d| d as i64).unwrap_or(-1);
-        let display_artist = if track.artist.trim().is_empty() { &track.album_artist[..] } else { &track.artist[..] };
+        let display_artist = if track.artist.trim().is_empty() {
+            &track.album_artist[..]
+        } else {
+            &track.artist[..]
+        };
         let title = track.title.trim();
-        body.push_str(&format!("#EXTINF:{},{} - {}\n", duration, display_artist.trim(), title));
+        body.push_str(&format!(
+            "#EXTINF:{},{} - {}\n",
+            duration,
+            display_artist.trim(),
+            title
+        ));
         // Sibling filename — same shape as build_track_path's playlist branch.
         let artist_safe = sanitize_or(display_artist, "Unknown Artist");
-        let title_safe  = sanitize_or(title,          "Unknown Title");
-        body.push_str(&format!("{:02} - {} - {}.{}\n", idx, artist_safe, title_safe, track.suffix));
+        let title_safe = sanitize_or(title, "Unknown Title");
+        body.push_str(&format!(
+            "{:02} - {} - {}.{}\n",
+            idx, artist_safe, title_safe, track.suffix
+        ));
     }
     std::fs::write(&file_path, body).map_err(|e| e.to_string())
 }
@@ -363,7 +175,10 @@ pub fn is_path_on_mounted_volume(path: &std::path::Path) -> bool {
     // Strip it so that "\\?\E:\Music" compares correctly against mount point "E:\".
     let canonical_raw = canonical.to_string_lossy().into_owned();
     #[cfg(target_os = "windows")]
-    let canonical_str = canonical_raw.strip_prefix(r"\\?\").unwrap_or(&canonical_raw).to_string();
+    let canonical_str = canonical_raw
+        .strip_prefix(r"\\?\")
+        .unwrap_or(&canonical_raw)
+        .to_string();
     #[cfg(not(target_os = "windows"))]
     let canonical_str = canonical_raw;
     // Find the longest mount-point prefix that matches this path.
@@ -435,7 +250,13 @@ pub fn sanitize_path_component(s: &str) -> String {
     const INVALID: &[char] = &['/', '\\', ':', '*', '?', '"', '<', '>', '|'];
     let sanitized: String = s
         .chars()
-        .map(|c| if INVALID.contains(&c) || c.is_control() { '_' } else { c })
+        .map(|c| {
+            if INVALID.contains(&c) || c.is_control() {
+                '_'
+            } else {
+                c
+            }
+        })
         .collect();
     sanitized.trim_matches(|c| c == '.' || c == ' ').to_string()
 }
@@ -444,7 +265,11 @@ pub fn sanitize_path_component(s: &str) -> String {
 /// `//01 - .flac` when metadata is missing.
 pub fn sanitize_or(s: &str, fallback: &str) -> String {
     let cleaned = sanitize_path_component(s);
-    if cleaned.is_empty() { fallback.to_string() } else { cleaned }
+    if cleaned.is_empty() {
+        fallback.to_string()
+    } else {
+        cleaned
+    }
 }
 
 /// Builds the fixed device path for a track. When the track carries a playlist
@@ -456,15 +281,18 @@ pub fn build_track_path(track: &TrackSyncInfo) -> String {
     let relative = match (&track.playlist_name, track.playlist_index) {
         (Some(name), Some(idx)) => {
             let playlist = sanitize_or(name, "Unnamed Playlist");
-            let artist   = sanitize_or(&track.artist, "Unknown Artist");
-            let title    = sanitize_or(&track.title,  "Unknown Title");
+            let artist = sanitize_or(&track.artist, "Unknown Artist");
+            let title = sanitize_or(&track.title, "Unknown Title");
             format!("Playlists/{}/{:02} - {} - {}", playlist, idx, artist, title)
         }
         _ => {
             let album_artist = sanitize_or(&track.album_artist, "Unknown Artist");
-            let album        = sanitize_or(&track.album,        "Unknown Album");
-            let title        = sanitize_or(&track.title,        "Unknown Title");
-            let track_num    = track.track_number.map(|n| format!("{:02}", n)).unwrap_or_else(|| "00".to_string());
+            let album = sanitize_or(&track.album, "Unknown Album");
+            let title = sanitize_or(&track.title, "Unknown Title");
+            let track_num = track
+                .track_number
+                .map(|n| format!("{:02}", n))
+                .unwrap_or_else(|| "00".to_string());
             format!("{}/{}/{} - {}", album_artist, album, track_num, title)
         }
     };
@@ -539,21 +367,36 @@ pub async fn sync_track_to_device(
     .await
     {
         Ok(false) => {
-            let _ = app.emit("device:sync:progress", serde_json::json!({
-                "jobId": job_id, "trackId": track.id, "status": "skipped", "path": path_str,
-            }));
-            Ok(SyncTrackResult { path: path_str, skipped: true })
+            let _ = app.emit(
+                "device:sync:progress",
+                serde_json::json!({
+                    "jobId": job_id, "trackId": track.id, "status": "skipped", "path": path_str,
+                }),
+            );
+            Ok(SyncTrackResult {
+                path: path_str,
+                skipped: true,
+            })
         }
         Ok(true) => {
-            let _ = app.emit("device:sync:progress", serde_json::json!({
-                "jobId": job_id, "trackId": track.id, "status": "done", "path": path_str,
-            }));
-            Ok(SyncTrackResult { path: path_str, skipped: false })
+            let _ = app.emit(
+                "device:sync:progress",
+                serde_json::json!({
+                    "jobId": job_id, "trackId": track.id, "status": "done", "path": path_str,
+                }),
+            );
+            Ok(SyncTrackResult {
+                path: path_str,
+                skipped: false,
+            })
         }
         Err(e) => {
-            let _ = app.emit("device:sync:progress", serde_json::json!({
-                "jobId": job_id, "trackId": track.id, "status": "error", "error": e,
-            }));
+            let _ = app.emit(
+                "device:sync:progress",
+                serde_json::json!({
+                    "jobId": job_id, "trackId": track.id, "status": "error", "error": e,
+                }),
+            );
             Err(e)
         }
     }
@@ -564,556 +407,18 @@ pub async fn sync_track_to_device(
 #[tauri::command]
 #[specta::specta]
 pub fn compute_sync_paths(tracks: Vec<TrackSyncInfo>, dest_dir: String) -> Vec<String> {
-    tracks.iter().map(|track| {
-        let relative = build_track_path(track);
-        let file_name = format!("{}.{}", relative, track.suffix);
-        std::path::Path::new(&dest_dir)
-            .join(&file_name)
-            .to_string_lossy()
-            .to_string()
-    }).collect()
+    tracks
+        .iter()
+        .map(|track| {
+            let relative = build_track_path(track);
+            let file_name = format!("{}.{}", relative, track.suffix);
+            std::path::Path::new(&dest_dir)
+                .join(&file_name)
+                .to_string_lossy()
+                .to_string()
+        })
+        .collect()
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    // ── Migration path containment ───────────────────────────────────────────
-    //
-    // The paths `rename_device_files` receives are rendered from a template in
-    // `psysonic-sync.json`, a file that lives on the device rather than under
-    // our control. Everything below is about that file not being able to reach
-    // past the directory the user selected.
-
-    #[test]
-    fn a_plain_relative_path_resolves_under_the_root() {
-        let root = std::path::Path::new("/media/device");
-        let resolved = resolve_within_root(root, "Artist/Album/01 Song.mp3")
-            .expect("an ordinary track path must be accepted");
-        assert!(resolved.starts_with(root));
-    }
-
-    #[test]
-    fn a_parent_component_is_rejected_anywhere_in_the_path() {
-        let root = std::path::Path::new("/media/device");
-        for rel in [
-            "../escape.mp3",
-            "Artist/../../escape.mp3",
-            "Artist/Album/../../../escape.mp3",
-            "..",
-        ] {
-            assert!(
-                resolve_within_root(root, rel).is_none(),
-                "{rel} walks out of the device root"
-            );
-        }
-    }
-
-    #[test]
-    // Demonstrating the very thing `clippy::join_absolute_paths` warns about.
-    // Worth noting that the lint could never have caught the original defect:
-    // it only fires on literals, and production joins a variable.
-    #[allow(clippy::join_absolute_paths)]
-    fn an_absolute_path_is_rejected_rather_than_replacing_the_root() {
-        // The reason this matters: `join` does not sandbox. Given an absolute
-        // path it drops the base and hands back the absolute path unchanged, so
-        // without this check the root is not merely escaped — it is ignored.
-        let root = std::path::Path::new("/media/device");
-        assert_eq!(root.join("/etc/passwd"), std::path::Path::new("/etc/passwd"));
-        assert!(resolve_within_root(root, "/etc/passwd").is_none());
-    }
-
-    #[cfg(target_os = "windows")]
-    #[test]
-    #[allow(clippy::join_absolute_paths)]
-    fn a_windows_prefix_or_unc_path_is_rejected() {
-        let root = std::path::Path::new(r"E:\Device");
-        assert_eq!(
-            root.join(r"C:\Windows\System32\x.txt"),
-            std::path::Path::new(r"C:\Windows\System32\x.txt")
-        );
-        for rel in [r"C:\Windows\System32\x.txt", r"\\server\share\y.txt", r"\Windows\x.txt"] {
-            assert!(
-                resolve_within_root(root, rel).is_none(),
-                "{rel} leaves the device root"
-            );
-        }
-    }
-
-    #[test]
-    fn an_empty_path_is_rejected() {
-        let root = std::path::Path::new("/media/device");
-        assert!(resolve_within_root(root, "").is_none());
-        assert!(resolve_within_root(root, "   ").is_none());
-    }
-
-    #[test]
-    fn a_current_dir_component_is_harmless() {
-        let root = std::path::Path::new("/media/device");
-        assert!(resolve_within_root(root, "./Artist/Album/01 Song.mp3").is_some());
-    }
-
-    #[test]
-    fn rename_reports_an_escaping_pair_instead_of_moving_anything() {
-        let device = tempfile::tempdir().unwrap();
-        let outside = tempfile::tempdir().unwrap();
-
-        let victim = outside.path().join("victim.txt");
-        std::fs::write(&victim, b"private").unwrap();
-
-        // The shape a hostile template produces: a source that climbs out of the
-        // device root, with the destination staying inside it.
-        let escaping = format!(
-            "..{sep}{}{sep}victim.txt",
-            outside.path().file_name().unwrap().to_string_lossy(),
-            sep = std::path::MAIN_SEPARATOR,
-        );
-        let results = rename_pairs_within_root(
-            device.path(),
-            vec![(escaping, "Artist/Album/01 Song.mp3".to_string())],
-        );
-
-        assert_eq!(results.len(), 1);
-        assert!(!results[0].ok, "an escaping pair must not be renamed");
-        assert_eq!(results[0].error.as_deref(), Some("path escapes the device root"));
-        assert!(victim.exists(), "the file outside the root must be untouched");
-    }
-
-    #[test]
-    fn a_planned_target_is_judged_by_its_nearest_existing_ancestor() {
-        // The target does not exist yet — its parent is about to be created —
-        // so containment has to be decided from the closest ancestor that does.
-        let device = tempfile::tempdir().unwrap();
-        let outside = tempfile::tempdir().unwrap();
-
-        let inside = device.path().join("Artist").join("Album").join("01 Song.mp3");
-        assert!(planned_path_stays_within(device.path(), &inside).unwrap());
-
-        let elsewhere = outside.path().join("Album").join("01 Song.mp3");
-        assert!(!planned_path_stays_within(device.path(), &elsewhere).unwrap());
-    }
-
-    /// Creates a directory symlink on either platform. On Windows this needs
-    /// Developer Mode or admin rights; where they are missing the caller skips
-    /// rather than fails, so the test stays meaningful on the platforms that can
-    /// run it instead of being switched off everywhere.
-    fn try_symlink_dir(target: &std::path::Path, link: &std::path::Path) -> std::io::Result<()> {
-        #[cfg(unix)]
-        {
-            std::os::unix::fs::symlink(target, link)
-        }
-        #[cfg(windows)]
-        {
-            std::os::windows::fs::symlink_dir(target, link)
-        }
-    }
-
-    #[test]
-    fn a_target_behind_a_directory_symlink_is_refused_before_anything_is_created() {
-        // The syntax check cannot see a link: `Artist/Album/01 Song.mp3` reads as
-        // a perfectly ordinary relative path while resolving outside the root.
-        //
-        // The source has to exist, or the "source not found" branch answers first
-        // and the containment check is never reached — which is exactly how an
-        // earlier version of this test passed without exercising anything.
-        let device = tempfile::tempdir().unwrap();
-        let outside = tempfile::tempdir().unwrap();
-        let source = device.path().join("Old").join("track.mp3");
-        std::fs::create_dir_all(source.parent().unwrap()).unwrap();
-        std::fs::write(&source, b"audio").unwrap();
-
-        if try_symlink_dir(outside.path(), &device.path().join("Artist")).is_err() {
-            eprintln!("skipped: this machine cannot create directory symlinks");
-            return;
-        }
-
-        let results = rename_pairs_within_root(
-            device.path(),
-            vec![("Old/track.mp3".to_string(), "Artist/Album/01 Song.mp3".to_string())],
-        );
-
-        assert!(!results[0].ok, "a target behind a symlink must be refused");
-        assert_eq!(
-            results[0].error.as_deref(),
-            Some("path escapes the device root"),
-            "and refused for that reason, not because something else failed first"
-        );
-        assert!(
-            !outside.path().join("Album").exists(),
-            "nothing may be created outside the root, not even a directory"
-        );
-        assert!(source.exists(), "the source must still be where it was");
-    }
-
-    #[test]
-    fn rename_still_moves_an_ordinary_file() {
-        // The counterpart: the guard must not break the migration it protects.
-        let device = tempfile::tempdir().unwrap();
-        let old_rel = format!("Old{sep}Album{sep}track.mp3", sep = std::path::MAIN_SEPARATOR);
-        let source = device.path().join(&old_rel);
-        std::fs::create_dir_all(source.parent().unwrap()).unwrap();
-        std::fs::write(&source, b"audio").unwrap();
-
-        let new_rel = format!("Artist{sep}Album{sep}01 Song.mp3", sep = std::path::MAIN_SEPARATOR);
-        let results = rename_pairs_within_root(device.path(), vec![(old_rel, new_rel.clone())]);
-
-        assert!(results[0].ok, "error was {:?}", results[0].error);
-        assert!(device.path().join(&new_rel).exists());
-        assert!(!source.exists());
-    }
-
-    #[test]
-    fn manifest_v3_persists_the_server_owner() {
-        let dir = tempfile::tempdir().unwrap();
-        let owner = "server.test";
-        let sources = serde_json::json!([{
-            "type": "album",
-            "id": "album-1",
-            "name": "Album",
-            "serverIndexKey": owner,
-        }]);
-
-        write_device_manifest(
-            dir.path().to_string_lossy().to_string(),
-            owner.to_string(),
-            sources.clone(),
-        )
-        .unwrap();
-
-        let manifest = read_device_manifest(dir.path().to_string_lossy().to_string()).unwrap();
-        assert_eq!(manifest["version"], 3);
-        assert_eq!(manifest["ownerServerIndexKey"], owner);
-        assert_eq!(manifest["sources"], sources);
-    }
-
-    #[test]
-    fn manifest_rejects_sources_from_another_server() {
-        let dir = tempfile::tempdir().unwrap();
-        let result = write_device_manifest(
-            dir.path().to_string_lossy().to_string(),
-            "server-a.test".to_string(),
-            serde_json::json!([{
-                "type": "album",
-                "id": "album-1",
-                "name": "Album",
-                "serverIndexKey": "server-b.test",
-            }]),
-        );
-
-        assert_eq!(result, Err("DEVICE_SYNC_SERVER_OWNER_MISMATCH".to_string()));
-    }
-
-    fn track(builder: impl FnOnce(&mut TrackSyncInfo)) -> TrackSyncInfo {
-        let mut t = TrackSyncInfo {
-            id: "t1".into(),
-            url: "http://example/stream".into(),
-            suffix: "flac".into(),
-            artist: "Artist".into(),
-            album_artist: "AlbumArtist".into(),
-            album: "Album".into(),
-            title: "Title".into(),
-            track_number: Some(1),
-            duration: Some(180),
-            playlist_name: None,
-            playlist_index: None,
-        };
-        builder(&mut t);
-        t
-    }
-
-    /// Normalize Windows backslashes so assertions can be written with `/`.
-    /// `build_track_path` only emits `\` as the OS path separator on Windows;
-    /// any `\` that appears inside a name component is already replaced with
-    /// `_` by `sanitize_path_component`.
-    fn norm(p: String) -> String {
-        p.replace('\\', "/")
-    }
-
-    // ── sanitize_path_component ──────────────────────────────────────────────
-
-    #[test]
-    fn sanitize_replaces_each_invalid_char_with_underscore() {
-        assert_eq!(sanitize_path_component("a/b\\c:d*e?f\"g<h>i|j"), "a_b_c_d_e_f_g_h_i_j");
-    }
-
-    #[test]
-    fn sanitize_collapses_does_not_merge_acdc_with_ac_slash_dc() {
-        // Important: AC/DC must NOT collapse to ACDC (which equals plain "ACDC").
-        // It becomes AC_DC so the two artists stay distinguishable on disk.
-        assert_eq!(sanitize_path_component("AC/DC"), "AC_DC");
-        assert_ne!(sanitize_path_component("AC/DC"), sanitize_path_component("ACDC"));
-    }
-
-    #[test]
-    fn sanitize_replaces_control_characters() {
-        assert_eq!(sanitize_path_component("a\nb\tc\0d"), "a_b_c_d");
-    }
-
-    #[test]
-    fn sanitize_trims_leading_and_trailing_dots_and_spaces() {
-        assert_eq!(sanitize_path_component("  ..hello..  "), "hello");
-        assert_eq!(sanitize_path_component(".."), "");
-        assert_eq!(sanitize_path_component("   "), "");
-    }
-
-    #[test]
-    fn sanitize_keeps_inner_dots_and_spaces() {
-        assert_eq!(sanitize_path_component("Pink Floyd - The Wall"), "Pink Floyd - The Wall");
-        assert_eq!(sanitize_path_component("01.intro"), "01.intro");
-    }
-
-    #[test]
-    fn sanitize_preserves_unicode() {
-        assert_eq!(sanitize_path_component("Sigur Rós — Ágætis byrjun"), "Sigur Rós — Ágætis byrjun");
-        assert_eq!(sanitize_path_component("坂本龍一"), "坂本龍一");
-    }
-
-    // ── sanitize_or ──────────────────────────────────────────────────────────
-
-    #[test]
-    fn sanitize_or_uses_fallback_for_empty_input() {
-        assert_eq!(sanitize_or("", "Unknown Artist"), "Unknown Artist");
-    }
-
-    #[test]
-    fn sanitize_or_uses_fallback_when_sanitize_collapses_to_empty() {
-        assert_eq!(sanitize_or("...", "Unknown Album"), "Unknown Album");
-        assert_eq!(sanitize_or("   ", "Unknown Album"), "Unknown Album");
-    }
-
-    #[test]
-    fn sanitize_or_returns_sanitized_when_non_empty() {
-        assert_eq!(sanitize_or("Pink Floyd", "fallback"), "Pink Floyd");
-        assert_eq!(sanitize_or("AC/DC", "fallback"), "AC_DC");
-    }
-
-    // ── build_track_path: album tree ─────────────────────────────────────────
-
-    #[test]
-    fn album_path_uses_album_artist_album_tracknum_title() {
-        let t = track(|t| {
-            t.album_artist = "Pink Floyd".into();
-            t.album = "The Wall".into();
-            t.title = "Comfortably Numb".into();
-            t.track_number = Some(7);
-        });
-        assert_eq!(norm(build_track_path(&t)), "Pink Floyd/The Wall/07 - Comfortably Numb");
-    }
-
-    #[test]
-    fn album_path_pads_track_number_to_two_digits() {
-        let t = track(|t| {
-            t.track_number = Some(3);
-        });
-        assert!(norm(build_track_path(&t)).contains("/03 - "));
-    }
-
-    #[test]
-    fn album_path_uses_zero_zero_when_track_number_missing() {
-        let t = track(|t| {
-            t.track_number = None;
-        });
-        assert!(norm(build_track_path(&t)).contains("/00 - "));
-    }
-
-    #[test]
-    fn album_path_falls_back_when_album_artist_missing() {
-        let t = track(|t| {
-            t.album_artist = "".into();
-        });
-        assert!(norm(build_track_path(&t)).starts_with("Unknown Artist/"));
-    }
-
-    #[test]
-    fn album_path_falls_back_when_album_missing() {
-        let t = track(|t| {
-            t.album = "".into();
-        });
-        assert!(norm(build_track_path(&t)).contains("/Unknown Album/"));
-    }
-
-    #[test]
-    fn album_path_falls_back_when_title_missing() {
-        let t = track(|t| {
-            t.title = "".into();
-        });
-        assert!(norm(build_track_path(&t)).ends_with(" - Unknown Title"));
-    }
-
-    #[test]
-    fn album_path_sanitizes_each_component_independently() {
-        let t = track(|t| {
-            t.album_artist = "AC/DC".into();
-            t.album = "Back: in/Black".into();
-            t.title = "T.N.T.*".into();
-            t.track_number = Some(2);
-        });
-        assert_eq!(norm(build_track_path(&t)), "AC_DC/Back_ in_Black/02 - T.N.T._");
-    }
-
-    // ── build_track_path: playlist tree ──────────────────────────────────────
-
-    #[test]
-    fn playlist_path_uses_track_artist_not_album_artist() {
-        // Track-Artist in the playlist filename — useful label on a mixed playlist folder.
-        let t = track(|t| {
-            t.artist = "Roger Waters".into();
-            t.album_artist = "Pink Floyd".into();
-            t.title = "The Tide Is Turning".into();
-            t.playlist_name = Some("Mix".into());
-            t.playlist_index = Some(5);
-        });
-        assert_eq!(norm(build_track_path(&t)), "Playlists/Mix/05 - Roger Waters - The Tide Is Turning");
-    }
-
-    #[test]
-    fn playlist_path_pads_index_to_two_digits() {
-        let t = track(|t| {
-            t.playlist_name = Some("P".into());
-            t.playlist_index = Some(7);
-        });
-        assert!(norm(build_track_path(&t)).contains("/07 - "));
-    }
-
-    #[test]
-    fn playlist_path_falls_back_when_playlist_name_missing_string() {
-        let t = track(|t| {
-            t.playlist_name = Some("".into());
-            t.playlist_index = Some(1);
-        });
-        assert!(norm(build_track_path(&t)).starts_with("Playlists/Unnamed Playlist/"));
-    }
-
-    #[test]
-    fn playlist_path_falls_back_when_track_artist_missing() {
-        let t = track(|t| {
-            t.artist = "".into();
-            t.playlist_name = Some("Mix".into());
-            t.playlist_index = Some(1);
-        });
-        assert!(norm(build_track_path(&t)).contains(" - Unknown Artist - "));
-    }
-
-    #[test]
-    fn playlist_path_requires_both_name_and_index() {
-        // playlist_name without playlist_index → falls through to album-tree.
-        let t = track(|t| {
-            t.playlist_name = Some("Mix".into());
-            t.playlist_index = None;
-        });
-        let p = norm(build_track_path(&t));
-        assert!(!p.starts_with("Playlists/"), "got {p}");
-
-        // playlist_index without playlist_name → also album-tree.
-        let t2 = track(|t| {
-            t.playlist_name = None;
-            t.playlist_index = Some(1);
-        });
-        let p2 = norm(build_track_path(&t2));
-        assert!(!p2.starts_with("Playlists/"), "got {p2}");
-    }
-
-    // ── cross-OS separator ───────────────────────────────────────────────────
-
-    #[test]
-    #[cfg(target_os = "windows")]
-    fn windows_path_uses_backslash_separator() {
-        let t = track(|_| {});
-        // No forward slashes anywhere on Windows — the OS separator is `\`.
-        assert!(!build_track_path(&t).contains('/'));
-    }
-
-    #[test]
-    #[cfg(not(target_os = "windows"))]
-    fn unix_path_uses_forward_slash_separator() {
-        let t = track(|_| {});
-        // No backslashes anywhere on non-Windows — `\` would only appear if
-        // sanitize_path_component had failed to replace it.
-        assert!(!build_track_path(&t).contains('\\'));
-        assert!(build_track_path(&t).contains('/'));
-    }
-
-    // ── sync_download_one_track ──────────────────────────────────────────────
-
-    use crate::file_transfer::subsonic_http_client;
-    use wiremock::matchers::{method, path as wm_path};
-    use wiremock::{Mock, MockServer, ResponseTemplate};
-
-    #[tokio::test(flavor = "multi_thread")]
-    async fn sync_download_writes_track_file_for_200_response() {
-        let server = MockServer::start().await;
-        let body = b"flac body".to_vec();
-        Mock::given(method("GET"))
-            .and(wm_path("/track"))
-            .respond_with(ResponseTemplate::new(200).set_body_bytes(body.clone()))
-            .mount(&server)
-            .await;
-
-        let dir = tempfile::tempdir().unwrap();
-        let dest = dir.path().join("Album").join("01 - track.flac");
-        let client = subsonic_http_client(std::time::Duration::from_secs(5)).unwrap();
-        let url = format!("{}/track", server.uri());
-        let downloaded = sync_download_one_track(&dest, "flac", &url, &client, None, None)
-            .await
-            .unwrap();
-        assert!(downloaded, "fresh download must report Ok(true)");
-        assert_eq!(std::fs::read(&dest).unwrap(), body);
-    }
-
-    #[tokio::test(flavor = "multi_thread")]
-    async fn sync_download_returns_false_when_file_already_exists() {
-        let server = MockServer::start().await;
-        let dir = tempfile::tempdir().unwrap();
-        let dest = dir.path().join("track.mp3");
-        std::fs::write(&dest, b"already there").unwrap();
-
-        let client = subsonic_http_client(std::time::Duration::from_secs(5)).unwrap();
-        let url = format!("{}/should-not-be-hit", server.uri());
-        let downloaded = sync_download_one_track(&dest, "mp3", &url, &client, None, None)
-            .await
-            .unwrap();
-        assert!(!downloaded, "pre-existing file must be reported as skipped");
-        assert_eq!(std::fs::read(&dest).unwrap(), b"already there");
-    }
-
-    #[tokio::test(flavor = "multi_thread")]
-    async fn sync_download_returns_err_for_non_success_status() {
-        let server = MockServer::start().await;
-        Mock::given(method("GET"))
-            .and(wm_path("/missing"))
-            .respond_with(ResponseTemplate::new(403))
-            .mount(&server)
-            .await;
-
-        let dir = tempfile::tempdir().unwrap();
-        let dest = dir.path().join("track.opus");
-        let client = subsonic_http_client(std::time::Duration::from_secs(5)).unwrap();
-        let url = format!("{}/missing", server.uri());
-        let err = sync_download_one_track(&dest, "opus", &url, &client, None, None)
-            .await
-            .unwrap_err();
-        assert!(err.contains("HTTP 403"));
-        assert!(!dest.exists(), "no track file must be created on error");
-    }
-
-    #[tokio::test(flavor = "multi_thread")]
-    async fn sync_download_creates_missing_parent_directories() {
-        let server = MockServer::start().await;
-        let body = b"x".to_vec();
-        Mock::given(method("GET"))
-            .and(wm_path("/t"))
-            .respond_with(ResponseTemplate::new(200).set_body_bytes(body))
-            .mount(&server)
-            .await;
-
-        let dir = tempfile::tempdir().unwrap();
-        let dest = dir.path().join("a").join("b").join("c").join("track.mp3");
-        assert!(!dest.parent().unwrap().exists());
-        let client = subsonic_http_client(std::time::Duration::from_secs(5)).unwrap();
-        let url = format!("{}/t", server.uri());
-        sync_download_one_track(&dest, "mp3", &url, &client, None, None)
-            .await
-            .unwrap();
-        assert!(dest.exists());
-    }
-}
+mod tests;

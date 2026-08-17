@@ -144,7 +144,7 @@ export function AboutPsysonicBrandHeader({
                   <button
                     type="button"
                     className="about-psysonic-lol-inline-link"
-                    onClick={() => void openUrl('https://github.com/Psychotoxical/psysonic')}
+                    onClick={() => void openUrl('https://github.com/Psysonic/psysonic')}
                   >
                     GitHub
                   </button>

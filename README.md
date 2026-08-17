@@ -10,7 +10,7 @@ Psysonic is built primarily for **Navidrome** and also works with **Gonic**, **A
 
 <br>
 
-<a href="https://github.com/Psychotoxical/psysonic/releases/latest"><img src="https://img.shields.io/github/v/release/Psychotoxical/psysonic?style=for-the-badge&label=Latest%20Release&color=8b5cf6" alt="Latest Release"></a> <a href="https://github.com/Psychotoxical/psysonic/stargazers"><img src="https://img.shields.io/github/stars/Psychotoxical/psysonic?style=for-the-badge&color=f59e0b" alt="GitHub Stars"></a> <a href="https://github.com/Psychotoxical/psysonic/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-GPLv3-22c55e?style=for-the-badge" alt="License GPLv3"></a> <a href="https://tauri.app/"><img src="https://img.shields.io/badge/Tauri-v2-0f172a?style=for-the-badge&logo=tauri" alt="Tauri v2"></a>
+<a href="https://github.com/Psysonic/psysonic/releases/latest"><img src="https://img.shields.io/github/v/release/Psysonic/psysonic?style=for-the-badge&label=Latest%20Release&color=8b5cf6" alt="Latest Release"></a> <a href="https://github.com/Psysonic/psysonic/stargazers"><img src="https://img.shields.io/github/stars/Psysonic/psysonic?style=for-the-badge&color=f59e0b" alt="GitHub Stars"></a> <a href="https://github.com/Psysonic/psysonic/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-GPLv3-22c55e?style=for-the-badge" alt="License GPLv3"></a> <a href="https://tauri.app/"><img src="https://img.shields.io/badge/Tauri-v2-0f172a?style=for-the-badge&logo=tauri" alt="Tauri v2"></a>
 
 <a href="https://discord.gg/AMnDRErm4u"><img src="https://img.shields.io/badge/Discord-Community-5865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Discord Community"></a> <a href="https://t.me/+GLBx1_xeH28xYTJi"><img src="https://img.shields.io/badge/Telegram-Community-26A5E4?style=for-the-badge&logo=telegram&logoColor=white" alt="Telegram Community"></a> <a href="https://ko-fi.com/psychotoxic"><img src="https://img.shields.io/badge/Ko--fi-Support%20Psysonic-FF5E5B?style=for-the-badge&logo=ko-fi&logoColor=white" alt="Support Psysonic on Ko-fi"></a>
 
@@ -18,7 +18,7 @@ Psysonic is built primarily for **Navidrome** and also works with **Gonic**, **A
 
 <br><br>
 
-**Available languages:** English, German, Spanish, French, Norwegian Bokmål, Dutch, Romanian, Russian, Chinese, Japanese, Hungarian and Polish.
+**Available languages:** English, German, Spanish, French, Norwegian Bokmål, Dutch, Romanian, Russian, Chinese, Japanese, Hungarian, Polish, Bulgarian and Italian.
 
 More translations are added over time.
 
@@ -57,6 +57,14 @@ The clever part: Orbit rides entirely on **your own Navidrome**. There is no ext
 <div align="left">
   <img src="public/orbit.png" alt="Orbit shared listening" width="520"/>
 </div>
+
+## 🗄️ Multi-Server — Every Server, One Library
+
+**Several servers at once, browsed as a single collection.**
+
+Configure more than one server and pick the music folders you care about across all of them, in a priority order you set. Home, Albums, Artists, Composers, Genres, Favourites, Playlists, Folder Browser, Search and Statistics aggregate into one catalogue — no switching the active server before every search, album or playback action.
+
+Shared music shows up once instead of once per server, and nothing gets thrown away doing it: every track keeps its real owner, so streaming, artwork, metadata and edits always go to the server that actually holds the file. One queue can mix tracks from different servers, and each item resolves against its own.
 
 ## ⚡ Local Library — Instant, and Almost Offline
 
@@ -117,7 +125,7 @@ Features that go well beyond the basics. Not all of these are unique to Psysonic
 
 ## Lyrics & Listening
 
-* Synced lyrics with seek support, from multiple providers ([YouLy+](https://github.com/ibratabian17/YouLyPlus), LRCLIB, NetEase)
+* Synced lyrics with seek support, from multiple providers (your own server, [LRCLIB](https://lrclib.net), NetEase)
 * Auto-scrolling sidebar lyrics and a fullscreen lyric mode
 * Last.fm scrobbling, similar artists, loved tracks and listening stats
 * Smart Radio sessions and an Infinite Queue
@@ -192,7 +200,7 @@ The things you simply expect from a serious music player — and Psysonic does t
 ## Linux
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Psychotoxical/psysonic/main/scripts/install.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/Psysonic/psysonic/main/scripts/install.sh | sudo bash
 ```
 
 Linux builds are also available through GitHub Releases, AUR and Cachix/Nix.
@@ -201,7 +209,7 @@ Linux builds are also available through GitHub Releases, AUR and Cachix/Nix.
 
 ## Windows
 
-Download the latest installer from the [GitHub Releases](https://github.com/Psychotoxical/psysonic/releases/latest).  
+Download the latest installer from the [GitHub Releases](https://github.com/Psysonic/psysonic/releases/latest).  
 or,  
 install via Windows Package Manager (WinGet):  
 ```powershell
@@ -218,7 +226,7 @@ You can also browse and install it on [winstall.app](https://winstall.app/apps/P
 
 ## macOS
 
-Download the signed DMG from the [GitHub Releases](https://github.com/Psychotoxical/psysonic/releases/latest).
+Download the signed DMG from the [GitHub Releases](https://github.com/Psysonic/psysonic/releases/latest).
 
 ---
 
@@ -227,7 +235,7 @@ Download the signed DMG from the [GitHub Releases](https://github.com/Psychotoxi
 Contributor expectations (PRs, CI, Tauri boundary, UI): [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ```bash
-git clone https://github.com/Psychotoxical/psysonic.git
+git clone https://github.com/Psysonic/psysonic.git
 cd psysonic
 npm install
 npm run tauri:dev
@@ -266,7 +274,7 @@ Join the community, report bugs, suggest features, share themes and help shape t
 
 * [Discord](https://discord.gg/AMnDRErm4u)
 * [Telegram](https://t.me/+GLBx1_xeH28xYTJi)
-* [GitHub Issues](https://github.com/Psychotoxical/psysonic/issues)
+* [GitHub Issues](https://github.com/Psysonic/psysonic/issues)
 * [Support Psysonic on Ko-fi](https://ko-fi.com/psychotoxic)
 
 ---

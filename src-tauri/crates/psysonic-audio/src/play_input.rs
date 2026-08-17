@@ -18,15 +18,13 @@ use super::analysis_dispatch::{
 use super::engine::{audio_http_client, AudioEngine, PlaybackHttpHeaders};
 use super::helpers::{
     content_type_to_hint, fetch_data, format_hint_from_content_disposition,
-    normalize_audio_extension_for_hint, normalize_stream_suffix_for_hint,
-    sniff_stream_format_extension,
-    same_playback_target,
-    STREAM_FORMAT_SNIFF_PROBE_BYTES,
+    normalize_audio_extension_for_hint, normalize_stream_suffix_for_hint, same_playback_target,
+    sniff_stream_format_extension, STREAM_FORMAT_SNIFF_PROBE_BYTES,
 };
 use super::stream::{
-    ranged_download_task, track_download_task, AudioStreamReader,
-    LocalFileSource, RangedHttpSource,
-    TRACK_READ_TIMEOUT_SECS, TRACK_STREAM_MAX_BUF_CAPACITY, TRACK_STREAM_MIN_BUF_CAPACITY,
+    ranged_download_task, track_download_task, AudioStreamReader, LocalFileSource,
+    RangedHttpSource, TRACK_READ_TIMEOUT_SECS, TRACK_STREAM_MAX_BUF_CAPACITY,
+    TRACK_STREAM_MIN_BUF_CAPACITY,
 };
 
 /// What `audio_play` will hand to `build_source` / `build_streaming_source`.
@@ -94,8 +92,7 @@ fn spawn_playback_analysis_bytes(
     else {
         return;
     };
-    let (sid, high) =
-        prepare_playback_analysis(app, state, ctx.server_id, track_id, None);
+    let (sid, high) = prepare_playback_analysis(app, state, ctx.server_id, track_id, None);
     spawn_track_analysis_bytes(
         app.clone(),
         origin,
@@ -133,8 +130,7 @@ pub(super) async fn select_play_input(
             .map(str::trim)
             .filter(|s| !s.is_empty())
         {
-            let (sid, high) =
-                prepare_playback_analysis(app, state, ctx.server_id, track_id, None);
+            let (sid, high) = prepare_playback_analysis(app, state, ctx.server_id, track_id, None);
             spawn_track_analysis_bytes(
                 app.clone(),
                 TrackAnalysisOrigin::InMemoryReplay,
@@ -207,8 +203,7 @@ fn open_local_file_input(
         local_hint
     );
     if let Some(seed_id) = ctx.cache_id_for_tasks {
-        let (sid, high) =
-            prepare_playback_analysis(app, state, ctx.server_id, seed_id, None);
+        let (sid, high) = prepare_playback_analysis(app, state, ctx.server_id, seed_id, None);
         spawn_track_analysis_file(
             app.clone(),
             TrackAnalysisOrigin::LocalFilePlayback,
@@ -274,7 +269,8 @@ async fn open_ranged_or_streaming_input(
     .or_else(|| normalize_stream_suffix_for_hint(ctx.stream_format_suffix))
     .or_else(|| ctx.format_hint.map(|s| s.to_string()));
 
-    let supports_range = response.headers()
+    let supports_range = response
+        .headers()
         .get(reqwest::header::ACCEPT_RANGES)
         .and_then(|v| v.to_str().ok())
         .is_some_and(|v| v.to_ascii_lowercase().contains("bytes"));
@@ -293,8 +289,8 @@ async fn open_ranged_or_streaming_input(
                 .await
             {
                 let stat = pr.status();
-                let ok = stat == reqwest::StatusCode::PARTIAL_CONTENT
-                    || stat == reqwest::StatusCode::OK;
+                let ok =
+                    stat == reqwest::StatusCode::PARTIAL_CONTENT || stat == reqwest::StatusCode::OK;
                 if ok {
                     match pr.bytes().await {
                         Ok(bytes) if !bytes.is_empty() => {
@@ -329,8 +325,7 @@ async fn open_ranged_or_streaming_input(
         let playback_armed = state.stream_playback_armed.clone();
         let tail_ready = Arc::new(AtomicBool::new(false));
         let tail_filled_from = Arc::new(AtomicU64::new(0));
-        let tail_prefetch =
-            super::stream::mp4_needs_tail_prefetch(&[], stream_hint.as_deref());
+        let tail_prefetch = super::stream::mp4_needs_tail_prefetch(&[], stream_hint.as_deref());
         let mp4_probe_gate = tail_prefetch.then(|| super::stream::RangedMp4ProbeGate {
             tail_ready: tail_ready.clone(),
             buf: buf.clone(),
@@ -463,8 +458,7 @@ async fn open_ranged_or_streaming_input(
         read_timeout_secs: TRACK_READ_TIMEOUT_SECS,
         cons: Mutex::new(cons),
         new_cons_rx: Mutex::new(new_cons_rx),
-        deadline: std::time::Instant::now()
-            + Duration::from_secs(TRACK_READ_TIMEOUT_SECS),
+        deadline: std::time::Instant::now() + Duration::from_secs(TRACK_READ_TIMEOUT_SECS),
         gen_arc: state.generation.clone(),
         gen: ctx.gen,
         source_tag: "track-stream",
@@ -487,7 +481,8 @@ async fn open_ranged_or_streaming_input(
 /// don't latch onto random query-param substrings; only accept short
 /// alphanumeric tails that look like an actual audio extension.
 pub(crate) fn url_format_hint(url: &str) -> Option<String> {
-    url.split('?').next()
+    url.split('?')
+        .next()
         .and_then(|path| path.rsplit('.').next())
         .and_then(normalize_audio_extension_for_hint)
 }
@@ -500,46 +495,12 @@ pub(crate) fn url_stream_cap_kbps(url: &str) -> Option<u32> {
     let query = url.split_once('?')?.1;
     query.split('&').find_map(|kv| {
         let (k, v) = kv.split_once('=')?;
-        if k != "maxBitRate" { return None; }
+        if k != "maxBitRate" {
+            return None;
+        }
         v.parse::<u32>().ok().filter(|&n| n > 0)
     })
 }
 
 #[cfg(test)]
-mod url_param_tests {
-    use super::{ranged_analysis_seed_hold_allowed, url_format_hint, url_stream_cap_kbps};
-
-    #[test]
-    fn ranged_analysis_hold_covers_disk_spill_sizes() {
-        assert!(ranged_analysis_seed_hold_allowed(
-            super::super::stream::TRACK_STREAM_PROMOTE_MAX_BYTES + 1
-        ));
-        assert!(ranged_analysis_seed_hold_allowed(
-            super::super::stream::LOCAL_FILE_PLAYBACK_SEED_MAX_BYTES
-        ));
-        assert!(!ranged_analysis_seed_hold_allowed(
-            super::super::stream::LOCAL_FILE_PLAYBACK_SEED_MAX_BYTES + 1
-        ));
-    }
-
-    #[test]
-    fn extracts_aiff_format_hint_from_url_path() {
-        assert_eq!(
-            url_format_hint("https://s.example/music/track.AIFF?token=x"),
-            Some("aiff".into()),
-        );
-    }
-
-    #[test]
-    fn parses_max_bit_rate_from_stream_url() {
-        let url = "https://s.example/rest/stream.view?id=t1&u=a&maxBitRate=128&f=json";
-        assert_eq!(url_stream_cap_kbps(url), Some(128));
-    }
-
-    #[test]
-    fn absent_or_zero_cap_is_none() {
-        assert_eq!(url_stream_cap_kbps("https://s.example/rest/stream.view?id=t1&u=a"), None);
-        assert_eq!(url_stream_cap_kbps("https://s.example/rest/stream.view?id=t1&maxBitRate=0"), None);
-        assert_eq!(url_stream_cap_kbps("psysonic-local:///library/t1.flac"), None);
-    }
-}
+mod url_param_tests;

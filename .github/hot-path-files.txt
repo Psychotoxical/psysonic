@@ -29,14 +29,25 @@ src-tauri/crates/psysonic-syncfs/src/file_transfer.rs
 
 # ── psysonic-analysis ────────────────────────────────────────────────
 src-tauri/crates/psysonic-analysis/src/analysis_cache/store.rs
-src-tauri/crates/psysonic-analysis/src/analysis_cache/compute.rs
+src-tauri/crates/psysonic-analysis/src/analysis_cache/compute/decoder.rs
+src-tauri/crates/psysonic-analysis/src/analysis_cache/compute/planning.rs
+src-tauri/crates/psysonic-analysis/src/analysis_cache/compute/waveform.rs
 
 # ── psysonic-audio ───────────────────────────────────────────────────
-src-tauri/crates/psysonic-audio/src/decode.rs
+src-tauri/crates/psysonic-audio/src/decode/builders.rs
+src-tauri/crates/psysonic-audio/src/decode/decoder.rs
+src-tauri/crates/psysonic-audio/src/decode/decoder_bytes.rs
+src-tauri/crates/psysonic-audio/src/decode/decoder_streaming.rs
+src-tauri/crates/psysonic-audio/src/decode/format.rs
+src-tauri/crates/psysonic-audio/src/decode/gapless.rs
+src-tauri/crates/psysonic-audio/src/decode/source_probe.rs
 src-tauri/crates/psysonic-audio/src/stream/icy.rs
 src-tauri/crates/psysonic-audio/src/progress_task.rs
 src-tauri/crates/psysonic-audio/src/ipc.rs
 
 # ── psysonic-integration ─────────────────────────────────────────────
-src-tauri/crates/psysonic-integration/src/discord.rs
+# discord.rs retains the concrete Discord IPC/Tauri command layer; gate the
+# extracted, testable pure helpers rather than its unmockable transport.
+src-tauri/crates/psysonic-integration/src/discord/artwork.rs
+src-tauri/crates/psysonic-integration/src/discord/presence.rs
 src-tauri/crates/psysonic-integration/src/navidrome/client.rs

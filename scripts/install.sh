@@ -4,7 +4,7 @@ set -e
 # Psysonic Auto-Installer
 # Automatically detects your OS and installs the latest release from GitHub
 
-REPO="Psychotoxical/psysonic"
+REPO="Psysonic/psysonic"
 APP_NAME="psysonic"
 
 # Colors for output

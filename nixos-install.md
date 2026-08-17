@@ -1,6 +1,6 @@
 # Installing Psysonic on NixOS (flake)
 
-This guide is for **NixOS** users who want **Psysonic from the upstream Git flake** (`github:Psychotoxical/psysonic`). Supported systems match the flake: **`x86_64-linux`** and **`aarch64-linux`**.
+This guide is for **NixOS** users who want **Psysonic from the upstream Git flake** (`github:Psysonic/psysonic`). Supported systems match the flake: **`x86_64-linux`** and **`aarch64-linux`**.
 
 **Stability:** The project is in **very active development**. For **production or everyday use**, prefer **released builds**: pin the flake input to a stable **`app-v*`** tag, or track the **`release`** branch (`?ref=release`). Following **`main`** or **`next`** is better suited to contributors and early testers.
 
@@ -55,7 +55,7 @@ Add the repo as an **input**, then reference **`packages.<system>.psysonic`** (o
 {
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
-    psysonic.url = "github:Psychotoxical/psysonic";
+    psysonic.url = "github:Psysonic/psysonic";
   };
 
   outputs = { self, nixpkgs, ... }@inputs: let
@@ -105,7 +105,7 @@ inputs.psysonic.packages.${system}.psysonic-x11-legacy
 Or one-shot (quote the URL in **zsh** — `?` / `#` are special):
 
 ```bash
-nix run 'github:Psychotoxical/psysonic#psysonic-x11-legacy' -- --help
+nix run 'github:Psysonic/psysonic#psysonic-x11-legacy' -- --help
 ```
 
 ### Pinning a revision, branch, or tag
@@ -114,13 +114,13 @@ nix run 'github:Psychotoxical/psysonic#psysonic-x11-legacy' -- --help
 - **Channel branches** (`next`, `release`) exist for pre-release / release automation. For **operational installs**, prefer **`release`** (or an **`app-v*`** tag) over **`next`** or **`main`**; use **`?ref=next`** only if you want pre-release channel builds.
 
   ```nix
-  psysonic.url = "github:Psychotoxical/psysonic?ref=release";
+  psysonic.url = "github:Psysonic/psysonic?ref=release";
   ```
 
 - **Tags** (`app-v*`) match published GitHub releases and are the usual choice for a **reproducible** install aligned with a shipped version:
 
   ```nix
-  psysonic.url = "github:Psychotoxical/psysonic?ref=app-v1.44.0";  # example; pick a tag that exists on GitHub
+  psysonic.url = "github:Psysonic/psysonic?ref=app-v1.44.0";  # example; pick a tag that exists on GitHub
   ```
 
 Use a `ref` (branch, tag, or commit SHA) that exists on GitHub.
@@ -141,10 +141,10 @@ End users who pin **`main`** should run `nix flake update psysonic` (or equivale
 From any machine with flakes:
 
 ```bash
-nix run 'github:Psychotoxical/psysonic'
+nix run 'github:Psysonic/psysonic'
 ```
 
-Same as `nix build` / `packages.<system>.default` (session-native **GDK**); uses the flake `apps` output. For an **X11-pinned** launcher (old default), use `'github:Psychotoxical/psysonic#psysonic-x11-legacy'` (see [Linux wrapper](#linux-wrapper-default-vs-legacy-x11) above). `psysonic-gdk-session` is an **alias**—same as **`psysonic`**. With a branch pin, keep the **whole** `github:…?ref=…#…` string in **single quotes** under **zsh**.
+Same as `nix build` / `packages.<system>.default` (session-native **GDK**); uses the flake `apps` output. For an **X11-pinned** launcher (old default), use `'github:Psysonic/psysonic#psysonic-x11-legacy'` (see [Linux wrapper](#linux-wrapper-default-vs-legacy-x11) above). `psysonic-gdk-session` is an **alias**—same as **`psysonic`**. With a branch pin, keep the **whole** `github:…?ref=…#…` string in **single quotes** under **zsh**.
 
 ### Apply configuration
 

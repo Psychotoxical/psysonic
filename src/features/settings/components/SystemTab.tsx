@@ -364,7 +364,7 @@ export function SystemTab() {
             <button
               className="btn btn-ghost"
               style={{ alignSelf: 'flex-start' }}
-              onClick={() => openUrl('https://github.com/Psychotoxical/psysonic')}
+              onClick={() => openUrl('https://github.com/Psysonic/psysonic')}
             >
               <ExternalLink size={14} />
               {t('settings.aboutRepo')}

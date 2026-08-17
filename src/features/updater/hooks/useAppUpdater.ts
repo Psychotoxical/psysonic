@@ -26,7 +26,7 @@ export function useAppUpdater() {
 
   const fetchRelease = async (preview = false) => {
     try {
-      const res = await fetch('https://api.github.com/repos/Psychotoxical/psysonic/releases/latest');
+      const res = await fetch('https://api.github.com/repos/Psysonic/psysonic/releases/latest');
       if (!res.ok) return;
       const data = await res.json();
       const tag: string = data.tag_name ?? '';

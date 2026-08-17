@@ -12,7 +12,7 @@
       nix run .#psysonic
       nix run .#psysonic-gdk-session   # identical to psysonic
       nix run .#psysonic-x11-legacy    # GDK x11 pinned (former default wrap)
-      nix run github:Psychotoxical/psysonic
+      nix run github:Psysonic/psysonic
 
     Development:
       nix develop                   # mkShell (Rust/Node/WebKit deps); same GDK idea as installable (no GDK pin)

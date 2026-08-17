@@ -36,14 +36,20 @@ pub fn check_arch_linux() -> bool {
         if let Ok(content) = std::fs::read_to_string("/etc/os-release") {
             for line in content.lines() {
                 let lower = line.to_lowercase();
-                if lower.starts_with("id=arch") { return true; }
-                if lower.starts_with("id_like=") && lower.contains("arch") { return true; }
+                if lower.starts_with("id=arch") {
+                    return true;
+                }
+                if lower.starts_with("id_like=") && lower.contains("arch") {
+                    return true;
+                }
             }
         }
         false
     }
     #[cfg(not(target_os = "linux"))]
-    { false }
+    {
+        false
+    }
 }
 
 /// Progress payload emitted during an update binary download.
@@ -59,7 +65,11 @@ pub struct UpdateDownloadProgress {
 /// Returns the final absolute file path on success.
 #[tauri::command]
 #[specta::specta]
-pub async fn download_update(url: String, filename: String, app: tauri::AppHandle) -> Result<String, String> {
+pub async fn download_update(
+    url: String,
+    filename: String,
+    app: tauri::AppHandle,
+) -> Result<String, String> {
     use futures_util::StreamExt;
     use std::time::{Duration, Instant};
     use tokio::io::AsyncWriteExt;
@@ -99,16 +109,20 @@ pub async fn download_update(url: String, filename: String, app: tauri::AppHandl
             bytes_done += chunk.len() as u64;
 
             if last_emit.elapsed() >= EMIT_INTERVAL {
-                let _ = app.emit("update:download:progress", UpdateDownloadProgress {
-                    bytes: bytes_done,
-                    total,
-                });
+                let _ = app.emit(
+                    "update:download:progress",
+                    UpdateDownloadProgress {
+                        bytes: bytes_done,
+                        total,
+                    },
+                );
                 last_emit = Instant::now();
             }
         }
         file.flush().await.map_err(|e| e.to_string())?;
         Ok(bytes_done)
-    }.await;
+    }
+    .await;
 
     match result {
         Err(e) => {
@@ -116,10 +130,13 @@ pub async fn download_update(url: String, filename: String, app: tauri::AppHandl
             Err(e)
         }
         Ok(bytes_done) => {
-            let _ = app.emit("update:download:progress", UpdateDownloadProgress {
-                bytes: bytes_done,
-                total: Some(bytes_done),
-            });
+            let _ = app.emit(
+                "update:download:progress",
+                UpdateDownloadProgress {
+                    bytes: bytes_done,
+                    total: Some(bytes_done),
+                },
+            );
             tokio::fs::rename(&part_path, &dest_path)
                 .await
                 .map_err(|e| e.to_string())?;
@@ -171,7 +188,11 @@ pub async fn fetch_netease_lyrics(artist: String, title: String) -> Result<Optio
         .await
         .map_err(|e| e.to_string())?;
 
-    let lrc = lyrics["lrc"]["lyric"].as_str().unwrap_or("").trim().to_string();
+    let lrc = lyrics["lrc"]["lyric"]
+        .as_str()
+        .unwrap_or("")
+        .trim()
+        .to_string();
     Ok(if lrc.is_empty() { None } else { Some(lrc) })
 }
 
@@ -180,7 +201,10 @@ pub async fn fetch_netease_lyrics(artist: String, title: String) -> Result<Optio
 /// Vorbis comments allow arbitrary keys, but lofty's generic `Tag` only carries
 /// the keys it knows and silently drops the rest — `SYNCEDLYRICS` among them, so
 /// `ItemKey::from_key` can never resolve it. Read the concrete comment block.
-fn vorbis_synced_lyrics(path: &std::path::Path, file_type: lofty::file::FileType) -> Option<String> {
+fn vorbis_synced_lyrics(
+    path: &std::path::Path,
+    file_type: lofty::file::FileType,
+) -> Option<String> {
     use lofty::config::ParseOptions;
     use lofty::file::{AudioFile, FileType};
 
@@ -272,7 +296,7 @@ pub fn get_embedded_lyrics(path: String) -> Option<String> {
                             }
                             let mins = ms / 60_000;
                             let secs = (ms % 60_000) / 1_000;
-                            let cs   = (ms % 1_000) / 10;
+                            let cs = (ms % 1_000) / 10;
                             // [mm:ss.cc] matches parseLrc's /\d+(?:\.\d*)?/ regex
                             Some(format!("[{:02}:{:02}.{:02}]{}\n", mins, secs, cs, t))
                         })
@@ -390,15 +414,10 @@ pub async fn download_zip(
     let http_registry = app
         .try_state::<std::sync::Arc<psysonic_core::server_http::ServerHttpRegistry>>()
         .map(|s| std::sync::Arc::clone(&*s));
-    let response = apply_server_http_get(
-        &client,
-        http_registry.as_deref(),
-        None,
-        &url,
-    )
-    .send()
-    .await
-    .map_err(|e| e.to_string())?;
+    let response = apply_server_http_get(&client, http_registry.as_deref(), None, &url)
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
     if !response.status().is_success() {
         return Err(format!("HTTP {}", response.status().as_u16()));
     }
@@ -422,17 +441,21 @@ pub async fn download_zip(
             bytes_done += chunk.len() as u64;
 
             if last_emit.elapsed() >= EMIT_INTERVAL {
-                let _ = app.emit("download:zip:progress", ZipProgress {
-                    id: id.clone(),
-                    bytes: bytes_done,
-                    total,
-                });
+                let _ = app.emit(
+                    "download:zip:progress",
+                    ZipProgress {
+                        id: id.clone(),
+                        bytes: bytes_done,
+                        total,
+                    },
+                );
                 last_emit = Instant::now();
             }
         }
         file.flush().await.map_err(|e| e.to_string())?;
         Ok(bytes_done)
-    }.await;
+    }
+    .await;
 
     match result {
         Err(e) => {
@@ -441,11 +464,14 @@ pub async fn download_zip(
         }
         Ok(bytes_done) => {
             // Final emission so the frontend sees 100 % (or final MB count).
-            let _ = app.emit("download:zip:progress", ZipProgress {
-                id: id.clone(),
-                bytes: bytes_done,
-                total: Some(bytes_done),
-            });
+            let _ = app.emit(
+                "download:zip:progress",
+                ZipProgress {
+                    id: id.clone(),
+                    bytes: bytes_done,
+                    total: Some(bytes_done),
+                },
+            );
             tokio::fs::rename(&part_path, &dest_path)
                 .await
                 .map_err(|e| e.to_string())?;
@@ -462,147 +488,4 @@ pub struct HotCacheDownloadResult {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::get_embedded_lyrics;
-    use std::path::{Path, PathBuf};
-
-    /// An Enhanced LRC body: a line stamp plus inline `<mm:ss.xx>` word stamps.
-    const ENHANCED_LRC: &str = "[00:12.00]<00:12.00>Hello <00:12.90>world";
-
-    /// Minimal MPEG-1 Layer III frame header plus padding — enough for lofty to
-    /// identify the file as MPEG. The audio itself is never decoded here.
-    fn write_fake_mp3(dir: &Path, name: &str) -> PathBuf {
-        let path = dir.join(name);
-        let mut bytes = vec![0xFF, 0xFB, 0x90, 0x64];
-        bytes.extend(std::iter::repeat_n(0u8, 512));
-        std::fs::write(&path, bytes).unwrap();
-        path
-    }
-
-    /// A FLAC stream with nothing but a STREAMINFO block: 44.1 kHz, stereo,
-    /// 16-bit, no audio frames.
-    fn write_minimal_flac(dir: &Path, name: &str) -> PathBuf {
-        let path = dir.join(name);
-        let mut bytes = b"fLaC".to_vec();
-        bytes.push(0x80); // last-metadata-block flag + block type 0 (STREAMINFO)
-        bytes.extend_from_slice(&[0x00, 0x00, 0x22]); // block length = 34
-        let mut streaminfo = [0u8; 34];
-        streaminfo[0..2].copy_from_slice(&4096u16.to_be_bytes()); // min block size
-        streaminfo[2..4].copy_from_slice(&4096u16.to_be_bytes()); // max block size
-        // sample rate (20 bits) | channels-1 (3) | bits-per-sample-1 (5) | total samples (36)
-        streaminfo[10] = 0x0A;
-        streaminfo[11] = 0xC4;
-        streaminfo[12] = 0x42;
-        streaminfo[13] = 0xF0;
-        bytes.extend_from_slice(&streaminfo);
-        std::fs::write(&path, bytes).unwrap();
-        path
-    }
-
-    fn write_flac_comment(dir: &Path, name: &str, key: &str, value: &str) -> PathBuf {
-        use lofty::config::WriteOptions;
-        use lofty::ogg::VorbisComments;
-        use lofty::prelude::TagExt;
-
-        let path = write_minimal_flac(dir, name);
-        let mut comments = VorbisComments::default();
-        comments.push(key.to_owned(), value.to_owned());
-        comments.save_to_path(&path, WriteOptions::default()).unwrap();
-        path
-    }
-
-    #[test]
-    fn uslt_enhanced_lrc_is_returned_verbatim() {
-        use id3::{frame::Lyrics, Content, Frame, Tag, TagLike, Version};
-
-        let dir = tempfile::tempdir().unwrap();
-        let path = write_fake_mp3(dir.path(), "uslt.mp3");
-
-        let mut tag = Tag::new();
-        tag.add_frame(Frame::with_content(
-            "USLT",
-            Content::Lyrics(Lyrics {
-                lang: "eng".into(),
-                description: String::new(),
-                text: ENHANCED_LRC.into(),
-            }),
-        ));
-        tag.write_to_path(&path, Version::Id3v24).unwrap();
-
-        // The inline word stamps must survive the read untouched — the frontend
-        // parser is what turns them into word timing.
-        let got = get_embedded_lyrics(path.to_string_lossy().into_owned());
-        assert_eq!(got.as_deref(), Some(ENHANCED_LRC));
-    }
-
-    #[test]
-    fn sylt_is_rebuilt_as_line_level_lrc_and_can_carry_no_word_stamps() {
-        use id3::{
-            frame::{SynchronisedLyrics, SynchronisedLyricsType, TimestampFormat},
-            Content, Frame, Tag, TagLike, Version,
-        };
-
-        let dir = tempfile::tempdir().unwrap();
-        let path = write_fake_mp3(dir.path(), "sylt.mp3");
-
-        let mut tag = Tag::new();
-        tag.add_frame(Frame::with_content(
-            "SYLT",
-            Content::SynchronisedLyrics(SynchronisedLyrics {
-                lang: "eng".into(),
-                timestamp_format: TimestampFormat::Ms,
-                content_type: SynchronisedLyricsType::Lyrics,
-                description: String::new(),
-                content: vec![(12_000, "Hello world".into()), (74_500, "bye".into())],
-            }),
-        ));
-        tag.write_to_path(&path, Version::Id3v24).unwrap();
-
-        let got = get_embedded_lyrics(path.to_string_lossy().into_owned()).unwrap();
-        assert_eq!(got, "[00:12.00]Hello world\n[01:14.50]bye");
-        // SYLT timestamps are per line, so this source can never carry word timing.
-        assert!(!got.contains('<'));
-    }
-
-    #[test]
-    fn vorbis_synced_lyrics_is_returned_verbatim() {
-        // Regression: `SYNCEDLYRICS` is not a key lofty knows, so reading it off
-        // the generic tag always failed and the file looked lyrics-free.
-        let dir = tempfile::tempdir().unwrap();
-        let path = write_flac_comment(dir.path(), "synced.flac", "SYNCEDLYRICS", ENHANCED_LRC);
-
-        let got = get_embedded_lyrics(path.to_string_lossy().into_owned());
-        assert_eq!(got.as_deref(), Some(ENHANCED_LRC));
-    }
-
-    #[test]
-    fn vorbis_lyrics_field_is_returned_verbatim() {
-        let dir = tempfile::tempdir().unwrap();
-        let path = write_flac_comment(dir.path(), "lyrics.flac", "LYRICS", ENHANCED_LRC);
-
-        let got = get_embedded_lyrics(path.to_string_lossy().into_owned());
-        assert_eq!(got.as_deref(), Some(ENHANCED_LRC));
-    }
-
-    #[test]
-    fn vorbis_synced_lyrics_wins_over_plain_lyrics() {
-        use lofty::config::WriteOptions;
-        use lofty::ogg::VorbisComments;
-        use lofty::prelude::TagExt;
-
-        let dir = tempfile::tempdir().unwrap();
-        let path = write_minimal_flac(dir.path(), "both.flac");
-        let mut comments = VorbisComments::default();
-        comments.push("SYNCEDLYRICS".to_owned(), ENHANCED_LRC.to_owned());
-        comments.push("LYRICS".to_owned(), "plain fallback".to_owned());
-        comments.save_to_path(&path, WriteOptions::default()).unwrap();
-
-        let got = get_embedded_lyrics(path.to_string_lossy().into_owned());
-        assert_eq!(got.as_deref(), Some(ENHANCED_LRC));
-    }
-
-    #[test]
-    fn missing_file_yields_none() {
-        assert!(get_embedded_lyrics("does/not/exist.mp3".into()).is_none());
-    }
-}
+mod tests;
