@@ -10,7 +10,7 @@ Psysonic is built primarily for **Navidrome** and also works with **Gonic**, **A
 
 <br>
 
-<a href="https://github.com/Psychotoxical/psysonic/releases/latest"><img src="https://img.shields.io/github/v/release/Psychotoxical/psysonic?style=for-the-badge&label=Latest%20Release&color=8b5cf6" alt="Latest Release"></a> <a href="https://github.com/Psychotoxical/psysonic/stargazers"><img src="https://img.shields.io/github/stars/Psychotoxical/psysonic?style=for-the-badge&color=f59e0b" alt="GitHub Stars"></a> <a href="https://github.com/Psychotoxical/psysonic/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-GPLv3-22c55e?style=for-the-badge" alt="License GPLv3"></a> <a href="https://tauri.app/"><img src="https://img.shields.io/badge/Tauri-v2-0f172a?style=for-the-badge&logo=tauri" alt="Tauri v2"></a>
+<a href="https://github.com/Psysonic/psysonic/releases/latest"><img src="https://img.shields.io/github/v/release/Psysonic/psysonic?style=for-the-badge&label=Latest%20Release&color=8b5cf6" alt="Latest Release"></a> <a href="https://github.com/Psysonic/psysonic/stargazers"><img src="https://img.shields.io/github/stars/Psysonic/psysonic?style=for-the-badge&color=f59e0b" alt="GitHub Stars"></a> <a href="https://github.com/Psysonic/psysonic/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-GPLv3-22c55e?style=for-the-badge" alt="License GPLv3"></a> <a href="https://tauri.app/"><img src="https://img.shields.io/badge/Tauri-v2-0f172a?style=for-the-badge&logo=tauri" alt="Tauri v2"></a>
 
 <a href="https://discord.gg/AMnDRErm4u"><img src="https://img.shields.io/badge/Discord-Community-5865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Discord Community"></a> <a href="https://t.me/+GLBx1_xeH28xYTJi"><img src="https://img.shields.io/badge/Telegram-Community-26A5E4?style=for-the-badge&logo=telegram&logoColor=white" alt="Telegram Community"></a> <a href="https://ko-fi.com/psychotoxic"><img src="https://img.shields.io/badge/Ko--fi-Support%20Psysonic-FF5E5B?style=for-the-badge&logo=ko-fi&logoColor=white" alt="Support Psysonic on Ko-fi"></a>
 
@@ -192,7 +192,7 @@ The things you simply expect from a serious music player — and Psysonic does t
 ## Linux
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Psychotoxical/psysonic/main/scripts/install.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/Psysonic/psysonic/main/scripts/install.sh | sudo bash
 ```
 
 Linux builds are also available through GitHub Releases, AUR and Cachix/Nix.
@@ -201,7 +201,7 @@ Linux builds are also available through GitHub Releases, AUR and Cachix/Nix.
 
 ## Windows
 
-Download the latest installer from the [GitHub Releases](https://github.com/Psychotoxical/psysonic/releases/latest).  
+Download the latest installer from the [GitHub Releases](https://github.com/Psysonic/psysonic/releases/latest).  
 or,  
 install via Windows Package Manager (WinGet):  
 ```powershell
@@ -218,7 +218,7 @@ You can also browse and install it on [winstall.app](https://winstall.app/apps/P
 
 ## macOS
 
-Download the signed DMG from the [GitHub Releases](https://github.com/Psychotoxical/psysonic/releases/latest).
+Download the signed DMG from the [GitHub Releases](https://github.com/Psysonic/psysonic/releases/latest).
 
 ---
 
@@ -227,7 +227,7 @@ Download the signed DMG from the [GitHub Releases](https://github.com/Psychotoxi
 Contributor expectations (PRs, CI, Tauri boundary, UI): [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ```bash
-git clone https://github.com/Psychotoxical/psysonic.git
+git clone https://github.com/Psysonic/psysonic.git
 cd psysonic
 npm install
 npm run tauri:dev
@@ -266,7 +266,7 @@ Join the community, report bugs, suggest features, share themes and help shape t
 
 * [Discord](https://discord.gg/AMnDRErm4u)
 * [Telegram](https://t.me/+GLBx1_xeH28xYTJi)
-* [GitHub Issues](https://github.com/Psychotoxical/psysonic/issues)
+* [GitHub Issues](https://github.com/Psysonic/psysonic/issues)
 * [Support Psysonic on Ko-fi](https://ko-fi.com/psychotoxic)
 
 ---

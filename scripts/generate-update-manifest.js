@@ -12,7 +12,7 @@ const { execSync } = require('child_process');
 const fs = require('fs');
 
 const VERSION = process.env.VERSION;
-const REPO = 'Psychotoxical/psysonic';
+const REPO = 'Psysonic/psysonic';
 const TAG = `app-v${VERSION}`;
 
 if (!VERSION) {

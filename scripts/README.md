@@ -14,14 +14,14 @@ This script automatically downloads and installs the latest Psysonic release fro
 #### Quick Install (Recommended)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Psychotoxical/psysonic/main/scripts/install.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/Psysonic/psysonic/main/scripts/install.sh | sudo bash
 ```
 
 #### Manual Installation
 
 ```bash
 # Download the script
-wget https://raw.githubusercontent.com/Psychotoxical/psysonic/main/scripts/install.sh
+wget https://raw.githubusercontent.com/Psysonic/psysonic/main/scripts/install.sh
 
 # Make it executable
 chmod +x install.sh

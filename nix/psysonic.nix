@@ -176,7 +176,7 @@ stdenv.mkDerivation (finalAttrs: {
 
   meta = {
     description = "Desktop music player for Subsonic-compatible servers";
-    homepage = "https://github.com/Psychotoxical/psysonic";
+    homepage = "https://github.com/Psysonic/psysonic";
     license = lib.licenses.gpl3Only;
     mainProgram = "psysonic";
     platforms = lib.platforms.linux;

@@ -26,7 +26,7 @@ pub(super) const FANART_PROJECT_KEY: &str = "a32e00543d18deadb797bc0cc9826760";
 const MUSICBRAINZ_USER_AGENT: &str = concat!(
     "Psysonic/",
     env!("CARGO_PKG_VERSION"),
-    " ( https://github.com/Psychotoxical/psysonic )"
+    " ( https://github.com/Psysonic/psysonic )"
 );
 
 /// Subsonic `getArtistInfo2.view` (JSON) URL for an artist id.

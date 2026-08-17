@@ -18,7 +18,7 @@ describe('releaseNotesFetch', () => {
 
   it('builds the release download URL from version', () => {
     expect(whatsNewDownloadUrl('1.48.0-rc.1')).toBe(
-      'https://github.com/Psychotoxical/psysonic/releases/download/app-v1.48.0-rc.1/whats-new.md',
+      'https://github.com/Psysonic/psysonic/releases/download/app-v1.48.0-rc.1/whats-new.md',
     );
   });
 
@@ -28,7 +28,7 @@ describe('releaseNotesFetch', () => {
 
     const text = await fetchWhatsNewAsset('1.48.0');
     expect(invoke).toHaveBeenCalledWith('fetch_url_bytes', {
-      url: 'https://github.com/Psychotoxical/psysonic/releases/download/app-v1.48.0/whats-new.md',
+      url: 'https://github.com/Psysonic/psysonic/releases/download/app-v1.48.0/whats-new.md',
     });
     expect(text).toBe(body);
   });

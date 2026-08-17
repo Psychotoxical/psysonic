@@ -44,7 +44,7 @@
     "updater": {
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDhCNzk5MUNCRDQ4N0UwODgKUldTSTRJZlV5NUY1aThucWM3RTh4ZmpwblR1amh4R2lER3NjZDgrQTQwVGNFaWFtVStsUVBhYzkK",
       "endpoints": [
-        "https://github.com/Psychotoxical/psysonic/releases/latest/download/latest.json"
+        "https://github.com/Psysonic/psysonic/releases/latest/download/latest.json"
       ],
       "windows": {
         "installMode": "passive"

@@ -1,7 +1,7 @@
 import { isTauri } from '@tauri-apps/api/core';
 import { commands } from '@/generated/bindings';
 
-export const RELEASE_NOTES_REPO = 'Psychotoxical/psysonic';
+export const RELEASE_NOTES_REPO = 'Psysonic/psysonic';
 
 const MAX_BODY_BYTES = 64 * 1024;
 

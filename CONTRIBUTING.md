@@ -23,7 +23,7 @@ Psysonic is **GPLv3** — see [LICENSE](LICENSE). Forks and modifications are we
 ## Quick start
 
 ```bash
-git clone https://github.com/Psychotoxical/psysonic.git
+git clone https://github.com/Psysonic/psysonic.git
 cd psysonic
 npm install
 npm run tauri:dev     # run the desktop app in dev mode
@@ -145,7 +145,7 @@ Hot-path coverage gates are **required** on pull requests: the `coverage` jobs i
 
 ## Local checks
 
-Assume the repository root is `psysonic/` (for example after `git clone https://github.com/Psychotoxical/psysonic.git` and `cd psysonic`).
+Assume the repository root is `psysonic/` (for example after `git clone https://github.com/Psysonic/psysonic.git` and `cd psysonic`).
 
 **Frontend** — from the repository root:
 
