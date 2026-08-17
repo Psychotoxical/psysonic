@@ -15,7 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### True simultaneous multi-server support — use every server as one music library
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#1326](https://github.com/Psychotoxical/psysonic/pull/1326)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1326](https://github.com/Psysonic/psysonic/pull/1326)**
 
 * Select music folders from several configured servers in the same priority-ordered library scope. Psysonic browses them simultaneously without making you switch the active server before every search, album, artist or playback action.
 * **Home, Albums, Artists, Composers, Genres, Favourites, Playlists, Folder Browser, Search, Most Played, Statistics, album details and artist details** aggregate the selected servers into one catalogue. Shared music is de-duplicated by scope priority instead of appearing once per server.
@@ -23,7 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Mixed-server playback — one queue can play tracks from different servers
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#1326](https://github.com/Psychotoxical/psysonic/pull/1326)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1326](https://github.com/Psysonic/psysonic/pull/1326)**
 
 * A single queue can contain tracks owned by different servers. Each item resolves its stream, cover, lyrics, ReplayGain data and analysis against its own server instead of whichever server is currently active.
 * Server play queues are pulled, updated and reconciled per owner, so mixed queues survive restart without one server replacing another server's tracks. Gapless, crossfade, infinite queue, shuffle, history and queue restore keep the same ownership.
@@ -31,7 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Server-aware destinations and actions
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#1326](https://github.com/Psychotoxical/psysonic/pull/1326)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1326](https://github.com/Psysonic/psysonic/pull/1326)**
 
 * Playlist creation, smart-playlist editing, radio actions and other destination-sensitive flows select the target server explicitly instead of silently using the active server.
 * Context menus, ratings, favourites, sharing, offline pins, device sync and Orbit carry the item's owner through the complete action. Creating an Orbit session from a multi-server scope now asks which server should host it, temporarily keeps only that server in the library scope and shared queue, then restores the previous scope when the session ends.
@@ -39,13 +39,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Debug logging — selectable multi-server diagnostics
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#1331](https://github.com/Psychotoxical/psysonic/pull/1331)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1331](https://github.com/Psysonic/psysonic/pull/1331)**
 
 * **Settings → System → Logging** and **PsyLab → Logs** offer basic and verbose debug-depth levels while Debug logging is enabled. Verbose mode adds structured multi-server scope, reachability, music-folder and New Releases diagnostics, with credentials and sensitive URL data redacted.
 
 ### Streaming quality — per-address Navidrome bitrate and format controls
 
-**By [@Manwe-777](https://github.com/Manwe-777), PR [#1334](https://github.com/Psychotoxical/psysonic/pull/1334)**
+**By [@Manwe-777](https://github.com/Manwe-777), PR [#1334](https://github.com/Psysonic/psysonic/pull/1334)**
 
 * Saved Navidrome servers can request no bitrate cap or a 320…64 kbps ceiling, with Auto / MP3 / Opus / AAC as the target format. Settings are stored per address, so LAN and public endpoints can use different quality profiles and playback follows the connected endpoint.
 * Offline pins, favourites sync and hot-cache prefetch use the original-stream path; confirmed Navidrome profiles request `format=raw`, while other servers keep the existing uncapped request. Transcoded live bytes are not promoted as original files, and completed-stream reuse stays isolated by endpoint, account, format and bitrate cap.
@@ -55,7 +55,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Album details — disc covers in the multi-disc separator
 
-**By [@Psychotoxical](https://github.com/Psychotoxical) and [@cucadmuh](https://github.com/cucadmuh), PR [#1336](https://github.com/Psychotoxical/psysonic/pull/1336)**
+**By [@Psychotoxical](https://github.com/Psychotoxical) and [@cucadmuh](https://github.com/cucadmuh), PR [#1336](https://github.com/Psysonic/psysonic/pull/1336)**
 
 * Multi-disc albums show each disc's cover next to "CD N" instead of a generic disc icon. Releases with distinct per-disc artwork show each disc's own cover; other albums fall back to the shared album art.
 * On Navidrome, the queue, playbar mini-cover and "Who is listening?" use the same per-disc artwork, so a multi-disc release no longer keeps showing disc 1 everywhere outside the album page.
@@ -63,73 +63,73 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fullscreen player — volume slider in Minimal and Immersive modes
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1340](https://github.com/Psychotoxical/psysonic/pull/1340)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1340](https://github.com/Psysonic/psysonic/pull/1340)**
 
 * The fullscreen player's volume control, previously only in **Prism** mode, is now also in the **Minimal** and **Immersive** styles — a mute toggle plus an always-visible level slider.
 
 ### Theme store — respect a theme's minimum app version
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1344](https://github.com/Psychotoxical/psysonic/pull/1344)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1344](https://github.com/Psysonic/psysonic/pull/1344)**
 
 * A store theme that needs a newer Psysonic now shows "requires a newer version" in place of the install button, and pending updates that need a newer app are held back, instead of the install failing with a generic error. The notice clears once the app itself is updated.
 
 ### Themes — bundle local images and fonts
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1345](https://github.com/Psychotoxical/psysonic/pull/1345)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1345](https://github.com/Psysonic/psysonic/pull/1345)**
 
 * Themes can ship their own images and fonts in an `assets/` folder and reference them with a relative `url("assets/…")`, instead of embedding everything as inline data. Assets are written to disk on install and served locally — themes still never reach the network. Works for both Theme Store installs and imported `.zip` themes; uninstalling a theme removes its files.
 
 ### Theme store — a random theme of the moment
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1357](https://github.com/Psychotoxical/psysonic/pull/1357)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1357](https://github.com/Psysonic/psysonic/pull/1357)**
 
 * The store now suggests one theme above the search box, picked from further down the catalogue and preferring themes you have not installed. The store lists themes by last change, so older ones were only ever found by paging to the end. **Show another** picks a different one; installing or applying the suggestion leaves it in place.
 
 ### Player views — click any artist of a credit
 
-**By [@enncoded](https://github.com/enncoded), PR [#1371](https://github.com/Psychotoxical/psysonic/pull/1371)**
+**By [@enncoded](https://github.com/enncoded), PR [#1371](https://github.com/Psysonic/psysonic/pull/1371)**
 
 * Artist names link to the artist page in all three fullscreen styles, the detached mini player and the mobile layout — until now only album and queue rows offered this. Clicking one in fullscreen closes the overlay so the artist page is right there.
 * Joined credits such as "Primary feat. Guest" read as separate artists, including the bullet separator Navidrome uses when a track carries only plural artist tags. Names like AC/DC stay intact.
 
 ### Audio visualizer — spectrum, scopes and fullscreen views
 
-**By [@Manwe-777](https://github.com/Manwe-777), PR [#1375](https://github.com/Psychotoxical/psysonic/pull/1375)**
+**By [@Manwe-777](https://github.com/Manwe-777), PR [#1375](https://github.com/Psysonic/psysonic/pull/1375)**
 
 * **Now Playing** and every fullscreen-player style can show a responsive spectrum, oscilloscope, radial scope or stereo field, with cover-derived or theme colours and an expanded window view.
 * Sensitivity, response, frame rate and peak markers are configurable under **Settings → Appearance → Visualizer**. Internet radio is supported while its equalizer audio graph is active.
 
 ### Visualizer — separate switches for Now Playing and the fullscreen player
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1378](https://github.com/Psychotoxical/psysonic/pull/1378)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1378](https://github.com/Psysonic/psysonic/pull/1378)**
 
 * The visualizer can now be switched on for the fullscreen player alone, or for **Now Playing** alone, under **Settings → Appearance → Visualizer**. An existing off setting is kept as it was.
 * The section's controls are grouped into two panels, and long option names such as the radial scope are no longer cut off in translated interfaces.
 
 ### Performance benchmarks — measure real pages from the CLI
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#1382](https://github.com/Psychotoxical/psysonic/pull/1382)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1382](https://github.com/Psysonic/psysonic/pull/1382)**
 
 * `psysonic benchmark run` drives the running desktop app through representative core or all-page scenarios, with realistic and isolated profiles plus repeatable run counts.
 * JSON reports retain route readiness, React work, quiet time, long tasks and environment details, then compare each run with the previous matching report.
 
 ### Random Mix — combine several genres in one playlist
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#1421](https://github.com/Psychotoxical/psysonic/pull/1421)**, requested by Gypsy on the Psysonic Discord
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1421](https://github.com/Psysonic/psysonic/pull/1421)**, requested by Gypsy on the Psysonic Discord
 
 * Select several genre chips at once to build one random playlist instead of replacing the previous selection. Psysonic balances songs across the selected genres and removes duplicates before playback.
 * Selected genres stay visible when showing a different set of popular genres, and rapid changes keep only the newest mix.
 
 ### Audio controls — fade smoothly when pausing and resuming
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#1422](https://github.com/Psychotoxical/psysonic/pull/1422)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1422](https://github.com/Psysonic/psysonic/pull/1422)**
 
 * **Settings → Audio → Track transitions** can fade playback out before pausing and back in when resuming, with a configurable 0.1–2.0 second duration and a 1.0 second default.
 * The optional fade works with both ordinary playback and internet radio, while rapid pause, resume and stop actions cancel stale fades instead of changing playback later.
 
 ### Timeline — replay from any point in listening history
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#1423](https://github.com/Psychotoxical/psysonic/pull/1423)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1423](https://github.com/Psysonic/psysonic/pull/1423)**
 
 * Right-click a past Timeline track and choose **Play from Here** to replay that occurrence, every later history entry and the existing **Up Next** list in their original order.
 * Mixed-server ownership and queue-only flags stay attached to each rebuilt entry, so the restored sequence plays from the correct servers.
@@ -138,7 +138,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Library index — designed for several live servers at once
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#1326](https://github.com/Psychotoxical/psysonic/pull/1326)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1326](https://github.com/Psysonic/psysonic/pull/1326)**
 
 * The local SQLite library now keeps server ownership, music-folder scope and cross-server identity as separate indexed concepts. Scoped browse projections power combined catalogues without scanning or merging every server response in the UI.
 * Home feeds, text search, genre counts, details, Most Played and Statistics use indexed multi-server reads when local data is ready, while retaining network fallbacks for a server that has not completed its index yet.
@@ -146,7 +146,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Sync and reachability — one unavailable server no longer blocks the others
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#1326](https://github.com/Psychotoxical/psysonic/pull/1326)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1326](https://github.com/Psysonic/psysonic/pull/1326)**
 
 * Psysonic tracks readiness, sync progress and reachability independently for every configured server. Available servers remain browsable while another selected server is offline, still indexing or recovering from an interrupted sync.
 * Full and delta sync preserve source ownership through remaps, deletions and tombstones; no-op syncs avoid unnecessary catalogue refreshes, and stale multi-server state is repaired automatically.
@@ -154,14 +154,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Library browsing — less repeated work on large catalogues
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#1382](https://github.com/Psychotoxical/psysonic/pull/1382)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1382](https://github.com/Psysonic/psysonic/pull/1382)**
 
 * Home, Albums, Artists, New Releases, Lossless Albums and Search reuse bounded local results instead of repeating large scoped reads while routes mount, paginate or restore their session.
 * Browse pages coordinate cover traffic and background catalogue work more carefully, so the first useful content appears before non-visible enrichment and prefetch work.
 
 ### Analysis — reuse downloaded audio and prioritise playback
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#1419](https://github.com/Psychotoxical/psysonic/pull/1419)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1419](https://github.com/Psysonic/psysonic/pull/1419)**
 
 * Waveform, loudness and enrichment reuse audio already loaded for playback, preload, cache and local files, including large completed streams held on disk, instead of downloading the original again.
 * Background analysis stays within bounded memory and disk limits while active playback takes priority over library backfill. Range-stripping servers and unavailable source files also stop cleanly without repeated work.
@@ -170,7 +170,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Cross-server ownership — IDs no longer collide or drift to the active server
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#1326](https://github.com/Psychotoxical/psysonic/pull/1326)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1326](https://github.com/Psysonic/psysonic/pull/1326)**
 
 * Album and artist navigation, covers, lyrics, ratings, favourites, playlists, radio, sharing, offline browse, device sync and context-menu actions no longer jump to the wrong server when two servers reuse the same entity ID.
 * Orbit host/guest state, queue suggestions and cleanup stay bound to the session server; switching the visible library or active server cannot redirect an existing session.
@@ -178,137 +178,137 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Startup — keep the loading splash until initial content is ready
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#1326](https://github.com/Psychotoxical/psysonic/pull/1326)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1326](https://github.com/Psysonic/psysonic/pull/1326)**
 
 * Cold starts no longer reveal a blank or partially committed app shell between the splash and the first route content; the handoff is atomic after the initial screen is ready.
 
 ### Live indicator — preserve the pulse without high idle CPU
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#1326](https://github.com/Psychotoxical/psysonic/pull/1326)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1326](https://github.com/Psysonic/psysonic/pull/1326)**
 
 * The header Live icon keeps its pulsing state while listeners are present, but confines the animation to an isolated 10 FPS layer and pauses it while the window is unfocused or reduced motion is requested.
 
 ### Library startup — recover interrupted large syncs without a CPU spin
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#1326](https://github.com/Psychotoxical/psysonic/pull/1326)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1326](https://github.com/Psysonic/psysonic/pull/1326)**
 
 * Large fresh libraries now refresh SQLite's query-planner statistics after bulk indexing. Restarting after an interrupted multi-server sync no longer enters a minutes-long single-core identity rebuild, and existing affected databases repair their stale statistics automatically.
 
 ### New Releases — remove duplicate albums from the freshness overlay
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#1326](https://github.com/Psychotoxical/psysonic/pull/1326)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1326](https://github.com/Psysonic/psysonic/pull/1326)**
 
 * The first New Releases page now keeps the local catalogue's logical album de-duplication when fresh network results arrive, including alternate physical copies on one server and matching copies across several servers.
 
 ### Artist details — show the artist name, not a featured-guest track credit
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1328](https://github.com/Psychotoxical/psysonic/pull/1328)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1328](https://github.com/Psysonic/psysonic/pull/1328)**
 
 * The artist detail header no longer adopts a per-track "featuring" credit when a single track in the discography is tagged with a guest artist. It shows the artist's own name, matching the artist browse list.
 
 ### Artist details — group releases by type again
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1329](https://github.com/Psychotoxical/psysonic/pull/1329)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1329](https://github.com/Psysonic/psysonic/pull/1329)**
 
 * The artist page groups a discography into Albums, Singles, EPs, Live and Compilations again instead of one flat list. The release type is read from each album's tags; releases without a type tag stay in the default group.
 
 ### Multi-server library scope — recover empty persisted selections
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#1331](https://github.com/Psychotoxical/psysonic/pull/1331)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1331](https://github.com/Psysonic/psysonic/pull/1331)**
 
 * Existing profiles that retained an empty Library server selection recover the configured active server when another server is added. Music-folder discovery and New Releases no longer collapse to an empty result in that legacy state.
 * Artist browse no longer waits for a full identity rebuild on the first launch after upgrading an existing large library.
 
 ### Album details — play multi-disc albums in disc order
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1332](https://github.com/Psychotoxical/psysonic/pull/1332)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1332](https://github.com/Psysonic/psysonic/pull/1332)**
 
 * Playing a multi-disc album from the header no longer interleaves the discs (disc 1 track 1, disc 2 track 1, disc 1 track 2, …). Tracks queue in disc-then-track order, so disc 1 plays in full before disc 2. Tracks without a disc number are treated as disc 1, matching the track list.
 
 ### Artist details — Various Artists shows every compilation
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1335](https://github.com/Psychotoxical/psysonic/pull/1335)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1335](https://github.com/Psysonic/psysonic/pull/1335)**
 
 * The "Various Artists" artist page lists every compilation again, instead of only the few tracks tagged directly with the Various Artists id. Compilations link to the artist through their album-artist label, which the local index now follows across all selected servers.
 * A compilation's album header links to "Various Artists" rather than to one of the individual track performers.
 
 ### Now playing — show the real streamed format when the server transcodes
 
-**By [@Manwe-777](https://github.com/Manwe-777), PR [#1338](https://github.com/Psychotoxical/psysonic/pull/1338)**
+**By [@Manwe-777](https://github.com/Manwe-777), PR [#1338](https://github.com/Psysonic/psysonic/pull/1338)**
 
 * The quality badge (queue, now-playing hero, mobile player, immersive fullscreen) was built from the track's stored library metadata, so a server-side transcode still read the original file — e.g. "FLAC · 3149 kbps · 24-bit" while actually receiving Opus. It now shows the format the audio engine actually decoded, with the original file's format in a tooltip, and falls back to the stored metadata when no transcode is happening. When the transmitted bitrate is unknown, none is shown instead of a wrong one.
 
 ### Various Artists cards — link to the compilation, not a guest performer
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1339](https://github.com/Psychotoxical/psysonic/pull/1339)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1339](https://github.com/Psysonic/psysonic/pull/1339)**
 
 * Clicking "Various Artists" on a New Releases card, a browse grid or a search result opened one of the compilation's guest performers instead of the Various Artists overview. Every album card now links to the album-artist, matching the artist page and album header. The link is recovered from any track on the compilation, so it resolves even when the representative track carries no album-artist tag.
 
 ### Artist details — separate guest appearances from the discography
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1341](https://github.com/Psychotoxical/psysonic/pull/1341)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1341](https://github.com/Psysonic/psysonic/pull/1341)**
 
 * An artist page derived every album from that artist's own tracks, so Various Artists compilations, split releases and other artists' albums they only guest on sat in the main discography. Those now appear under **Also featured on**, while the artist's own releases — including their own best-of compilations — stay in the discography.
 * Albums with no album-artist tag are kept with the artist that owns their tracks, so a catalogue whose files spell the artist name differently from the server's artist entry no longer empties into the featured section.
 
 ### Artist credits — separate and link each artist of a joined credit
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1342](https://github.com/Psychotoxical/psysonic/pull/1342)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1342](https://github.com/Psysonic/psysonic/pull/1342)**
 
 * A release credited to several artists showed one joined label ("A feat. B") in the album header and track lists, while the home rails already showed them separated. Every surface now separates them, and each artist links to their own page instead of only the first one. Albums whose server provides a structured artist list are unaffected.
 * Splitting follows the server's own tagging rules, so an artist name containing a slash stays intact and a comma-joined credit is left as one entry. For reliably separated credits, tag multi-valued **ARTISTS** / **ALBUMARTISTS** rather than relying on separators.
 
 ### Artist details — biography and Last.fm link are back under a multi-server scope
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1343](https://github.com/Psychotoxical/psysonic/pull/1343)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1343](https://github.com/Psysonic/psysonic/pull/1343)**
 
 * The "About the artist" section and the Last.fm link vanished from artist pages as soon as more than one server was selected in the library scope. Both are shown again, with the artist information read from the server that owns the artist.
 * Everything the page derives from that information now follows the same owner: the similar artists it lists open the right artist instead of an unrelated one on the active server, and the setting that decides whether the server's own suggestions are used is read for the owning server too. This also applies when browsing a single server while a different one is active.
 
 ### Music network — a clearer message when a service blocks the connection
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1346](https://github.com/Psychotoxical/psysonic/pull/1346)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1346](https://github.com/Psysonic/psysonic/pull/1346)**
 
 * Connecting a scrobbling service over a route it refuses — a VPN exit node, a proxy, a captive portal — failed with a generic network error and a raw decoder message attached. Psysonic now recognises a webpage arriving where data was expected and says so, pointing at the connection instead of leaving you to guess whether the app or the service is broken. Reported by zunoz on Discord.
 
 ### Orbit — joining a session no longer depends on how the server address was typed
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1356](https://github.com/Psychotoxical/psysonic/pull/1356)**, reported by Sakura on Discord
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1356](https://github.com/Psysonic/psysonic/pull/1356)**, reported by Sakura on Discord
 
 * Joining an invite could fail with "You don't have access to …" even for guests with a working account on that very server — they could browse and play music, only joining was refused. An invite carries the server address in its full form, while the check compared it against the address exactly as saved, so one entered without `http://` never matched.
 * The same check now also recognises a server saved under its second address. Hosts who configure a local and a public address share invites pointing at the public one, which previously matched no account at all.
 
 ### New Releases — the long pause before more albums appear
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1359](https://github.com/Psychotoxical/psysonic/pull/1359)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1359](https://github.com/Psysonic/psysonic/pull/1359)**
 
 * On large libraries the page showed its first albums quickly and then sat for roughly three quarters of a minute before loading any more. Leaving the page during that pause could lock the window up entirely. Both are gone; scrolling now loads continuously.
 * Root cause: a database lookup the page performs once per album was scanning the whole track table instead of using its index, which on a library of this size cost close to a second every time.
 
 ### Artists — the page that never finished loading
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1360](https://github.com/Psychotoxical/psysonic/pull/1360)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1360](https://github.com/Psysonic/psysonic/pull/1360)**
 
 * On large libraries the Artists page could show nothing but a spinner, indefinitely. It now loads in well under a second.
 * Root cause: the query that collects the artists in the selected music folders was combining two steps in the wrong order, redoing the expensive one once per artist instead of once in total. On a library of this size that meant the query never finished at all.
 
 ### Hot Cache — prefetch mixed-server queues from the right server
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#1363](https://github.com/Psychotoxical/psysonic/pull/1363)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1363](https://github.com/Psysonic/psysonic/pull/1363)**
 
 * Hot Cache now downloads each upcoming track from its owning server instead of sending the whole prefetch window to whichever server is currently playing. Replacing the queue can no longer leave a delayed job caching the wrong copy when two servers reuse the same track ID.
 * When the cache is full, the current and next tracks stay protected per server, so an identically numbered track on another server cannot evict the queued copy and trigger a download loop.
 
 ### AppImage — installing through an AppImage manager
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1364](https://github.com/Psychotoxical/psysonic/pull/1364)**, reported by Arutosio
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1364](https://github.com/Psysonic/psysonic/pull/1364)**, reported by Arutosio
 
 * Handing the AppImage to an AppImage manager or a desktop-integration tool failed with a missing symlink target. The bundle's icon link pointed at a directory that only exists on the machine that built it; it is now relative and resolves wherever the AppImage is unpacked.
 * Starting the AppImage directly was never affected. The 1.50.0 download has also been replaced with a repacked build carrying the corrected link, so it does not have to wait for this release.
 
 ### Library — albums deleted on the server no longer linger in your library
 
-**By [@Psychotoxical](https://github.com/Psychotoxical) and [@cucadmuh](https://github.com/cucadmuh), PR [#1365](https://github.com/Psychotoxical/psysonic/pull/1365)**
+**By [@Psychotoxical](https://github.com/Psychotoxical) and [@cucadmuh](https://github.com/cucadmuh), PR [#1365](https://github.com/Psysonic/psysonic/pull/1365)**
 
 * Albums and tracks removed on the server could stay in the library indefinitely, and a full resync did not reliably clear them. Psysonic now verifies a server's albums against the index on its background schedule instead of only reacting once enough stale rows have piled up, so a deletion is noticed on its own merits. Albums the index never received arrive the same way. On Navidrome, files still listed under **Missing Files** remain visible through the server API and must be cleared there before Psysonic can retire them.
 * A full resync only sweeps unconfirmed rows when a server-visible track count proves the ingest was complete; otherwise it keeps them and records why the sweep was skipped. Sparse bulk responses also keep richer metadata and the incremental-sync resume point without preventing the server from explicitly clearing those fields later.
@@ -316,32 +316,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Servers — removing a profile clears its local library state
 
-**By [@Psychotoxical](https://github.com/Psychotoxical) and [@cucadmuh](https://github.com/cucadmuh), PR [#1365](https://github.com/Psychotoxical/psysonic/pull/1365)**
+**By [@Psychotoxical](https://github.com/Psychotoxical) and [@cucadmuh](https://github.com/cucadmuh), PR [#1365](https://github.com/Psysonic/psysonic/pull/1365)**
 
 * Removing the last profile for a server now stops its URL-keyed background sync session and, when requested, purges the matching local library rows even if another cleanup step fails. If another profile shares that server URL, Psysonic keeps the shared index and rebinds it to the remaining profile instead.
 
 ### Offline library — freshly prepared tracks keep the correct sync time
 
-**By [@Psychotoxical](https://github.com/Psychotoxical) and [@cucadmuh](https://github.com/cucadmuh), PR [#1365](https://github.com/Psychotoxical/psysonic/pull/1365)**
+**By [@Psychotoxical](https://github.com/Psychotoxical) and [@cucadmuh](https://github.com/cucadmuh), PR [#1365](https://github.com/Psysonic/psysonic/pull/1365)**
 
 * Opening or pinning an album no longer stamps its tracks with a seconds-based timestamp that makes them look as if they were indexed in 1970 and moves them to the front of stale-track verification.
 
 ### Album grids — scrolling no longer stalls partway down the list
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1367](https://github.com/Psychotoxical/psysonic/pull/1367)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1367](https://github.com/Psysonic/psysonic/pull/1367)**
 
 * New Releases and Lossless Albums stopped fetching further albums after a few pages, and only picked up again once you scrolled up and back down. Both now keep loading while you are at the bottom of the list, and stop once it is exhausted.
 
 ### Playback — the displayed track no longer runs ahead of the audio
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1369](https://github.com/Psychotoxical/psysonic/pull/1369)**, reported by [@moldavia](https://github.com/moldavia)
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1369](https://github.com/Psysonic/psysonic/pull/1369)**, reported by [@moldavia](https://github.com/moldavia)
 
 * Resuming after a long pause could leave Now Playing several tracks ahead of what you were hearing, with a flat waveform to match, until you clicked back through the queue. Pausing long enough releases the audio stream, and restarting it was mistaken for a track change; that no longer moves the queue.
 * Long-running stream seek recovery no longer mistakes an unresolved position jump for a gapless track change.
 
 ### Buttons — outlines are visible without hovering first
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1379](https://github.com/Psychotoxical/psysonic/pull/1379)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1379](https://github.com/Psysonic/psysonic/pull/1379)**
 
 * Secondary buttons such as **Back** on artist and album pages, **Cancel** in the server form and the connect actions under **Music Network** showed no outline until the pointer was over them. They now look clickable at rest. Reported by zunoz.
 * The row for a custom HTTP header no longer pushes its remove button onto a second line where it filled a whole column and looked like another input field.
@@ -350,144 +350,144 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Linux — recognise MangoWM as a tiling window manager
 
-**By [@Leinad745](https://github.com/Leinad745), PR [#1380](https://github.com/Psychotoxical/psysonic/pull/1380)**
+**By [@Leinad745](https://github.com/Leinad745), PR [#1380](https://github.com/Psysonic/psysonic/pull/1380)**
 
 * Psysonic now detects MangoWM as a tiling environment and leaves window decoration to the compositor instead of adding its custom title bar.
 
 ### Composers — names outside A–Z can be found again
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1381](https://github.com/Psychotoxical/psysonic/pull/1381)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1381](https://github.com/Psysonic/psysonic/pull/1381)**
 
 * The letter bar on **Composers** ended at Z, so a composer whose name begins with a quote, a bracket or a non-Latin character could not be filtered to at all. The bar now carries the same **Other** entry the Artists page already had. Reported by zunoz.
 * In the list view that group is labelled instead of showing the raw key, and it is placed after Z rather than between O and P.
 
 ### Genres — accurate scoped counts without the long detail-page wait
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#1382](https://github.com/Psychotoxical/psysonic/pull/1382)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1382](https://github.com/Psysonic/psysonic/pull/1382)**
 
 * Genre Detail no longer presents the first 60 loaded albums as the total. Multi-server pages show a cached value immediately when available, then settle on the exact de-duplicated count.
 * All Albums genre counters follow every selected server and music folder instead of the active server or a temporary server-wide fallback. Genre album pages now drive from the indexed genre rows, cutting the measured first-page database read from about 1.1 seconds to about 0.37 seconds on a large three-server library.
 
 ### Back navigation — return to the page you just left
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#1383](https://github.com/Psychotoxical/psysonic/pull/1383)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1383](https://github.com/Psysonic/psysonic/pull/1383)**
 
 * Back from an album opened on an artist page now returns to that artist, and Back from a related album returns to the previous album. A second Back continues to the original Albums or Artists page with its browse state intact.
 
 ### Linux playback — keep audio smooth under heavy CPU load
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#1385](https://github.com/Psychotoxical/psysonic/pull/1385)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1385](https://github.com/Psysonic/psysonic/pull/1385)**
 
 * Sustained CPU-heavy work no longer starves Psysonic's audio threads and causes playback stutter or dropouts. The player now asks Linux's realtime service to prioritise both its output callback and PipeWire processing, while keeping the previous scheduling when that service is unavailable.
 
 ### Gapless playback — the audible gap between MP3 tracks
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1388](https://github.com/Psychotoxical/psysonic/pull/1388)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1388](https://github.com/Psysonic/psysonic/pull/1388)**
 
 * Playing a continuous album in MP3 no longer inserts a short silence at every track change. Two adjacent tracks now join exactly where they were split, for files whose encoder recorded the gap in the file header — which is what the common MP3 encoders write.
 * Root cause: MP3 encoders add a few milliseconds of silence to the beginning and end of every file. Psysonic played that silence instead of skipping it, which put roughly 50 ms of it into each track boundary. Unchanged: internet radio, playback from servers that cannot serve range requests, and files that carry only an iTunes-style tag instead of that header when they are played from disk or streamed.
 
 ### Internet radio — keep non-Latin track titles readable
 
-**By [@RdrSeraphim](https://github.com/RdrSeraphim), PR [#1389](https://github.com/Psychotoxical/psysonic/pull/1389)**
+**By [@RdrSeraphim](https://github.com/RdrSeraphim), PR [#1389](https://github.com/Psysonic/psysonic/pull/1389)**
 
 * ICY track metadata sent as UTF-8 now displays Japanese, Korean and wide-width Latin text correctly instead of mojibake. Legacy Latin-1 titles remain readable in both the player and system now-playing metadata.
 
 ### Linux — internet radio no longer blanks the window
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1390](https://github.com/Psychotoxical/psysonic/pull/1390)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1390](https://github.com/Psysonic/psysonic/pull/1390)**
 
 * Starting an internet radio station no longer clears the whole window on systems installed from the AUR, `.deb` or `.rpm` packages. Those packages now ask for the GStreamer plugins that radio playback needs.
 * Root cause: radio is the one path that plays through the WebView rather than the audio engine, so it relies on GStreamer plugins the distributions treat as optional and do not install on their own. AppImage builds were never affected because they carry the plugins with them.
 
 ### Lyrics — the YouLyPlus source has been removed
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1391](https://github.com/Psychotoxical/psysonic/pull/1391)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1391](https://github.com/Psysonic/psysonic/pull/1391)**
 
 * The service behind this option no longer has a single working server, and its operator states publicly that a replacement cannot be funded, so the option has been removed rather than left pointing at dead addresses. If it was the only lyrics source you had switched on, LRCLIB is enabled for you automatically.
 * Word-by-word highlighting is unaffected: it also comes from lyrics embedded in your files and from Navidrome 0.63+.
 
 ### Startup window — controls and close actions stay reliable
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#1392](https://github.com/Psychotoxical/psysonic/pull/1392)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1392](https://github.com/Psysonic/psysonic/pull/1392)**
 
 * On Linux with the custom title bar enabled, the loading splash keeps native window controls until Psysonic's own controls are ready, so startup no longer leaves a borderless window with no mouse-accessible close, minimise or maximise buttons.
 * Close, tray Exit, mini-player restore and second-instance focus actions are queued and ordered during startup or a webview reload instead of being lost or overridden by a stale window operation.
 
 ### AIFF playback — streamed and cached files play reliably
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#1396](https://github.com/Psychotoxical/psysonic/pull/1396)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1396](https://github.com/Psysonic/psysonic/pull/1396)**
 
 * AIFF, AIF and AIFC tracks now play from servers, local files and playback caches, including files whose metadata appears after their audio data.
 * Servers without byte-range support now fall back to a complete download instead of leaving the track unable to start.
 
 ### Internet radio — keep homepage URLs when editing stations
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#1397](https://github.com/Psychotoxical/psysonic/pull/1397)**, reported by [@vt100-music](https://github.com/vt100-music)
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1397](https://github.com/Psysonic/psysonic/pull/1397)**, reported by [@vt100-music](https://github.com/vt100-music)
 
 * Homepage URLs supplied by Navidrome no longer disappear from station cards or the edit form after saving or reloading the station.
 
 ### Linux playback — keep speed, pitch and queue advancement correct
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#1398](https://github.com/Psychotoxical/psysonic/pull/1398)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1398](https://github.com/Psysonic/psysonic/pull/1398)**
 
 * ALSA and PipeWire devices that select a different sample rate no longer play tracks at half or double speed with shifted pitch. Native Hi-Res remains available, and the selected output configuration verifies the rate the device actually accepted.
 * Hi-Res and gapless source replacement no longer loses the track-completion signal, so playback advances to the next queued track reliably.
 
 ### Servers — prevent duplicate account profiles
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#1399](https://github.com/Psychotoxical/psysonic/pull/1399)**, reported by zunoz on Discord
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1399](https://github.com/Psysonic/psysonic/pull/1399)**, reported by zunoz on Discord
 
 * Settings no longer saves a second profile with the same server address and username. The same server can still be saved for a different account.
 
 ### Tracks — reroll the Highly Rated selection
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#1400](https://github.com/Psychotoxical/psysonic/pull/1400)**, reported by zunoz on Discord
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1400](https://github.com/Psysonic/psysonic/pull/1400)**, reported by zunoz on Discord
 
 * **Highly Rated** now reshuffles tracks within each rating tier instead of requesting and redisplaying the same fixed order. Higher ratings stay first, and rerolls reuse the short-lived list cache so the new selection appears without another server roundtrip.
 
 ### Genres — line up the page heading with its album count
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1402](https://github.com/Psychotoxical/psysonic/pull/1402)**, reported by zunoz
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1402](https://github.com/Psysonic/psysonic/pull/1402)**, reported by zunoz
 
 * The genre name and the album count beside it now sit on one line instead of a couple of pixels apart, on the **Genres** overview as well as on a genre's own page. The alignment holds when the heading shrinks as you scroll.
 * The small icon between the two gives way to a dash, and a long genre name now shortens with its full text on hover instead of making the row taller.
 
 ### App icon — a fresh look
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1403](https://github.com/Psychotoxical/psysonic/pull/1403)**, reported by JU3RG and rtfact
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1403](https://github.com/Psysonic/psysonic/pull/1403)**, reported by JU3RG and rtfact
 
 * Psysonic has a new app icon. It keeps the same rounded outline as before, so nothing shifts in the taskbar, dock or app launcher.
 
 ### Queue — start the first track added after clearing
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#1410](https://github.com/Psychotoxical/psysonic/pull/1410)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1410](https://github.com/Psysonic/psysonic/pull/1410)**
 
 * Adding a track to a cleared queue now mounts and starts it immediately instead of leaving it hidden as the current queue item without playing.
 
 ### Device sync — migration stays inside the folder you picked
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1411](https://github.com/Psychotoxical/psysonic/pull/1411)**, reported by [@youremailaddress](https://github.com/youremailaddress)
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1411](https://github.com/Psysonic/psysonic/pull/1411)**, reported by [@youremailaddress](https://github.com/youremailaddress)
 
 * Migrating a device to the current folder layout now refuses any rename that would reach outside the folder you selected, and reports it per file instead of carrying it out. The paths came from a settings file stored on the device itself, so a device prepared elsewhere could name locations the migration was never pointed at.
 * A drive that disappears during a migration is reported as exactly that, rather than as a rejected path.
 
 ### Surround tracks — hear all of the music on stereo speakers
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1413](https://github.com/Psychotoxical/psysonic/pull/1413)**, reported by [@tossmilestone](https://github.com/tossmilestone)
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1413](https://github.com/Psysonic/psysonic/pull/1413)**, reported by [@tossmilestone](https://github.com/tossmilestone)
 
 * A 5.1 track played on stereo speakers or headphones now mixes every channel into the two you hear. Previously only the front left and right were played, so anything the recording placed in the centre, the bass channel or the rear — often a large part of the arrangement — was silently dropped.
 * Surround output is unaffected: on a device that can take all the channels, the track still plays with them.
 
 ### Visualizer — smooth bass bars without shifting frequencies
 
-**By [@Manwe-777](https://github.com/Manwe-777), PR [#1416](https://github.com/Psychotoxical/psysonic/pull/1416)**
+**By [@Manwe-777](https://github.com/Manwe-777), PR [#1416](https://github.com/Psysonic/psysonic/pull/1416)**
 
 * Narrow bass bands no longer move in flat lockstep plateaus when several bars share one FFT bin. Frequency positions stay correct at standard and Hi-Res sample rates, while bands with real bin coverage keep their peak response.
 
 ### Linux media controls — keep volume in sync
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#1420](https://github.com/Psychotoxical/psysonic/pull/1420)**, reported by [@Logey](https://github.com/Logey)
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1420](https://github.com/Psysonic/psysonic/pull/1420)**, reported by [@Logey](https://github.com/Logey)
 
 * Changing volume through `playerctl` or other MPRIS controls now updates Psysonic, and volume changes inside Psysonic are reflected back to the desktop controls instead of the two levels drifting apart.
 
@@ -497,25 +497,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Square corners — sharp-edged cards and covers
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1215](https://github.com/Psychotoxical/psysonic/pull/1215)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1215](https://github.com/Psysonic/psysonic/pull/1215)**
 
 * New **Square Corners** toggle under **Settings → Appearance → Visual Options → Display** overrides the active theme to render cards and cover art with square, non-rounded corners. Covers album, playlist, artist and song cards, detail-page cover art, the Now Playing / Radio and fullscreen views, the cover lightbox, the queue cover, and the mini player. Off by default; buttons, inputs and dialogs keep the theme's corners.
 
 ### Discord community banner
 
-**By [@ImAsra](https://github.com/ImAsra), PR [#1222](https://github.com/Psychotoxical/psysonic/pull/1222)**
+**By [@ImAsra](https://github.com/ImAsra), PR [#1222](https://github.com/Psysonic/psysonic/pull/1222)**
 
 * A dismissible banner inviting you to join the Psysonic community on Discord appears after 20 hours of accumulated app use. **Join** opens the invite; dismiss it for the session, or choose **Never show again** to hide it permanently. The icon renders at a consistent size on every platform, including Windows.
 
 ### Bulgarian translation
 
-**By [@akirichev](https://github.com/akirichev), PR [#1228](https://github.com/Psychotoxical/psysonic/pull/1228)**
+**By [@akirichev](https://github.com/akirichev), PR [#1228](https://github.com/Psysonic/psysonic/pull/1228)**
 
 * Full Bulgarian (Български) UI translation — selectable from the language picker on the Settings and Login screens.
 
 ### Artists browse — album vs track credit mode
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#1232](https://github.com/Psychotoxical/psysonic/pull/1232)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1232](https://github.com/Psysonic/psysonic/pull/1232)**
 
 * Toggle **Album artists** vs **Track artists** on the Artists page — album mode lists indexed album artists; track mode includes performers from the local artist index (featured/guest credits). Star filter works in both modes; the choice persists across app restarts like **Show artist images**.
 * Letter bucket filter (`A`–`Z`, `#`, `OTHER`) runs in local SQL instead of scanning catalog chunks client-side, so late-alphabet picks load promptly on large libraries.
@@ -523,21 +523,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### CLI — relative volume and quieter scripting output
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#1238](https://github.com/Psychotoxical/psysonic/pull/1238)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1238](https://github.com/Psysonic/psysonic/pull/1238)**
 
 * `psysonic --player volume +5` / `volume -10` adjust the current level by that many percent; `volume 80` still sets an absolute level (use `-q` before `--player` when the delta is negative so it is not parsed as a flag).
 * CLI invocations no longer print WebKit/NVIDIA workaround notes on stderr; on Linux, remote `--player` forwarding runs before WebKit startup so helper processes exit with less noise.
 
 ### Theme Store — per-theme changelogs and pinned updates
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1240](https://github.com/Psychotoxical/psysonic/pull/1240)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1240](https://github.com/Psysonic/psysonic/pull/1240)**
 
 * Each theme card now has an expandable **What's new** with per-version release notes, so you can see what a theme update changed — including non-visual fixes. Provided by theme authors; themes without notes just don't show the section.
 * Installed themes with an available update now appear at the top of the store list instead of wherever the sort placed them, so you don't have to hunt for them.
 
 ### Multi-library filter — browse and search across selected libraries
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#1241](https://github.com/Psychotoxical/psysonic/pull/1241)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1241](https://github.com/Psysonic/psysonic/pull/1241)**
 
 * The sidebar library picker now supports **multi-select with priority ordering**: browse, search, genre and album/artist detail views aggregate across the chosen libraries and de-duplicate shared items by priority. Built for large libraries — scoped SQL uses the hot `library_id` column with covering indexes and FTS-first matching.
 * Identity matching that powers cross-library de-duplication now normalises names per shipped locale (folds German ß, Norwegian æ, French œ, Romanian ș/ț, and Cyrillic ё/й); CJK titles are matched as-is.
@@ -545,7 +545,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Theme contributors credited in Settings
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1248](https://github.com/Psychotoxical/psysonic/pull/1248)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1248](https://github.com/Psysonic/psysonic/pull/1248)**
 
 * **Settings → System → Contributors** now lists community theme authors in a **Themes** sub-section alongside the **App** contributors, pulled from the theme store so it stays current as new themes are published.
 * The theme card **What's new** now shows just the latest version's notes instead of the full version history.
@@ -553,26 +553,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fullscreen player — Minimal and Immersive styles
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1249](https://github.com/Psychotoxical/psysonic/pull/1249)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1249](https://github.com/Psysonic/psysonic/pull/1249)**
 
 * **Settings → Appearance → Fullscreen player style** lets you choose **Minimal** (the current view) or **Immersive** — the earlier fullscreen player, with the artist photo/backdrop, a cover-derived accent colour, and rail or Apple-style scrolling lyrics.
 * In Immersive, **Show artist photo** and **Photo dimming** are configurable; Apple-style lyrics show the artist image as a dimmed full-screen backdrop.
 
 ### Italian translation
 
-**By [@daquino94](https://github.com/daquino94), PR [#1250](https://github.com/Psychotoxical/psysonic/pull/1250)**
+**By [@daquino94](https://github.com/daquino94), PR [#1250](https://github.com/Psysonic/psysonic/pull/1250)**
 
 * Full Italian (Italiano) UI translation — selectable from the language picker on the Settings and Login screens.
 
 ### Fullscreen player — Prism style
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1251](https://github.com/Psychotoxical/psysonic/pull/1251)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1251](https://github.com/Psysonic/psysonic/pull/1251)**
 
 * A third **Fullscreen player style**, **Prism** — a full-bleed artist backdrop with a floating glass lyrics panel on the right and a single glass control bar at the bottom (transport, a centred now-playing pill with an integrated progress line, and utilities). The cover-derived accent colour drives the progress fill and the active lyric line, and upcoming lyric lines fade out with a progressive blur.
 
 ### Lyrics — word-by-word highlighting straight from your server
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1265](https://github.com/Psychotoxical/psysonic/pull/1265)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1265](https://github.com/Psysonic/psysonic/pull/1265)**
 
 * The **Server** lyrics source now highlights lyrics word by word, so karaoke sync no longer depends on the third-party YouLyPlus backend. Requires Navidrome 0.63 or newer and lyrics that carry word timing (TTML or Enhanced LRC); anything else keeps highlighting line by line.
 * **Settings → Lyrics → Lyrics Sources** spells out those requirements, and the block now follows the standard settings sub-card layout.
@@ -581,7 +581,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Start minimized to tray
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#1271](https://github.com/Psychotoxical/psysonic/pull/1271)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1271](https://github.com/Psysonic/psysonic/pull/1271)**
 
 * New **Start Minimized to Tray** toggle under **Settings → System → Behavior**. When enabled, the next cold start keeps the main window hidden and Psysonic runs from the system tray until you show it from the tray icon.
 * Requires **Show Tray Icon** (turning this on enables the tray automatically; hiding the tray clears the setting). The choice applies on the next launch only — toggling it in Settings does not hide the window immediately.
@@ -589,7 +589,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Navidrome public share links — open and play without logging in
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#1275](https://github.com/Psychotoxical/psysonic/pull/1275)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1275](https://github.com/Psysonic/psysonic/pull/1275)**
 
 * Paste or search a Navidrome **public share** URL (`/share/{id}`) to preview the shared track list in a modal, then play the full queue with no server account — direct stream and cover URLs are resolved anonymously from the share page.
 * Share playback uses a dedicated scope so an idle server play-queue pull cannot replace the share queue while you are also logged into Navidrome. Share sessions are not restored after an app restart — the server play queue applies as usual.
@@ -597,7 +597,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Track lists — optional album cover thumbnails
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#1280](https://github.com/Psychotoxical/psysonic/pull/1280)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1280](https://github.com/Psysonic/psysonic/pull/1280)**
 
 * Browse and queue track rows can show the track's **album** cover (per-disc art when the album has distinct disc covers). Covers load through the standard cover cache pipeline — library resolve, viewport ensure, Rust resize to disk tiers — not a separate warm path.
 * **Settings → Appearance** adds separate toggles for queue vs browse tracklists. Favorites, playlist, and album-detail track grids gain a flex-resize handle on the title column when covers are shown.
@@ -605,25 +605,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Discord — server cover art source, without the credential leak
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1299](https://github.com/Psychotoxical/psysonic/pull/1299)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1299](https://github.com/Psysonic/psysonic/pull/1299)**
 
 * **Settings → Integrations → Discord → Cover art source** gets a **Server** option, alongside **None** and **Apple Music**. It resolves artwork through the standard Subsonic `getAlbumInfo2` endpoint's public image link — never an authenticated cover URL that could expose your login credentials (reported by lavioso on Discord). Needs a publicly reachable server; anyone viewing your Discord profile can see that server's public address, but nothing else.
 
 ### Playlist cards — play and queue from the right-click menu
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1307](https://github.com/Psychotoxical/psysonic/pull/1307)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1307](https://github.com/Psysonic/psysonic/pull/1307)**
 
 * Right-clicking a playlist card now offers **Play next** and **Add to queue** alongside **Play now**, matching the album card. All three honour offline mode and the active multi-library filter.
 
 ### Playlists browse — scoped header search
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#1308](https://github.com/Psychotoxical/psysonic/pull/1308)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1308](https://github.com/Psysonic/psysonic/pull/1308)**
 
 * The header search field on the Playlists page now filters the list by playlist name (same scoped badge pattern as Artists / Albums), including in folder view.
 
 ### Artist page — add the whole discography to the queue
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1321](https://github.com/Psychotoxical/psysonic/pull/1321)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1321](https://github.com/Psysonic/psysonic/pull/1321)**
 
 * A new queue button on the artist page appends the artist's entire discography to the current queue in one click, next to Play all and Shuffle — matching what album pages already offer.
 
@@ -632,19 +632,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Frontend restructure — feature-folder architecture and hardening
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), with additional architecture by [@cucadmuh](https://github.com/cucadmuh), PR [#1225](https://github.com/Psychotoxical/psysonic/pull/1225)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), with additional architecture by [@cucadmuh](https://github.com/cucadmuh), PR [#1225](https://github.com/Psysonic/psysonic/pull/1225)**
 
 * Reorganised the frontend into a feature-folder architecture with a CI-enforced layering guard, added unit + behavior-scenario + boot-smoke test coverage, and introduced a compile-time frontend/backend IPC contract via tauri-specta. Internal only — no change to how the app looks or behaves.
 
 ### Typed-IPC contract — completed the tauri-specta cutover
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), with additional architecture by [@cucadmuh](https://github.com/cucadmuh), PR [#1230](https://github.com/Psychotoxical/psysonic/pull/1230)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), with additional architecture by [@cucadmuh](https://github.com/cucadmuh), PR [#1230](https://github.com/Psysonic/psysonic/pull/1230)**
 
 * Completed the frontend/backend typed-IPC contract: the frontend now calls the generated tauri-specta command surface, with CI guards keeping the bindings fresh and every command registered in the handler. Internal only — no change to how the app looks or behaves.
 
 ### Equalizer — per-device profiles follow the active system default
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#1274](https://github.com/Psychotoxical/psysonic/pull/1274)**, suggested by [@JustBuddy](https://github.com/JustBuddy)
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1274](https://github.com/Psysonic/psysonic/pull/1274)**, suggested by [@JustBuddy](https://github.com/JustBuddy)
 
 * With **Remember EQ per device** enabled and **System Default** selected, the equalizer now keys profiles to the active OS default output and switches when that default changes externally (Windows sound settings, Stream Deck, etc.), instead of using one shared profile for all system-default outputs.
 * On Linux/PipeWire, the active default is resolved from WirePlumber (`wpctl`) first — including Hyprpanel, pavucontrol, and `wpctl set-default` — not cpal, which can keep a stale card name even after the default sink changes. When PipeWire has already moved the playback stream to the new default, the device watcher skips a redundant stream reopen (avoids a post-switch stutter).
@@ -652,14 +652,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Player bar — build your own
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1287](https://github.com/Psychotoxical/psysonic/pull/1287)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1287](https://github.com/Psysonic/psysonic/pull/1287)**
 
 * **Settings → Personalisation → Player bar** now also hides the **stop button** and shows the **album name** under the artist (off by default; clicking it opens the album). The right-hand buttons — star rating, favorite, love, playback speed, equalizer, mini player — can be **dragged into any order** you like.
 * The section is no longer behind **Advanced**.
 
 ### Shuffle
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1288](https://github.com/Psychotoxical/psysonic/pull/1288)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1288](https://github.com/Psysonic/psysonic/pull/1288)**
 
 * A **shuffle toggle** in the player bar, next to the transport controls. While on, the queue is shuffled from the current track onwards — the playing track stays put — and turning it off restores the original order. It survives a restart, and the shuffled order is what your other devices and Orbit guests see, so playback stays in step everywhere. Hide the button under **Settings → Personalisation → Player bar** if you don't want it.
 
@@ -667,13 +667,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Per-track covers when playing from a playlist
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1218](https://github.com/Psychotoxical/psysonic/pull/1218)**, reported by The Cup Slammer on Discord
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1218](https://github.com/Psysonic/psysonic/pull/1218)**, reported by The Cup Slammer on Discord
 
 * Playing a song from a playlist could show the song's own cover art in Now Playing instead of its album cover, while playing the same song from its album page showed the album cover. Now Playing now consistently uses the album cover, matching album-page playback. Albums with genuine per-disc artwork are unaffected.
 
 ### Playback — ReplayGain prefetch, gapless playbar sync, and library peak index
 
-**By [@cucadmuh](https://github.com/cucadmuh), reported by Asra on the Psysonic Discord, PR [#1231](https://github.com/Psychotoxical/psysonic/pull/1231)**
+**By [@cucadmuh](https://github.com/cucadmuh), reported by Asra on the Psysonic Discord, PR [#1231](https://github.com/Psysonic/psysonic/pull/1231)**
 
 * ReplayGain applies when stream or queue metadata resolves late — index-first prefetch before bind, reactive sync when resolver tags land, and live refresh from the library index after sync when tags differ on the playing track.
 * Gapless auto-advance no longer leaves the playbar on the previous track; missed `audio:track_switched` is reconciled from engine position with seek guards so backward seek is not treated as a gapless switch.
@@ -681,27 +681,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Connection — ignore spurious offline hint on desktop
 
-**By [@cucadmuh](https://github.com/cucadmuh), reported by mikmik on the Psysonic Discord, PR [#1234](https://github.com/Psychotoxical/psysonic/pull/1234)**
+**By [@cucadmuh](https://github.com/cucadmuh), reported by mikmik on the Psysonic Discord, PR [#1234](https://github.com/Psysonic/psysonic/pull/1234)**
 
 * Desktop builds no longer get stuck showing "offline" when WebKitGTK leaves `navigator.onLine` stuck at `false` while the server is actually reachable — the app now confirms with a real server probe instead of trusting that hint, so browse and playback keep working. Web builds are unchanged.
 * Pending favorite/rating sync now flushes when the server actually becomes reachable again, rather than relying on a browser `online` event that may never fire on desktop.
 
 ### Playlists — add more than ~341 tracks; faster large-playlist edits
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#1235](https://github.com/Psychotoxical/psysonic/pull/1235)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1235](https://github.com/Psysonic/psysonic/pull/1235)**
 
 * Adding tracks to a playlist no longer fails past ~341 songs — writes are sent to the server in batches instead of one oversized request, so playlists of any size build correctly.
 * Adding and merging into large playlists is faster: playlist membership is cached in memory for de-duplication instead of re-fetching the whole playlist on every add.
 
 ### Queue — rows no longer stuck showing "…"
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#1236](https://github.com/Psychotoxical/psysonic/pull/1236)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1236](https://github.com/Psysonic/psysonic/pull/1236)**
 
 * Queue rows that were far from the currently playing track (e.g. after starting a large playlist from the middle, or scrolling the queue) no longer stay stuck on a "…" placeholder — the queue now loads track details for whatever you scroll to, in the desktop queue panel, the mobile queue drawer, and the fullscreen "up next" overlay.
 
 ### Offline browse — on-disk-only Artists, Albums, Tracks, and Genres
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#1243](https://github.com/Psychotoxical/psysonic/pull/1243)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1243](https://github.com/Psysonic/psysonic/pull/1243)**
 
 * When browsing offline, Artists, Albums, Tracks, and Genres now list only content with on-disk bytes — library pins, favorites-auto saves, and hot-cache playback — instead of the full server or local index catalog.
 * Sidebar and shell gates react when hot-cache rows appear; browse pages reload after hot-cache growth and library sync without leaving the page.
@@ -709,13 +709,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### All Albums — year filter keyboard entry
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#1244](https://github.com/Psychotoxical/psysonic/pull/1244)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1244](https://github.com/Psysonic/psysonic/pull/1244)**
 
 * The year filter on All Albums no longer clamps on every keystroke while typing a four-digit year — drafts commit on blur, Enter, or outside click; incomplete input reverts to the last applied value. Wheel and spinner controls are unchanged.
 
 ### Album detail — favorite heart and album-level stars
 
-**By [@cucadmuh](https://github.com/cucadmuh), reported by HiveMind on the Psysonic Discord, PR [#1247](https://github.com/Psychotoxical/psysonic/pull/1247)**
+**By [@cucadmuh](https://github.com/cucadmuh), reported by HiveMind on the Psysonic Discord, PR [#1247](https://github.com/Psysonic/psysonic/pull/1247)**
 
 * Starring an album on the detail page now fills the heart immediately and keeps it filled after reload or returning from Favorites — the local index stores album favorites in `album.starred_at` instead of inferring from track stars.
 * When only a track is starred, the album heart stays empty unless the album itself is in Favorites; unfavorite no longer requires a double click on the detail page.
@@ -723,45 +723,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Library — renamed artists no longer linger as ghosts after resync
 
-**By [@cucadmuh](https://github.com/cucadmuh), reported by Seraphim on the Psysonic Discord, PR [#1253](https://github.com/Psychotoxical/psysonic/pull/1253)**
+**By [@cucadmuh](https://github.com/cucadmuh), reported by Seraphim on the Psysonic Discord, PR [#1253](https://github.com/Psysonic/psysonic/pull/1253)**
 
 * Renaming an artist on the server no longer leaves a stale entry in the local Artists list that opened to "Artist not found" — a sync now prunes artist rows the latest server listing no longer confirms that also have no remaining tracks. Cleanup runs on both full and delta syncs (only after a confirmed artist listing, so a transient empty response can't drop valid entries), plus a one-time pass at startup that clears ghosts already accumulated in existing libraries.
 * Newly added or renamed entries now show up right after a resync instead of only after an app restart: the Artists and Albums pages refresh their cached catalog when a library sync finishes.
 
 ### Library — album artist links no longer dead-end at "Artist not found"
 
-**By [@cucadmuh](https://github.com/cucadmuh), reported by tummydummy, PR [#1254](https://github.com/Psychotoxical/psysonic/pull/1254)**
+**By [@cucadmuh](https://github.com/cucadmuh), reported by tummydummy, PR [#1254](https://github.com/Psysonic/psysonic/pull/1254)**
 
 * Clicking the artist beneath an album (most visibly in **Random Albums**) no longer shows "Artist not found" when the server's `getArtist` doesn't recognise that album-artist id — the artist page now falls back to the local library index, which shares the id the card was built from. Artist pages also stay reachable on a brief network hiccup when the library is indexed.
 
 ### Library — album tiles no longer miss cover art in Random Albums
 
-**By [@cucadmuh](https://github.com/cucadmuh), reported by tummydummy, PR [#1254](https://github.com/Psychotoxical/psysonic/pull/1254)**
+**By [@cucadmuh](https://github.com/cucadmuh), reported by tummydummy, PR [#1254](https://github.com/Psysonic/psysonic/pull/1254)**
 
 * Album tiles for rows that synced without a cover id (surfacing most in **Random Albums**) no longer show a blank cover while the detail page has one — local browse now falls back to the album's first track cover id, so tile and detail resolve the same artwork. The same fallback applies to the detail header's library cover resolution, so the two stay consistent instead of flickering between art and placeholder.
 
 ### Library — multi-library dedup sidecar no longer accumulates dead identity keys
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#1255](https://github.com/Psychotoxical/psysonic/pull/1255)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1255](https://github.com/Psysonic/psysonic/pull/1255)**
 
 * The precomputed `library-cluster.db` identity keys used for cross-library dedup are now pruned on rebuild when their track no longer exists (removed, or dropped when a server mints a fresh id on rename). Previously the rebuild only refreshed live tracks and never deleted stale rows, so the sidecar grew with library churn until it was recreated wholesale (server switch / restore / import). The rows were inert (reads only ever join live tracks), so dedup and browse results are unchanged — this just stops the sidecar from bloating.
 
 ### Library — renamed album artist links now heal on resync
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#1256](https://github.com/Psychotoxical/psysonic/pull/1256)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1256](https://github.com/Psysonic/psysonic/pull/1256)**
 
 * When an artist is renamed on the server (minting a new artist id), the album's stored artist link no longer stays stuck on the old id and dead-ending at "Artist not found". Album metadata now follows the server's `getAlbum` for the artist reference, so a resync updates it instead of keeping the pre-rename id indefinitely. Complements the earlier ghost-row prune (#1253) and the local-index fallback (#1254), which did not clear the stale reference itself.
 
 ### Sync — large play queues no longer revert after pausing
 
-**By [@norperz](https://github.com/norperz), PR [#1262](https://github.com/Psychotoxical/psysonic/pull/1262)**
+**By [@norperz](https://github.com/norperz), PR [#1262](https://github.com/Psysonic/psysonic/pull/1262)**
 
 * Pausing a large queue behind a reverse proxy (e.g. Nginx) could snap the player back to an earlier track — the save was one long URL that hit the HTTP 414 limit, failed silently, and idle auto-pull restored the stale server queue.
 * Servers advertising the OpenSubsonic `formPost` extension (Navidrome) now save via POST; others retry once as POST on 414. A failed save no longer lets auto-pull overwrite playback — it resumes only after a successful save.
 
 ### Servers — connecting to servers behind a header gate
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#1273](https://github.com/Psychotoxical/psysonic/pull/1273)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1273](https://github.com/Psysonic/psysonic/pull/1273)**
 
 * Adding a server that needs a custom HTTP header (Cloudflare Access, Pangolin service tokens) failed with "Connection failed" even though streaming and covers would have worked. Root cause: the connection test ran in the WebView, which sends a header-less CORS preflight the gate rejects before the real request. The test now runs natively for header-carrying servers, so the header rides on the request and the server connects.
 * A failed "Add server" used to close the form and leave only a tiny status dot, so it was unclear what went wrong. The form now stays open on failure and shows the reason — the server's own message (e.g. "Wrong username or password"), an HTTP status like `HTTP 403 Forbidden`, or a transport error — and empty server address / username are caught up front with a clear message.
@@ -774,74 +774,74 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Windows — MSI bundle on dev and RC versions
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#1278](https://github.com/Psychotoxical/psysonic/pull/1278)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1278](https://github.com/Psysonic/psysonic/pull/1278)**
 
 * Windows `.msi` builds no longer fail on channel versions like `1.50.0-dev` — WiX requires a numeric fourth version field, so the bundler maps `-dev` / `-rc.N` to numeric semver in `bundle.windows.wix.version` while Settings → About still shows the real package version.
 * Release builds no longer warn that the album feature barrel defeats a lazy import in the new-albums easter egg (direct import of the export helper).
 
 ### Internet Radio — equalizer presets now apply to radio playback
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#1284](https://github.com/Psychotoxical/psysonic/pull/1284)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1284](https://github.com/Psysonic/psysonic/pull/1284)**
 
 * Internet Radio playback stayed on HTML5 after v1.32, but EQ changes only reached the Rust engine used for library tracks — toggling EQ or switching presets had no effect on a live station. Radio now routes through a Web Audio 10-band graph on the same `<audio>` element when EQ is enabled; preset and slider changes update filters in place without restarting the stream.
 
 ### Music Network — connect errors now name their cause
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1285](https://github.com/Psychotoxical/psysonic/pull/1285)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1285](https://github.com/Psysonic/psysonic/pull/1285)**
 
 * Connecting a scrobble service could fail with only "Network error — check your connection or URL", which covers everything from a DNS failure to a blocked host, an interrupted TLS handshake or a rejected request. The underlying error is now shown alongside it, so a failing connect can be told apart from a reachability problem on your machine or network.
 
 ### Windows — Subsonic client id no longer `psysonic/undefined`
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#1290](https://github.com/Psychotoxical/psysonic/pull/1290)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1290](https://github.com/Psysonic/psysonic/pull/1290)**
 
 * Windows release builds could send `psysonic/undefined` as the Subsonic client id (visible in **Who is listening?**) when `package.json` version was read during a circular authStore boot-chunk init — prebuild now emits a leaf `SUBSONIC_CLIENT_ID` literal and the boot-chunk guard rejects unresolved client-id templates.
 
 ### Albums — "Artist / Year" sorting and albums with featured guests
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1292](https://github.com/Psychotoxical/psysonic/pull/1292)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1292](https://github.com/Psysonic/psysonic/pull/1292)**
 
 * Sorting albums by artist ordered them by the track artist while showing the album artist. On a release with featured guests the two differ, so it was filed under a name that isn't on screen — the album dropped out of its artist's run of years, sometimes behind a different artist entirely. Album sorting now follows the artist the row actually shows.
 
 ### Playlist and radio custom covers blank
 
-**By [@cucadmuh](https://github.com/cucadmuh), reported by VirtualWolf, PR [#1295](https://github.com/Psychotoxical/psysonic/pull/1295)**
+**By [@cucadmuh](https://github.com/cucadmuh), reported by VirtualWolf, PR [#1295](https://github.com/Psysonic/psysonic/pull/1295)**
 
 * Custom playlist and internet radio covers uploaded in Navidrome stayed blank in Psysonic (cards and detail headers) while album and track art worked. The cover resolver rewrote Navidrome's `pl-*` and `ra-*` getCoverArt ids into invalid `al-pl-*_0` / `al-ra-*_0` forms; fetch-only prefixes are now preserved in TS and Rust.
 
 ### Themes — album rails no longer cut off card shadows
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), reported by Asra on the Psysonic Discord, PR [#1300](https://github.com/Psychotoxical/psysonic/pull/1300)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), reported by Asra on the Psysonic Discord, PR [#1300](https://github.com/Psysonic/psysonic/pull/1300)**
 
 * Horizontal album rails clipped an outer card shadow at the edges, which only themes that use a real drop shadow ran into. Working around it meant overriding the rail's `overflow`, and that disabled the rail's `<` / `>` scroll arrows. Rails now reserve room for the shadow inside the rail itself, so the arrows keep working; a theme that needs more room can raise `--rail-shadow-room` instead of touching `overflow`.
 
 ### Accessibility — modal dialogs announce their title
 
-**By [@AliMahmoudDev](https://github.com/AliMahmoudDev), PR [#1301](https://github.com/Psychotoxical/psysonic/pull/1301)**
+**By [@AliMahmoudDev](https://github.com/AliMahmoudDev), PR [#1301](https://github.com/Psysonic/psysonic/pull/1301)**
 
 * Modal dialogs carried no accessible name, so a screen reader announced them without saying which dialog had opened. The dialog is now linked to its title, and each instance gets its own id so several open dialogs cannot be confused for one another.
 
 ### Themes — smooth UI with many themes installed
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), reported by Asra on the Psysonic Discord, PR [#1315](https://github.com/Psychotoxical/psysonic/pull/1315)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), reported by Asra on the Psysonic Discord, PR [#1315](https://github.com/Psysonic/psysonic/pull/1315)**
 
 * With a large number of community themes installed, every hover or playback-state change made the browser re-evaluate the CSS of every installed theme, which could slow the UI to a crawl. Only the active theme (plus the scheduler's day and night picks) participates now; the others stay dormant until applied — switching themes is unaffected.
 
 ### Settings — cover art toggles translated
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1319](https://github.com/Psychotoxical/psysonic/pull/1319)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1319](https://github.com/Psysonic/psysonic/pull/1319)**
 
 * The queue cover-art setting and the track-list setting's title showed English text in every language except Russian — both are translated in all languages now, and the German description states more precisely which pages show the thumbnails.
 
 ### Square corners — player bar and list thumbnails included
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), reported by JU3RG on the Psysonic Discord, PR [#1320](https://github.com/Psychotoxical/psysonic/pull/1320)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), reported by JU3RG on the Psysonic Discord, PR [#1320](https://github.com/Psysonic/psysonic/pull/1320)**
 
 * The Square Corners toggle left the player bar cover and the small cover thumbnails in list rows rounded (queue, playlists, favorites, search, Random Mix). They now go square with everything else; the floating player bar's circular cover stays round by design.
 
 ### Duplicate server session on Navidrome
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), reported by TheHomeGuy on the Psysonic Discord, PR [#1322](https://github.com/Psychotoxical/psysonic/pull/1322)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), reported by TheHomeGuy on the Psysonic Discord, PR [#1322](https://github.com/Psysonic/psysonic/pull/1322)**
 
 * Native requests carried a separate User-Agent from the in-app view, so the server listed the app as two logged-in players at once. They now share one identity and show as a single session.
 
@@ -852,27 +852,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Theme store — version numbers and an animated/static filter
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1104](https://github.com/Psychotoxical/psysonic/pull/1104)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1104](https://github.com/Psysonic/psysonic/pull/1104)**
 
 * Theme versions now show in the store (next to the author) and under each installed community theme; when an update is available, the store shows the installed → available version.
 * New store filter to show only animated themes or only static ones, next to the existing mode and sort controls.
 
 ### Playlist folders
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1119](https://github.com/Psychotoxical/psysonic/pull/1119)**, suggested by [@SilverWolf24](https://github.com/SilverWolf24)
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1119](https://github.com/Psysonic/psysonic/pull/1119)**, suggested by [@SilverWolf24](https://github.com/SilverWolf24)
 
 * Organise your playlists into folders on the Playlists page and in the sidebar — create folders, drag playlists into them (or use the right-click "Move to folder" menu), rename, collapse and switch between the folder view and a single flat list. Folders are saved locally on this device only, since the Subsonic API has no folder support.
 
 ### AutoDJ — content-aware crossfade
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#1122](https://github.com/Psychotoxical/psysonic/pull/1122) and [@Psychotoxical](https://github.com/Psychotoxical), PR [#1124](https://github.com/Psychotoxical/psysonic/pull/1124)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1122](https://github.com/Psysonic/psysonic/pull/1122) and [@Psychotoxical](https://github.com/Psychotoxical), PR [#1124](https://github.com/Psysonic/psysonic/pull/1124)**
 
 * New **AutoDJ** crossfade mode. Instead of a fixed crossfade time, it blends what you actually hear: it trims the dead silence at the end of one track and the start of the next, and picks the overlap from the music itself — a track that fades out rides its own fade while the next one rises underneath, and two tracks that both start/end loud get a short musical blend instead of an abrupt cut. Works most reliably with the Hot playback cache enabled, since the next track's audio needs to be ready for the blend.
 * AutoDJ is now its own mode rather than a sub-option of Crossfade — its own button in the queue toolbar and its own entry in the audio settings. Crossfade, AutoDJ and Gapless are mutually exclusive (only one active at a time) under a single Off / Gapless / Crossfade / AutoDJ picker, the playback settings are regrouped into clearer Normalization / Track transitions / Queue behaviour panels, and the queue toolbar's separate Save and Load playlist buttons are combined into one Playlist menu (existing toolbar layouts are preserved). Off by default; classic Crossfade is unchanged.
 
 ### AutoDJ — smooth skip and interrupt blend
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#1128](https://github.com/Psychotoxical/psysonic/pull/1128)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1128](https://github.com/Psysonic/psysonic/pull/1128)**
 
 * New **Smooth skip** toggle under Settings → Audio → Track transitions (on by default when AutoDJ is active). Manual Next/Previous and picking a track from the library, an album, or the infinite queue crossfade from where you are listening instead of hard-cutting.
 * Loud→loud queue advances use a consistent ~2s musical blend; manual skips cap at the same length so quiet intros are not drowned out.
@@ -881,7 +881,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Play queue sync — cross-device handoff
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#1131](https://github.com/Psychotoxical/psysonic/pull/1131)**, closes [#1129](https://github.com/Psychotoxical/psysonic/issues/1129)
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1131](https://github.com/Psysonic/psysonic/pull/1131)**, closes [#1129](https://github.com/Psysonic/psysonic/issues/1129)
 
 * Manual **pull** from the header connection indicator (LED + sync ring): click to fetch the active server's play queue when it differs from the local player; no-op when already in sync. Yellow LED when browse server ≠ playback server (e.g. after switching servers).
 * **Idle auto-pull** when paused/stopped for 30+ seconds on a single-server queue (active = playback): polls every 10s and applies server changes.
@@ -889,17 +889,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Japanese and Hungarian translations
 
-**By [@Soli0222](https://github.com/Soli0222), PR [#1134](https://github.com/Psychotoxical/psysonic/pull/1134)**
+**By [@Soli0222](https://github.com/Soli0222), PR [#1134](https://github.com/Psysonic/psysonic/pull/1134)**
 
 * Full Japanese (日本語) UI translation — selectable from the language picker on the Settings and Login screens.
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1149](https://github.com/Psychotoxical/psysonic/pull/1149)**, a gift to [@falu](https://github.com/falu) for the first independent review of Psysonic
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1149](https://github.com/Psysonic/psysonic/pull/1149)**, a gift to [@falu](https://github.com/falu) for the first independent review of Psysonic
 
 * Psysonic is now available in **Hungarian (Magyar)** — pick it from the language menu on the Settings and Login screens.
 
 ### Artist artwork from fanart.tv
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1137](https://github.com/Psychotoxical/psysonic/pull/1137) and PR [#1193](https://github.com/Psychotoxical/psysonic/pull/1193)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1137](https://github.com/Psysonic/psysonic/pull/1137) and PR [#1193](https://github.com/Psysonic/psysonic/pull/1193)**
 
 * New opt-in **External Artwork Scraper** (Settings → Integrations, off by default): artist imagery from fanart.tv — a 16:9 background on the fullscreen player and a wide banner on the artist page — with Navidrome staying the canonical cover. Optional personal key; turning it off removes the fetched images again.
 * The **mainstage hero** on the home screen now shows the album artist's backdrop too, matching the fullscreen player and artist page.
@@ -907,13 +907,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Remember the equalizer per audio output device
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1146](https://github.com/Psychotoxical/psysonic/pull/1146)**, suggested by [@JustBuddy](https://github.com/JustBuddy)
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1146](https://github.com/Psysonic/psysonic/pull/1146)**, suggested by [@JustBuddy](https://github.com/JustBuddy)
 
 * New opt-in **Remember EQ per device** toggle (Settings → Audio → Audio Output Device, off by default): the equalizer profile — bands, pre-gain, enabled state and active preset — is saved per audio output device and restored automatically when you switch devices.
 
 ### Custom HTTP headers for gated servers
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#1156](https://github.com/Psychotoxical/psysonic/pull/1156)**, closes [#1095](https://github.com/Psychotoxical/psysonic/issues/1095)
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1156](https://github.com/Psysonic/psysonic/pull/1156)**, closes [#1095](https://github.com/Psysonic/psysonic/issues/1095)
 
 * Per-server **custom HTTP headers** in Settings → Servers for reverse-proxy gates (Cloudflare Access, Pangolin, and similar): add name/value pairs, choose whether they apply to the local URL, public URL, or both on dual-address profiles.
 * Headers attach to every user-server HTTP path — library sync, playback, covers, offline download, Navidrome admin, capability probes, and share-link preview — without putting secrets in invite links or magic strings.
@@ -921,20 +921,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Orbit — shared crossfade, gapless and AutoDJ
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1158](https://github.com/Psychotoxical/psysonic/pull/1158)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1158](https://github.com/Psysonic/psysonic/pull/1158)**
 
 * In an Orbit session the host's track-transition settings — crossfade, gapless or AutoDJ, including the crossfade length and smooth-skip — now apply to everyone, so guests blend between tracks the same way the host does instead of each person using their own. Your own settings are restored when you leave.
 * While you are a guest in a session, the transition controls in Settings → Audio and the queue toolbar are shown as host-controlled.
 
 ### Theme scheduler — follow the system theme
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1163](https://github.com/Psychotoxical/psysonic/pull/1163)**, suggested by [@mokazemi](https://github.com/mokazemi)
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1163](https://github.com/Psysonic/psysonic/pull/1163)**, suggested by [@mokazemi](https://github.com/mokazemi)
 
 * The theme scheduler can now switch your day/night theme pair based on your operating system's light/dark setting, in addition to the existing time-of-day schedule. Pick the trigger with a new Time of Day / System Theme switch; in system mode the two pickers read as Light and Dark theme. On Linux setups where the OS does not signal the change live, a hint notes it applies after restarting the app.
 
 ### Hi-Res transition blend rate
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#1171](https://github.com/Psychotoxical/psysonic/pull/1171)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1171](https://github.com/Psysonic/psysonic/pull/1171)**
 
 * **Settings → Audio → Native Hi-Res** gains a blend-rate picker (44.1 / 88.2 / 96 kHz, default 44.1 kHz) for transitions when adjacent tracks have different sample rates, with a note that resampling uses extra CPU and memory.
 * **Crossfade / AutoDJ:** both sides resample to the chosen rate; the output stream reopens when needed and the outgoing track rebuilds from cache so mixed 88.2 ↔ 44.1 kHz transitions no longer tear mid-fade.
@@ -942,39 +942,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### AutoDJ — configurable overlap cap
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#1173](https://github.com/Psychotoxical/psysonic/pull/1173)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1173](https://github.com/Psysonic/psysonic/pull/1173)**
 
 * **Settings → Audio → Track transitions → AutoDJ:** choose **Auto** (content-driven overlap, up to 12 s) or **Limit** (slider 2–30 s, default 15 s when enabled) to cap how long AutoDJ may overlap tracks.
 * The cap applies to end-of-track planning, JS auto-advance, smooth skip, and Orbit transition sync; the audio engine accepts dynamic overlap overrides up to 30 s.
 
 ### Polish translation
 
-**By [@Rextens](https://github.com/Rextens), PR [#1185](https://github.com/Psychotoxical/psysonic/pull/1185)**
+**By [@Rextens](https://github.com/Rextens), PR [#1185](https://github.com/Psysonic/psysonic/pull/1185)**
 
 * Full Polish (Polski) UI translation — selectable from the language picker on the Settings and Login screens.
 
 ### Multiple genres in album details
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1186](https://github.com/Psychotoxical/psysonic/pull/1186)**, suggested by [@Thraka](https://github.com/Thraka)
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1186](https://github.com/Psysonic/psysonic/pull/1186)**, suggested by [@Thraka](https://github.com/Thraka)
 
 * Album details now surface every genre a release spans instead of just the first one: the main genre shows inline with a **+N** chip that opens the full, clickable list, each genre linking to its genre page.
 * Genres combine album and track tags (matching the genre browser) and read from the local library index when it is ready, so they also work offline.
 
 ### Compact buttons — switch action and toolbar buttons to icon-only
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1189](https://github.com/Psychotoxical/psysonic/pull/1189)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1189](https://github.com/Psysonic/psysonic/pull/1189)**
 
 * New **Compact buttons** setting under Settings → Appearance. Switch the action and toolbar buttons between large labelled buttons and small icon-only ones — across album, artist and playlist headers, the shared browse toolbars (sort, filters, multi-select), and the Most Played sort/filter controls. Defaults to large, so nothing changes unless you turn it on. On phones the album header keeps its large touch targets.
 
 ### Playlists — sort by date added
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1191](https://github.com/Psychotoxical/psysonic/pull/1191)**, suggested by SinFist
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1191](https://github.com/Psysonic/psysonic/pull/1191)**, suggested by SinFist
 
 * Sort a playlist by **Date added** (newest or oldest first), or by title, artist, album and the other columns, from a new sort dropdown in the playlist filter toolbar. The Subsonic API has no per-track "added on" date, so this follows the playlist's own order — servers add new tracks at the end, so newest-first puts your latest additions on top.
 
 ### WinGet update command in the update dialog (Windows)
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1202](https://github.com/Psychotoxical/psysonic/pull/1202)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1202](https://github.com/Psysonic/psysonic/pull/1202)**
 
 * The Windows update dialog now also shows the WinGet command (`winget upgrade Psysonic`) next to the installer download, so you can update whichever way you installed.
 
@@ -983,7 +983,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Settings — consistent grouped layout
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1126](https://github.com/Psychotoxical/psysonic/pull/1126) and PR [#1130](https://github.com/Psychotoxical/psysonic/pull/1130)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1126](https://github.com/Psysonic/psysonic/pull/1126) and PR [#1130](https://github.com/Psysonic/psysonic/pull/1130)**
 
 * The settings tabs now group related controls into clearly bordered, labelled panels for a more consistent, easier-to-scan layout — across Appearance, System, Audio, Storage, Library, Integrations, Music Network, Lyrics, Personalisation, Input and Themes. Standalone toggles are left as they were, and a few duplicated section titles are gone.
 * The **Lucky Mix menu** toggle moved from the Library tab to the sidebar customizer, alongside the other navigation toggles.
@@ -994,14 +994,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Russian locale — missing strings and phrasing cleanup
 
-**By [@kilyabin](https://github.com/kilyabin), PR [#1181](https://github.com/Psychotoxical/psysonic/pull/1181)**
+**By [@kilyabin](https://github.com/kilyabin), PR [#1181](https://github.com/Psysonic/psysonic/pull/1181)**
 
 * Fifty strings that still fell back to English in the Russian UI are now translated — macOS in-place updater, device sync file migration, fullscreen lyrics, and statistics share-image export.
 * User-facing descriptions in Russian and English no longer mention WebKitGTK or Fisher–Yates internals; several Russian labels and section titles read more naturally (settings casing, smart playlists, track transitions, and home rails).
 
 ### macOS — themed window title bar
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1199](https://github.com/Psychotoxical/psysonic/pull/1199)**, suggested by [@bcorporaal](https://github.com/bcorporaal)
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1199](https://github.com/Psysonic/psysonic/pull/1199)**, suggested by [@bcorporaal](https://github.com/bcorporaal)
 
 * On macOS the window's title bar now follows the active theme instead of the grey system bar; the native macOS window buttons stay in place, floating over the themed bar.
 
@@ -1010,68 +1010,68 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Seeking in streamed Opus/Ogg tracks
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#1110](https://github.com/Psychotoxical/psysonic/pull/1110)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1110](https://github.com/Psysonic/psysonic/pull/1110)**
 
 * Scrubbing an Opus/Ogg track that was still streaming did nothing — the seekbar snapped back, and seeking only worked once the track had fully downloaded. Seeking now works mid-stream: the player fetches just the part of the file it needs over HTTP instead of waiting for the whole track to download. Cached and local files are unchanged. (Follow-up to the 1.48.1 Opus/Ogg seek-crash fix, #1100, which made streamed seeking a safe no-op rather than a crash.)
 
 ### Media buttons missing from the Windows taskbar preview
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1112](https://github.com/Psychotoxical/psysonic/pull/1112)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1112](https://github.com/Psysonic/psysonic/pull/1112)**
 
 * The Previous / Play-Pause / Next buttons in the Windows taskbar thumbnail preview (the popup shown when hovering the taskbar icon) had stopped appearing. They are back, and the middle button's icon again reflects the current playback state.
 
 ### Album sorting within artists
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1115](https://github.com/Psychotoxical/psysonic/pull/1115), PR [#1120](https://github.com/Psychotoxical/psysonic/pull/1120)**, suggested by [@kingley82](https://github.com/kingley82)
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1115](https://github.com/Psysonic/psysonic/pull/1115), PR [#1120](https://github.com/Psysonic/psysonic/pull/1120)**, suggested by [@kingley82](https://github.com/kingley82)
 
 * When browsing albums sorted by artist, each artist's albums appeared in an arbitrary order. They are now ordered A–Z by album title within each artist.
 * New **Artist → Year** sort option groups albums by artist and orders each artist's albums chronologically (oldest first).
 
 ### "Add to playlist" from the player bar added the whole album
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1117](https://github.com/Psychotoxical/psysonic/pull/1117)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1117](https://github.com/Psysonic/psysonic/pull/1117)**
 
 * Right-clicking the current track in the player bar opened an album menu, so "Add to playlist" added the entire album instead of the playing song. The player bar menu now acts on the current song.
 
 ### Security — transitive form-data CRLF injection (GHSA-hmw2-7cc7-3qxx)
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#1118](https://github.com/Psychotoxical/psysonic/pull/1118)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1118](https://github.com/Psysonic/psysonic/pull/1118)**
 
-* Bumped transitive `form-data` 4.0.5 → 4.0.6 (via axios) to close Dependabot alert [#18](https://github.com/Psychotoxical/psysonic/security/dependabot/18) for CRLF injection in multipart field names (CVE-2026-12143). Psysonic only uses axios for GET requests, so exploitability was low; the lockfile bump clears the advisory.
+* Bumped transitive `form-data` 4.0.5 → 4.0.6 (via axios) to close Dependabot alert [#18](https://github.com/Psysonic/psysonic/security/dependabot/18) for CRLF injection in multipart field names (CVE-2026-12143). Psysonic only uses axios for GET requests, so exploitability was low; the lockfile bump clears the advisory.
 
 ### Live listener badge stale when the popover was closed
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#1125](https://github.com/Psychotoxical/psysonic/pull/1125)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1125](https://github.com/Psysonic/psysonic/pull/1125)**
 
 * The Live header badge only refreshed `getNowPlaying` while the "Who is listening?" popover was open, so the listener count could stay stale or hidden until opened. Poll every 30 s while the window is visible (10 s while the popover is open); background fetches are silent so the header does not flash a loading state.
 
 ### Niri compositor tiling WM detection
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#1127](https://github.com/Psychotoxical/psysonic/pull/1127)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1127](https://github.com/Psysonic/psysonic/pull/1127)**
 
 * Niri is now recognized as a tiling window manager (`NIRI_SOCKET`, `XDG_CURRENT_DESKTOP=niri`), so it gets the same custom title bar, window decorations, and mini-player behavior as Hyprland and Sway instead of being treated like a floating desktop.
 
 ### Play queue sync — follow-up fixes
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#1132](https://github.com/Psychotoxical/psysonic/pull/1132)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1132](https://github.com/Psysonic/psysonic/pull/1132)**
 
 * After cross-device idle pull while paused, a local queue change (e.g. enqueue) could be overwritten when auto-pull ran again. Idle auto-pull now stops on local mutations until manual sync from the header; the connection LED turns yellow while auto-sync is paused.
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#1133](https://github.com/Psychotoxical/psysonic/pull/1133)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1133](https://github.com/Psysonic/psysonic/pull/1133)**
 
 * After editing the queue while paused (yellow sync LED), pressing Play only resumed audio and could leave the server on another device's queue until the debounced push fired. Resume and play-from-queue now flush the local play queue immediately and clear the yellow indicator when the push succeeds.
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#1135](https://github.com/Psychotoxical/psysonic/pull/1135)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1135](https://github.com/Psysonic/psysonic/pull/1135)**
 
 * The header connection probe now retries a failed ping twice (2 s apart) before marking the server unreachable, so a single dropped packet on an otherwise fine link no longer flips the LED to disconnected.
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#1136](https://github.com/Psychotoxical/psysonic/pull/1136)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1136](https://github.com/Psysonic/psysonic/pull/1136)**
 
 * Track-advance queue pushes no longer suspend idle auto-pull, so the connection LED does not flash yellow on every song change. Yellow sync still appears after a local queue edit while paused; it clears while audio is playing.
 
 ### Favorites — bulk add to playlist and play/enqueue selected
 
-**By [@cucadmuh](https://github.com/cucadmuh), reported by zunoz on the Psysonic Discord, PR [#1140](https://github.com/Psychotoxical/psysonic/pull/1140)**
+**By [@cucadmuh](https://github.com/cucadmuh), reported by zunoz on the Psysonic Discord, PR [#1140](https://github.com/Psysonic/psysonic/pull/1140)**
 
 * Bulk **Add to playlist** no longer cleared the selection on `mousedown` before the click ran, so chosen tracks were not actually added.
 * With rows selected, **Play all** / **Add all to queue** become **Play selected** / **Add selected to queue** and act on the checked tracks only.
@@ -1079,13 +1079,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Update notification — clearer popup on Linux
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1142](https://github.com/Psychotoxical/psysonic/pull/1142)**, reported by zunoz on Discord
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1142](https://github.com/Psysonic/psysonic/pull/1142)**, reported by zunoz on Discord
 
 * The "new version available" popup no longer shows blurry, unfocused text on some Linux setups (the background blur could bleed onto the dialog). The version arrow now lines up with the heading, and the Skip / Remind me later buttons read clearly — Remind me later is the highlighted action when there's no in-app installer.
 
 ### Artists letter index — Navidrome ignored articles and library index
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#1145](https://github.com/Psychotoxical/psysonic/pull/1145)**, closes [#1144](https://github.com/Psychotoxical/psysonic/issues/1144)
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1145](https://github.com/Psysonic/psysonic/pull/1145)**, closes [#1144](https://github.com/Psysonic/psysonic/issues/1144)
 
 * On the **Artists** page (and **Composers**), the A–Z filter now groups names like Navidrome: leading articles such as **The** are skipped before picking the letter — **The Beatles** lands under **B**, not **T**. The bucket follows the server's own `ignoredArticles` list when the local index knows it.
 * The local library index stores `name_sort` and the server's `ignoredArticles` from `getArtists`, sorts browse SQL by the sort key (now indexed), and repairs stale keys once on upgrade.
@@ -1094,13 +1094,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Equalizer — the active AutoEQ profile name stays visible
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1147](https://github.com/Psychotoxical/psysonic/pull/1147)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1147](https://github.com/Psysonic/psysonic/pull/1147)**
 
 * After applying an AutoEQ headphone profile, the preset picker now shows the profile name under an AutoEQ group instead of going blank, and the delete button no longer appears for AutoEQ profiles (where it did nothing).
 
 ### All Albums — compilation and favorites filters
 
-**By [@cucadmuh](https://github.com/cucadmuh), reported by [@bcorporaal](https://github.com/bcorporaal), PR [#1151](https://github.com/Psychotoxical/psysonic/pull/1151)**, closes [#1143](https://github.com/Psychotoxical/psysonic/issues/1143)
+**By [@cucadmuh](https://github.com/cucadmuh), reported by [@bcorporaal](https://github.com/bcorporaal), PR [#1151](https://github.com/Psysonic/psysonic/pull/1151)**, closes [#1143](https://github.com/Psysonic/psysonic/issues/1143)
 
 * **Only compilations** no longer shows a handful of albums after the local index already filtered them — slice mode skips the redundant client pass that dropped rows without `isCompilation` on the DTO.
 * **Favorites** on All Albums uses the same `getStarred2` catalog path as the Favorites page instead of the empty sparse `album` table browse.
@@ -1108,13 +1108,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Playlists header buttons clipped at narrow widths
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1153](https://github.com/Psychotoxical/psysonic/pull/1153)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1153](https://github.com/Psysonic/psysonic/pull/1153)**
 
 * The action buttons at the top of the Playlists page (New Playlist, New Smart Playlist, folder controls, Select) could run off-screen and get cut off when the window was narrow or the queue panel was open. They now wrap onto multiple rows, left-aligned.
 
 ### Orbit — session reliability fixes
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PRs [#1155](https://github.com/Psychotoxical/psysonic/pull/1155), [#1157](https://github.com/Psychotoxical/psysonic/pull/1157), [#1159](https://github.com/Psychotoxical/psysonic/pull/1159)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PRs [#1155](https://github.com/Psysonic/psysonic/pull/1155), [#1157](https://github.com/Psysonic/psysonic/pull/1157), [#1159](https://github.com/Psysonic/psysonic/pull/1159)**
 
 * Opening Psysonic on a second device no longer deletes a session that is still live on another device.
 * Long sessions keep updating for guests instead of silently stalling once the shared state grew too large.
@@ -1126,50 +1126,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### macOS dock icon larger than native apps
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1169](https://github.com/Psychotoxical/psysonic/pull/1169)**, closes [#1166](https://github.com/Psychotoxical/psysonic/issues/1166)
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1169](https://github.com/Psysonic/psysonic/pull/1169)**, closes [#1166](https://github.com/Psysonic/psysonic/issues/1166)
 
 * On macOS the dock icon was rendered edge-to-edge and looked larger than other apps; it is now padded to Apple's icon grid so it matches native sizing.
 
 ### Artist header showing the plain image instead of the external background
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1172](https://github.com/Psychotoxical/psysonic/pull/1172)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1172](https://github.com/Psysonic/psysonic/pull/1172)**
 
 * On the artist page, when an artist had an external background image (from fanart.tv) but no banner, the header showed the plain Navidrome artist image instead of the background — even though the fullscreen player used the background correctly. The header now falls back banner → background → Navidrome image as intended. The background also sits a little higher so band members' heads aren't cropped on wide screens.
 
 ### Context menu "Play Now" and resize behaviour
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1174](https://github.com/Psychotoxical/psysonic/pull/1174)**, reported by [@peri4ko](https://github.com/peri4ko)
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1174](https://github.com/Psysonic/psysonic/pull/1174)**, reported by [@peri4ko](https://github.com/peri4ko)
 
 * On the Playlists page, right-clicking a playlist and choosing "Play Now" only opened the playlist instead of playing it. It now starts playback.
 * Resizing the window while a context menu was open could leave the menu stranded and drifting off-screen. The context menu now closes when the window is resized.
 
 ### Genres page kept empty genres after tag changes
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#1176](https://github.com/Psychotoxical/psysonic/pull/1176)**, closes [#1162](https://github.com/Psychotoxical/psysonic/issues/1162)
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1176](https://github.com/Psysonic/psysonic/pull/1176)**, closes [#1162](https://github.com/Psysonic/psysonic/issues/1162)
 
 * After retagging a track and resyncing the library, genres with no remaining albums could still appear on the Genres page until restart. The local genre catalog now counts only live indexed tracks, filters zero-count genres, and the Genres page refreshes when library sync finishes.
 
 ### AutoDJ — last track in the queue was cut short
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#1183](https://github.com/Psychotoxical/psysonic/pull/1183)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1183](https://github.com/Psysonic/psysonic/pull/1183)**
 
 * With AutoDJ active and no next track to blend into, the engine could still fire the crossfade end timer and trim the final song. The last track now plays through to real source exhaustion.
 
 ### Play queue sync — idle pull rewound after the queue finished
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#1183](https://github.com/Psychotoxical/psysonic/pull/1183)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1183](https://github.com/Psysonic/psysonic/pull/1183)**
 
 * After the last track ended (repeat off), idle auto-pull could restore an earlier server position from the last debounced push and seek backward. The client now flushes end-of-track position to the server and skips idle auto-pull until playback resumes, the queue is edited, or the user pulls manually.
 
 ### Sidebar — offline nav gating after manual reconnect Retry
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#1190](https://github.com/Psychotoxical/psysonic/pull/1190)**, closes [#1160](https://github.com/Psychotoxical/psysonic/issues/1160)
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1190](https://github.com/Psysonic/psysonic/pull/1190)**, closes [#1160](https://github.com/Psysonic/psysonic/issues/1160)
 
 * Strengthens the existing disconnect/recovery path: connection status is now shared across all `useConnectionStatus` hook instances, so a successful **Retry** on the offline banner clears offline-browse sidebar filtering in step with the header connection indicator (no app restart).
 
 ### Timeline play history disappeared on album/playlist play
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#1204](https://github.com/Psychotoxical/psysonic/pull/1204)**, closes [#1096](https://github.com/Psychotoxical/psysonic/issues/1096)
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1204](https://github.com/Psysonic/psysonic/pull/1204)**, closes [#1096](https://github.com/Psysonic/psysonic/issues/1096)
 
 * Timeline mode now keeps a session play-history strip (plus cold bootstrap of the last 50 plays from statistics) when Play album/playlist replaces the queue; canonical queue sync is unchanged.
 * The current track stays pinned to the top of the list; clicking a history row inserts after the playing track instead of replacing the queue, and replayed tracks remain in the history strip.
@@ -1178,7 +1178,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Album and artist covers — full resolution restored
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1205](https://github.com/Psychotoxical/psysonic/pull/1205)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1205](https://github.com/Psysonic/psysonic/pull/1205)**
 
 * Album and artist covers — and the full-size view when you click a cover — could appear small and low-quality even though the source image was large, depending on how you reached the album. Root cause: the cache built its larger sizes from a smaller already-saved size instead of the full-resolution download, so they were stored downscaled. Covers are now built from the full-resolution image, and the full-size view opens at full resolution. The cover cache refreshes once on update. Reported by users on Discord.
 
@@ -1186,50 +1186,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### WinGet — automated manifest updates on release
 
-**By [@ImAsra](https://github.com/ImAsra), PR [#1077](https://github.com/Psychotoxical/psysonic/pull/1077)**
+**By [@ImAsra](https://github.com/ImAsra), PR [#1077](https://github.com/Psysonic/psysonic/pull/1077)**
 
 * New GitHub Actions workflow publishes Windows installer updates to `microsoft/winget-pkgs` on each release — scans the `_x64-setup.exe` asset, computes SHA-256, and opens the upstream PR via `winget-releaser`.
 
 ### ESLint setup and a strict lint pass over the frontend
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1165](https://github.com/Psychotoxical/psysonic/pull/1165)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1165](https://github.com/Psysonic/psysonic/pull/1165)**
 
 * Added an ESLint config and `npm run lint`, and brought `src/` to zero errors and warnings under the strict React-hooks ruleset. Developer-only — no user-facing behaviour change.
 
 ### CI — ESLint gate and path-aware ci-ok merge check
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#1170](https://github.com/Psychotoxical/psysonic/pull/1170)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1170](https://github.com/Psysonic/psysonic/pull/1170)**
 
 * Strict `npm run lint` runs in CI on frontend path filters via a dedicated workflow parallel to the existing frontend test jobs.
 * The `ci-ok` check waits for every applicable test and lint job on a PR (frontend and/or Rust, depending on changed paths) and blocks merge when any required job failed or did not finish in time.
 
 ### Settings — consistent design for the Audio sub-sections
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1175](https://github.com/Psychotoxical/psysonic/pull/1175)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1175](https://github.com/Psysonic/psysonic/pull/1175)**
 
 * The AutoDJ overlap-cap and the Native Hi-Res blend-rate options in Settings → Audio now sit in the same bordered sub-card the Normalization options use, and the Hi-Res section no longer shows a double border.
 
 ### App no longer blanks on an unexpected error
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1194](https://github.com/Psychotoxical/psysonic/pull/1194)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1194](https://github.com/Psysonic/psysonic/pull/1194)**
 
 * If a screen hit an unexpected rendering error, the whole window could go blank with no way back. The app now shows a small recoverable error card (Try again / Reload app) instead, and playback keeps going.
 
 ### Windows update notice waits out WinGet moderation
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1200](https://github.com/Psychotoxical/psysonic/pull/1200)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1200](https://github.com/Psysonic/psysonic/pull/1200)**
 
 * On Windows, the "update available" notice now waits until a release is a couple of days old, so it no longer points to a version that WinGet has not finished publishing yet. macOS and Linux are unaffected.
 
 ### Playlist no longer reloads when you press Play
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1201](https://github.com/Psychotoxical/psysonic/pull/1201)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1201](https://github.com/Psysonic/psysonic/pull/1201)**
 
 * Pressing Play, Shuffle or Add to queue on a playlist no longer reloads the whole page with a spinner — it just starts playback. Editing the playlist (adding or removing songs) still refreshes the list as before.
 
 ### Sidebar items jumped back when reordered
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1206](https://github.com/Psychotoxical/psysonic/pull/1206)**, reported by [@tummydummy](https://github.com/tummydummy)
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1206](https://github.com/Psysonic/psysonic/pull/1206)**, reported by [@tummydummy](https://github.com/tummydummy)
 
 * In Settings → Personalization → Sidebar, dragging an item to a new position could snap it back or land it one place off, depending on which items were hidden. Reordering now tracks each item directly, so it stays exactly where you release it — both in the customizer and when long-pressing items in the sidebar itself.
 
@@ -1252,7 +1252,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Crash when seeking Opus/Ogg files
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#1100](https://github.com/Psychotoxical/psysonic/pull/1100)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1100](https://github.com/Psysonic/psysonic/pull/1100)**
 
 * Scrubbing the seekbar on an Opus/Ogg file — and then pressing Stop — crashed the whole app (a 1.48 regression from the Symphonia 0.6 migration). The Ogg demuxer recorded its seek bounds only when the source was seekable during the format probe, but probing hid seekability, so the first seek panicked on the audio thread (`Option::unwrap()` on `None`) and took the process down at the audio backend boundary.
 * Local and in-memory Opus/Ogg sources now stay seekable through the probe, so seeking works correctly. As a safety net, any decoder panic during a seek is contained instead of crashing the app; for Opus/Ogg streamed over HTTP, seeking is a no-op for now rather than a crash.
@@ -1271,7 +1271,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Library sync stalling for many seconds on large Navidrome collections
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#1105](https://github.com/Psychotoxical/psysonic/pull/1105)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1105](https://github.com/Psysonic/psysonic/pull/1105)**
 
 * On large libraries (reported with ~200,000 tracks on Navidrome), background library sync could lock up database writes for minutes at a time — playback history, ratings and other saves piled up waiting behind it.
 * Root cause: the track id-remap step ran a database lookup that couldn't use its indexes and scanned the entire track table once per incoming track, so the cost grew with the square of the library size. The lookup now uses the proper indexes, bringing it back to a fast, near-instant operation.
@@ -1296,7 +1296,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Sidebar — pin Now Playing to the top
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1000](https://github.com/Psychotoxical/psysonic/pull/1000), suggested by [@PHLAK](https://github.com/PHLAK)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1000](https://github.com/Psysonic/psysonic/pull/1000), suggested by [@PHLAK](https://github.com/PHLAK)**
 
 * New **Settings → Sidebar** toggle moves the "Now Playing" entry to the top of the sidebar instead of the bottom (off by default).
 
@@ -1304,7 +1304,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fullscreen player — rebuilt for much lower CPU/RAM
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1001](https://github.com/Psychotoxical/psysonic/pull/1001)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1001](https://github.com/Psysonic/psysonic/pull/1001)**
 
 * The previous fullscreen player was a heavy CPU and memory consumer — constant repaints from animated/blurred backgrounds and effects kept the GPU and a CPU core busy the whole time it was open. It has been **completely replaced** by a static, low-overhead screen: only the seekbar, elapsed time, and clock update live; everything else stays still.
 * Features: sharp high-res background, large album cover, true waveform seekbar, up-next queue popover, scrolling synced lyrics, clickable rating stars, and an on-screen clock.
@@ -1314,7 +1314,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Queue — Timeline display mode
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1004](https://github.com/Psychotoxical/psysonic/pull/1004), suggested by [@Legislate3030](https://github.com/Legislate3030)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1004](https://github.com/Psysonic/psysonic/pull/1004), suggested by [@Legislate3030](https://github.com/Legislate3030)**
 
 * New third queue display mode (cycle the header button, or pick it in **Settings → Personalisation → Queue display**). Timeline keeps the current track centered with played history above and upcoming tracks below — both visible at once — so it's easy to follow playback and jump back to earlier songs.
 * The up-next order respects shuffle, and a "History" / "Up next" divider marks the boundary.
@@ -1323,7 +1323,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Offline — unified local playback, library index join, and favorites sync
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#1008](https://github.com/Psychotoxical/psysonic/pull/1008)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1008](https://github.com/Psysonic/psysonic/pull/1008)**
 
 * All local audio bytes live under one **`media/`** tree: `cache/` (ephemeral hot-cache), `library/` (user-pinned offline), and `favorites/` (auto-synced stars). Paths use library-index metadata and the URL-derived server index key so two profiles on the same server share one bucket.
 * **`localPlaybackStore`** replaces the split hot-cache / offline metadata stores — one index drives prefetch, promotion, eviction, and `psysonic-local://` playback resolution.
@@ -1337,7 +1337,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Themes — community Theme Store
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1009](https://github.com/Psychotoxical/psysonic/pull/1009), [#1011](https://github.com/Psychotoxical/psysonic/pull/1011), [#1012](https://github.com/Psychotoxical/psysonic/pull/1012), [#1013](https://github.com/Psychotoxical/psysonic/pull/1013), [#1014](https://github.com/Psychotoxical/psysonic/pull/1014), [#1015](https://github.com/Psychotoxical/psysonic/pull/1015), [#1016](https://github.com/Psychotoxical/psysonic/pull/1016), [#1018](https://github.com/Psychotoxical/psysonic/pull/1018), [#1020](https://github.com/Psychotoxical/psysonic/pull/1020), [#1036](https://github.com/Psychotoxical/psysonic/pull/1036), [#1038](https://github.com/Psychotoxical/psysonic/pull/1038), [#1041](https://github.com/Psychotoxical/psysonic/pull/1041)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1009](https://github.com/Psysonic/psysonic/pull/1009), [#1011](https://github.com/Psysonic/psysonic/pull/1011), [#1012](https://github.com/Psysonic/psysonic/pull/1012), [#1013](https://github.com/Psysonic/psysonic/pull/1013), [#1014](https://github.com/Psysonic/psysonic/pull/1014), [#1015](https://github.com/Psysonic/psysonic/pull/1015), [#1016](https://github.com/Psysonic/psysonic/pull/1016), [#1018](https://github.com/Psysonic/psysonic/pull/1018), [#1020](https://github.com/Psysonic/psysonic/pull/1020), [#1036](https://github.com/Psysonic/psysonic/pull/1036), [#1038](https://github.com/Psysonic/psysonic/pull/1038), [#1041](https://github.com/Psysonic/psysonic/pull/1041)**
 
 * New **Settings → Themes** tab: pick a theme, set the day/night scheduler, and browse a built-in **Theme Store** to install, update and uninstall community themes — with search, a dark/light filter, and full-size thumbnail previews.
 * The app now bundles six core themes (Catppuccin Mocha & Latte, Kanagawa Wave, Stark HUD, and the colour-blind-safe Vision Dark / Vision Navy); every other palette installs on demand from the [psysonic-themes](https://github.com/Psysonic/psysonic-themes) repo. Installed themes are saved locally and apply instantly at startup, even offline.
@@ -1353,7 +1353,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Offline — local-bytes browse when the server is down
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#1017](https://github.com/Psychotoxical/psysonic/pull/1017)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1017](https://github.com/Psysonic/psysonic/pull/1017)**
 
 * When the active server is unreachable, browse and detail pages read from **local playback bytes** and the **library index** instead of Subsonic — albums, artists, tracks, cached playlists, and cross-server favorites.
 * Single integration contract: `offlineBrowseContext`, `offlineActionPolicy`, and `resolveAlbum` / `resolveArtist` / `resolvePlaylist` resolvers; context menus and detail toolbars block server mutations offline.
@@ -1364,7 +1364,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Startup — themed loading splash before the app bundle loads
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#1030](https://github.com/Psychotoxical/psysonic/pull/1030)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1030](https://github.com/Psysonic/psysonic/pull/1030)**
 
 * Inline splash in `index.html` (progress bar + P logo) shows while the Vite bundle loads in dev and production — no empty or black window on launch.
 * Splash colours follow the persisted theme (built-in palettes, day/night scheduler, and installed community themes); the logo uses each theme's accent gradient instead of a hardcoded white asset.
@@ -1374,7 +1374,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Servers — software and version on each server card
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1045](https://github.com/Psychotoxical/psysonic/pull/1045)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1045](https://github.com/Psysonic/psysonic/pull/1045)**
 
 * Each server card under **Settings → Servers** now shows the server software and version (e.g. `Navidrome 0.62.0`) under the server name. The value comes from the existing connection ping, so no extra request is made; it is hidden for servers that don't report it (plain Subsonic without OpenSubsonic).
 
@@ -1382,7 +1382,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### What's New — remote release notes
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#1058](https://github.com/Psychotoxical/psysonic/pull/1058)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1058](https://github.com/Psysonic/psysonic/pull/1058)**
 
 * The **What's New** page shows user-friendly highlights from `WHATS_NEW.md` instead of embedding the full technical changelog in the app bundle.
 * RC and stable builds prefetch `whats-new.md` from the GitHub release on startup and cache it locally; offline users see a thin embedded fallback.
@@ -1394,7 +1394,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Music Network — scrobble to more than just Last.fm
 
-**By [@Psychotoxical](https://github.com/Psychotoxical) and [@cucadmuh](https://github.com/cucadmuh), PR [#1066](https://github.com/Psychotoxical/psysonic/pull/1066)**
+**By [@Psychotoxical](https://github.com/Psychotoxical) and [@cucadmuh](https://github.com/cucadmuh), PR [#1066](https://github.com/Psysonic/psysonic/pull/1066)**
 
 * **Settings → Integrations** now hosts a **Music Network** that scrobbles your plays to one or more services at once: **Last.fm**, **Libre.fm**, **Rocksky**, **ListenBrainz** (the public service or any compatible server), **Maloja** (native, Audioscrobbler or ListenBrainz API), **Koito**, and any **custom GNU FM** instance.
 * Choose a **primary** service — your loved tracks, similar artists and listening stats come from it — while scrobbles fan out to every connected service. A master switch turns the whole thing on or off.
@@ -1405,7 +1405,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Live — rich now-playing on Navidrome 0.62+
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#1080](https://github.com/Psychotoxical/psysonic/pull/1080)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1080](https://github.com/Psysonic/psysonic/pull/1080)**
 
 * On servers that advertise the OpenSubsonic `playbackReport` extension (Navidrome ≥ 0.62), Psysonic reports live transport state and position so **Live** shows who is playing or paused and where in the track — including playback speed when the other client sends it.
 * The position bar glides between refreshes; pause and resume update the server immediately instead of waiting for the audio engine.
@@ -1415,7 +1415,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Title bar — selectable window button styles
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1083](https://github.com/Psychotoxical/psysonic/pull/1083), suggested by [@PHLAK](https://github.com/PHLAK)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1083](https://github.com/Psysonic/psysonic/pull/1083), suggested by [@PHLAK](https://github.com/PHLAK)**
 
 * The Linux custom title bar gets a **window button style** picker in **Settings → Appearance → Custom title bar** — choose between dots, dots with icons, flat, pill, outline, and minimal looks.
 * All styles now carry minimize/maximize/close icons for clear, colour-blind-friendly buttons, and an optional toggle hides the minimize button (maximize and close only).
@@ -1424,7 +1424,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Playback speed — Semitones strategy, finer labels, and advanced fine steps
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#1084](https://github.com/Psychotoxical/psysonic/pull/1084)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1084](https://github.com/Psysonic/psysonic/pull/1084)**
 
 * New **Semitones** strategy sets varispeed directly in semitones (±12 st, 0.1 step) instead of coarse speed steps; the speed readout now shows two decimals so every slider notch is visible.
 * Each strategy button has a short tooltip; **Advanced** mode adds an optional **Fine adjustment** toggle (0.01× / 0.01 st steps) in **Settings → Audio**.
@@ -1433,7 +1433,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Now Playing — live status dot in "Who is listening?"
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1086](https://github.com/Psychotoxical/psysonic/pull/1086)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1086](https://github.com/Psysonic/psysonic/pull/1086)**
 
 * Each listener in the **Who is listening?** popover now shows a small status dot — playing, paused, or idle — derived from the live playback report, replacing the previous "minutes ago" line. The status is also read out for screen readers and on hover, so it is never conveyed by colour alone.
 
@@ -1442,7 +1442,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Dependencies — npm and Rust refresh
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#997](https://github.com/Psychotoxical/psysonic/pull/997)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#997](https://github.com/Psysonic/psysonic/pull/997)**
 
 * Frontend and Tauri npm dependencies bumped (React, Vite, Vitest, i18next, axios, Tauri plugins); test stack upgraded to **jsdom** 29.
 * Rust workspace: `id3` 1.17, `reqwest` 0.13.4, `sysinfo` 0.39, **zip** 8 for library backups. Symphonia 0.6 and `mach2` 0.6 remain deferred (upstream constraints).
@@ -1451,7 +1451,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Audio — Symphonia 0.6 upgrade
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#999](https://github.com/Psychotoxical/psysonic/pull/999)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#999](https://github.com/Psysonic/psysonic/pull/999)**
 
 * Audio decode + analysis pipeline ported to **Symphonia 0.6** (new `AudioDecoder` API, `GenericAudioBufferRef`, `Time`/`Timestamp` units); `symphonia-adapter-libopus` bumped to **0.3** and the vendored `symphonia-format-isomp4` 0.5 patch dropped in favour of upstream ISO-BMFF fixes.
 * `rodio`'s `symphonia-all` feature dropped so the workspace no longer pulls a duplicate `symphonia-core`.
@@ -1460,7 +1460,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Playback — Preload Next Track setting removed
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#1007](https://github.com/Psychotoxical/psysonic/pull/1007)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1007](https://github.com/Psysonic/psysonic/pull/1007)**
 
 * The **Preload Next Track** toggle and timing modes under **Settings → Storage → Buffering** are gone — ranged streaming now starts playback without that extra RAM prefetch.
 * Gapless and crossfade still prefetch the next track internally when Hot Cache is off; Hot Cache is unchanged.
@@ -1469,7 +1469,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### PsyLab — Performance Probe rename, Tuning tab, and log tools
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#1027](https://github.com/Psychotoxical/psysonic/pull/1027)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1027](https://github.com/Psysonic/psysonic/pull/1027)**
 
 * **Ctrl+Shift+D** opens **PsyLab** (formerly Performance Probe). Cover backfill thread tuning moved to a new **Tuning** tab.
 * **Logs** tab: selectable text, toolbar copy/export, and a context-menu **Copy** for the current selection.
@@ -1479,7 +1479,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### PsyLab — Connections tab and Navidrome admin role
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#1033](https://github.com/Psychotoxical/psysonic/pull/1033)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1033](https://github.com/Psysonic/psysonic/pull/1033)**
 
 * New **Connections** tab: session/endpoint status, active-server capability readout (OpenSubsonic, AudioMuse detection, provider/strategy, detection trust, resolved call route, and AudioMuse mode), and queue-playback server when it differs from the active profile.
 * Navidrome **admin vs standard user** badge via native login probe — useful when diagnosing plugin/settings visibility.
@@ -1488,7 +1488,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Servers — capability framework with AudioMuse sonic routing (Navidrome ≥ 0.62)
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#1033](https://github.com/Psychotoxical/psysonic/pull/1033)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1033](https://github.com/Psysonic/psysonic/pull/1033)**
 
 * New declarative **server-capability framework** (`src/serverCapabilities/`): a catalog picks a feature strategy per server generation, runs only the needed probes, and routes API calls — replacing scattered version checks in the UI and call sites.
 * Navidrome **0.62+**: detect the AudioMuse-AI plugin from `getOpenSubsonicExtensions` when `sonicSimilarity` is advertised — the first reliable signal. Settings shows an **auto-managed status indicator** (no manual toggle); older Navidrome keeps the manual toggle and the legacy `getSimilarSongs` Instant Mix probe.
@@ -1498,7 +1498,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Settings → Servers — compact server cards
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#1054](https://github.com/Psychotoxical/psysonic/pull/1054)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1054](https://github.com/Psysonic/psysonic/pull/1054)**
 
 * Two-line header: custom entry name plus `user@host`, HTTPS lock, and a clickable version info tooltip (hover or tap).
 * Navidrome **0.62+**: green **AudioMuse-AI** inline badge when the plugin is detected; older Navidrome keeps the manual toggle row below the card.
@@ -1510,7 +1510,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Servers — complete border on the active server card
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#998](https://github.com/Psychotoxical/psysonic/pull/998)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#998](https://github.com/Psysonic/psysonic/pull/998)**
 
 * The active server card under **Settings → Servers** now draws its border on all four sides; previously only the left and right edges showed.
 
@@ -1518,7 +1518,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Audio streaming — start latency and stall recovery
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#999](https://github.com/Psychotoxical/psysonic/pull/999)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#999](https://github.com/Psysonic/psysonic/pull/999)**
 
 * Ranged-HTTP FLAC/MP3/OGG streams start playing as soon as enough data is buffered again, instead of waiting for the whole file to download (Symphonia 0.6's trailing-metadata probe scan is skipped for progressive non-MP4 streams).
 * The streaming format probe now runs under a 20s timeout on a worker thread, so a stalled stream (e.g. right after a server switch) no longer blocks playback start until a manual player restart.
@@ -1527,7 +1527,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Track preview — Symphonia 0.6 format hints and fast stream start
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#1006](https://github.com/Psychotoxical/psysonic/pull/1006)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1006](https://github.com/Psysonic/psysonic/pull/1006)**
 
 * Preview resolves container format from HTTP headers, Subsonic `suffix`, and magic-byte sniff so Symphonia 0.6 no longer fails with `.unknown` demuxer errors.
 * Preview opens via ranged HTTP when the server supports byte ranges — audio starts after ~384 KiB buffered instead of waiting for a full-file download; buffered fallback uses the same probe seek-gate as main playback.
@@ -1537,7 +1537,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Mainstage — hero backdrop stays in sync when skipping albums quickly
 
-**By [@cucadmuh](https://github.com/cucadmuh), reported by Asra on the Psysonic Discord, PR [#1021](https://github.com/Psychotoxical/psysonic/pull/1021)**
+**By [@cucadmuh](https://github.com/cucadmuh), reported by Asra on the Psysonic Discord, PR [#1021](https://github.com/Psysonic/psysonic/pull/1021)**
 
 * Rapid prev/next clicks on the Mainstage hero no longer leave the blurred cover-art background on the previous album while the foreground cover and metadata already show the next one.
 
@@ -1545,7 +1545,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Song rails — multi-artist credits link to each artist
 
-**By [@cucadmuh](https://github.com/cucadmuh), reported by zunoz on Discord, PR [#1023](https://github.com/Psychotoxical/psysonic/pull/1023)**
+**By [@cucadmuh](https://github.com/cucadmuh), reported by zunoz on Discord, PR [#1023](https://github.com/Psysonic/psysonic/pull/1023)**
 
 * **Random Picks**, **Discover Songs**, and other song cards now split OpenSubsonic `artists[]` into individually clickable names — the same behaviour as album track rows and the player bar, instead of one link for the whole joined credit string.
 * Album cards and the rest of the app share the same artist-ref helper, including when Subsonic returns a single ref object instead of a one-element array.
@@ -1554,7 +1554,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fullscreen player — corner clock follows Clock format setting
 
-**By [@cucadmuh](https://github.com/cucadmuh), reported by zunoz on Discord, PR [#1025](https://github.com/Psychotoxical/psysonic/pull/1025)**
+**By [@cucadmuh](https://github.com/cucadmuh), reported by zunoz on Discord, PR [#1025](https://github.com/Psysonic/psysonic/pull/1025)**
 
 * The wall clock in the fullscreen player now honours **Settings → System → Clock format** (24-hour vs 12-hour), matching the queue ETA and sleep-timer preview instead of always showing AM/PM.
 
@@ -1562,7 +1562,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### All Albums — Only compilations filter returns results
 
-**By [@cucadmuh](https://github.com/cucadmuh), reported by zunoz on Discord, PR [#1026](https://github.com/Psychotoxical/psysonic/pull/1026)**
+**By [@cucadmuh](https://github.com/cucadmuh), reported by zunoz on Discord, PR [#1026](https://github.com/Psysonic/psysonic/pull/1026)**
 
 * The **Only compilations** toggle on **All Albums** no longer returns an empty list when compilations are tagged via **Various Artists** as album artist or when genre is combined with other browse filters — local index SQL, track-grouped browse, and client-side detection now agree on the same compilation signals.
 
@@ -1570,7 +1570,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Artist page — Top Tracks play button
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#1031](https://github.com/Psychotoxical/psysonic/pull/1031)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1031](https://github.com/Psysonic/psysonic/pull/1031)**
 
 * Play on **Top Tracks** rows no longer silently does nothing when the artist page has top songs but no albums loaded (e.g. lossless artist view); playback starts from the clicked track and continues into the catalog when albums are available.
 
@@ -1578,7 +1578,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### PsyLab — tab bar no longer collapses on the Logs tab
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#1033](https://github.com/Psychotoxical/psysonic/pull/1033)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1033](https://github.com/Psysonic/psysonic/pull/1033)**
 
 * The PsyLab tab row keeps its height when the Logs flex layout fills the modal — tabs were previously squashed to a thin strip.
 
@@ -1586,7 +1586,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Playback — macOS stutter from background device checks
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1039](https://github.com/Psychotoxical/psysonic/pull/1039)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1039](https://github.com/Psysonic/psysonic/pull/1039)**
 
 * On some macOS setups playback stuttered at a steady ~3-second cadence: a background check that scans every audio output device ran on each poll and briefly contended with playback. It now runs only when a specific output device is pinned; with the system default (the common case) a single lightweight check runs instead.
 
@@ -1594,7 +1594,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Now Playing — cards no longer blank out on track change
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1042](https://github.com/Psychotoxical/psysonic/pull/1042)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1042](https://github.com/Psysonic/psysonic/pull/1042)**
 
 * The "from this album", "discography" and "most played" sections on the Now Playing page disappeared after a track change once the next track started playing from the local cache, and didn't come back. The page now keeps loading that info whenever the server is reachable, regardless of whether the audio plays from cached or offline bytes.
 
@@ -1602,15 +1602,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Library DB — named slow-write ops for stall diagnosis
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#1043](https://github.com/Psychotoxical/psysonic/pull/1043)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1043](https://github.com/Psysonic/psysonic/pull/1043)**
 
-* Production `library-db` write paths now log stable `module.action` op names instead of the generic `misc`, so the next `[library-db] SLOW write` line on macOS (or elsewhere) identifies the call site — diagnostic step for playback stalls under long write-lock holds ([#1040](https://github.com/Psychotoxical/psysonic/issues/1040)).
+* Production `library-db` write paths now log stable `module.action` op names instead of the generic `misc`, so the next `[library-db] SLOW write` line on macOS (or elsewhere) identifies the call site — diagnostic step for playback stalls under long write-lock holds ([#1040](https://github.com/Psysonic/psysonic/issues/1040)).
 
 
 
 ### Now Playing — metadata reads from the local library index first
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1049](https://github.com/Psychotoxical/psysonic/pull/1049)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1049](https://github.com/Psysonic/psysonic/pull/1049)**
 
 * The "from this album", "discography", "most played" and song details on the Now Playing page now come from the local library index when it has them, only falling back to the server when the index can't serve a row. Cards and fields (genre, play count, contributors) stay populated during cached and offline playback, with fewer server requests.
 
@@ -1618,7 +1618,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Themes — consistent focus borders on inputs and dropdowns
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1052](https://github.com/Psychotoxical/psysonic/pull/1052)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1052](https://github.com/Psysonic/psysonic/pull/1052)**
 
 * Text fields no longer draw a double border when focused — they now show a single clean ring across every theme. The colour-blind-safe themes keep their stronger high-contrast focus ring on every field, including the header search.
 * Dropdown and popover borders now follow the active theme in all themes (a couple of themes previously rendered them with an unthemed colour).
@@ -1627,7 +1627,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Home — Most Played no longer jumps the page when loading more
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), reported by zunoz on Discord, PR [#1053](https://github.com/Psychotoxical/psysonic/pull/1053)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), reported by zunoz on Discord, PR [#1053](https://github.com/Psysonic/psysonic/pull/1053)**
 
 * Clicking the arrow to load more albums in the **Most Played** rail sometimes snapped the page up to an earlier section. Loading more now keeps the viewport in place.
 
@@ -1635,7 +1635,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Navidrome Now Playing and scrobble with local playback
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#1055](https://github.com/Psychotoxical/psysonic/pull/1055)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1055](https://github.com/Psysonic/psysonic/pull/1055)**
 
 * **Show in Now Playing** and Navidrome play-count scrobbles no longer silently skip when audio plays from hot cache, offline library pins, or favorites-auto bytes.
 * Presence and queue sync target the **playback server** reachability gate, so a queue on server A still reports to Navidrome while browsing server B.
@@ -1644,7 +1644,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Album grids — album artist on compilation cards
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#1057](https://github.com/Psychotoxical/psysonic/pull/1057), reported in [#1056](https://github.com/Psychotoxical/psysonic/issues/1056)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1057](https://github.com/Psysonic/psysonic/pull/1057), reported in [#1056](https://github.com/Psysonic/psysonic/issues/1056)**
 
 * Random Albums, New Releases, All Albums, and other album grids no longer show a track artist on compilation albums when the tags set a single album artist (e.g. **Underworld** on a various-artists mix); the card matches the album page.
 * Local index browse, live search, and FTS album dedupe prefer `album_artist` over per-track `artist`; Hero, Most Played, and offline pin labels use the same display helper.
@@ -1653,7 +1653,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Local index — multi-genre browse, filters, and counts
 
-**By [@cucadmuh](https://github.com/cucadmuh), reported by HiveMind on the Psysonic Discord, PR [#1059](https://github.com/Psychotoxical/psysonic/pull/1059)**
+**By [@cucadmuh](https://github.com/cucadmuh), reported by HiveMind on the Psysonic Discord, PR [#1059](https://github.com/Psysonic/psysonic/pull/1059)**
 
 * Tracks tagged with several genres in one metadata field (e.g. `Noise Metal/Dark Ambient/Experimental Black Metal`) again match **each atomic genre** in Genres browse, All Albums filters, genre detail, and Advanced Search — not only the first segment.
 * New `track_genre` index (OpenSubsonic `genres[]` when present, Navidrome-default split fallback), maintained on sync; one-time blocking startup backfill for existing libraries with progress.
@@ -1663,7 +1663,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Dev startup — missing generated release-notes bundle
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#1060](https://github.com/Psychotoxical/psysonic/pull/1060)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1060](https://github.com/Psysonic/psysonic/pull/1060)**
 
 * Fresh clones no longer crash Vite on `tauri:dev` when `src/generated/releaseNotesBundle.ts` is missing — `dev` and `tauri:dev` now run `prebuild:release-notes` before launch (file stays gitignored).
 
@@ -1671,7 +1671,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### What's New — release-notes cache file on disk (RC/stable)
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#1062](https://github.com/Psychotoxical/psysonic/pull/1062)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1062](https://github.com/Psysonic/psysonic/pull/1062)**
 
 * RC and stable builds now persist the downloaded `whats-new.md` slice under AppData — `plugin-fs` had mkdir but lacked recursive write scope, so the `release-notes/` folder appeared empty and every launch re-fetched from GitHub.
 
@@ -1679,7 +1679,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Favorites — player-bar star stays synced in track lists
 
-**By [@artplan1](https://github.com/artplan1), PR [#1063](https://github.com/Psychotoxical/psysonic/pull/1063)**
+**By [@artplan1](https://github.com/artplan1), PR [#1063](https://github.com/Psysonic/psysonic/pull/1063)**
 
 * Liking a song from the **player bar**, fullscreen player, or global shortcuts now updates the star in album tracklists, playlists, Random Mix, and Favorites — the row no longer reverts the instant the server sync completes.
 * List views seed starred state from a one-shot fetch and merge session `starredOverrides`; clearing those overrides on sync success had only patched `currentTrack` and the queue cache, so rows fell back to stale fetched values.
@@ -1688,7 +1688,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fullscreen player — title cleanup
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1068](https://github.com/Psychotoxical/psysonic/pull/1068)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1068](https://github.com/Psysonic/psysonic/pull/1068)**
 
 * The song title no longer shows a leading track number, and letters with descenders (g, j, p, q, y) are no longer clipped along the bottom edge.
 
@@ -1696,7 +1696,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Discord Rich Presence — album art and clearer settings
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1068](https://github.com/Psychotoxical/psysonic/pull/1068)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1068](https://github.com/Psysonic/psysonic/pull/1068)**
 
 * Album art shows again when the cover source is "Server (via album info)" — Discord was handed a local file path it cannot fetch and fell back to the app icon; it now receives a reachable image URL.
 * **Settings → Integrations:** added notices clarifying that this is the built-in Discord Rich Presence, and that the official Navidrome Discord RP plugin needs "Show in Now Playing" enabled instead.
@@ -1705,7 +1705,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Internet radio — no more duplicate now-playing on Linux
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), reported by agriffit79, PR [#1069](https://github.com/Psychotoxical/psysonic/pull/1069)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), reported by agriffit79, PR [#1069](https://github.com/Psysonic/psysonic/pull/1069)**
 
 * On Linux, playing an internet radio station showed the track twice in the desktop "now playing" overlay — once from the app's own media controls and once from a second player the web engine registered for the stream. The extra player is now suppressed, so radio shows a single entry like regular tracks.
 
@@ -1713,9 +1713,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Windows — idle app no longer blocks system sleep
 
-**By [@cucadmuh](https://github.com/cucadmuh), reported by [@Thraka](https://github.com/Thraka), PR [#1073](https://github.com/Psychotoxical/psysonic/pull/1073)**
+**By [@cucadmuh](https://github.com/cucadmuh), reported by [@Thraka](https://github.com/Thraka), PR [#1073](https://github.com/Psysonic/psysonic/pull/1073)**
 
-* Psysonic no longer keeps the audio output device open while the app is idle — the CPAL stream opens on first playback and closes after **60 seconds** without active audio (pause), or **immediately** on Stop / natural queue end, so Windows `powercfg` no longer reports an in-use audio stream when music is not playing ([#1071](https://github.com/Psychotoxical/psysonic/issues/1071)).
+* Psysonic no longer keeps the audio output device open while the app is idle — the CPAL stream opens on first playback and closes after **60 seconds** without active audio (pause), or **immediately** on Stop / natural queue end, so Windows `powercfg` no longer reports an in-use audio stream when music is not playing ([#1071](https://github.com/Psysonic/psysonic/issues/1071)).
 * Resume after a long pause uses the existing cold path (`audio:output-released` resets the warm-pause flag); post-sleep recovery skips reopening the stream when nothing is playing.
 * **Cold start while paused:** after `getPlayQueue` restores position, the seekbar shows the saved time immediately; the current track is hot-cache prefetched and the engine loads silently (`audio_play` with `startPaused`) at that position so the next Play is a warm `audio_resume` without an audible blip at the start of the track.
 * Rodio `Dropping DeviceSink` warnings on stream release are suppressed unless logging is in debug mode.
@@ -1725,7 +1725,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Auto-install script — `curl | sudo bash` works again
 
-**By [@kbennett2000](https://github.com/kbennett2000), PR [#1079](https://github.com/Psychotoxical/psysonic/pull/1079)**
+**By [@kbennett2000](https://github.com/kbennett2000), PR [#1079](https://github.com/Psysonic/psysonic/pull/1079)**
 
 * The Linux auto-installer (`install.sh`) failed before any download because `[INFO]` log lines were captured into the package URL and curl rejected the mangled string; logging now goes to stderr, the reinstall prompt reads from the terminal, and package downloads use `--fail --globoff`.
 
@@ -1733,7 +1733,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Music Network — self-hosted scrobbling reaches the server
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1085](https://github.com/Psychotoxical/psysonic/pull/1085)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1085](https://github.com/Psysonic/psysonic/pull/1085)**
 
 * Self-hosted scrobble targets that use a pasted token (Koito, Maloja's ListenBrainz and Audioscrobbler compatibility surfaces) silently recorded nothing: the saved server address dropped the API path, so listens were sent to a route that does not exist while the account still showed as connected.
 * The correct API path is now kept when connecting. Reconnect an affected account once so it picks up the corrected address.
@@ -1742,7 +1742,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Internet Radio — station management limited to server admins
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1086](https://github.com/Psychotoxical/psysonic/pull/1086)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1086](https://github.com/Psysonic/psysonic/pull/1086)**
 
 * Navidrome 0.62 made creating, editing and deleting radio stations admin-only, so those actions failed for standard accounts. Add, edit and delete controls are now hidden for non-admin Navidrome users; playback and favourites stay available to everyone. Other server types are unaffected.
 
@@ -1754,7 +1754,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Servers — edit existing profiles
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#780](https://github.com/Psychotoxical/psysonic/pull/780)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#780](https://github.com/Psysonic/psysonic/pull/780)**
 
 * Pencil button opens an inline edit form prefilled with the existing profile. Card actions collapse to icon-only on narrow viewports so Edit/Delete stay reachable.
 
@@ -1762,7 +1762,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Local library index + search (preview)
 
-**By [@Psychotoxical](https://github.com/Psychotoxical) + [@cucadmuh](https://github.com/cucadmuh), PR [#846](https://github.com/Psychotoxical/psysonic/pull/846)**
+**By [@Psychotoxical](https://github.com/Psychotoxical) + [@cucadmuh](https://github.com/cucadmuh), PR [#846](https://github.com/Psysonic/psysonic/pull/846)**
 
 * **Settings → Library:** local SQLite track index per server — background initial and delta sync, full resync, integrity verify, and auto-reconcile when the server reports fewer tracks than expected.
 * **Live Search** and **Advanced Search** query the local index when it is ready (fast, offline-capable).
@@ -1773,7 +1773,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Player stats — local listening history
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#849](https://github.com/Psychotoxical/psysonic/pull/849)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#849](https://github.com/Psysonic/psysonic/pull/849)**
 
 * **Statistics → Player stats** tab (`/player-stats`): year summary (listening time, clustered sessions, track plays, unique tracks, listening days, full/partial counts), GitHub-style heatmap by track plays per day, recent-days accordion, and day drill-down with per-track completion.
 * Records finalized listens to `play_session` in `library.sqlite` when the playback server's local index is enabled and ready (not preview/radio; `listenedSec > 10`).
@@ -1784,7 +1784,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Playback speed — global tempo and pitch strategies
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#852](https://github.com/Psychotoxical/psysonic/pull/852)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#852](https://github.com/Psysonic/psysonic/pull/852)**
 
 * **Settings → Audio** and player bar: global speed **0.5–2.0×** with three strategies — **Speed** (pitch-corrected, default), **Varispeed**, and **Pitch shift** (manual semitone offset).
 * Rust path: preserve-pitch worker (`pitch_shift`) for Speed / Pitch shift; varispeed via sample-rate scaling; seek-restart on strategy or enable changes.
@@ -1795,7 +1795,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Track enrichment — oximedia BPM/mood, mood search, queue display
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#863](https://github.com/Psychotoxical/psysonic/pull/863)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#863](https://github.com/Psysonic/psysonic/pull/863)**
 
 * **Analysis:** client-side oximedia pass (60s center window) writes BPM, valence, arousal, moods JSON, and mood_tag facts to the local library index; unified playback→analysis dispatch covers stream, hot/offline files, preload, and gapless.
 * **Queue:** measured BPM and top mood labels when the playback server's index is enabled; `analysis:enrichment-updated` refreshes the UI without waiting for poll.
@@ -1806,7 +1806,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Analytics strategy + migration safety for index-key rebuild
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#864](https://github.com/Psychotoxical/psysonic/pull/864)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#864](https://github.com/Psysonic/psysonic/pull/864)**
 
 * Rebuilt server scoping around stable `indexKey` identifiers across Rust + frontend paths used by playback, analysis, and local index state.
 * Added per-server analysis strategy controls (lazy/aggressive), per-server parallelism tuning, queue progress visibility, and clear-analysis actions in **Settings → Library**.
@@ -1818,7 +1818,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Backup & Restore — library databases + full archive flow
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#864](https://github.com/Psychotoxical/psysonic/pull/864)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#864](https://github.com/Psysonic/psysonic/pull/864)**
 
 * **Settings → System → Backup & Restore:** added two archive-backed modes — **Library databases** (library + analysis SQLite snapshots) and **Full** (settings + library databases).
 * Import auto-detects backup type from file contents (`.psybkp` / `.psylib` / `.psyfull`) from one entry point instead of per-mode import actions.
@@ -1828,7 +1828,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Cover art — tier ladder, disk cache, and grid prefetch
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#869](https://github.com/Psychotoxical/psysonic/pull/869)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#869](https://github.com/Psysonic/psysonic/pull/869)**
 
 * Album and artist grids load sharper repeat visits from a dedicated WebP disk cache (separate from the general image cache budget in **Settings → Storage**).
 * Dense lists prefetch smaller tiers first, then steady-state grid quality capped at 512px for scroll performance; detail and player chrome still resolve up to 800px on demand.
@@ -1838,7 +1838,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Lossless — local index browse, filters, and drill-down
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#871](https://github.com/Psychotoxical/psysonic/pull/871)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#871](https://github.com/Psysonic/psysonic/pull/871)**
 
 * **Local index:** `library_list_lossless_albums` queries indexed tracks by lossless suffix allowlist; `/lossless-albums` and Home rail use SQLite when the library index is ready, with Navidrome bit_depth walk as fallback.
 * **Advanced Search:** `lossless is true` on tracks, albums, and artists (local + network); artist/album links open detail with `?lossless=1` and a lossless-mode banner.
@@ -1849,7 +1849,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Albums — combined browse filters and session restore
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#876](https://github.com/Psychotoxical/psysonic/pull/876)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#876](https://github.com/Psysonic/psysonic/pull/876)**
 
 * **Albums** toolbar: sort, genre (with counts), year range, favorites, lossless, and compilations combine in one browse query when the local index is ready; returning from album detail restores the same filter state.
 * Favorites list reconciles from the server into the local index (no stub album rows); genre/year/lossless/compilation filters apply on the indexed catalog.
@@ -1859,7 +1859,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Artist detail — album year sort
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#877](https://github.com/Psychotoxical/psysonic/pull/877)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#877](https://github.com/Psysonic/psysonic/pull/877)**
 
 * **Albums by …** on the artist page: toggle year sort (newest/oldest) within each release-type block; preference persists for the session per server.
 
@@ -1867,7 +1867,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Servers — second optional address per profile (LAN + public)
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#880](https://github.com/Psychotoxical/psysonic/pull/880)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#880](https://github.com/Psysonic/psysonic/pull/880)**
 
 * **Settings → Servers:** a profile can carry a second address — typically a LAN counterpart of a public URL or vice versa. The app probes LAN-first and uses whichever endpoint actually answers, so the same profile is fast at home and reachable away from home without manual switching. Single-address profiles behave exactly as before.
 * **Same-server verify on save** when both addresses are filled — mismatched or unreachable pairs are blocked with a clear message; two-LAN combinations are caught client-side before any network call.
@@ -1878,7 +1878,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Album play — hold to shuffle
 
-**By [@ImAsra](https://github.com/ImAsra), PR [#888](https://github.com/Psychotoxical/psysonic/pull/888)**
+**By [@ImAsra](https://github.com/ImAsra), PR [#888](https://github.com/Psysonic/psysonic/pull/888)**
 
 * Hold an album **Play** button (~1 s) for a filling wave animation, then the album starts in shuffled order; a short click still plays in track order.
 * Album cards, hero, Because-you-like rail, and Most Played; tooltip in all locales.
@@ -1887,7 +1887,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Performance Probe — monitor UI, overlay pins, and live metrics
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#890](https://github.com/Psychotoxical/psysonic/pull/890)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#890](https://github.com/Psysonic/psysonic/pull/890)**
 
 * **Ctrl+Shift+D** modal: **Monitor** tab (metric cards with pin-to-overlay) and **Toggles** tab (tree of probe flags/phases).
 * Live CPU/memory polling: process CPU, RSS by group, thread CPU groups (Linux `/proc`); **macOS** process CPU + RSS via `sysinfo`.
@@ -1898,7 +1898,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Performance Probe — thread-group CPU toggle
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#891](https://github.com/Psychotoxical/psysonic/pull/891)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#891](https://github.com/Psysonic/psysonic/pull/891)**
 
 * Monitor live poll: explicit opt-in checkbox for Linux `/proc` thread-group CPU (off by default); fixes camelCase IPC so thread rows populate instead of staying on “Collecting…”.
 
@@ -1906,7 +1906,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Queue — choose between Queue and Playlist view
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#922](https://github.com/Psychotoxical/psysonic/pull/922)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#922](https://github.com/Psysonic/psysonic/pull/922)**
 
 * **Settings → Personalisation → Queue Display Mode:** *Queue* shows only upcoming tracks — the current one stays in the header and leaves the list once played; *Playlist* keeps the full queue with the current track highlighted at the top. A small icon in the queue header flips the mode, and the title follows it.
 * New default is *Queue* — switch to *Playlist* in settings if you prefer the full list with the playing track shown in place.
@@ -1915,7 +1915,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Genre detail — play or shuffle a whole genre
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#926](https://github.com/Psychotoxical/psysonic/pull/926)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#926](https://github.com/Psysonic/psysonic/pull/926)**
 
 * Play, Shuffle and Add-to-queue buttons on a genre page start the whole genre in one click — in order or randomized — instead of adding each album by hand. Suggested by Apollosport.
 
@@ -1923,7 +1923,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Library browse — restore scroll, filters, and search when returning from detail
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#936](https://github.com/Psychotoxical/psysonic/pull/936)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#936](https://github.com/Psysonic/psysonic/pull/936)**
 
 * **Artists, Search, Tracks, New Releases, Random Albums:** going back from album or artist detail keeps browse filters, list scroll, and search text instead of resetting the page.
 * **Search / Advanced / Tracks** share one browse page; the separate quick-search results route is removed.
@@ -1933,7 +1933,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Genres — local index browse with Subsonic fallback
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#937](https://github.com/Psychotoxical/psysonic/pull/937)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#937](https://github.com/Psysonic/psysonic/pull/937)**
 
 * **Genre detail** and the **Genres** cloud load album lists and counts from the local library index when it is ready; new SQLite indexes speed genre→album browse.
 * When the index is disabled or not ready, the album grid falls back to Subsonic **byGenre** as before.
@@ -1944,7 +1944,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Live Search — scoped browse on library pages
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#938](https://github.com/Psychotoxical/psysonic/pull/938)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#938](https://github.com/Psysonic/psysonic/pull/938)**
 
 * **Artists, All Albums, New Releases, Tracks, and Composers** use the header Live Search field with a scope badge (sidebar icon) instead of a separate in-page filter input.
 * While scoped, typing filters **that page only** via the same local-vs-network browse search; the global Live Search dropdown stays closed.
@@ -1953,7 +1953,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Performance Probe — live runtime logs tab
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#946](https://github.com/Psychotoxical/psysonic/pull/946)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#946](https://github.com/Psysonic/psysonic/pull/946)**
 
 * New **Logs** tab streams the backend runtime log buffer live inside the app, so the stdout/stderr console — unreachable on Windows without exporting a file — can be read online. The buffer tags each line with a monotonic seq and a new `tail_runtime_logs` command tails it incrementally.
 * Includes an off/normal/debug **depth switch** (mirrors app Settings), a 500–5000 **line cap**, pause/clear, auto-follow, and an ordered comma-separated **word filter** where a plain word includes and `-word` excludes, applied left to right as layers (sequence matters).
@@ -1964,7 +1964,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Settings + Queue polish
 
-**By [@kveld9](https://github.com/kveld9) + [@Psychotoxical](https://github.com/Psychotoxical), adopted from PR [#558](https://github.com/Psychotoxical/psysonic/pull/558), rewritten in PR [#778](https://github.com/Psychotoxical/psysonic/pull/778)**
+**By [@kveld9](https://github.com/kveld9) + [@Psychotoxical](https://github.com/Psychotoxical), adopted from PR [#558](https://github.com/Psysonic/psysonic/pull/558), rewritten in PR [#778](https://github.com/Psysonic/psysonic/pull/778)**
 
 * Settings toggle rows dim non-toggle content to 0.6 opacity when their switch is off; mutex-disabled rows (Crossfade/Gapless) unchanged.
 * Queue toolbar `Clear` → `Clear queue` across all 9 locales.
@@ -1973,7 +1973,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Linux — session GDK, WebKitGTK mitigations, and Wayland text
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#731](https://github.com/Psychotoxical/psysonic/pull/731)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#731](https://github.com/Psysonic/psysonic/pull/731)**
 
 * **Nix / AUR** default installs follow the session GDK backend instead of pinning `GDK_BACKEND=x11`; startup applies **`webkit2gtk-nvidia-quirk`** only (skip with **`PSYSONIC_WEBKIT_GPU_ACCEL`**). **`nix run .#psysonic-x11-legacy`** keeps the old explicit X11 launcher.
 * **AppImage stays on X11/XWayland**: unlike the `.deb` / `.rpm` / Nix packages it still pins `GDK_BACKEND=x11` (set by the bundle's AppRun hook), so it doubles as the legacy channel. Use `.deb`, `.rpm`, AUR, or the Nix default for a native-Wayland launch.
@@ -1984,7 +1984,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Library browse — in-page overlay scroll
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#731](https://github.com/Psychotoxical/psysonic/pull/731)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#731](https://github.com/Psysonic/psysonic/pull/731)**
 
 * **Artists**, **Albums**, **Composers**, **Lossless albums**, and **New releases** scroll inside the route on a locked in-page viewport — toolbars stay sticky, virtual grids use the matching scroll root.
 * Sidebar hover and album/artist card covers no longer jitter on WebKitGTK + Wayland during pointer moves.
@@ -1993,7 +1993,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Interface Scale — covers the whole window
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#781](https://github.com/Psychotoxical/psysonic/pull/781)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#781](https://github.com/Psysonic/psysonic/pull/781)**
 
 * Settings → Appearance → Interface Scale now scales sidebar, queue, player bar, modals/portals and the fullscreen player alongside the main content — same behaviour as browser Ctrl+/−.
 
@@ -2001,7 +2001,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Radio — card control polish
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), reported by zunoz on Discord, PR [#786](https://github.com/Psychotoxical/psysonic/pull/786)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), reported by zunoz on Discord, PR [#786](https://github.com/Psysonic/psysonic/pull/786)**
 
 * Repeat is disabled while a radio stream plays.
 * Deleting the playing station fades out instead of cutting hard.
@@ -2011,7 +2011,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Library browse — local index race and catalog paths
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#847](https://github.com/Psychotoxical/psysonic/pull/847)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#847](https://github.com/Psysonic/psysonic/pull/847)**
 
 * **Artists**, **Composers**, **Tracks**, and **Search Results** text search races local FTS against network search3; a ready index still serves hits when remote is down.
 * **All Albums** paginated browse and genre filter, plus **Artists** catalog browse-all, read from the local index when ready (network fallback unchanged).
@@ -2021,7 +2021,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Lyrics — sources can be turned off entirely
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), suggested by sddania, PR [#855](https://github.com/Psychotoxical/psysonic/pull/855)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), suggested by sddania, PR [#855](https://github.com/Psysonic/psysonic/pull/855)**
 
 * YouLyPlus is now an independent toggle instead of an either/or with the standard sources, so lyrics can be switched off completely — turn off YouLyPlus and every source under **Settings → Lyrics**. With nothing selected, no lyrics are fetched or shown and the queue lyric tab says so. Fresh installs start with all sources off.
 
@@ -2029,7 +2029,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Queue — smoother scrolling for very long queues
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#857](https://github.com/Psychotoxical/psysonic/pull/857)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#857](https://github.com/Psysonic/psysonic/pull/857)**
 
 * The queue panel now renders only the rows in view, so very long queues (e.g. hours of Artist Radio) stay smooth instead of bogging down the interface.
 
@@ -2037,7 +2037,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Queue — section dividers kept when restoring from the local index
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#858](https://github.com/Psychotoxical/psysonic/pull/858)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#858](https://github.com/Psysonic/psysonic/pull/858)**
 
 * When the queue is rebuilt from the local library index on startup, the **Radio** and **Auto-added** section dividers are now preserved. Groundwork toward keeping very large queues fast and light.
 
@@ -2045,7 +2045,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Queue — on-demand track loading for very large queues
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#859](https://github.com/Psychotoxical/psysonic/pull/859)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#859](https://github.com/Psysonic/psysonic/pull/859)**
 
 * Continued groundwork for multi-thousand-track queues: track details are resolved on demand through a shared cache rather than all being held at once. No change to how the queue looks or behaves.
 
@@ -2053,7 +2053,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Queue — panel now reads through the shared track cache
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#860](https://github.com/Psychotoxical/psysonic/pull/860)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#860](https://github.com/Psysonic/psysonic/pull/860)**
 
 * The queue panel sources its row details through the on-demand track cache, another step toward keeping multi-thousand-track queues light on memory. No visible change.
 
@@ -2061,7 +2061,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Backup UX — blocking progress gate for long operations
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#864](https://github.com/Psychotoxical/psysonic/pull/864)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#864](https://github.com/Psysonic/psysonic/pull/864)**
 
 * Backup/export and restore operations now show a global blocking status modal after file selection, so the app no longer looks frozen while archive and SQLite work runs.
 
@@ -2069,7 +2069,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Development — parallel `tauri dev` alongside release
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#866](https://github.com/Psychotoxical/psysonic/pull/866)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#866](https://github.com/Psysonic/psysonic/pull/866)**
 
 * Debug builds skip `tauri-plugin-single-instance` so `./dev.sh` can run next to an installed release while sharing the same app data directory.
 * Debug-only chrome: window title `Psysonic (Dev)`, red sidebar brand, monochrome custom titlebar buttons, mobile `DEV` badge, horizontally flipped tray icon.
@@ -2079,7 +2079,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Discord Rich Presence — track title in the member list
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#885](https://github.com/Psychotoxical/psysonic/pull/885)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#885](https://github.com/Psysonic/psysonic/pull/885)**
 
 * The Discord member list and the collapsed presence card now show the playing track next to the music icon instead of the static "Psysonic" label — matches how comparable players appear in the user list.
 * New **User list line (name)** template under **Settings → Integrations → Discord Rich Presence**, default `{title}`. Same placeholders as the other templates: `{title}`, `{artist}`, `{album}`. Leaving it empty restores the previous "Psysonic" display.
@@ -2088,7 +2088,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Library browse — chunked local catalogs and unified in-page scroll
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#890](https://github.com/Psychotoxical/psysonic/pull/890)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#890](https://github.com/Psysonic/psysonic/pull/890)**
 
 * **Albums / Artists**: local index loaded in **200-row SQL chunks** instead of a single ~50k-row fetch; filters preserved.
 * **All Albums**: client-slice infinite scroll on the local index (Artists-style).
@@ -2096,13 +2096,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### CI — hot-path coverage gates block merges
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#921](https://github.com/Psychotoxical/psysonic/pull/921)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#921](https://github.com/Psysonic/psysonic/pull/921)**
 
 * Frontend and Rust `coverage` jobs no longer carry `continue-on-error`; listed hot-path files must stay at ≥70% line coverage or the PR fails.
 
 ### Cover backfill — live-tunable parallelism and pipeline
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#943](https://github.com/Psychotoxical/psysonic/pull/943)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#943](https://github.com/Psysonic/psysonic/pull/943)**
 
 * Cover backfill runs through a producer/consumer pipeline (bounded channel + fixed consumer pool) that stays saturated and bails promptly on a switch to **lazy** instead of draining the whole backlog.
 * **Performance Probe** gains a runtime cover-thread control (`library_cover_backfill_set_parallel`) that resizes the HTTP/encode pools live; "Run full pass now" forces a pass and clears fetch-failed backoff.
@@ -2110,13 +2110,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Performance Probe — cover pipeline throughput (cpm)
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#945](https://github.com/Psychotoxical/psysonic/pull/945)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#945](https://github.com/Psysonic/psysonic/pull/945)**
 
 * The cover pipeline now reports a covers-per-minute throughput (cpm), the analogue of the analysis pipeline's tpm: a rolling one-minute rate derived from the backfill `done` progress. Shown in the Monitor tab "Cover backfill" card (pinnable to the overlay) and in the Cover pipeline overlay block.
 
 ### Performance Probe — cover pipeline on-demand (ui) throughput
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#947](https://github.com/Psychotoxical/psysonic/pull/947)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#947](https://github.com/Psysonic/psysonic/pull/947)**
 
 * Cover cpm previously measured only the native backfill (lib). On-demand UI cover ensures (grid / now-playing) now report their own covers-per-minute rate, shown as separate **Backfill (lib)** and **On-demand (ui)** cards in the Monitor tab (each pinnable) and as `lib`/`ui` rows in the Cover pipeline overlay block.
 
@@ -2124,20 +2124,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Performance Probe — responsive throughput windows (tpm / cpm)
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#948](https://github.com/Psychotoxical/psysonic/pull/948)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#948](https://github.com/Psysonic/psysonic/pull/948)**
 
 * Analysis **tpm** and cover **cpm** (lib + ui) now measure throughput over the trailing **5 seconds** instead of a full-minute rolling average. The figure is still extrapolated to per-minute, but reacts promptly to bursts/stalls and decays to 0 within the window when idle, instead of coasting on minute-long inertia.
 
 ### Track cards — distinct look + jump to album
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#953](https://github.com/Psychotoxical/psysonic/pull/953)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#953](https://github.com/Psysonic/psysonic/pull/953)**
 
 * Single tracks in the discovery rails now show a round, vinyl-style cover so they read as songs rather than albums — clicking one still plays it instantly.
 * A new **To album** badge under the artist jumps to the track's album, available in all 9 languages.
 
 ### Tooltips — consistent hints on every button
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#972](https://github.com/Psychotoxical/psysonic/pull/972)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#972](https://github.com/Psysonic/psysonic/pull/972)**
 
 * Buttons across the app now show a short tooltip describing what they do, appearing after a 1-second hover so they never flash during quick mouse passes.
 * Tooltips that were missing — on the artist, album, All Albums, track-list and playlist actions — are filled in, and tooltips that used to point different directions within the same toolbar now line up consistently.
@@ -2147,7 +2147,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Mainstage — renamed to match the sidebar
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), reported by zunoz on Discord, PR [#975](https://github.com/Psychotoxical/psysonic/pull/975)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), reported by zunoz on Discord, PR [#975](https://github.com/Psysonic/psysonic/pull/975)**
 
 * The **Settings → Personalisation** section for customising the home page is renamed **Mainstage** so it matches the sidebar entry it controls. Localised across all 9 languages; settings search still finds it under the new name.
 
@@ -2158,7 +2158,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### In-page browse — virtual scroll and cover-art priority
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#783](https://github.com/Psychotoxical/psysonic/pull/783)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#783](https://github.com/Psysonic/psysonic/pull/783)**
 
 * **In-page browse:** virtual artist/album/composer grids and lists no longer lose all rows after deep scroll — `scrollMargin` now targets the in-page overlay viewport, not the locked main route scrollport.
 * **Cover art on browse pages:** `CachedImage` priority scoring follows the real scrolling pane so visible thumbnails win network fetch slots; Artists infinite scroll loads one page per batch instead of re-entrantly queueing many pages during a fast fling.
@@ -2168,14 +2168,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Lucky Mix after server switch
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#785](https://github.com/Psychotoxical/psysonic/pull/785)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#785](https://github.com/Psysonic/psysonic/pull/785)**
 
 * Starting a mix on the browsed server no longer spams cross-server enqueue errors — unpinned or foreign queues hand off cleanly before batch enqueue.
 
 
 ### Radio — paused streams stay paused
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), reported by drelabre on GitHub, PR [#786](https://github.com/Psychotoxical/psysonic/pull/786)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), reported by drelabre on GitHub, PR [#786](https://github.com/Psysonic/psysonic/pull/786)**
 
 * Pausing a radio stream no longer auto-resumes after about a minute on macOS.
 
@@ -2184,7 +2184,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Mainstage — album rail hover controls
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#787](https://github.com/Psychotoxical/psysonic/pull/787)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#787](https://github.com/Psysonic/psysonic/pull/787)**
 
 * **Home horizontal album rails (Discover, etc.):** play/enqueue overlay no longer flickers on WebKitGTK + Wayland GPU; cover zoom stays smooth like the All Albums grid.
 * **Album grids and song rails:** overlay `pointer-events` so the dim layer does not steal hover from the card.
@@ -2193,7 +2193,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Album view — bulk add to playlist selection
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#844](https://github.com/Psychotoxical/psysonic/pull/844)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#844](https://github.com/Psysonic/psysonic/pull/844)**
 
 * Bulk "Add to playlist" no longer clears the track selection without opening the playlist picker.
 
@@ -2202,7 +2202,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Playlists — column sorting keeps the viewport in place
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#848](https://github.com/Psychotoxical/psysonic/pull/848)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#848](https://github.com/Psysonic/psysonic/pull/848)**
 
 * Sorting a playlist column no longer snaps the viewport down to the list when scrolled to the top.
 
@@ -2211,7 +2211,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Settings — local library index exclude/include feedback
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#850](https://github.com/Psychotoxical/psysonic/pull/850)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#850](https://github.com/Psysonic/psysonic/pull/850)**
 
 * **Settings → Library:** **Exclude from sync** and **Include again** show immediate busy labels and block repeat clicks while bind/unbind runs; exclude cancels an in-flight sync first.
 
@@ -2220,7 +2220,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Statistics — player stats tab without local index
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#851](https://github.com/Psychotoxical/psysonic/pull/851)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#851](https://github.com/Psysonic/psysonic/pull/851)**
 
 * **Statistics → Player stats** tab stays visible when the local library index is off; an info notice explains that player statistics require the index and links to **Settings → Library**.
 
@@ -2229,7 +2229,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Playlists & Favorites — column picker on short lists
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#853](https://github.com/Psychotoxical/psysonic/pull/853)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#853](https://github.com/Psysonic/psysonic/pull/853)**
 
 * On a one-song playlist (or short favorites list) the column menu was clipped behind the list, added a stray scrollbar, and could hide the row when scrolled. The picker now sits outside the scroll area, so it opens fully on lists of any length.
 
@@ -2238,7 +2238,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Browse all tracks — sticky header no longer overlapped
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#854](https://github.com/Psychotoxical/psysonic/pull/854)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#854](https://github.com/Psysonic/psysonic/pull/854)**
 
 * Scrolling the full tracks list painted rows over the sticky column header. Browse now flows in the page like the search results, so the header stays put; it shares one list view with Search and Advanced Search.
 
@@ -2247,7 +2247,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Local library index — full resync removes server-deleted tracks
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#861](https://github.com/Psychotoxical/psysonic/pull/861)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#861](https://github.com/Psysonic/psysonic/pull/861)**
 
 * **Settings → Library → Full resync** now soft-deletes local rows that no longer exist on the server after a successful re-sync (mark-and-sweep via `resync_gen`), so **Ready (N tracks)** no longer stays inflated when tracks were removed on Navidrome/Subsonic. Delta tombstone reconcile is unchanged.
 
@@ -2256,7 +2256,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Server index-key migration — unknown/legacy data handling
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#864](https://github.com/Psychotoxical/psysonic/pull/864)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#864](https://github.com/Psysonic/psysonic/pull/864)**
 
 * Legacy destructive migration paths were replaced with a dual-DB import/switch flow that keeps old DBs as source until verification passes.
 * Rows belonging to removed servers are explicitly skipped/purged from the active migrated DB scope instead of being silently carried forward.
@@ -2267,7 +2267,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Now Playing — stray zero metadata badges
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#865](https://github.com/Psychotoxical/psysonic/pull/865)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#865](https://github.com/Psysonic/psysonic/pull/865)**
 
 * Hero track-info badges no longer render literal `0` when numeric metadata fields (bit depth, bitrate, sample rate, year, rating) are missing and arrive as zero from the server.
 
@@ -2276,7 +2276,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Analysis — failed tracks no longer block completion forever
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#867](https://github.com/Psychotoxical/psysonic/pull/867)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#867](https://github.com/Psysonic/psysonic/pull/867)**
 
 * **Settings → Library:** problematic tracks that cannot complete loudness/enrichment are now persisted as **failed** and excluded from endless retry loops after restart.
 * Added failed-track controls in Analytics strategy (count, inspect list with title/path, export, and rescan) so users can review and requeue only when they want.
@@ -2287,7 +2287,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Live Search — multi-server local index hits
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#868](https://github.com/Psychotoxical/psysonic/pull/868)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#868](https://github.com/Psysonic/psysonic/pull/868)**
 
 * **Live Search** with a local index no longer returns empty or wrong-server hits on multi-server libraries — FTS is scoped to the active server instead of global bm25 across all indexed tracks.
 * Local artist/album rows dedupe correctly (one performer no longer fills the whole dropdown); Advanced Search text queries use the same server scope fix.
@@ -2297,7 +2297,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Queue — mixed-server routing and quota-safe persist
 
-**By [@Psychotoxical](https://github.com/Psychotoxical) + [@cucadmuh](https://github.com/cucadmuh), PR [#872](https://github.com/Psychotoxical/psysonic/pull/872)**
+**By [@Psychotoxical](https://github.com/Psychotoxical) + [@cucadmuh](https://github.com/cucadmuh), PR [#872](https://github.com/Psysonic/psysonic/pull/872)**
 
 * Mixed-server queues with the same track ID on different servers now stay on their original server through track switches, undo, and radio top-ups.
 * Persisted queue is quota-safe — a full local storage no longer blocks playback on very large queues.
@@ -2307,7 +2307,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Analytics — aggressive scan no longer eats memory on big libraries
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#873](https://github.com/Psychotoxical/psysonic/pull/873)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#873](https://github.com/Psysonic/psysonic/pull/873)**
 
 * **Settings → Library → Analytics → Aggressive** on multi-server or 100k+ track libraries no longer climbs in memory until the system swaps (Linux) or runs out (Windows OOM mid-scan): the HTTP download stage now waits for Symphonia decode + loudness to catch up instead of buffering tracks faster than they can be processed.
 * Now-playing prefetch still bypasses the cap, so starting a track during a background scan stays instant.
@@ -2317,7 +2317,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Home — Discover Songs cover art with local index
 
-**By [@Psychotoxical](https://github.com/Psychotoxical) + [@cucadmuh](https://github.com/cucadmuh), PR [#874](https://github.com/Psychotoxical/psysonic/pull/874)**
+**By [@Psychotoxical](https://github.com/Psychotoxical) + [@cucadmuh](https://github.com/cucadmuh), PR [#874](https://github.com/Psysonic/psysonic/pull/874)**
 
 * **Mainstage → Discover Songs** no longer shows disc placeholders when the local library index returns tracks without `coverArt` but with a valid `albumId` — cover resolution matches the Rust backfill rule (`COALESCE(cover_art_id, album_id)`).
 * Discover Songs row gets dedicated mainstage cover prefetch and warmup so song cards are not crowded out by album rails on cold caches.
@@ -2327,7 +2327,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Cover art — Windows thumbnails, PNG decode, and Subsonic cover ids
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#878](https://github.com/Psychotoxical/psysonic/pull/878)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#878](https://github.com/Psysonic/psysonic/pull/878)**
 
 * Small cover surfaces on Windows (player bar, queue, artist top tracks) no longer stay empty while large album art loads — tier ladder disk lookup, valid `asset://` URLs only, and broader Tauri asset scope.
 * Fixes a startup/UI freeze when disk paths were applied via `rememberGridDiskSrc` (notify loop); seeds cache without waking subscribers.
@@ -2340,7 +2340,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Analytics — advanced library backfill without webview jank
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#881](https://github.com/Psychotoxical/psysonic/pull/881)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#881](https://github.com/Psysonic/psysonic/pull/881)**
 
 * **Settings → Library → Analytics → Advanced** on large libraries no longer stalls the whole UI (~4 FPS): catalog scheduling runs in a native background worker like cover backfill, not a webview polling loop.
 * Partially analyzed tracks (hash + BPM but missing waveform/loudness) are picked up via a targeted second scan with a reset cursor so the library is not skipped mid-pass.
@@ -2351,7 +2351,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Analytics — advanced backfill scan no longer replays the first chunk
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#882](https://github.com/Psychotoxical/psysonic/pull/882)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#882](https://github.com/Psysonic/psysonic/pull/882)**
 
 * **Settings → Library → Analytics → Advanced** on large libraries no longer stalls mid-pass when most early tracks are already analyzed: the native coordinator keeps hash/BPM gap scan phase and cursor across ticks instead of restarting from the first ids every cycle.
 
@@ -2360,7 +2360,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Analytics — Opus waveform and loudness analysis
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#883](https://github.com/Psychotoxical/psysonic/pull/883)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#883](https://github.com/Psysonic/psysonic/pull/883)**
 
 * **Opus tracks:** waveform, LUFS, and enrichment analysis now use the same `symphonia-adapter-libopus` registry as playback — previously Symphonia could demux Ogg Opus but failed at decoder creation, leaving `.opus` libraries without analysis data.
 
@@ -2369,7 +2369,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Settings — Linux text-input freeze workaround
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#884](https://github.com/Psychotoxical/psysonic/pull/884)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#884](https://github.com/Psysonic/psysonic/pull/884)**
 
 * **Settings → System → Behavior** (Linux only): optional toggle for users on WebKitGTK 2.50.x where text fields freeze when clicked (issues #342, #782) — turning it on forces the input to repaint on focus. Default off; enabling it adds a brief flicker on search icons.
 
@@ -2378,7 +2378,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Artist page — top track thumbnails
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#886](https://github.com/Psychotoxical/psysonic/pull/886)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#886](https://github.com/Psysonic/psysonic/pull/886)**
 
 * **Top Tracks** on the artist page now load cover art through the same album `id` + `coverArt` path and disk warm batch as the albums grid below — fixes slow or missing 32px thumbs that used a separate sparse resolver.
 * Warm/peek uses the album-grid tier (not 32px), top-track rows ensure at high priority, and the page registers the same dense prefetch as All Albums.
@@ -2388,7 +2388,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Covers — load on Windows when the server URL has a `:port`
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#889](https://github.com/Psychotoxical/psysonic/pull/889)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#889](https://github.com/Psysonic/psysonic/pull/889)**
 
 * Album, now-playing, mainstage, and lightbox covers no longer stay blank on Windows when the active server URL has a `:port` (typical Navidrome LAN setup on `:4533`). The colon used to land in a Windows filesystem segment, so the OS rejected the whole cache path with `ERROR_INVALID_NAME` and every cover load failed silently.
 * Existing cache buckets on disk are wiped once on the next launch (layout-stamp bump) and rebuild lazily as users browse. Library, offline, and hot caches are untouched.
@@ -2398,7 +2398,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Library browse & covers — scroll stability and cover loading
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#890](https://github.com/Psychotoxical/psysonic/pull/890)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#890](https://github.com/Psysonic/psysonic/pull/890)**
 
 * In-page infinite scroll stabilized; cover memory caches capped; covers keep loading during active grid scroll.
 * **New Releases** and **Lossless** grids use the correct in-page scroll root; cover ensure invoke pump no longer sticks; viewport priority tiers for ensure/peek.
@@ -2409,7 +2409,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Queue — new tracks no longer render as blank placeholders
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#892](https://github.com/Psychotoxical/psysonic/pull/892)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#892](https://github.com/Psysonic/psysonic/pull/892)**
 
 * Adding tracks to the queue from Advanced Search results, song rows, or song cards right after launch could show every new entry as `…` / `0:00` instead of the real title and duration, until something else triggered a queue-replacing playback.
 * Root cause: the queue's owning server was not pinned yet, so the resolver cache skipped seeding the incoming tracks. Add-to-queue mutations now pin the active server up-front.
@@ -2419,7 +2419,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Radio — track info in OS media controls
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), reported by agriffit79 on GitHub, PR [#924](https://github.com/Psychotoxical/psysonic/pull/924)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), reported by agriffit79 on GitHub, PR [#924](https://github.com/Psysonic/psysonic/pull/924)**
 
 * The Linux media overlay (MPRIS) now shows the current **radio track and artist** instead of just "Psysonic", and updates as the stream changes songs. Internet radio plays through the WebView audio element, which exposes its own OS media player — that player is now fed the live ICY/AzuraCast metadata. Streams that send no metadata still fall back to the station name.
 
@@ -2428,7 +2428,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Advanced Search — centered button label
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#925](https://github.com/Psychotoxical/psysonic/pull/925)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#925](https://github.com/Psysonic/psysonic/pull/925)**
 
 * The **Search** button's label is now centered. Buttons wider than their text (the Search button has a fixed minimum width) previously rendered the label left-aligned.
 
@@ -2437,14 +2437,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### CI — npmDepsHash on app-v* tags
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#927](https://github.com/Psychotoxical/psysonic/pull/927)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#927](https://github.com/Psysonic/psysonic/pull/927)**
 
 * Channel publish now refreshes `nix/upstream-sources.json` and `flake.lock` on the channel branch **before** cutting `app-v*` tags, so Nix builds from release tags no longer fail with stale `npmDepsHash` (e.g. after promote finalizes `package-lock.json` version).
 
 
 ### Queue — Infinite Queue and Smart Radio top-ups no longer show `…` / `0:00`
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#930](https://github.com/Psychotoxical/psysonic/pull/930)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#930](https://github.com/Psysonic/psysonic/pull/930)**
 
 * Tracks added automatically by **Infinite Queue** or by **Smart Radio** could render as `…` / `0:00` instead of their real title and duration when the queue was filled without a queue-replacing playback (single-track enqueue from a song row, search result, etc).
 * Same root cause as PR #892 — just on the auto-add paths the earlier fix did not cover. The owning server is now pinned before each auto-top-up so the resolver cache sees the fresh tracks.
@@ -2452,7 +2452,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Performance — idle Rust CPU, probe overlay, and cover prefetch
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#939](https://github.com/Psychotoxical/psysonic/pull/939)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#939](https://github.com/Psysonic/psysonic/pull/939)**
 
 * **Advanced analytics coordinator:** park on `Notify` when disabled — no idle 2s poll loop; wake on configure or library sync-idle.
 * **Performance Probe:** run CPU snapshot on the blocking pool; skip `/proc` poll on Windows; fix overlay flicker and sparkline clock jumps; hold previous CPU % until the first rate sample (no 0% flash).
@@ -2462,7 +2462,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Player stats — paused time no longer counts as listening time
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#942](https://github.com/Psychotoxical/psysonic/pull/942)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#942](https://github.com/Psysonic/psysonic/pull/942)**
 
 * Pausing a track and resuming later inflated the listening time in **Statistics → Player stats** — the whole paused span was billed as if the track had been playing.
 * Root cause: the session's tick baseline froze on pause, so the first progress tick after resume measured against the pre-pause timestamp. It now settles the played segment on pause and rebaselines on resume.
@@ -2470,7 +2470,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Cover backfill — idle CPU spin and offline & cache menu spikes
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#943](https://github.com/Psychotoxical/psysonic/pull/943)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#943](https://github.com/Psysonic/psysonic/pull/943)**
 
 * **Aggressive** cover backfill could pin a `tokio-runtime-worker` near 100% CPU when effectively idle: it had no "nothing changed, don't rescan" gate. Added a cheap disk-free idle signature (`COUNT(DISTINCT)` covers) with a `sync-idle` cooldown; the gate settles on a completed pass even when some covers are unfetchable (404), so libraries that never reach 100% no longer trigger a wake storm.
 * Worklist is now built from a single DB `GROUP BY` plus one cover-dir snapshot and diffed in memory — no per-row `stat`, no per-batch rescan loop — so increasing parallelism actually saturates the pipeline.
@@ -2480,7 +2480,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Cover art — per-song over-fetch on Navidrome (album/mf-* explosion)
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#944](https://github.com/Psychotoxical/psysonic/pull/944)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#944](https://github.com/Psysonic/psysonic/pull/944)**
 
 * The per-disc cover detection treated each track's own `mf-<id>` coverArt as "distinct disc art", so backfill warmed one cover per track (e.g. ~520k cached elements for ~170k tracks) and filled the `album/` bucket with `mf-*` directories.
 * It now treats a release as multi-disc only when each disc has a single consistent cover that differs across discs (a genuine box set); per-song ids collapse to one cover per album (≈ albums + artists). Fixed on both the Rust backfill path and the on-demand TS `albumHasDistinctDiscCovers`.
@@ -2489,7 +2489,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Cover backfill — follow the local/public endpoint switch
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#952](https://github.com/Psychotoxical/psysonic/pull/952)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#952](https://github.com/Psysonic/psysonic/pull/952)**
 
 * On a dual-address server, library cover backfill was configured once with a snapshot of the connect URL and never followed the smart LAN↔public switch. Starting already off the LAN — or moving off it mid-session — (internet up, playback already on the public address) left backfill hammering the now-unreachable local address and flooding the log with `error sending request` failures.
 * The backfill worklist no longer carries a URL: each cover fetch now reads the current reachable address live, so a LAN↔public flip is honoured even by the pass already in flight (its remaining covers download against the new endpoint). The connect cache is observable and pushes the resolved URL to the native worker on every flip; a real change clears the stale `.fetch-failed` backoff and runs a forced pass so the handful of covers attempted against the old address retry on the reachable one. This also covers the boot case where the initial pass starts on the primary URL before the first reachability probe resolves. On-demand UI / playback covers already followed the switch.
@@ -2497,14 +2497,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### UI polish — focus rings, search fields, column menus, settings
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#954](https://github.com/Psychotoxical/psysonic/pull/954)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#954](https://github.com/Psysonic/psysonic/pull/954)**
 
 * A pass of UI/CSS fixes: keyboard focus rings now sit inside the focused element, so they're no longer clipped at the edge of cards, rails, the player bar, queue tabs or search fields; the page, Help and Settings search fields share one consistent shape and focus highlight; the column-visibility dropdown on track tables no longer gets cut off on short lists (e.g. a single favorited song); and the Theme settings list rounds its corners to match its section.
 
 
 ### Player — prefs survive restart when queue persist hits quota
 
-**By [@cucadmuh](https://github.com/cucadmuh), reported by norp on the Psysonic Discord, PR [#958](https://github.com/Psychotoxical/psysonic/pull/958)**
+**By [@cucadmuh](https://github.com/cucadmuh), reported by norp on the Psysonic Discord, PR [#958](https://github.com/Psysonic/psysonic/pull/958)**
 
 * Volume, repeat mode, queue panel visibility, and the Last.fm loved-track cache no longer depend on the quota-bound `psysonic-player` blob (full `queueItems` since thin-state #872). Each pref now has its own small localStorage key with legacy migration from the old blob.
 * Startup no longer overwrites saved prefs before Zustand rehydration finishes; persisted volume is pushed to the Rust engine on boot.
@@ -2513,7 +2513,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### All Albums — genre filter respects sidebar library scope
 
-**By [@cucadmuh](https://github.com/cucadmuh), reported by zunoz on the Psysonic Discord, PR [#959](https://github.com/Psychotoxical/psysonic/pull/959)**
+**By [@cucadmuh](https://github.com/cucadmuh), reported by zunoz on the Psysonic Discord, PR [#959](https://github.com/Psysonic/psysonic/pull/959)**
 
 * With multiple music libraries, narrowing the sidebar to one library no longer leaves the Genre filter showing server-wide genres — options now come from the scoped local index catalog (same scope as the album grid).
 
@@ -2521,7 +2521,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Now Playing — multi-artist links and About the Artist tabs
 
-**By [@cucadmuh](https://github.com/cucadmuh), reported by zunoz on the Psysonic Discord, PR [#960](https://github.com/Psychotoxical/psysonic/pull/960)**
+**By [@cucadmuh](https://github.com/cucadmuh), reported by zunoz on the Psysonic Discord, PR [#960](https://github.com/Psysonic/psysonic/pull/960)**
 
 * Tracks with OpenSubsonic `artists[]` (e.g. Navidrome `feat.` splits) now expose per-artist links on the Now Playing hero and in the queue current-track row — same interaction as player bar and album track lists.
 * About the Artist loads bio for each performer; when multiple artist ids are present, tabs switch between their bios, images, and similar artists instead of showing one joined name with a single profile.
@@ -2530,7 +2530,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Composers — page search keeps role-split credits
 
-**By [@cucadmuh](https://github.com/cucadmuh), reported by zunoz on the Psysonic Discord, PR [#961](https://github.com/Psychotoxical/psysonic/pull/961)**
+**By [@cucadmuh](https://github.com/cucadmuh), reported by zunoz on the Psysonic Discord, PR [#961](https://github.com/Psysonic/psysonic/pull/961)**
 
 * Scoped search on Composers no longer replaces the Navidrome role-scoped catalog with generic artist index/search3 hits that merge split composer credits into one joined name and id — results stay split like the scroll overview.
 
@@ -2538,7 +2538,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Browse grids — multi-select ring no longer clips (WebKitGTK)
 
-**By [@cucadmuh](https://github.com/cucadmuh), reported by zunoz on the Psysonic Discord, PR [#962](https://github.com/Psychotoxical/psysonic/pull/962)**
+**By [@cucadmuh](https://github.com/cucadmuh), reported by zunoz on the Psysonic Discord, PR [#962](https://github.com/Psysonic/psysonic/pull/962)**
 
 * Multi-select rings on Artists, All Albums, Playlists, and related card grids use an inset `::after` overlay (same approach as card focus rings) instead of `outline` on `overflow: hidden` tiles — fixes top-row clipping and the ~1px gap vs the inner border on Wayland/WebKitGTK.
 
@@ -2546,7 +2546,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Composers — hide performer-only artists from role catalog
 
-**By [@cucadmuh](https://github.com/cucadmuh), reported by zunoz on the Psysonic Discord, PR [#963](https://github.com/Psychotoxical/psysonic/pull/963)**
+**By [@cucadmuh](https://github.com/cucadmuh), reported by zunoz on the Psysonic Discord, PR [#963](https://github.com/Psysonic/psysonic/pull/963)**
 
 * Navidrome's composer role list can include artists with zero composer album credits (e.g. Apollo 440 with performer albums only). Composers browse/search now drops rows where `stats.composer.albumCount` is zero so ghost composer cards no longer appear.
 
@@ -2554,7 +2554,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Mainstage — Because you listened respects sidebar library
 
-**By [@cucadmuh](https://github.com/cucadmuh), reported by zunoz on the Psysonic Discord, PR [#964](https://github.com/Psychotoxical/psysonic/pull/964)**
+**By [@cucadmuh](https://github.com/cucadmuh), reported by zunoz on the Psysonic Discord, PR [#964](https://github.com/Psysonic/psysonic/pull/964)**
 
 * The recommendation rail picks albums from Last.fm similar artists via `getArtist`, which can ignore `musicFolderId` — picks are now filtered to the scoped library album set, and the rail cache invalidates when the sidebar library filter changes.
 
@@ -2562,7 +2562,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Build a Mix — keyword blocks and scoped genre list
 
-**By [@cucadmuh](https://github.com/cucadmuh), reported by zunoz on the Psysonic Discord, PR [#965](https://github.com/Psychotoxical/psysonic/pull/965)**
+**By [@cucadmuh](https://github.com/cucadmuh), reported by zunoz on the Psysonic Discord, PR [#965](https://github.com/Psysonic/psysonic/pull/965)**
 
 * Random Mix keyword filter (click-to-block artist/genre) now applies even when "Exclude audiobooks" is off — blocking the only track in a library shows an empty state after Remix instead of the excluded song.
 * Genre Mix loads genres through the scoped catalog (`fetchGenreCatalog` / local index) instead of server-wide `getGenres`, matching the sidebar library filter.
@@ -2571,7 +2571,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Artist detail — external link buttons keep border on hover
 
-**By [@cucadmuh](https://github.com/cucadmuh), reported by zunoz on the Psysonic Discord, PR [#966](https://github.com/Psychotoxical/psysonic/pull/966)**
+**By [@cucadmuh](https://github.com/cucadmuh), reported by zunoz on the Psysonic Discord, PR [#966](https://github.com/Psysonic/psysonic/pull/966)**
 
 * Last.fm, Wikipedia, and Favorite used a hover border color that matched the card background — the rim disappeared instead of highlighting the inner fill like Play/Shuffle/Radio (`btn-surface`).
 * Playlist detail — Play and Add Songs now show tooltips like the other header actions; track count uses proper pluralization (`1 song` vs `N songs`) with standard `count` interpolation.
@@ -2581,7 +2581,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Player transport — custom delay input validation
 
-**By [@cucadmuh](https://github.com/cucadmuh), reported by zunoz on the Psysonic Discord, PR [#967](https://github.com/Psychotoxical/psysonic/pull/967)**
+**By [@cucadmuh](https://github.com/cucadmuh), reported by zunoz on the Psysonic Discord, PR [#967](https://github.com/Psysonic/psysonic/pull/967)**
 
 * Absurd custom minute values (e.g. eleven nines) no longer arm an immediate timer while the preview still shows a far-future start time — input is capped to the browser delay limit and Apply stays disabled when out of range.
 * Fractional custom minutes (e.g. `0.1`, `0.01`) now share the same delay math between the modal preview, armed timer, and play-button countdown so the displayed remaining time matches when playback starts or pauses.
@@ -2590,7 +2590,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Settings — in-page search coverage and junk-query filtering
 
-**By [@cucadmuh](https://github.com/cucadmuh), reported by zunoz on the Psysonic Discord, PR [#968](https://github.com/Psychotoxical/psysonic/pull/968)**
+**By [@cucadmuh](https://github.com/cucadmuh), reported by zunoz on the Psysonic Discord, PR [#968](https://github.com/Psysonic/psysonic/pull/968)**
 
 * AudioMuse-AI (Navidrome) is indexed and selectable from settings search; choosing it opens Servers and scrolls to the plugin toggle when shown.
 * In-app and global shortcut labels (e.g. Volume up / Volume down) appear as search hits and focus the parent shortcuts subsection.
@@ -2600,7 +2600,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Floating player bar — remove full-width background strip
 
-**By [@cucadmuh](https://github.com/cucadmuh), reported by Asra on the Psysonic Discord, PR [#969](https://github.com/Psychotoxical/psysonic/pull/969)**
+**By [@cucadmuh](https://github.com/cucadmuh), reported by Asra on the Psysonic Discord, PR [#969](https://github.com/Psysonic/psysonic/pull/969)**
 
 * Floating mode no longer stretches the player bar between sidebar and queue with fixed `left`/`right` — only the centered pill is painted over the page instead of a full-width black band behind the rounded corners.
 
@@ -2608,7 +2608,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Smart Playlist editor — themed sort, stable toggles, exclude-all genres
 
-**By [@cucadmuh](https://github.com/cucadmuh), reported by zunoz on the Psysonic Discord, PR [#970](https://github.com/Psychotoxical/psysonic/pull/970)**
+**By [@cucadmuh](https://github.com/cucadmuh), reported by zunoz on the Psysonic Discord, PR [#970](https://github.com/Psysonic/psysonic/pull/970)**
 
 * Sort dropdown uses the themed `CustomSelect` instead of a native `<select>` whose option list followed system styling.
 * Include/Exclude genre and year-range mode buttons no longer jump ~1px when selected — matched button box model and disabled hover translate on mode toggles.
@@ -2619,7 +2619,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Random Mix — audiobook exclusion no longer drops normal music
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#973](https://github.com/Psychotoxical/psysonic/pull/973) — reported by zunoz on Discord**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#973](https://github.com/Psysonic/psysonic/pull/973) — reported by zunoz on Discord**
 
 * "Exclude audiobooks & radio plays" no longer treats **Thriller** and **Fantasy** as audiobook keywords. They matched regular music (Trance/Metal genre tags, a track titled "Thriller") because the filter scans genre, title, album and artist, so a handful of legitimate songs were dropped from each mix.
 * The exclusion's toggle area is tightened so only the checkbox and its title respond to a click — the description text and surrounding empty space no longer toggle it.
@@ -2627,7 +2627,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Cursors and Favorites sorting
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#974](https://github.com/Psychotoxical/psysonic/pull/974) — reported by zunoz on Discord**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#974](https://github.com/Psysonic/psysonic/pull/974) — reported by zunoz on Discord**
 
 * The queue collapse handle now shows a hand cursor like every other button; the thin resize line beside it keeps the resize cursor.
 * On Favorites, the **Plays**, **Last Played** and **BPM** columns are now actually sortable — they showed a clickable cursor but clicking did nothing.
@@ -2635,7 +2635,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Mainstage — no more blank start page
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), reported by zunoz on Discord, PR [#975](https://github.com/Psychotoxical/psysonic/pull/975)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), reported by zunoz on Discord, PR [#975](https://github.com/Psysonic/psysonic/pull/975)**
 
 * Hiding **Mainstage** from the sidebar no longer leaves the app opening on a blank page — it now starts on the first visible library entry instead.
 * When every Mainstage section is turned off, the page shows a short message with a shortcut into **Settings → Personalisation** rather than appearing empty.
@@ -2643,7 +2643,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Tracks — spacing, Duration column, header hover, multi-artist links
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), reported by zunoz on Discord, PR [#976](https://github.com/Psychotoxical/psysonic/pull/976)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), reported by zunoz on Discord, PR [#976](https://github.com/Psysonic/psysonic/pull/976)**
 
 * The Tracks hub sections (tagline, **Track of the moment**, **Random Pick** rail, **Browse all tracks**) no longer bunch together — even vertical spacing is restored, so the rail's navigation buttons stop riding up into the card above.
 * The **Browse all tracks** table no longer clips the **Duration** column header.
@@ -2653,7 +2653,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Queue, Genre cards, and the Artists index
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), reported by zunoz on Discord, PR [#977](https://github.com/Psychotoxical/psysonic/pull/977)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), reported by zunoz on Discord, PR [#977](https://github.com/Psysonic/psysonic/pull/977)**
 
 * The artist and album in the Queue's now-playing card now underline on hover like every other clickable name, instead of only changing colour.
 * Album cards on a **Genre** page split multi-artist credits into individually clickable artist links, matching the rest of the app.
@@ -2662,14 +2662,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Artist detail — credit on "Also featured on" compilations
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#979](https://github.com/Psychotoxical/psysonic/pull/979)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#979](https://github.com/Psysonic/psysonic/pull/979)**
 
 * Compilation albums under **Also featured on** show their album artist (e.g. *Various Artists*) again instead of a bare `—`, and the credit links to the artist when the server provides one.
 
 
 ### Playlist — Suggested Songs row matches the playlist
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), reported by zunoz on Discord, PR [#980](https://github.com/Psychotoxical/psysonic/pull/980)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), reported by zunoz on Discord, PR [#980](https://github.com/Psysonic/psysonic/pull/980)**
 
 * Suggested Songs now show the favorite heart and star rating like the playlist above, so the Favorite/Rating columns no longer leave an empty gap.
 * Tracks with several artists split into individually clickable names, matching the rest of the app — and reading the same before and after you add the track.
@@ -2677,7 +2677,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Small windows — usable layout when scaled down
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), reported by zunoz on Discord, PR [#981](https://github.com/Psychotoxical/psysonic/pull/981)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), reported by zunoz on Discord, PR [#981](https://github.com/Psysonic/psysonic/pull/981)**
 
 * Browse toolbars (Albums, Artists, …) collapse their filter buttons to icons on a narrow window instead of wrapping into rows that pushed the list off-screen; hover or focus still shows each button's label.
 * The minimum window size is a touch larger so the layout can no longer be shrunk past the point where it breaks.
@@ -2686,14 +2686,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Song rails — consistent navigation buttons
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#982](https://github.com/Psychotoxical/psysonic/pull/982)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#982](https://github.com/Psysonic/psysonic/pull/982)**
 
 * The song rail's previous/next and reroll buttons are now square like every other rail instead of round.
 
 
 ### Local index live search — no junk hits on `=` and syntax characters
 
-**By [@cucadmuh](https://github.com/cucadmuh), reported by zunoz on the Psysonic Discord, PR [#983](https://github.com/Psychotoxical/psysonic/pull/983)**
+**By [@cucadmuh](https://github.com/cucadmuh), reported by zunoz on the Psysonic Discord, PR [#983](https://github.com/Psysonic/psysonic/pull/983)**
 
 * Queries such as `1=2` or `M=c` no longer return unrelated albums and artists — FTS5 was parsing `=` and similar characters as query syntax instead of a literal token.
 * Wildcard-only queries (`**`, `****`) are rejected for both local index and server search; titles that contain censorship stars (e.g. `***Flawless`) remain searchable.
@@ -2702,14 +2702,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Search — song results show their album cover
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), reported by zunoz on Discord, PR [#984](https://github.com/Psychotoxical/psysonic/pull/984)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), reported by zunoz on Discord, PR [#984](https://github.com/Psysonic/psysonic/pull/984)**
 
 * Song results in the search dropdown now show their album cover instead of leaving most thumbnails blank.
 
 
 ### Mainstage album rails — stable New badge on first hover
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#986](https://github.com/Psychotoxical/psysonic/pull/986)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#986](https://github.com/Psysonic/psysonic/pull/986)**
 
 * Horizontal album rails (Home New Releases, Discover, Favorites, Statistics, search rows, …) no longer hide the **New** / offline cover badges during hover zoom — cover stacking is shared with grid pages; rails keep dim-on-`::before` for play controls.
 
@@ -2717,21 +2717,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Player bar — stable waveform when showing remaining time
 
-**By [@cucadmuh](https://github.com/cucadmuh), reported by Asra on the Psysonic Discord, PR [#987](https://github.com/Psychotoxical/psysonic/pull/987)**
+**By [@cucadmuh](https://github.com/cucadmuh), reported by Asra on the Psysonic Discord, PR [#987](https://github.com/Psysonic/psysonic/pull/987)**
 
 * **Show remaining time** no longer reticks the seekbar width every second — fixed-width playbar clocks stop `WaveformSeek` resize/redraw jitter; clocks sit tighter against the waveform with an inline duration toggle icon.
 
 
 ### Linux — instant play/pause/seek/volume on PipeWire
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), reported by PHLAK, PR [#990](https://github.com/Psychotoxical/psysonic/pull/990)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), reported by PHLAK, PR [#990](https://github.com/Psysonic/psysonic/pull/990)**
 
 * On some PipeWire setups, play, pause, seek and volume changes only took effect after a long delay (10+ seconds). Root cause: the PipeWire ALSA bridge negotiated a multi-second audio buffer, so changes were only heard once it drained. Psysonic now caps that buffer, so the controls respond immediately.
 
 
 ### Linux — tray icon no longer duplicates on KDE
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), reported by Asra on the Psysonic Discord, PR [#991](https://github.com/Psychotoxical/psysonic/pull/991)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), reported by Asra on the Psysonic Discord, PR [#991](https://github.com/Psysonic/psysonic/pull/991)**
 
 * Toggling the system tray icon off and on no longer leaves duplicate Psysonic entries piling up in KDE's hidden-icons list.
 
@@ -2756,7 +2756,7 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 
 ### Discord — album cover art from your own server
 
-**By [@Sayykii](https://github.com/Sayykii), PR [#462](https://github.com/Psychotoxical/psysonic/pull/462)**
+**By [@Sayykii](https://github.com/Sayykii), PR [#462](https://github.com/Psysonic/psysonic/pull/462)**
 
 * Discord Rich Presence can now show **album artwork from your own server** via the Subsonic `getAlbumInfo2` endpoint (requires the server to be publicly reachable).
 * New cover-source picker under Discord Rich Presence settings: **None** (app icon only), **Server**, or **Apple Music**. Mutually exclusive.
@@ -2766,7 +2766,7 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 
 ### Queue — preserve "Play Next" insertion order (toggle)
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), suggested by [@Sayykii](https://github.com/Sayykii), PR [#464](https://github.com/Psychotoxical/psysonic/pull/464)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), suggested by [@Sayykii](https://github.com/Sayykii), PR [#464](https://github.com/Psysonic/psysonic/pull/464)**
 
 * New optional toggle in Settings → Audio → Playback ("Preserve Play Next order"). When on, multiple "Play Next" insertions **queue up behind each other** instead of the latest one bumping earlier picks down. Default off — existing behaviour unchanged.
 * Side-benefit: single-song "Play Next" now goes through the unified `enqueueAt` path and gets undo + server-sync support that the album path already had.
@@ -2775,7 +2775,7 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 
 ### Library — "favorites only" filter on Albums, Artists and Advanced Search
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), suggested by [@lilgringo](https://github.com/lilgringo), PR [#466](https://github.com/Psychotoxical/psysonic/pull/466)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), suggested by [@lilgringo](https://github.com/lilgringo), PR [#466](https://github.com/Psysonic/psysonic/pull/466)**
 
 * New star-toggle button in the toolbars of **Albums**, **Artists** and **Advanced Search** that flips the visible list to favourites-only.
 * Filter state is ephemeral per page (not persisted) so users don't come back to a half-empty library and wonder where their content went.
@@ -2785,7 +2785,7 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 
 ### Search — artist photos in live and mobile results
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#470](https://github.com/Psychotoxical/psysonic/pull/470)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#470](https://github.com/Psysonic/psysonic/pull/470)**
 
 * **Live search** and the **mobile search overlay** now show **artist photos** in the Artists section, using the same cover-art cache as albums, with a fallback icon when nothing is available.
 * On mobile, artist rows use a **round** thumbnail next to square album art so the two types are easy to tell apart.
@@ -2794,7 +2794,7 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 
 ### Artist page — group albums by release type
 
-**By [@Sayykii](https://github.com/Sayykii), PR [#471](https://github.com/Psychotoxical/psysonic/pull/471)**
+**By [@Sayykii](https://github.com/Sayykii), PR [#471](https://github.com/Psysonic/psysonic/pull/471)**
 
 * Albums on the artist page can now be **grouped into sections** by their OpenSubsonic `releaseTypes` (Album, EP, Single, Compilation, Live, Soundtrack, Remix). Section order is deterministic across languages, with unknown types appended at the end.
 * Falls back to the previous flat list when the server doesn't return `releaseTypes` or all albums share the default Album type — no behaviour change for non-OpenSubsonic servers.
@@ -2804,7 +2804,7 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 
 ### Library — Browse by Composer
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), suggested by mmourez ([issue #465](https://github.com/Psychotoxical/psysonic/issues/465)), PR [#487](https://github.com/Psychotoxical/psysonic/pull/487)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), suggested by mmourez ([issue #465](https://github.com/Psysonic/psysonic/issues/465)), PR [#487](https://github.com/Psysonic/psysonic/pull/487)**
 
 * New **Composers** library section listing every artist credited as composer on at least one track, with a detail page showing all works they hold in that role. Aimed at classical-music libraries where the recording artist is the orchestra and the composer tag carries Bach / Mozart / Chopin.
 * Requires **Navidrome 0.55+** (uses the native role-filter API — Subsonic `getArtist` only walks AlbumArtist relations and returns zero albums for composer-only credits). Older / pure-Subsonic servers see a one-line capability banner. Music-folder scope is honoured.
@@ -2814,7 +2814,7 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 
 ### Song Info — absolute file path on Navidrome servers
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), suggested by volcs0, PR [#504](https://github.com/Psychotoxical/psysonic/pull/504)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), suggested by volcs0, PR [#504](https://github.com/Psysonic/psysonic/pull/504)**
 
 * The **Path** row in the Song Info dialog now shows the **absolute server-side filesystem path** of a track on Navidrome servers — it was effectively empty before because Subsonic's `getSong` never returned a usable path. Non-Navidrome servers fall back to whatever the Subsonic response carried.
 
@@ -2824,7 +2824,7 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 
 ### Lossless Albums — rail on Home + dedicated page + sidebar entry
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#506](https://github.com/Psychotoxical/psysonic/pull/506)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#506](https://github.com/Psysonic/psysonic/pull/506)**
 
 * New **Lossless Albums** browse mode: a rail under "Most Played" on Home and a dedicated infinite-scroll **`/lossless-albums`** page with full Albums-page header parity (selection mode + Enqueue / Add Offline / Download ZIPs).
 * Detection limits to containers that are **always lossless** (FLAC, WAV, AIFF, DSF/DFF, APE, WV, SHN, TTA) — `m4a` and `wma` are excluded because they can carry both lossless and lossy. Albums stream into the page progressively as they are found.
@@ -2834,7 +2834,7 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 
 ### Settings — OpenDyslexic font option for dyslexic readers
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#507](https://github.com/Psychotoxical/psysonic/pull/507)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#507](https://github.com/Psysonic/psysonic/pull/507)**
 
 * New **OpenDyslexic** font option in the existing font picker — a dyslexia-friendly typeface with a heavier baseline and asymmetric `b`/`d`, `p`/`q` glyphs that many dyslexic readers find easier to track than a typical sans. Continues the accessibility line started by the WCAG contrast audits and the colour-vision-deficiency themes.
 * Bundled locally (`@fontsource/opendyslexic`, SIL OFL — no CDN dependency). Covers Latin, Latin-Extended and Cyrillic; Chinese falls back to the system font, called out via a new font-subtitle field on the picker.
@@ -2843,7 +2843,7 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 
 ### Player Bar — album context menu on song title right-click
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#512](https://github.com/Psychotoxical/psysonic/pull/512)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#512](https://github.com/Psysonic/psysonic/pull/512)**
 
 * Right-clicking the **track title** in the player bar now opens the same album context menu that album cards expose — open, play next, enqueue, go to artist, favorite, rate, share, download, add to playlist.
 * Mirrors the existing left-click on the title (which already navigates to the album) and is suppressed during radio playback and previews.
@@ -2852,7 +2852,7 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 
 ### Orbit — in-app diagnostics popover with copyable event log
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), prompted by reports from nzxl + RavingGrob, PR [#524](https://github.com/Psychotoxical/psysonic/pull/524)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), prompted by reports from nzxl + RavingGrob, PR [#524](https://github.com/Psysonic/psysonic/pull/524)**
 
 * New **Activity-icon** button in the Orbit session bar opens a diagnostics popover. Live mini-display (role, host vs. guest track, position, drift, state-age) plus a scrolling **event log** fed by a 200-entry ring buffer.
 * **Copy** + **Clear** buttons. Copy drops formatted `[ISO] [scope] body` lines on the clipboard — paste straight into a bug report. Events are also bridged to `frontend_debug_log` when **Settings → Logging** is on Debug.
@@ -2862,7 +2862,7 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 
 ### Queue Toolbar — customizable button order + per-button visibility
 
-**By [@kveld9](https://github.com/kveld9), PR [#534](https://github.com/Psychotoxical/psysonic/pull/534)**
+**By [@kveld9](https://github.com/kveld9), PR [#534](https://github.com/Psysonic/psysonic/pull/534)**
 
 * **Settings → Personalisation** grows a new **Queue Toolbar** section. Drag-and-drop reorders the toolbar buttons; a per-button toggle hides individual entries; a **Separator** item can be placed anywhere to break the row into visual groups. A **Reset** button restores the default layout.
 * Persistence via a new `queueToolbarStore` (Zustand + localStorage), so the layout survives restarts.
@@ -2874,7 +2874,7 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 
 ### Settings — Advanced Mode toggle + playlist page layout
 
-**By [@kveld9](https://github.com/kveld9) + [@Psychotoxical](https://github.com/Psychotoxical), PR [#556](https://github.com/Psychotoxical/psysonic/pull/556)**
+**By [@kveld9](https://github.com/kveld9) + [@Psychotoxical](https://github.com/Psychotoxical), PR [#556](https://github.com/Psysonic/psysonic/pull/556)**
 
 * **Advanced Mode.** A new toggle in the Settings header reveals advanced sub-sections across all tabs — community-contributed options that don't necessarily reflect the design philosophy of the Psysonic maintainers, kept available but out of the way. Current advanced sub-sections all live under **Personalisation**: Artist page sections, Queue Toolbar, and the new Playlist page layout.
 * **Playlist page layout.** New sub-section that hides individual elements on the playlist page: **Add Songs**, **Import CSV**, **Download ZIP**, **Cache Offline**, and the **Suggestions** rail at the bottom. All toggles on by default so existing playlists look unchanged.
@@ -2884,7 +2884,7 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 
 ### Romanian (ro) translation
 
-**By [@MihaiCatalin120](https://github.com/MihaiCatalin120), PR [#663](https://github.com/Psychotoxical/psysonic/pull/663)**
+**By [@MihaiCatalin120](https://github.com/MihaiCatalin120), PR [#663](https://github.com/Psysonic/psysonic/pull/663)**
 
 * Complete Romanian (`ro`) locale for navigation, player, playlists, settings, help, and errors.
 * Psysonic now ships in **nine** UI languages: English, German, Spanish, French, Dutch, Norwegian Bokmål, Russian, Chinese (Simplified), and Romanian.
@@ -2893,7 +2893,7 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 
 ### HTTP — gzip + brotli decompression for the Rust-side clients
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#704](https://github.com/Psychotoxical/psysonic/pull/704)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#704](https://github.com/Psysonic/psysonic/pull/704)**
 
 * Every HTTP client on the Rust side now advertises `Accept-Encoding` and transparently decodes compressed responses. The JSON-heavy endpoints — Navidrome native `/api`, Bandsintown, Radio-Browser, Last.fm — were the gap; earlier curl measurements put the wire savings on those payloads at roughly **76–93 %**. No behaviour change beyond smaller transfers.
 
@@ -2901,7 +2901,7 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 
 ### Search — queue pasted share links from Live Search and mobile search
 
-**By [@cucadmuh](https://github.com/cucadmuh), inspired by [@DanielWTE](https://github.com/DanielWTE)'s [PR #551](https://github.com/Psychotoxical/psysonic/pull/551), PR [#716](https://github.com/Psychotoxical/psysonic/pull/716)**
+**By [@cucadmuh](https://github.com/cucadmuh), inspired by [@DanielWTE](https://github.com/DanielWTE)'s [PR #551](https://github.com/Psysonic/psysonic/pull/551), PR [#716](https://github.com/Psysonic/psysonic/pull/716)**
 
 * Pasting a **`psysonic2-`** share link into **Live Search** or the **mobile search overlay** shows a dedicated row: track and queue links **enqueue** instead of replacing the queue like global paste; album, artist, and composer links preview on the share server **without switching** the active server until you confirm.
 * Queue shares offer **Preview** (scrollable track list) before **Add to queue** (search) or **Play queue** (global Ctrl+V). Shared content resolves against the matching saved server; bulk enqueue still respects Orbit guard rules.
@@ -2910,7 +2910,7 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 
 ### Offline Library — show cached albums from all servers
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#719](https://github.com/Psychotoxical/psysonic/pull/719)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#719](https://github.com/Psysonic/psysonic/pull/719)**
 
 * **Offline Library** lists cached albums from **every** saved server, not only the active one. Cover art loads from each album's home server; play and enqueue switch servers when needed.
 * Sidebar, mobile **More**, disconnect navigation, and the offline banner treat **any** cached content as available offline. With multiple servers, cards show which server an album belongs to.
@@ -2919,7 +2919,7 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 
 ### Settings → Personalisation — player bar layout
 
-**By [@kveld9](https://github.com/kveld9) + [@Psychotoxical](https://github.com/Psychotoxical), based on [PR #627](https://github.com/Psychotoxical/psysonic/pull/627), PR [#721](https://github.com/Psychotoxical/psysonic/pull/721)**
+**By [@kveld9](https://github.com/kveld9) + [@Psychotoxical](https://github.com/Psychotoxical), based on [PR #627](https://github.com/Psysonic/psysonic/pull/627), PR [#721](https://github.com/Psysonic/psysonic/pull/721)**
 
 * New sub-section that hides individual controls in the player bar: **Star rating**, **Favorite (heart)**, **Last.fm love**, **Equalizer**, **Mini player**. Last.fm love still only renders when a Last.fm session exists; the overflow row collapses when both Equalizer and Mini player are hidden.
 * Lives under the **Advanced** group in Personalisation (only visible when the global Advanced Mode toggle is on). All toggles on by default; persisted across restarts.
@@ -2928,7 +2928,7 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 
 ### Queue panel — persist header duration mode
 
-**By [@kveld9](https://github.com/kveld9) + [@Psychotoxical](https://github.com/Psychotoxical), based on [PR #625](https://github.com/Psychotoxical/psysonic/pull/625), PR [#724](https://github.com/Psychotoxical/psysonic/pull/724)**
+**By [@kveld9](https://github.com/kveld9) + [@Psychotoxical](https://github.com/Psychotoxical), based on [PR #625](https://github.com/Psysonic/psysonic/pull/625), PR [#724](https://github.com/Psysonic/psysonic/pull/724)**
 
 * The queue header chip (total duration / remaining time / ETA finish clock) now persists across app restarts.
 
@@ -2936,7 +2936,7 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 
 ### Tracklists — Plays / Last played / BPM columns + Song Info rows
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), suggested by jbigginswyl ([#516](https://github.com/Psychotoxical/psysonic/issues/516)), PR [#730](https://github.com/Psychotoxical/psysonic/pull/730)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), suggested by jbigginswyl ([#516](https://github.com/Psysonic/psysonic/issues/516)), PR [#730](https://github.com/Psysonic/psysonic/pull/730)**
 
 * New opt-in columns **Plays**, **Last played**, and **BPM** on the Album / Playlist / Favorites tracklists, plus matching rows in the Song Info modal. Pulls Navidrome's existing `playCount` / `played` / `bpm` from the Subsonic response — no extra API calls. The playlist tracklist also gets the **Genre** column for parity with Album + Favorites.
 * BPM cells render `—` when Navidrome returns 0 (untagged file); Plays / Last played render `—` only when truly absent.
@@ -2945,7 +2945,7 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 
 ### Mainstage hero — prev / next arrow buttons
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), thanks to zunoz for the report on the Psysonic Discord, PR [#735](https://github.com/Psychotoxical/psysonic/pull/735)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), thanks to zunoz for the report on the Psysonic Discord, PR [#735](https://github.com/Psysonic/psysonic/pull/735)**
 
 * The featured-album strip on Mainstage now has **Previous** / **Next** chevron buttons on each edge of the hero. The existing 8 px dot indicators were a small target, and a near-miss often opened the underlying album instead of switching slides; the new 44 px buttons give a comfortable hit area on both desktop and touch.
 * The dot indicators are kept as **decorative** — no click handler, no hover — so a missed click no longer navigates to the album. The rest of the hero stays click-through.
@@ -2954,7 +2954,7 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 
 ### Settings — Clock Format setting (Auto / 24h / 12h)
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), thanks to zunoz for the report on the Psysonic Discord, PR [#742](https://github.com/Psychotoxical/psysonic/pull/742)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), thanks to zunoz for the report on the Psysonic Discord, PR [#742](https://github.com/Psysonic/psysonic/pull/742)**
 
 * **Settings → System → App Behavior** now exposes a tri-state **Clock Format** select: **Auto** (default — keeps existing locale-driven behaviour, so first launch after the update is a no-op for everyone), **24h**, and **12h**. Affects the Queue side panel's ETA label and the sleep-timer preview, which previously followed the OS locale with no in-app override.
 
@@ -2962,7 +2962,7 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 
 ### Album page — OpenSubsonic disc subtitles after the CD heading
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), thanks to zunoz for the report on the Psysonic Discord, PR [#753](https://github.com/Psychotoxical/psysonic/pull/753)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), thanks to zunoz for the report on the Psysonic Discord, PR [#753](https://github.com/Psysonic/psysonic/pull/753)**
 
 * Multi-disc albums in OpenSubsonic / Navidrome can carry a per-disc subtitle (e.g. **"Sessions"** on CD 3 of a deluxe edition). The album tracklist previously dropped it and only showed **CD N**, so adjacent discs of a reissue read the same in the header. The separator now renders **CD N — Subtitle** in both desktop and mobile lists.
 
@@ -2970,7 +2970,7 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 
 ### Home — "Because you listened" recommendation rail
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PRs [#489](https://github.com/Psychotoxical/psysonic/pull/489), [#493](https://github.com/Psychotoxical/psysonic/pull/493)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PRs [#489](https://github.com/Psysonic/psysonic/pull/489), [#493](https://github.com/Psysonic/psysonic/pull/493)**
 
 * New Home rail that surfaces albums **similar to one of your favourite artists** — "Because you listened to …" recommendations.
 * Anchor pool round-robin merges **Most Played**, **Recently Played** and **Favorites** (deduped per artist), so each visit lands on a different listening *mode* instead of walking only the top-played list. Per-server rotation; renders on fresh servers with starred or recently-played items but no frequent-play history. **Zero extra API calls** — all three seed lists are already in the Home initial fetch.
@@ -2978,7 +2978,7 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 
 ### Playlists — virtualized tracklist for large playlists
 
-**By [@artplan1](https://github.com/artplan1), PR [#755](https://github.com/Psychotoxical/psysonic/pull/755)**
+**By [@artplan1](https://github.com/artplan1), PR [#755](https://github.com/Psysonic/psysonic/pull/755)**
 
 * Opening a very large playlist (10 000+ tracks) no longer mounts every row into the DOM. The playlist tracklist is windowed with `@tanstack/react-virtual` on the shared app scroll viewport — the same convention as Artists, Composers, and the library card grids.
 * Row rendering moved into a memoized `PlaylistRow` with a stable callback bundle so virtualizer scroll updates do not re-render the full list.
@@ -2986,7 +2986,7 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 
 ### Favorites — virtualized songs tracklist for large collections
 
-**By [@artplan1](https://github.com/artplan1), PR [#805](https://github.com/Psychotoxical/psysonic/pull/805)**
+**By [@artplan1](https://github.com/artplan1), PR [#805](https://github.com/Psysonic/psysonic/pull/805)**
 
 * Opening Favorites with 10 000+ starred songs no longer mounts every row into the DOM. The songs tracklist is windowed with `@tanstack/react-virtual` on the shared app scroll viewport — same shape as the playlist virtualization fix.
 * Row rendering moved into a memoized `FavoriteSongRow` with a stable callback bundle; `visibleTracks` is memoized once per filtered song list.
@@ -2996,7 +2996,7 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 
 ### Build — lazy-loaded routes and Vite chunk warnings
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#463](https://github.com/Psychotoxical/psysonic/pull/463)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#463](https://github.com/Psysonic/psysonic/pull/463)**
 
 * Heavier app routes are **lazy-loaded** so the initial JS bundle stays smaller.
 * Production builds again warn on oversized Vite chunks (default chunk size limit restored).
@@ -3005,7 +3005,7 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 
 ### Dependencies — npm / Cargo refresh and rodio 0.22
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#463](https://github.com/Psychotoxical/psysonic/pull/463)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#463](https://github.com/Psysonic/psysonic/pull/463)**
 
 * Frontend and Tauri/Rust dependencies bumped across the workspace; playback stack migrated to **rodio 0.22**.
 
@@ -3013,7 +3013,7 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 
 ### UI — cover cache, mainstage rails, and smoother virtual lists
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#468](https://github.com/Psychotoxical/psysonic/pull/468)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#468](https://github.com/Psysonic/psysonic/pull/468)**
 
 * **Cover art** loads faster while scrolling: network fetches share a small pool, disk cache is not blocked by downloads, and storage eviction is debounced during rapid scrolling. Mainstage and home **rails** window artwork more generously and dedupe duplicate API ids so covers stay visible while scrubbing sideways.
 * **Albums**, **Artists** (list mode), and **Tracks** virtual lists scale overscan to about one screen of extra rows instead of a tiny fixed cushion. Assorted scroll and layout polish on artist detail, playlists, most played, live search, and player surfaces.
@@ -3022,7 +3022,7 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 
 ### Covers / image cache — parallel fetch + downscale, registry guard, search slot hints
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#470](https://github.com/Psychotoxical/psysonic/pull/470)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#470](https://github.com/Psysonic/psysonic/pull/470)**
 
 * When a requested thumb size is missing on disk but another size of the same cover is cached, remote fetch and client downscale run in **parallel** and the first good result wins (the loser aborts).
 * Artist thumbnails in search get **higher fetch priority** than album thumbs when the pool is busy; cover prefetch starts a bit earlier ahead of the scroll viewport.
@@ -3031,7 +3031,7 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 
 ### Settings — adding a server no longer switches to it
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#475](https://github.com/Psychotoxical/psysonic/pull/475)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#475](https://github.com/Psysonic/psysonic/pull/475)**
 
 * Adding a new server from **Settings → Servers** no longer switches to it — the entry appears in the picker but the current active server stays active, so playback, queue and library view are no longer interrupted. The login screen at `/login` is unchanged: signing in there still selects the chosen server.
 
@@ -3039,7 +3039,7 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 
 ### Most Played — quick actions, real context menu, prominent plays badge
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), suggested by nzxl, PR [#482](https://github.com/Psychotoxical/psysonic/pull/482)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), suggested by nzxl, PR [#482](https://github.com/Psysonic/psysonic/pull/482)**
 
 * Always-visible **Play** and **Enqueue** quick-action buttons on each album row. Right-click on a row now opens the standard album context menu (Play / Add to queue / Play next / Add to playlist / Go to artist); right-click on a Top Artists card opens the artist context menu.
 * The **play count** moved from a small right-aligned column to a localized **pill right next to the album title** (`11 plays` in EN, `11× gespielt` in DE), since the play count is the central datum on this page.
@@ -3048,7 +3048,7 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 
 ### Multi-select — Shift+Click range selection on grid pages
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#484](https://github.com/Psychotoxical/psysonic/pull/484)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#484](https://github.com/Psysonic/psysonic/pull/484)**
 
 * In multi-select mode on **Albums**, **Random Albums**, **New Releases** and **Playlists**, holding **Shift** while clicking a second card now selects every item between the anchor (last clicked) and the click target — the standard OS-level pattern. Range expansion follows the user-visible order, so filters and sort affect what gets included.
 * Plain click still toggles a single item and moves the anchor to it; behaviour without Shift is unchanged.
@@ -3057,7 +3057,7 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 
 ### Help — full rewrite with live search and 10 cleanly-themed sections
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#485](https://github.com/Psychotoxical/psysonic/pull/485)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#485](https://github.com/Psysonic/psysonic/pull/485)**
 
 * Help page rebuilt from scratch: **45 focused entries across 10 themed sections**. Dropped entries the UI itself answers, consolidated natural groupings, and added entries for features that didn't exist when the original Q/A list was written (Orbit, Magic Strings, LUFS, Mini Player, Smart Playlists, Multi-select, etc.).
 * New **live in-page search**: case-insensitive substring across every Q+A; sections without hits collapse out, matches auto-expand so the answer is visible without clicking.
@@ -3066,7 +3066,7 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 
 ### Community themes — redesign pass
 
-**By [@kveld9](https://github.com/kveld9), PR [#490](https://github.com/Psychotoxical/psysonic/pull/490)**
+**By [@kveld9](https://github.com/kveld9), PR [#490](https://github.com/Psysonic/psysonic/pull/490)**
 
 * Removed five themes that overlapped or felt strenuous on the eyes: **Amber Night**, **Ice Blue**, **Monochrome**, **Phosphor Green**, **Rose Dark**.
 * Added eight new dark themes covering the colour families people most commonly ask for: **Obsidian Black**, **Carbon Grey**, **Volcanic Dark**, **Forest Green**, **Violet Haze**, **Copper Oxide**, **Sakura Night**, **Obsidian Gold**.
@@ -3076,7 +3076,7 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 
 ### Settings — collapse-by-default cleanup, font picker without dropdown, OpenDyslexic at top
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#508](https://github.com/Psychotoxical/psysonic/pull/508)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#508](https://github.com/Psysonic/psysonic/pull/508)**
 
 * Every Settings sub-section now boots **collapsed** — each tab no longer feels like a wall of controls before you've looked for something specific. **ThemePicker** also no longer auto-expands the group containing the active theme (the blue dot in the group header already surfaces which group holds it).
 * **Font picker** lost its inner dropdown button — opening the Font sub-section now reveals the full font list directly; one click sets the font. **OpenDyslexic** moves to the top so dyslexic readers don't scroll past 14 sans-serifs to find their option.
@@ -3085,7 +3085,7 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 
 ### Settings — language picker uses endonyms
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), suggested by cucadmuh, PR [#514](https://github.com/Psychotoxical/psysonic/pull/514)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), suggested by cucadmuh, PR [#514](https://github.com/Psysonic/psysonic/pull/514)**
 
 * The Settings language picker now shows each language **written in itself** — `English`, `Deutsch`, `Español`, `Français`, `Nederlands`, `Norsk`, `Русский`, `中文`, `Română` — same nine labels in every locale instead of translating each name into the current UI language. A native speaker can recognise their own language regardless of which UI language is active; same convention used by most OS-level language pickers.
 
@@ -3093,7 +3093,7 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 
 ### Backend — Cargo workspace with 5 domain crates (Rust refactor)
 
-**By [@cucadmuh](https://github.com/cucadmuh) + [@Psychotoxical](https://github.com/Psychotoxical), PR [#532](https://github.com/Psychotoxical/psysonic/pull/532)**
+**By [@cucadmuh](https://github.com/cucadmuh) + [@Psychotoxical](https://github.com/Psychotoxical), PR [#532](https://github.com/Psysonic/psysonic/pull/532)**
 
 * Rust backend split from one crate into a **Cargo workspace** of five domain crates — **audio**, **analysis**, **sync/offline**, **integrations**, and **core**; the top crate keeps only Tauri shell wiring. **No user-visible behaviour change** — command surface and smoke tests match the pre-refactor tree.
 * Foundation for narrower diffs per domain (Orbit and waveform work in this release were the first consumers).
@@ -3102,7 +3102,7 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 
 ### Covers — no flash of previous track artwork on skip
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#695](https://github.com/Psychotoxical/psysonic/pull/695)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#695](https://github.com/Psysonic/psysonic/pull/695)**
 
 * Player bar, queue header, and Now Playing covers no longer flash the **previous** track's artwork for a frame when skipping (hook and image component now reset together on track change).
 
@@ -3110,7 +3110,7 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 
 ### Library card grids — virtualization + configurable column cap
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#711](https://github.com/Psychotoxical/psysonic/pull/711)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#711](https://github.com/Psysonic/psysonic/pull/711)**
 
 * Library **card grids** (albums, playlists, composers, genre and label pages, offline library, artists grid, and similar rails) share one virtualised layout with a user cap on columns (**Settings → Appearance → Library card grids**, 4–12, default 6) for smoother scrolling on large libraries.
 
@@ -3118,7 +3118,7 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 
 ### Hot cache — promote completed ranged streams larger than 64 MiB
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#737](https://github.com/Psychotoxical/psysonic/pull/737)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#737](https://github.com/Psysonic/psysonic/pull/737)**
 
 * Fully buffered HTTP streams larger than the in-RAM promote cap (long **M4A** / **ALAC** albums included) spill to disk first, then move into hot cache on promote instead of being skipped. Stale spill files are cleaned on startup.
 
@@ -3126,7 +3126,7 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 
 ### Playback — stream buffering indicator on cover art
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#737](https://github.com/Psychotoxical/psysonic/pull/737)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#737](https://github.com/Psysonic/psysonic/pull/737)**
 
 * While an HTTP stream is still opening, cover art in the **player bar** and **queue** is greyscaled with a clock overlay and the seekbar stays at **0** until playback actually starts.
 
@@ -3143,7 +3143,7 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 
 ### Settings — Animations 3-state setting under Seekbar Style
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#495](https://github.com/Psychotoxical/psysonic/pull/495)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#495](https://github.com/Psysonic/psysonic/pull/495)**
 
 * The **Animations** 3-state setting (Full / Reduced / Static) under **Settings → Appearance → Seekbar Style** is gone — the newer perf-flag system and per-feature performance work cover the expensive animation paths more directly (marquee toggle in the Sidebar, global animations via `data-perf-disable-animations`, seekbar via per-feature toggles).
 * Anyone who had `'reduced'` or `'static'` selected silently lands on the normal animation path on first launch — the persist layer strips the obsolete field, no user-facing prompt.
@@ -3154,7 +3154,7 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 
 ### Hot cache, HTTP streaming replay, and queue source indicator
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#463](https://github.com/Psychotoxical/psysonic/pull/463)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#463](https://github.com/Psysonic/psysonic/pull/463)**
 
 * Fully buffered HTTP downloads are **kept in memory or hot disk** when the queue ends, so replaying the same track can skip a full re-download when hot cache is on.
 * **Replay and resume** wait for hot-cache promotion before the next play when the engine has already ended, so playback can switch to the local URL.
@@ -3165,7 +3165,7 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 
 ### Sidebar — New Releases read state under storage cap
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#463](https://github.com/Psychotoxical/psysonic/pull/463)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#463](https://github.com/Psysonic/psysonic/pull/463)**
 
 * When the persisted "seen" New Releases list hits its **500-id cap**, newly read ids are merged at the front so unread badges stay accurate.
 
@@ -3173,7 +3173,7 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 
 ### Windows — tray double-click
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#463](https://github.com/Psychotoxical/psysonic/pull/463)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#463](https://github.com/Psysonic/psysonic/pull/463)**
 
 * **Double-click** the tray icon opens or focuses the main window without opening the context menu.
 
@@ -3181,7 +3181,7 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 
 ### Playback stability — preview seekbar, sleep/wake recovery, and card-hover jitter
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#476](https://github.com/Psychotoxical/psysonic/pull/476)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#476](https://github.com/Psysonic/psysonic/pull/476)**
 
 * **Preview seekbar** no longer creeps forward while preview playback is paused, and no longer jumps when preview ends.
 * After **sleep/wake**, Windows and Linux reopen the audio output and recover playback; the watchdog only arms after a long poll gap so normal playback is not disturbed.
@@ -3191,7 +3191,7 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 
 ### Analysis queue control — prune stale backfill jobs and cap warmup window
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#480](https://github.com/Psychotoxical/psysonic/pull/480)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#480](https://github.com/Psysonic/psysonic/pull/480)**
 
 * Stale loudness/waveform **backfill jobs** are dropped when tracks leave the queue; warmup is capped to the current track plus the next five so bulk queue updates do not schedule endless analysis work.
 
@@ -3199,7 +3199,7 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 
 ### Sidebar — Playlists icon and hover hitbox in collapsed mode
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#481](https://github.com/Psychotoxical/psysonic/pull/481)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#481](https://github.com/Psysonic/psysonic/pull/481)**
 
 * The **Playlists** icon in the collapsed sidebar was off-centre and had a wider hover background than every other item. Collapsed mode now reuses the standard nav-link path — same hitbox, same alignment as Artists, Albums, Favorites, etc.
 
@@ -3207,7 +3207,7 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 
 ### Tracklist — drop now-playing pulse + EQ-bar animations
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#488](https://github.com/Psychotoxical/psysonic/pull/488)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#488](https://github.com/Psysonic/psysonic/pull/488)**
 
 * The currently-playing track in any tracklist (AlbumDetail, ArtistDetail, PlaylistDetail, Favorites, RandomMix) ran an opacity pulse on the entire row plus three EQ-bar transforms — both compositor properties, but on WebKitGTK without compositing (Linux + NVIDIA proprietary) every animated row fell back to a full software repaint per frame. AlbumDetail held the WebProcess at **~80 % CPU** for the duration of playback.
 * `.track-row.active` keeps the accent-tinted background but no longer pulses. The "now playing" indicator is now a single `AudioLines` icon — one SVG per active row instead of three animated spans.
@@ -3216,7 +3216,7 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 
 ### Tray — broken navigation after restoring via desktop / start-menu shortcut
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), reported by netherguy4, PR [#501](https://github.com/Psychotoxical/psysonic/pull/501)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), reported by netherguy4, PR [#501](https://github.com/Psysonic/psysonic/pull/501)**
 
 * When the main window was closed to the tray and then re-opened via the **desktop / start-menu shortcut** (instead of the tray icon), the window came back but the **next navigation rendered a blank page**. Restoring via the tray icon worked correctly. Root cause: the tray-close path pauses CSS animations and only the tray-icon restore path resumed them — the single-instance plugin's restore path was missing the resume step, leaving fade-in route wrappers frozen at `opacity: 0`. Both restore paths are now consistent.
 
@@ -3224,7 +3224,7 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 
 ### Track preview — volume slider ignored during preview
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), reported by netherguy4, PR [#502](https://github.com/Psychotoxical/psysonic/pull/502)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), reported by netherguy4, PR [#502](https://github.com/Psysonic/psysonic/pull/502)**
 
 * The Rust preview sink had its volume set **once at preview start** and was never updated afterwards — `audio_set_volume` only ramped the main sink, so slider drags during preview had no audible effect on the preview level. The preview sink now stays in lock-step with the slider while a preview is in flight.
 
@@ -3232,7 +3232,7 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 
 ### Radio — queue navigation, dedup, and similar-first variety
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), reported by netherguy4, PR [#503](https://github.com/Psychotoxical/psysonic/pull/503)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), reported by netherguy4, PR [#503](https://github.com/Psysonic/psysonic/pull/503)**
 
 * **Queue navigation through duplicates** — reaching a track's second occurrence used to snap the highlight back to the earlier slot and the next auto-advance played the wrong follow-up; `next()` / `previous()` / repeat-one / queue-row click now pass an explicit target index instead of resolving by id.
 * **Radio dedup** across `enqueueRadio`, the `next()` top-up, and intra-batch overlap (top + similar) is now closed by a radio-session-scoped seen-set, reset on artist change and `clearQueue`.
@@ -3242,7 +3242,7 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 
 ### Security — Tauri patch for IPC origin-confusion (GHSA-7gmj-67g7-phm9)
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#509](https://github.com/Psychotoxical/psysonic/pull/509)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#509](https://github.com/Psysonic/psysonic/pull/509)**
 
 * Bumped Tauri **2.11.0 → 2.11.1** to pick up the upstream patch for [GHSA-7gmj-67g7-phm9](https://github.com/advisories/GHSA-7gmj-67g7-phm9) — an origin-confusion bug that could let a remote-origin page invoke local-only IPC commands (severity **medium**). Psysonic exposes file-system and credential-bearing IPC, so closing the gate is worth the bump.
 
@@ -3250,7 +3250,7 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 
 ### Home — Because-you-listened rail compact in narrow layouts
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#520](https://github.com/Psychotoxical/psysonic/pull/520)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#520](https://github.com/Psysonic/psysonic/pull/520)**
 
 * When the rail container drops below the 2-card threshold (≈ 696 px — sidebar + queue both open, etc.), the home **Because-you-listened** section now switches to the standard `AlbumRow` layout instead of stretching the hero-style cards to full width.
 * Wide layouts (≥ 696 px) keep the existing 3-up hero cards with the "Similar to X" pill, album metadata, and release-type pills — full-screen view is unchanged.
@@ -3259,33 +3259,33 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 
 ### Context menu — render above the floating player bar
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), reported by Prymz, PR [#522](https://github.com/Psychotoxical/psysonic/pull/522)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), reported by Prymz, PR [#522](https://github.com/Psysonic/psysonic/pull/522)**
 
-* Right-clicking a track near the bottom of the screen with the floating bar enabled used to cut off the menu (issue [#521](https://github.com/Psychotoxical/psysonic/issues/521)) — an inline `zIndex: 999` on the menu wrapper overrode the stylesheet's `z-index: 10000` and sat below the floating bar at `1000`. The override is removed so the stylesheet rule wins; submenus follow.
+* Right-clicking a track near the bottom of the screen with the floating bar enabled used to cut off the menu (issue [#521](https://github.com/Psysonic/psysonic/issues/521)) — an inline `zIndex: 999` on the menu wrapper overrode the stylesheet's `z-index: 10000` and sat below the floating bar at `1000`. The override is removed so the stylesheet rule wins; submenus follow.
 
 
 
 ### Orbit — guest playback fixes
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), reported by nzxl + RavingGrob, PR [#525](https://github.com/Psychotoxical/psysonic/pull/525)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), reported by nzxl + RavingGrob, PR [#525](https://github.com/Psysonic/psysonic/pull/525)**
 
 * **Local queue-extension paths are now suppressed for the entire Orbit session lifecycle** (radio top-up, infinite-queue top-up, queue-exhaustion fallback, proactive "≤ 2 auto-tracks ahead" topper). Without the lockout, joining could pop a "Add 5 tracks to the Orbit queue?" prompt and the local queue silently drifted off the host's playlist.
 * **Natural track-end no longer reads as "guest manually paused"** — the divergence check now distinguishes the two via `currentTime` (resets to 0 on `audio:ended`, mid-track on real pause), so the guest no longer sits silent on host-driven track changes that arrive in the 0–2.5 s gap after the guest's own track has ended.
 * **Initial-sync and Catch Up wait for the audio engine to report playing before seeking** (up to 5 s on initial-sync, 4 s on Catch Up). The previous fire-and-forget seek silently no-oped against a not-yet-ready engine — guest played from 0:00 while believing they were synced.
-* **Catch Up button no longer flickers** and matches the 26 px height of its neighbours so the bar's vertical layout stays stable. Visibility uses two-stage hysteresis (show after drift > 3 s for 3 s, hide only after drift < 1 s for 1 s, PR [#527](https://github.com/Psychotoxical/psysonic/pull/527)).
+* **Catch Up button no longer flickers** and matches the 26 px height of its neighbours so the bar's vertical layout stays stable. Visibility uses two-stage hysteresis (show after drift > 3 s for 3 s, hide only after drift < 1 s for 1 s, PR [#527](https://github.com/Psysonic/psysonic/pull/527)).
 * **Double-clicking the inline play button on a track row now suggests/enqueues to the host's queue**, matching the row's existing double-click behaviour.
 * **Track preview is hidden + blocked during an Orbit session** — preview runs through the same Rust audio engine as shared playback, so starting one as a guest would clobber the host's track.
-* **Audio reliably starts on join** even after a slow cold-start: the engine-state shortcut is gated on actually matching the host's expected state, and a recovery check resets the anchor whenever the engine is paused while the host is still playing (PR [#526](https://github.com/Psychotoxical/psysonic/pull/526)).
-* **Initial-sync seek visually sticks on join** — the post-`playTrack` poll now waits for `currentTime > 0.1` before applying the seek, so the waveform no longer snaps back to 0:00 (PR [#528](https://github.com/Psychotoxical/psysonic/pull/528)).
-* **Host single-track plays no longer wipe the Orbit queue** — a `playTrack(track, [track])` call (e.g. "Play this album" on a single-track album) slipped past the orbit bulk-guard. Now intercepted: appends + jumps instead of replacing (PR [#529](https://github.com/Psychotoxical/psysonic/pull/529)).
-* **Host pause / resume reaches guests immediately** — the host now also pushes state on every `isPlaying` flip, in addition to the 2.5 s timer. Previously a pause could take up to ~5 s to land (PR [#537](https://github.com/Psychotoxical/psysonic/pull/537), reported by xrexy on Discord).
-* **Guest seekbar is read-only inside an Orbit session** — drag / click / wheel / hover all disabled with a `not-allowed` cursor. Previously a guest seek would jump the local player and either snap back or push the guest into a diverged state (PR [#537](https://github.com/Psychotoxical/psysonic/pull/537), reported by xrexy on Discord).
+* **Audio reliably starts on join** even after a slow cold-start: the engine-state shortcut is gated on actually matching the host's expected state, and a recovery check resets the anchor whenever the engine is paused while the host is still playing (PR [#526](https://github.com/Psysonic/psysonic/pull/526)).
+* **Initial-sync seek visually sticks on join** — the post-`playTrack` poll now waits for `currentTime > 0.1` before applying the seek, so the waveform no longer snaps back to 0:00 (PR [#528](https://github.com/Psysonic/psysonic/pull/528)).
+* **Host single-track plays no longer wipe the Orbit queue** — a `playTrack(track, [track])` call (e.g. "Play this album" on a single-track album) slipped past the orbit bulk-guard. Now intercepted: appends + jumps instead of replacing (PR [#529](https://github.com/Psysonic/psysonic/pull/529)).
+* **Host pause / resume reaches guests immediately** — the host now also pushes state on every `isPlaying` flip, in addition to the 2.5 s timer. Previously a pause could take up to ~5 s to land (PR [#537](https://github.com/Psysonic/psysonic/pull/537), reported by xrexy on Discord).
+* **Guest seekbar is read-only inside an Orbit session** — drag / click / wheel / hover all disabled with a `not-allowed` cursor. Previously a guest seek would jump the local player and either snap back or push the guest into a diverged state (PR [#537](https://github.com/Psysonic/psysonic/pull/537), reported by xrexy on Discord).
 
 
 
 ### Offline downloads — the cancel button works again + the sidebar toast keeps its size
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#694](https://github.com/Psychotoxical/psysonic/pull/694)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#694](https://github.com/Psysonic/psysonic/pull/694)**
 
 * **The ✕ on the sidebar download toast now actually cancels the download.** Previously it only dropped not-yet-started tracks between batches of 8, so for albums of ≤ 8 tracks the click did nothing and in-flight transfers ran to completion. Cancellation now reaches the Rust side and aborts in-progress transfers mid-file (their `.part` files are cleaned up). Tracks that already finished before the cancel are kept.
 * **The download progress toast no longer gets squished** when the main window is small — the label ellipsis-truncates on a narrow sidebar instead of overflowing.
@@ -3294,24 +3294,24 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 
 ### Player UI — broken album-art icon when switching tracks
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#695](https://github.com/Psychotoxical/psysonic/pull/695)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#695](https://github.com/Psysonic/psysonic/pull/695)**
 
-* Fixes [#606](https://github.com/Psychotoxical/psysonic/issues/606): the **player bar** cover (and other cached-image surfaces) no longer flashes the broken-image placeholder for a split second when skipping tracks.
+* Fixes [#606](https://github.com/Psysonic/psysonic/issues/606): the **player bar** cover (and other cached-image surfaces) no longer flashes the broken-image placeholder for a split second when skipping tracks.
 
 
 
 ### Album & player — split OpenSubsonic album credits and performers
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#696](https://github.com/Psychotoxical/psysonic/pull/696)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#696](https://github.com/Psysonic/psysonic/pull/696)**
 
-* Album pages show **every album artist** as separate links when the server sends OpenSubsonic credits (fixes [#552](https://github.com/Psychotoxical/psysonic/issues/552)).
+* Album pages show **every album artist** as separate links when the server sends OpenSubsonic credits (fixes [#552](https://github.com/Psysonic/psysonic/issues/552)).
 * **Player bar**, mobile now playing, and mini player show **per-performer** artist links on multi-artist tracks, matching the album tracklist.
 
 
 
 ### Search — hide duplicate artist hits with zero albums
 
-**By [@cucadmuh](https://github.com/cucadmuh), thanks to zunoz for the report on the Psysonic Discord, PR [#697](https://github.com/Psychotoxical/psysonic/pull/697)**
+**By [@cucadmuh](https://github.com/cucadmuh), thanks to zunoz for the report on the Psysonic Discord, PR [#697](https://github.com/Psysonic/psysonic/pull/697)**
 
 * Live search, mobile search, advanced search, and similarity fallbacks now hide **duplicate artist rows with zero albums** (Subsonic indexing noise). Artists with no album-count field are unchanged for legacy servers.
 
@@ -3319,7 +3319,7 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 
 ### Internet Radio — Add / Edit station modal no longer clipped on empty library
 
-**By [@cucadmuh](https://github.com/cucadmuh), thanks to voidboywannabe for the report on the Psysonic Discord, PR [#699](https://github.com/Psychotoxical/psysonic/pull/699)**
+**By [@cucadmuh](https://github.com/cucadmuh), thanks to voidboywannabe for the report on the Psysonic Discord, PR [#699](https://github.com/Psysonic/psysonic/pull/699)**
 
 * **Add Station** / **Edit** on Internet Radio mount their modal at **document body** level (same as Search Directory), so the dialog is no longer clipped when the station list is empty.
 
@@ -3327,7 +3327,7 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 
 ### Settings — contributors list sorted chronologically
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#700](https://github.com/Psychotoxical/psysonic/pull/700)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#700](https://github.com/Psysonic/psysonic/pull/700)**
 
 * The **Settings → System → Contributors** list rendered in raw insertion order, so the original maintainer (since v1.0.0) showed up last and the hand-maintained ordering drifted as new entries were appended. It is now sorted on render — ascending by the app version a contributor first appeared in, tie-broken by their first-contribution PR number — so it stays correct no matter where new entries land in the source list.
 
@@ -3335,7 +3335,7 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 
 ### Now Playing — stable list keys on dashboard cards
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#703](https://github.com/Psychotoxical/psysonic/pull/703)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#703](https://github.com/Psysonic/psysonic/pull/703)**
 
 * Now Playing dashboard lists (**similar artists**, in-player album tracks, **top songs**) no longer reuse the same React key when the server sends duplicate ids — dev warnings gone; playback unchanged.
 
@@ -3343,7 +3343,7 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 
 ### Playback — track no longer clipped at the end with gapless and crossfade off
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#708](https://github.com/Psychotoxical/psysonic/pull/708)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#708](https://github.com/Psysonic/psysonic/pull/708)**
 
 * With **gapless and crossfade both disabled**, the last up to **~1 second** of every track was cut off — the progress task ended playback on the Subsonic duration hint (floored to whole seconds) while the decoded audio almost always runs slightly longer. It now ends on the sample-accurate source-exhaustion signal that gapless already relies on. No change to gapless or crossfade behaviour.
 
@@ -3351,7 +3351,7 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 
 ### Artists — infinite scroll after first page
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#709](https://github.com/Psychotoxical/psysonic/pull/709)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#709](https://github.com/Psysonic/psysonic/pull/709)**
 
 * **Artists** infinite scroll loaded only the first page: the bottom sentinel appeared after the first fetch, but the scroll observer never attached because its subscription missed that timing. Scrolling now loads further pages reliably.
 
@@ -3359,7 +3359,7 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 
 ### Statistics / playlists — duration totals rounded to the nearest minute again
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#710](https://github.com/Psychotoxical/psysonic/pull/710)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#710](https://github.com/Psysonic/psysonic/pull/710)**
 
 * Aggregate duration labels (album and playlist totals, total playtime in **Statistics**) could read up to ~59 s short and round the wrong way at the hour boundary — a 59:30 total showed **"59 m"** instead of **"1 h 0 m"**. A `format` helper consolidation had switched the shared formatter from rounding to truncating; the round-to-nearest-minute behaviour is restored.
 
@@ -3367,7 +3367,7 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 
 ### Mixes — rating filter and Lucky Mix queue fill
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#714](https://github.com/Psychotoxical/psysonic/pull/714)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#714](https://github.com/Psysonic/psysonic/pull/714)**
 
 * **Settings → Ratings → filter by rating** now applies consistently to **Lucky Mix**, **Random Mix**, **Instant Mix**, infinite-queue top-ups, and after you change a star (stale rating cache and misleading song-level refs fixed).
 * **Lucky Mix** toast reports the real queue length and keeps filling until the target size (up to 50) is actually enqueued.
@@ -3376,7 +3376,7 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 
 ### Multi-server — queue playback stays on the source server when browsing another library
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#717](https://github.com/Psychotoxical/psysonic/pull/717)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#717](https://github.com/Psysonic/psysonic/pull/717)**
 
 * With a queue playing on server **A**, browsing server **B** no longer breaks streams, scrobble, cover art, or seek — playback APIs follow the **queue server**.
 * Player and Now Playing covers and metadata load from the queue server when it differs from the browsed one; artist/album links and queue actions switch to that server before navigating.
@@ -3386,7 +3386,7 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 
 ### UI — selectstart blocker no longer throws on Text node targets
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#718](https://github.com/Psychotoxical/psysonic/pull/718)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#718](https://github.com/Psysonic/psysonic/pull/718)**
 
 * Selecting copyable text on Now Playing no longer crashes when the selection starts on a bare text node (the global select-start handler now resolves text nodes to their parent element).
 
@@ -3394,7 +3394,7 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 
 ### UI — consistent Orbit / Server / Live header dropdown styling
 
-**By [@Psychotoxical](https://github.com/Psychotoxical) + [@cucadmuh](https://github.com/cucadmuh), PR [#725](https://github.com/Psychotoxical/psysonic/pull/725)**
+**By [@Psychotoxical](https://github.com/Psychotoxical) + [@cucadmuh](https://github.com/cucadmuh), PR [#725](https://github.com/Psysonic/psysonic/pull/725)**
 
 * The three header dropdowns (Orbit launch, Server picker, Live listeners) each had their own container styling. Live in particular used a glass / backdrop-filter utility that read poorly on many themes. All three now share the **`.nav-library-dropdown-panel`** container — same background, border, shadow and radius via the existing semantic tokens. Item layouts per dropdown stay case-specific.
 
@@ -3402,7 +3402,7 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 
 ### Queue — Lucky Mix coalesced into one Ctrl+Z / Cmd+Z undo step
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#728](https://github.com/Psychotoxical/psysonic/pull/728)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#728](https://github.com/Psysonic/psysonic/pull/728)**
 
 * **Lucky Mix** is now **one undo step** — Ctrl+Z / Cmd+Z restores the full queue from before the mix instead of stepping through every enqueue.
 
@@ -3410,7 +3410,7 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 
 ### Queue panel Info — artist image now follows the current track
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#732](https://github.com/Psychotoxical/psysonic/pull/732)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#732](https://github.com/Psysonic/psysonic/pull/732)**
 
 * The Info tab paired the previous track's artist image URL with the new track's cache key for one frame on each switch — `CachedImage`'s IndexedDB then persisted that mismatched blob, so every subsequent track stayed stuck on the previous artist's image. Source and cache key now always come from the same track.
 
@@ -3418,7 +3418,7 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 
 ### Album header — Artist Bio button hidden on Various-Artists compilations
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#733](https://github.com/Psychotoxical/psysonic/pull/733)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#733](https://github.com/Psysonic/psysonic/pull/733)**
 
 * The Album header showed an **Artist Bio** button on every album, but when the album-artist label is **"Various Artists"**, **"Various"**, **"VA"** or a language equivalent there is no single artist to fetch a bio for and the button opened an empty modal. Both the mobile icon and the desktop button are now hidden when the album-artist label matches that compilation heuristic.
 
@@ -3426,7 +3426,7 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 
 ### Album header — Artist Biography modal stays in viewport and scrolls internally
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), thanks to zunoz for the report on the Psysonic Discord, PR [#734](https://github.com/Psychotoxical/psysonic/pull/734)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), thanks to zunoz for the report on the Psysonic Discord, PR [#734](https://github.com/Psysonic/psysonic/pull/734)**
 
 * The **Artist Biography** modal lived under the album page tree, where an ancestor broke `position: fixed` on the overlay — opening a long bio scrolled the whole page instead of staying pinned, and the modal itself stretched past the visible area. It now portals to `document.body` and scrolls internally, with the title + close button pinned.
 
@@ -3434,7 +3434,7 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 
 ### Playback — M4A / MP4 streaming (moov-at-end) and seekbar during buffer
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#737](https://github.com/Psychotoxical/psysonic/pull/737)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#737](https://github.com/Psysonic/psysonic/pull/737)**
 
 * Server-streamed **M4A/MP4** with **moov at end of file** (common iTunes/Navidrome exports) start audibly sooner: tail prefetch fetches metadata while the body still downloads.
 * Symphonia ISO-BMFF demuxer patch scans the file tail for **moov** on large atoms instead of failing probe with "end of stream".
@@ -3444,9 +3444,9 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 
 ### Artist info — image-mismatch fix extended; square Queue Info hero; ArtistDetail glow removed
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#739](https://github.com/Psychotoxical/psysonic/pull/739)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#739](https://github.com/Psysonic/psysonic/pull/739)**
 
-* The cache-mismatch shape fixed in PR [#732](https://github.com/Psychotoxical/psysonic/pull/732) for the Queue Info panel was latent in the **About the Artist** card on NowPlaying as well. Fixed at the source — every consumer of `useNowPlayingFetchers` / `useArtistDetailData` is now safe by construction. ArtistDetail's inline bio block is now the shared `ArtistCard` so there is a single rendering path.
+* The cache-mismatch shape fixed in PR [#732](https://github.com/Psysonic/psysonic/pull/732) for the Queue Info panel was latent in the **About the Artist** card on NowPlaying as well. Fixed at the source — every consumer of `useNowPlayingFetchers` / `useArtistDetailData` is now safe by construction. ArtistDetail's inline bio block is now the shared `ArtistCard` so there is a single rendering path.
 * The artist hero in **Queue Info** was 16:10 with `object-fit: cover`, so portrait photos always lost top and bottom equally — perceived as cropped even on roughly square sources. Now **1:1**, symmetric crop.
 * The **ArtistDetail** avatar no longer paints a 36 px accent-coloured `boxShadow` ring around the photo.
 
@@ -3454,7 +3454,7 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 
 ### Share Top Albums — full-resolution preview, Square preview fits the modal
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), thanks to zunoz for the report on the Psysonic Discord, PR [#740](https://github.com/Psychotoxical/psysonic/pull/740)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), thanks to zunoz for the report on the Psysonic Discord, PR [#740](https://github.com/Psysonic/psysonic/pull/740)**
 
 * The **Square** preview was clipped at the bottom — the preview frame only capped height, so the 1:1 canvas overflowed and the last grid row was hidden. Both dimensions are now capped per format, so the preview always fits without clipping.
 * The preview also looked **blurry** because the canvas was rendered at 540 px and cover thumbs at only 256 px. The preview now renders at the full export width (1080) and decodes covers at the export tile size (600), so text is crisp and album thumbnails downsample cleanly.
@@ -3463,7 +3463,7 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 
 ### Home — Mainstage row title matches the sidebar and page label
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), thanks to zunoz for the report on the Psysonic Discord, PR [#741](https://github.com/Psychotoxical/psysonic/pull/741)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), thanks to zunoz for the report on the Psysonic Discord, PR [#741](https://github.com/Psysonic/psysonic/pull/741)**
 
 * The Mainstage row whose title chevron jumps to **`/new-releases`** was labelled **Recently Added** while the sidebar entry and the page itself read **New Releases** — three different names for the same destination. All three now read **New Releases**.
 
@@ -3471,7 +3471,7 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 
 ### UI — consistency fixes across badges, action buttons, hero and tracks header
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), thanks to zunoz for the report on the Psysonic Discord, PR [#745](https://github.com/Psychotoxical/psysonic/pull/745)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), thanks to zunoz for the report on the Psysonic Discord, PR [#745](https://github.com/Psysonic/psysonic/pull/745)**
 
 * Unified the corner radius on badges, pills and non-player buttons; Player Bar, Fullscreen and Mini Player keep their circular family identity. Secondary action rows on Artist, Album, Tracks, Favorites and Most Played all share the same `btn-surface` treatment so the same affordance reads the same per page and per theme.
 * Hero pills stay visible against light-toned cover art (opaque fill), and the pagination dots are readable on every backdrop (brighter inactive dot with a dark outline, accent-coloured active dot).
@@ -3481,7 +3481,7 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 
 ### Favorites — artist link no longer triggers playback, bulk selection no longer shifts the rows
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), thanks to zunoz for the report on the Psysonic Discord, PR [#746](https://github.com/Psychotoxical/psysonic/pull/746)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), thanks to zunoz for the report on the Psysonic Discord, PR [#746](https://github.com/Psysonic/psysonic/pull/746)**
 
 * Clicking the **artist** in the Favorites songs table opened the artist page _and_ started the song — the cell was missing the click guard the album cell already had. Now matches every other tracklist in the app.
 * Selecting a song no longer pushes the column header and every row down by one line. The "X selected / Add to playlist / Clear" cluster moved out of the full-width bar into the existing action-buttons row (right-aligned), matching the album toolbar, so the next item stays under the same cursor position.
@@ -3490,7 +3490,7 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 
 ### Equalizer — frequency-response curve no longer disappears on re-expand
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), thanks to zunoz for the report on the Psysonic Discord, PR [#747](https://github.com/Psychotoxical/psysonic/pull/747)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), thanks to zunoz for the report on the Psysonic Discord, PR [#747](https://github.com/Psysonic/psysonic/pull/747)**
 
 * Collapsing and re-expanding **Settings → Audio → Equalizer** sometimes left the curve area blank — `ResizeObserver` doesn't reliably fire for the `display: none → block` transition the surrounding `<details>` triggers. A `toggle` listener now redraws explicitly on open.
 
@@ -3498,7 +3498,7 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 
 ### Library — empty-state on Mainstage, Albums, New Releases and Random Albums
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), thanks to zunoz for the report on the Psysonic Discord, PR [#750](https://github.com/Psychotoxical/psysonic/pull/750)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), thanks to zunoz for the report on the Psysonic Discord, PR [#750](https://github.com/Psysonic/psysonic/pull/750)**
 
 * Selecting an empty library no longer leaves Mainstage, Albums, New Releases and Random Albums as a fully blank canvas — a shared **"Your library is empty."** message is shown in place of the empty rails / grids. Pages that already had a dedicated empty-state keep their per-page wording. On Albums and New Releases, an active filter still shows the regular filtered-results behaviour rather than the library-empty message.
 
@@ -3506,7 +3506,7 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 
 ### Player — persisted queue capped to ±250-track window (QuotaExceededError fix)
 
-**By [@artplan1](https://github.com/artplan1), PR [#756](https://github.com/Psychotoxical/psysonic/pull/756)**
+**By [@artplan1](https://github.com/artplan1), PR [#756](https://github.com/Psysonic/psysonic/pull/756)**
 
 * Playing or shuffling a large playlist (10 000+ tracks) serialised the entire queue to `localStorage` on every persisted `set`, triggering a `QuotaExceededError` storm that killed playback and stalled the main thread. Controlled test on a 10 509-track playlist: 9 quota errors before, 0 after.
 * `partialize` now persists only a ±250-track window around the current position (≤ 501 tracks), remapping `queueIndex` into the slice. The authoritative full queue is recovered from the server via `getPlayQueue` on startup — no queue data is lost.
@@ -3515,7 +3515,7 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 
 ### M4A playback — probe failures and distorted audio on moov-at-end files
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#757](https://github.com/Psychotoxical/psysonic/pull/757)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#757](https://github.com/Psysonic/psysonic/pull/757)**
 
 * **M4A** from hot cache or local replay no longer fails probe or plays distorted — the demuxer patch passed wrong byte lengths after seek.
 * Moov-at-end streams wait for tail prefetch before probe so partial buffers do not fall back to a full re-download unnecessarily.
@@ -3525,7 +3525,7 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 
 ### Audio — seamless playback resume on output device switch
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#765](https://github.com/Psychotoxical/psysonic/pull/765)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#765](https://github.com/Psysonic/psysonic/pull/765)**
 
 * Switching output device (Bluetooth, USB, HDMI, AirPlay) no longer restarts the track from the beginning — playback resumes at the same position.
 * Fully cached and local files replay on the new device inside Rust; streams and radio use the existing frontend restart path but seek back to the saved position.
@@ -3534,16 +3534,16 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 
 ### Virtualization — Artists, Composers and Tracks lists no longer drop rows on scroll
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#766](https://github.com/Psychotoxical/psysonic/pull/766)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#766](https://github.com/Psysonic/psysonic/pull/766)**
 
-* Same scroll-margin bug as the one fixed by [#764](https://github.com/Psychotoxical/psysonic/pull/764) for the Album Detail "More by …" rail, on four more virtual lists: **Artists grid**, **Artists list**, **Composers list** and the **Tracks** virtual song browser. The virtual wrapper sat below the sticky page header but TanStack measured row positions from the scroll-element top — rows still on screen could unmount, and at larger header offsets the list refused to render at all.
+* Same scroll-margin bug as the one fixed by [#764](https://github.com/Psysonic/psysonic/pull/764) for the Album Detail "More by …" rail, on four more virtual lists: **Artists grid**, **Artists list**, **Composers list** and the **Tracks** virtual song browser. The virtual wrapper sat below the sticky page header but TanStack measured row positions from the scroll-element top — rows still on screen could unmount, and at larger header offsets the list refused to render at all.
 * The measurement is now a shared `useVirtualizerScrollMargin` hook used by every virtual-list call-site (including the existing `VirtualCardGrid` fix from #764).
 
 
 
 ### Album cards — per-artist click on multi-artist albums
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#767](https://github.com/Psychotoxical/psysonic/pull/767)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#767](https://github.com/Psysonic/psysonic/pull/767)**
 
 * The artist subtitle under an album card rendered a multi-artist string as a single link to the album's primary `artistId`. On an artist-detail page that id is the page's own artist, so the click resolved to the current URL and the router silently no-op'd — the cursor said clickable, nothing happened.
 * Album cards now use the same `OpenArtistRefInline` component the album-detail header uses: each artist becomes its own ·-separated link. Behaviour on servers that don't expose the structured list is unchanged.
@@ -3553,7 +3553,7 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 
 ### Multi-server — Lucky Mix and Now Playing no longer revert the browsed server
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#768](https://github.com/Psychotoxical/psysonic/pull/768)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#768](https://github.com/Psysonic/psysonic/pull/768)**
 
 * **Lucky Mix** on a browsed server while another server still owned the queue used to abort and snap the UI back — opening Now Playing triggered a forced server switch. Lucky Mix now clears the old queue and pins the active server before building when browse and playback differ.
 * **Now Playing** and the queue info panel keep your browsed server in the connection indicator; song metadata still loads from the playback server. Album and artist links switch to the queue server when you open the library.
@@ -3564,7 +3564,7 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 
 ### Themes — Kanagawa, Atom One and 1984 Palettes
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#390](https://github.com/Psychotoxical/psysonic/pull/390)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#390](https://github.com/Psysonic/psysonic/pull/390)**
 
 Open Source Classics gains three new theme families: **Kanagawa**, **Atom One** and **1984**, adding nine new themes in total.
 
@@ -3578,7 +3578,7 @@ The theme picker now groups Open Source Classics by family with dedicated family
 
 ### Audio Preview — Rust Preview Engine and Tracklist Rollout
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PRs [#392](https://github.com/Psychotoxical/psysonic/pull/392), [#394](https://github.com/Psychotoxical/psysonic/pull/394)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PRs [#392](https://github.com/Psysonic/psysonic/pull/392), [#394](https://github.com/Psysonic/psysonic/pull/394)**
 
 Psysonic now has a native Rust-powered preview engine for tracklist previews. Instead of using a separate HTML5 audio path, previews run through a parallel `rodio` sink on the existing output stream, with dedicated Tauri commands and engine events for preview start, progress and end.
 
@@ -3610,7 +3610,7 @@ The feature includes updated i18n coverage across all supported locales, includi
 
 ### Tray — Now Playing Tooltip and Localized Menu Labels
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#395](https://github.com/Psychotoxical/psysonic/pull/395), closes [#383](https://github.com/Psychotoxical/psysonic/issues/383)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#395](https://github.com/Psysonic/psysonic/pull/395), closes [#383](https://github.com/Psysonic/psysonic/issues/383)**
 
 The system tray now reflects the current playback state more clearly. On Windows and macOS, the tray tooltip shows the currently playing track as `Artist – Title` on play, pause and track changes, falling back to `Psysonic` when nothing is playing.
 
@@ -3620,7 +3620,7 @@ Tray menu labels are now localized across all supported languages, including Pla
 
 ### Sidebar Discovery Indicators
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#397](https://github.com/Psychotoxical/psysonic/pull/397)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#397](https://github.com/Psysonic/psysonic/pull/397)**
 
 Sidebar navigation now includes a dedicated unread indicator for **New Releases**, with persistence per server/library scope and delayed mark-as-seen behavior after opening the New Releases page.
 
@@ -3628,19 +3628,19 @@ Albums added within the last 48 hours now receive a localized **New** badge in b
 
 ### Adaptive Header Controls
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#397](https://github.com/Psychotoxical/psysonic/pull/397)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#397](https://github.com/Psysonic/psysonic/pull/397)**
 
 The top header behavior was reworked for narrow widths: search, Live and Orbit controls now compress in a deterministic order with improved stability in edge-width ranges.
 
 ### Waveform Wheel Seeking
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#397](https://github.com/Psychotoxical/psysonic/pull/397)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#397](https://github.com/Psysonic/psysonic/pull/397)**
 
 Waveform mouse-wheel seeking now uses fixed step-based jumps with debounce smoothing for more predictable navigation and less jitter during rapid scrolling.
 
 ### Queue Panel — Position Counter, Tri-State Duration Toggle, Collapsible Now Playing, EQ Indicator
 
-**By [@kveld9](https://github.com/kveld9), PR [#419](https://github.com/Psychotoxical/psysonic/pull/419)**
+**By [@kveld9](https://github.com/kveld9), PR [#419](https://github.com/Psysonic/psysonic/pull/419)**
 
 The queue panel got a sweep of UX refinements. The header now shows the current position as `(N/M)` next to the queue title for at-a-glance context.
 
@@ -3652,7 +3652,7 @@ The currently playing row in the queue list is now indicated by **animated equal
 
 ### Queue — Drag Outside to Remove
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#420](https://github.com/Psychotoxical/psysonic/pull/420)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#420](https://github.com/Psysonic/psysonic/pull/420)**
 
 You can remove a track from the play queue by dragging its row **outside** the queue sidebar (main window) or outside the mini player’s queue list. Drop targets still support reordering when you release inside the queue area.
 
@@ -3660,7 +3660,7 @@ The drag ghost shows a **trash** affordance only while the cursor is outside the
 
 ### Statistics — Shareable Top-Albums Card
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#425](https://github.com/Psychotoxical/psysonic/pull/425)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#425](https://github.com/Psysonic/psysonic/pull/425)**
 
 Statistics page can now export your most-played albums as a shareable PNG, accessible via a share icon next to the **Most Played Albums** section header. Three aspect ratios for different platforms (Story 9:16, Square 1:1, Twitter Card 16:9), three grid sizes (3×3, 4×4, 5×5), with each cover carrying a thin info strip showing rank + play count.
 
@@ -3670,7 +3670,7 @@ Saving uses the native OS save dialog — no silent dump into Downloads, the use
 
 ### Shortcuts — Action Registry, Dynamic CLI Help, New Input Targets
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#435](https://github.com/Psychotoxical/psysonic/pull/435)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#435](https://github.com/Psysonic/psysonic/pull/435)**
 
 Shortcut, keyboard, global-hotkey, mini-window and CLI inputs are now all routed through one TypeScript action registry — a single source of truth for what an action does, how it's labelled, and which input transports can fire it. CLI `--player help` is generated dynamically from the registry, so command coverage stays in sync with the action set automatically.
 
@@ -3680,7 +3680,7 @@ Translations for the new action labels follow in a separate i18n nachhol-PR (de,
 
 ### Settings — 3-State Animation Mode (Full / Reduced / Static)
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#441](https://github.com/Psychotoxical/psysonic/pull/441), suggested by harumscarum on Telegram**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#441](https://github.com/Psysonic/psysonic/pull/441), suggested by harumscarum on Telegram**
 
 The boolean **Reduce animations** toggle in **Settings → Appearance** is now a three-state picker matching the ReplayGain Auto/Track/Album pattern:
 
@@ -3692,7 +3692,7 @@ Existing users with `reducedAnimations: true` are migrated 1:1 to **Reduced** on
 
 ### Tracks — Highly Rated Rail and Per-Card Star Display
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#443](https://github.com/Psychotoxical/psysonic/pull/443), prompted by Foxhunter-de in discussion [#442](https://github.com/Psychotoxical/psysonic/discussions/442)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#443](https://github.com/Psysonic/psysonic/pull/443), prompted by Foxhunter-de in discussion [#442](https://github.com/Psysonic/psysonic/discussions/442)**
 
 The Tracks page gets a new **Highly Rated** rail above Random Pick, surfacing your top-rated tracks (sorted by rating, descending). The rail auto-hides on non-Navidrome servers and on libraries with no rated tracks yet. The standard reroll button forces a fresh fetch.
 
@@ -3702,7 +3702,7 @@ Backed by an opt-in 60 s in-memory cache for `ndListSongs` (used only by the new
 
 ### Random Mix — Playlist Size Selector and Filter Panel Cleanup
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#445](https://github.com/Psychotoxical/psysonic/pull/445), prompted by Foxhunter-de in discussion [#442](https://github.com/Psychotoxical/psysonic/discussions/442)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#445](https://github.com/Psysonic/psysonic/pull/445), prompted by Foxhunter-de in discussion [#442](https://github.com/Psysonic/psysonic/discussions/442)**
 
 Random Mix can now build longer mixes. A new playlist-size picker (50 / 75 / 100 / 125 / 150) sits at the top of the filter panel. Clicking a size button immediately reloads the current mix at the new count — Genre Mix and All Songs both honored, no extra Remix click needed. The choice is persisted across restarts.
 
@@ -3712,19 +3712,19 @@ Under the hood, `fetchRandomMixSongsUntilFull` now scales batch size, max-batch 
 
 ### UI — Bulk Entity Ratings, Random Albums Multi-Select, Album New Badge
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#446](https://github.com/Psychotoxical/psysonic/pull/446)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#446](https://github.com/Psysonic/psysonic/pull/446)**
 
 Multi-album and multi-artist **context menus** now include a shared star-rating row for the current selection (mixed ratings show empty until you set a value; keyboard navigation supported), with new aria-label strings across locales. **Random Albums** passes the active selection into each **AlbumCard** so the same bulk context menu works from the roll grid. The album **New** badge moves to the **top-right** of the cover and **stacks** with the offline badge so the two no longer overlap.
 
 ### NixOS — Flake: X11-wrapped default vs session GDK
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#447](https://github.com/Psychotoxical/psysonic/pull/447)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#447](https://github.com/Psysonic/psysonic/pull/447)**
 
 The flake exposes two Linux installables: **`psysonic`** / **`default`** pins **`GDK_BACKEND=x11`** for a stable GTK/WebKit stack on mixed Wayland setups; **`psysonic-gdk-session`** drops that override so GDK follows the session (native Wayland where the stack supports it). **[nixos-install.md](nixos-install.md)** documents trade-offs and **zsh-safe** quoting for `nix run 'github:…#…'` URLs.
 
 ### Linux / WebKit — performance probe, progress IPC, and UI isolation
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#452](https://github.com/Psychotoxical/psysonic/pull/452)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#452](https://github.com/Psysonic/psysonic/pull/452)**
 
 * **Performance Probe** — Modal at **Ctrl+Shift+D** (sidebar logo is decorative only). Collapsible Phase 1/2 and an open-by-default Phase 3 for the toggles used most in profiling. Flags persist in `localStorage`, map to `data-perf-*` on the document root, and can disable targeted subsystems (shell/network hooks, mainstage sections, PlayerBar waveform only, live progress UI, rail artwork, and similar) to isolate WebKit/WebProcess CPU on Linux.
 * **Approximate live CPU (Linux)** — Tauri command reading `/proc` (including WebKit helper process names) for rough host CPU share while the probe is open.
@@ -3745,17 +3745,17 @@ The flake exposes two Linux installables: **`psysonic`** / **`default`** pins **
 
 ## Fixed
 
-- **Settings → Audio no longer blanks the app on macOS** *(Issue [#382](https://github.com/Psychotoxical/psysonic/issues/382), PR [#384](https://github.com/Psychotoxical/psysonic/pull/384), by [@Psychotoxical](https://github.com/Psychotoxical))*: Fixed a macOS-only crash where opening Settings → Audio could turn the whole app into a blank window. The Equalizer canvas now waits until it has valid layout dimensions before drawing, and redraws automatically once the section is visible.
+- **Settings → Audio no longer blanks the app on macOS** *(Issue [#382](https://github.com/Psysonic/psysonic/issues/382), PR [#384](https://github.com/Psysonic/psysonic/pull/384), by [@Psychotoxical](https://github.com/Psychotoxical))*: Fixed a macOS-only crash where opening Settings → Audio could turn the whole app into a blank window. The Equalizer canvas now waits until it has valid layout dimensions before drawing, and redraws automatically once the section is visible.
 
-- **Polish** *(PR [#397](https://github.com/Psychotoxical/psysonic/pull/397), by [@cucadmuh](https://github.com/cucadmuh))*: multiple branch-local interaction fixes around sidebar drag/drop behavior, Live dropdown layering, queue-resize handle behavior during scroll/overlay-scrollbar interaction, and now-playing narrow-layout stability.
+- **Polish** *(PR [#397](https://github.com/Psysonic/psysonic/pull/397), by [@cucadmuh](https://github.com/cucadmuh))*: multiple branch-local interaction fixes around sidebar drag/drop behavior, Live dropdown layering, queue-resize handle behavior during scroll/overlay-scrollbar interaction, and now-playing narrow-layout stability.
 
-- **Track preview audio in sync with progress ring; huge files no longer abort** *(Issue [#421](https://github.com/Psychotoxical/psysonic/issues/421), PR [#423](https://github.com/Psychotoxical/psysonic/pull/423), by [@Psychotoxical](https://github.com/Psychotoxical))*: Previews used to start audio about 25 % into the preview window on mid-track starts because `Sink::try_seek` ran in parallel with `sink.append` while the 30 s `take_duration` cap was already counting wall-clock from append. The seek now runs on the bare source before append, and the progress-ring animation only starts once the engine actually emits `audio:preview-start` — a small loading spinner is shown during the download/decode/seek warmup. The preview HTTP-client timeout was raised from 30 s to 5 min, so multi-hundred-megabyte Hi-Res files no longer abort the download mid-fetch.
+- **Track preview audio in sync with progress ring; huge files no longer abort** *(Issue [#421](https://github.com/Psysonic/psysonic/issues/421), PR [#423](https://github.com/Psysonic/psysonic/pull/423), by [@Psychotoxical](https://github.com/Psychotoxical))*: Previews used to start audio about 25 % into the preview window on mid-track starts because `Sink::try_seek` ran in parallel with `sink.append` while the 30 s `take_duration` cap was already counting wall-clock from append. The seek now runs on the bare source before append, and the progress-ring animation only starts once the engine actually emits `audio:preview-start` — a small loading spinner is shown during the download/decode/seek warmup. The preview HTTP-client timeout was raised from 30 s to 5 min, so multi-hundred-megabyte Hi-Res files no longer abort the download mid-fetch.
 
-- **Windows playback stutter under GPU load** *(Issue [#334](https://github.com/Psychotoxical/psysonic/issues/334), PR [#426](https://github.com/Psychotoxical/psysonic/pull/426), by [@Psychotoxical](https://github.com/Psychotoxical))*: Audio could stutter and crackle on Windows whenever another app put GPU/CPU pressure on the system (browser, 3D apps, games). The WASAPI render thread is now promoted to MMCSS "Pro Audio" via `AvSetMmThreadCharacteristicsW`, so it survives priority contention from competing graphics work. Reproed and validated under a Half-Life parallel-load stresstest. Companion mitigations for high-GPU situations: cosmetic UI animations now pause when the window loses OS focus, and a new **Reduce animations** toggle in **Settings → Appearance** caps animated seekbar styles (pulsewave, particletrail, liquidfill, retrotape) to 30 fps for users on GPU-constrained machines (off by default).
+- **Windows playback stutter under GPU load** *(Issue [#334](https://github.com/Psysonic/psysonic/issues/334), PR [#426](https://github.com/Psysonic/psysonic/pull/426), by [@Psychotoxical](https://github.com/Psychotoxical))*: Audio could stutter and crackle on Windows whenever another app put GPU/CPU pressure on the system (browser, 3D apps, games). The WASAPI render thread is now promoted to MMCSS "Pro Audio" via `AvSetMmThreadCharacteristicsW`, so it survives priority contention from competing graphics work. Reproed and validated under a Half-Life parallel-load stresstest. Companion mitigations for high-GPU situations: cosmetic UI animations now pause when the window loses OS focus, and a new **Reduce animations** toggle in **Settings → Appearance** caps animated seekbar styles (pulsewave, particletrail, liquidfill, retrotape) to 30 fps for users on GPU-constrained machines (off by default).
 
-- **Linux dev — sidebar and main content invisible after HMR** *(PR [#434](https://github.com/Psychotoxical/psysonic/pull/434), by [@Psychotoxical](https://github.com/Psychotoxical))*: The `data-app-blurred="true"` CSS rule introduced in #426 used a `*` selector to pause every animation while the window was unfocused. On WebKitGTK + no-compositing this triggered a stale rendering bug after Vite hot-reloads — the sidebar and main content stayed unpainted until any user interaction nudged a re-render. The rule now targets only the concrete heaviest infinite animations (eq bars, marquees, now-playing dot pulse, fullscreen mesh blob / portrait, `.spin`); release builds are unchanged in behaviour.
+- **Linux dev — sidebar and main content invisible after HMR** *(PR [#434](https://github.com/Psysonic/psysonic/pull/434), by [@Psychotoxical](https://github.com/Psychotoxical))*: The `data-app-blurred="true"` CSS rule introduced in #426 used a `*` selector to pause every animation while the window was unfocused. On WebKitGTK + no-compositing this triggered a stale rendering bug after Vite hot-reloads — the sidebar and main content stayed unpainted until any user interaction nudged a re-render. The rule now targets only the concrete heaviest infinite animations (eq bars, marquees, now-playing dot pulse, fullscreen mesh blob / portrait, `.spin`); release builds are unchanged in behaviour.
 
-- **Mono playback (right channel only) after natural track end with gapless OFF** *(PR [#439](https://github.com/Psychotoxical/psysonic/pull/439), by [@Psychotoxical](https://github.com/Psychotoxical))*: When gapless playback was disabled and a track ended naturally, the next track could play only on the right channel for the rest of its duration. The 500 ms track-separation silence prepended in this exact transition was built with `Zero + take_duration`, whose integer-nanosecond math at 44.1 kHz / 2 ch leaks half a frame (44103 samples instead of 44100), shifting the next source's L/R parity in the device frame stream. Replaced with a frame-aligned `SamplesBuffer`. Manual skip and album-first-play were unaffected because they bypass the silence prepend. Independently identified by xrexy on Discord while the diagnosis was landing here.
+- **Mono playback (right channel only) after natural track end with gapless OFF** *(PR [#439](https://github.com/Psysonic/psysonic/pull/439), by [@Psychotoxical](https://github.com/Psychotoxical))*: When gapless playback was disabled and a track ended naturally, the next track could play only on the right channel for the rest of its duration. The 500 ms track-separation silence prepended in this exact transition was built with `Zero + take_duration`, whose integer-nanosecond math at 44.1 kHz / 2 ch leaks half a frame (44103 samples instead of 44100), shifting the next source's L/R parity in the device frame stream. Replaced with a frame-aligned `SamplesBuffer`. Manual skip and album-first-play were unaffected because they bypass the silence prepend. Independently identified by xrexy on Discord while the diagnosis was landing here.
 
 
 
@@ -3780,7 +3780,7 @@ The flake exposes two Linux installables: **`psysonic`** / **`default`** pins **
 
 ### Orbit — Multi-User Listen-Together
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#304](https://github.com/Psychotoxical/psysonic/pull/304)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#304](https://github.com/Psysonic/psysonic/pull/304)**
 
 Orbit introduces synchronized listening sessions for multiple Psysonic users. A host starts a session, shares a magic-string invite, and guests can join to mirror the host's queue, current track and playback position.
 
@@ -3794,7 +3794,7 @@ The feature includes full i18n coverage across all supported locales and end-to-
 
 ### Loudness Normalization — EBU R128 / LUFS
 
-**By [@cucadmuh](https://github.com/cucadmuh) and [@Psychotoxical](https://github.com/Psychotoxical), PRs [#315](https://github.com/Psychotoxical/psysonic/pull/315), [#317](https://github.com/Psychotoxical/psysonic/pull/317), [#326](https://github.com/Psychotoxical/psysonic/pull/326), [#333](https://github.com/Psychotoxical/psysonic/pull/333)**
+**By [@cucadmuh](https://github.com/cucadmuh) and [@Psychotoxical](https://github.com/Psychotoxical), PRs [#315](https://github.com/Psysonic/psysonic/pull/315), [#317](https://github.com/Psysonic/psysonic/pull/317), [#326](https://github.com/Psysonic/psysonic/pull/326), [#333](https://github.com/Psysonic/psysonic/pull/333)**
 
 Psysonic now supports integrated-loudness analysis using LUFS and applies per-track gain so material mastered at different levels lines up more consistently at a user-chosen target loudness.
 
@@ -3810,7 +3810,7 @@ The same analysis path now also provides richer waveform data through mixed mean
 
 ### Now Playing — Customizable Info Dashboard
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PRs [#266](https://github.com/Psychotoxical/psysonic/pull/266), [#267](https://github.com/Psychotoxical/psysonic/pull/267)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PRs [#266](https://github.com/Psysonic/psysonic/pull/266), [#267](https://github.com/Psysonic/psysonic/pull/267)**
 
 The Now Playing page has been rebuilt from a flat card list into a two-column info dashboard focused on context, metadata and discovery.
 
@@ -3820,7 +3820,7 @@ Cards are draggable and resizable, and the layout is persisted per user. The imp
 
 ### Tracks — Full Library Hub Page
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#300](https://github.com/Psychotoxical/psysonic/pull/300), closes [#299](https://github.com/Psychotoxical/psysonic/issues/299)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#300](https://github.com/Psysonic/psysonic/pull/300), closes [#299](https://github.com/Psysonic/psysonic/issues/299)**
 
 Psysonic now has a dedicated Tracks page between All Albums and Build a Mix. Instead of browsing only through albums, users can explore the library directly at track level.
 
@@ -3830,7 +3830,7 @@ A new `enqueueAndPlay()` helper appends a track to the queue and jumps to it ins
 
 ### Genres — Tag Cloud Refactor
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#311](https://github.com/Psychotoxical/psysonic/pull/311)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#311](https://github.com/Psysonic/psysonic/pull/311)**
 
 The Genres page has been redesigned as a compact, flowing tag cloud. This replaces the previous large SVG-card grid, which could freeze the WebKitGTK renderer on large libraries.
 
@@ -3838,7 +3838,7 @@ Genre pills are sized by album count, use deterministic palette colors and open 
 
 ### Now Playing Info Tab in Queue Panel
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#244](https://github.com/Psychotoxical/psysonic/pull/244)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#244](https://github.com/Psysonic/psysonic/pull/244)**
 
 The right-side queue panel now includes a third tab next to Queue and Lyrics. The new Info tab shows context for the currently playing track.
 
@@ -3846,13 +3846,13 @@ It includes an artist card with biography and image from Subsonic `getArtistInfo
 
 ### Discover Songs Rail on Mainstage
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#301](https://github.com/Psychotoxical/psysonic/pull/301)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#301](https://github.com/Psysonic/psysonic/pull/301)**
 
 The Home page now includes a new Discover Songs rail, surfacing fresh track-level recommendations alongside the existing album-focused sections.
 
 ### ReplayGain — Auto Mode
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#242](https://github.com/Psychotoxical/psysonic/pull/242)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#242](https://github.com/Psysonic/psysonic/pull/242)**
 
 ReplayGain now has an Auto mode. Psysonic automatically chooses album gain when the current queue is a contiguous album and track gain for shuffled or mixed playback.
 
@@ -3860,7 +3860,7 @@ This removes the need to manually switch normalization behavior between full-alb
 
 ### Settings — Refactor, Accordions and Search
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PRs [#259](https://github.com/Psychotoxical/psysonic/pull/259), [#263](https://github.com/Psychotoxical/psysonic/pull/263), [#264](https://github.com/Psychotoxical/psysonic/pull/264), closes [#257](https://github.com/Psychotoxical/psysonic/issues/257)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PRs [#259](https://github.com/Psysonic/psysonic/pull/259), [#263](https://github.com/Psysonic/psysonic/pull/263), [#264](https://github.com/Psysonic/psysonic/pull/264), closes [#257](https://github.com/Psysonic/psysonic/issues/257)**
 
 Settings have been reorganized into clearer thematic tabs: Servers, Library, Audio, Lyrics, Appearance, Personalisation, Integrations, Input, Storage, System and Users.
 
@@ -3870,7 +3870,7 @@ Integrations such as Last.fm, Discord, Bandsintown and Now-Playing Share now liv
 
 ### Playlists — Suggestion Preview UX
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#365](https://github.com/Psychotoxical/psysonic/pull/365)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#365](https://github.com/Psysonic/psysonic/pull/365)**
 
 Playlist suggestions introduce a dedicated preview workflow for auditioning recommended songs before adding them to a playlist or sending them to the queue.
 
@@ -3884,7 +3884,7 @@ The feature includes updated i18n coverage across all supported locales.
 
 ### Artist Page — User-Configurable Sections
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#254](https://github.com/Psychotoxical/psysonic/pull/254), closes [#252](https://github.com/Psychotoxical/psysonic/issues/252) from [@bcorporaal](https://github.com/bcorporaal)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#254](https://github.com/Psysonic/psysonic/pull/254), closes [#252](https://github.com/Psysonic/psysonic/issues/252) from [@bcorporaal](https://github.com/bcorporaal)**
 
 The Artist Detail page now lets users reorder and hide/show individual sections such as Top Songs, Albums, Similar Artists and Bio.
 
@@ -3892,7 +3892,7 @@ The layout is persisted per user and can be configured from Settings → Persona
 
 ### Album Enqueue Actions
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#256](https://github.com/Psychotoxical/psysonic/pull/256), closes [#253](https://github.com/Psychotoxical/psysonic/issues/253) from [@bcorporaal](https://github.com/bcorporaal)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#256](https://github.com/Psysonic/psysonic/pull/256), closes [#253](https://github.com/Psysonic/psysonic/issues/253) from [@bcorporaal](https://github.com/bcorporaal)**
 
 Album covers now include an Enqueue hover action next to Play. Album context menus and the multi-select toolbar also gained Enqueue actions.
 
@@ -3900,13 +3900,13 @@ All three actions append to the existing queue instead of replacing it.
 
 ### Playlists — Bulk Delete and Duplicate Confirmation
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PRs [#290](https://github.com/Psychotoxical/psysonic/pull/290), [#329](https://github.com/Psychotoxical/psysonic/pull/329)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PRs [#290](https://github.com/Psysonic/psysonic/pull/290), [#329](https://github.com/Psysonic/psysonic/pull/329)**
 
 The Playlists page now includes a bulk-delete action while in selection mode. When adding a song that already exists in a playlist, Psysonic now asks for confirmation instead of silently adding a duplicate.
 
 ### Search — Unified SongRow and Paginated Song Results
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#303](https://github.com/Psychotoxical/psysonic/pull/303)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#303](https://github.com/Psysonic/psysonic/pull/303)**
 
 Search results, Advanced Search and the Tracks Hub now share one `SongRow` component.
 
@@ -3914,13 +3914,13 @@ Song results in search pages are paginated with infinite scroll instead of being
 
 ### Login — Language Picker
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#328](https://github.com/Psychotoxical/psysonic/pull/328)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#328](https://github.com/Psysonic/psysonic/pull/328)**
 
 The login page now includes a language picker so first-run users can choose their language before they have a server profile where that preference can be saved.
 
 ### Lucky Mix
 
-**By [@cucadmuh](https://github.com/cucadmuh), PRs [#278](https://github.com/Psychotoxical/psysonic/pull/278), [#332](https://github.com/Psychotoxical/psysonic/pull/332)**
+**By [@cucadmuh](https://github.com/cucadmuh), PRs [#278](https://github.com/Psysonic/psysonic/pull/278), [#332](https://github.com/Psysonic/psysonic/pull/332)**
 
 Lucky Mix builds an instant queue from listening history, ratings and AudioMuse similar-song batches. It skips low-rated tracks, honors the active library scope and can be cancelled while building.
 
@@ -3928,7 +3928,7 @@ The feature appears in the sidebar, mobile overlay and Mix landing page when Aud
 
 ### Library Deep Links — `psysonic2-` Share Scheme
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#261](https://github.com/Psychotoxical/psysonic/pull/261)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#261](https://github.com/Psysonic/psysonic/pull/261)**
 
 Psysonic can now share tracks, albums, artists and queues through `psysonic2-` magic strings. Pasting one into the app switches to the matching server and plays or navigates to the shared item.
 
@@ -3936,13 +3936,13 @@ Queue links resolve tracks in chunks and report how many tracks could be played 
 
 ### Magic-String Server Invites and Navidrome Admin Sharing
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#258](https://github.com/Psychotoxical/psysonic/pull/258)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#258](https://github.com/Psysonic/psysonic/pull/258)**
 
 Navidrome admins can generate a `psysonic1-` invite string that pre-fills the add-server form for another user. The add-user dialog also validates library access so non-admin users cannot be saved without any libraries.
 
 ### Sleep Timer — Circular Ring UI
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#272](https://github.com/Psychotoxical/psysonic/pull/272)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#272](https://github.com/Psysonic/psysonic/pull/272)**
 
 The sleep timer and delayed-start UI now use a circular progress ring around the play/pause button, with an in-button countdown and redesigned timer modal.
 
@@ -3950,7 +3950,7 @@ The updated UI works across PlayerBar, FullscreenPlayer and MobilePlayerView.
 
 ### Queue — Undo/Redo with Hotkeys
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#331](https://github.com/Psychotoxical/psysonic/pull/331)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#331](https://github.com/Psysonic/psysonic/pull/331)**
 
 Queue edits can now be undone and redone with Ctrl/Cmd+Z and Ctrl/Cmd+Shift+Z. Queue snapshots include order, current track, playback position, play/pause state and scroll offset.
 
@@ -3958,13 +3958,13 @@ Restoring a snapshot preserves playback when possible and resyncs the audio engi
 
 ### Sidebar — Long-Press Drag to Reorder
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#269](https://github.com/Psychotoxical/psysonic/pull/269)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#269](https://github.com/Psysonic/psysonic/pull/269)**
 
 Sidebar items can now be reordered by long-press dragging. Dropping an item outside the sidebar hides it, using the same hidden-state model as the Settings customizer.
 
 ### Playlists — Navidrome Smart Playlists
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#289](https://github.com/Psychotoxical/psysonic/pull/289), proposed by bequbed on Discord**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#289](https://github.com/Psysonic/psysonic/pull/289), proposed by bequbed on Discord**
 
 Navidrome smart playlists are now managed directly inside the Playlists page. Users can create, edit and delete smart playlists using the same flow as regular playlists, with a dedicated rule editor for smart playlist parameters.
 
@@ -3972,25 +3972,25 @@ Smart playlists have distinct icons and support filters such as genre include/ex
 
 ### Song Info — Copy Fields via Double-Click
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#323](https://github.com/Psychotoxical/psysonic/pull/323)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#323](https://github.com/Psysonic/psysonic/pull/323)**
 
 Double-clicking any field in the Song Info modal copies that value to the clipboard.
 
 ### Mobile UI Overhaul
 
-**By [@kilyabin](https://github.com/kilyabin), PR [#238](https://github.com/Psychotoxical/psysonic/pull/238)**
+**By [@kilyabin](https://github.com/kilyabin), PR [#238](https://github.com/Psysonic/psysonic/pull/238)**
 
 A broad pass over mobile and narrow-viewport layouts, including the sidebar drawer, player view, queue, search and detail pages.
 
 ### Logging — Runtime Levels and Debug Export
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#241](https://github.com/Psychotoxical/psysonic/pull/241)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#241](https://github.com/Psysonic/psysonic/pull/241)**
 
 Settings now allow switching between `info` and `debug` log levels at runtime. Users can also export the current debug log for bug reports.
 
 ### CLI — Logs Subcommand
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#337](https://github.com/Psychotoxical/psysonic/pull/337)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#337](https://github.com/Psysonic/psysonic/pull/337)**
 
 The `psysonic` CLI now includes a `logs` subcommand with `tail` and `--follow` support.
 
@@ -4000,7 +4000,7 @@ The `psysonic` CLI now includes a `logs` subcommand with `tail` and `--follow` s
 
 ### Performance Suite
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PRs [#245](https://github.com/Psychotoxical/psysonic/pull/245), [#246](https://github.com/Psychotoxical/psysonic/pull/246), [#247](https://github.com/Psychotoxical/psysonic/pull/247), [#248](https://github.com/Psychotoxical/psysonic/pull/248), [#249](https://github.com/Psychotoxical/psysonic/pull/249), [#250](https://github.com/Psychotoxical/psysonic/pull/250), [#251](https://github.com/Psychotoxical/psysonic/pull/251)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PRs [#245](https://github.com/Psysonic/psysonic/pull/245), [#246](https://github.com/Psysonic/psysonic/pull/246), [#247](https://github.com/Psysonic/psysonic/pull/247), [#248](https://github.com/Psysonic/psysonic/pull/248), [#249](https://github.com/Psysonic/psysonic/pull/249), [#250](https://github.com/Psysonic/psysonic/pull/250), [#251](https://github.com/Psysonic/psysonic/pull/251)**
 
 A coordinated performance pass improved several expensive areas of the app:
 
@@ -4014,13 +4014,13 @@ A coordinated performance pass improved several expensive areas of the app:
 
 ### Navidrome Admin API Resilience
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#260](https://github.com/Psychotoxical/psysonic/pull/260)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#260](https://github.com/Psysonic/psysonic/pull/260)**
 
 The Navidrome admin REST client is more resilient against flaky upstream behavior. Psysonic now forces HTTP/1.1 for these calls, requires TLS 1.2+, retries transient errors and shows a cleaner UI retry surface instead of raw error toasts.
 
 ### Linux Audio Device Selection
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#288](https://github.com/Psychotoxical/psysonic/pull/288)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#288](https://github.com/Psysonic/psysonic/pull/288)**
 
 On Linux, Psysonic now prefers `pipewire` and then `pulse` before falling back to the default CPAL device resolution.
 
@@ -4028,19 +4028,19 @@ This avoids cases where the default device resolves to a null sink on PipeWire-b
 
 ### Tauri Devtools Behavior
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PRs [#307](https://github.com/Psychotoxical/psysonic/pull/307), [#310](https://github.com/Psychotoxical/psysonic/pull/310)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PRs [#307](https://github.com/Psysonic/psysonic/pull/307), [#310](https://github.com/Psysonic/psysonic/pull/310)**
 
 Devtools no longer auto-open during development and are disabled in production builds. In dev builds, they can still be opened with Ctrl+Shift+I.
 
 ### Dependency Updates
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#306](https://github.com/Psychotoxical/psysonic/pull/306)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#306](https://github.com/Psysonic/psysonic/pull/306)**
 
 Updated `rustls-webpki` and `postcss`.
 
 ### Subsonic HTTP User-Agent Alignment
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#235](https://github.com/Psychotoxical/psysonic/pull/235)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#235](https://github.com/Psysonic/psysonic/pull/235)**
 
 Rust-side HTTP requests now send the same User-Agent as the main WebView requests, helping servers, rate limiters and reverse proxies identify Psysonic consistently.
 
@@ -4050,133 +4050,133 @@ Rust-side HTTP requests now send the same User-Agent as the main WebView request
 
 ### Cross-Device Resume Position
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#318](https://github.com/Psychotoxical/psysonic/pull/318)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#318](https://github.com/Psysonic/psysonic/pull/318)**
 
 Server-side play-queue position could remain at the start of a long track if the app was closed without a seek or track change. Psysonic now flushes queue position through a playback heartbeat, on pause and through shared quit paths.
 
 ### Image Cache Blob URL Lifetime
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PRs [#313](https://github.com/Psychotoxical/psysonic/pull/313), [#321](https://github.com/Psychotoxical/psysonic/pull/321)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PRs [#313](https://github.com/Psysonic/psysonic/pull/313), [#321](https://github.com/Psysonic/psysonic/pull/321)**
 
 The shared blob URL cache could revoke an image URL while another component still used it, causing `blob:` load errors. Cover URLs are now reference-counted and only revoked after the last consumer unmounts.
 
 ### Queue Scroll Context
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#314](https://github.com/Psychotoxical/psysonic/pull/314)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#314](https://github.com/Psysonic/psysonic/pull/314)**
 
 Clicking a track in the queue no longer snaps the queue list back to the current now-playing position when the user is browsing elsewhere in the queue.
 
 ### Mini Player Saved Position
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#280](https://github.com/Psychotoxical/psysonic/pull/280)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#280](https://github.com/Psysonic/psysonic/pull/280)**
 
 Saved mini-player coordinates are now checked against the current monitor layout. If the saved monitor no longer exists, the position is discarded instead of opening the mini player off-screen.
 
 ### Mini Player Volume Popover
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#279](https://github.com/Psychotoxical/psysonic/pull/279)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#279](https://github.com/Psysonic/psysonic/pull/279)**
 
 The mini-player volume popover is now portal-rendered so it can no longer be clipped by the mini-player window bounds.
 
 ### Gapless Volume Handling
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#277](https://github.com/Psychotoxical/psysonic/pull/277)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#277](https://github.com/Psysonic/psysonic/pull/277)**
 
 Volume changes prepared for the next gapless track are now deferred until the actual transition, preventing them from affecting the still-playing track.
 
 ### Search Context Menu and Live Search Behavior
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PRs [#298](https://github.com/Psychotoxical/psysonic/pull/298), [#302](https://github.com/Psychotoxical/psysonic/pull/302)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PRs [#298](https://github.com/Psysonic/psysonic/pull/298), [#302](https://github.com/Psysonic/psysonic/pull/302)**
 
 Live-search clicks now enqueue and play correctly, right-clicking repositions the existing context menu instead of opening a second one, and artist/album rows in search results now support the expected context menu behavior.
 
 ### Server Switch Playback and Home Refresh
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PRs [#262](https://github.com/Psychotoxical/psysonic/pull/262), [#291](https://github.com/Psychotoxical/psysonic/pull/291)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PRs [#262](https://github.com/Psysonic/psysonic/pull/262), [#291](https://github.com/Psysonic/psysonic/pull/291)**
 
 Switching servers no longer tears down playback when the same track is still cached locally. The Home page also refreshes correctly after changing the active server.
 
 ### Queue Panel Persistence and LUFS Cleanup
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#336](https://github.com/Psychotoxical/psysonic/pull/336)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#336](https://github.com/Psysonic/psysonic/pull/336)**
 
 The queue panel's open/closed state is now persisted across restarts. A dead loudness-store binding left over from the LUFS branch was removed.
 
 ### Toolbar Icons
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#284](https://github.com/Psychotoxical/psysonic/pull/284), closes [#274](https://github.com/Psychotoxical/psysonic/issues/274)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#284](https://github.com/Psysonic/psysonic/pull/284), closes [#274](https://github.com/Psysonic/psysonic/issues/274)**
 
 The Gapless and Infinite Queue toolbar icons now match their actions correctly.
 
 ### Pointer Gesture Performance Regression
 
-**By [@cucadmuh](https://github.com/cucadmuh) and [@Psychotoxical](https://github.com/Psychotoxical), PRs [#281](https://github.com/Psychotoxical/psysonic/pull/281), [#282](https://github.com/Psychotoxical/psysonic/pull/282), [#283](https://github.com/Psychotoxical/psysonic/pull/283)**
+**By [@cucadmuh](https://github.com/cucadmuh) and [@Psychotoxical](https://github.com/Psychotoxical), PRs [#281](https://github.com/Psysonic/psysonic/pull/281), [#282](https://github.com/Psysonic/psysonic/pull/282), [#283](https://github.com/Psysonic/psysonic/pull/283)**
 
 A short-lived performance spike caused by overlapping pointer gestures was fixed after an initial patch, revert and clean re-landing.
 
 ### pingWithCredentials Diagnostics
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#312](https://github.com/Psychotoxical/psysonic/pull/312)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#312](https://github.com/Psysonic/psysonic/pull/312)**
 
 Credential ping failures are now logged instead of failing silently, making server/auth issues easier to diagnose from debug logs.
 
 ### Fullscreen WebKitGTK Halo
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#239](https://github.com/Psychotoxical/psysonic/pull/239)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#239](https://github.com/Psysonic/psysonic/pull/239)**
 
 The fullscreen mesh-blob background no longer shows a faint halo ring on WebKitGTK.
 
 ### Custom Titlebar Glyphs
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#243](https://github.com/Psychotoxical/psysonic/pull/243)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#243](https://github.com/Psysonic/psysonic/pull/243)**
 
 The macOS-style traffic-light glyphs in the custom titlebar are now hidden at rest and only appear on hover.
 
 ### Discord Rich Presence Diagnostics
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#330](https://github.com/Psychotoxical/psysonic/pull/330)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#330](https://github.com/Psysonic/psysonic/pull/330)**
 
 Debug-only logging was added for the Discord Rich Presence IPC path to make connection issues easier to inspect.
 
 ### Streaming Seek UI Freeze
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#236](https://github.com/Psychotoxical/psysonic/pull/236), closes [#218](https://github.com/Psychotoxical/psysonic/issues/218)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#236](https://github.com/Psysonic/psysonic/pull/236), closes [#218](https://github.com/Psysonic/psysonic/issues/218)**
 
 Seeking on streaming tracks no longer blocks the render thread or causes the progress indicator to snap back during the pending seek.
 
 ### Windows WebView2 Hidden-Window Activity
 
-**By [@peri4ko](https://github.com/peri4ko), PR [#273](https://github.com/Psychotoxical/psysonic/pull/273), follow-up by [@Psychotoxical](https://github.com/Psychotoxical), PR [#276](https://github.com/Psychotoxical/psysonic/pull/276)**
+**By [@peri4ko](https://github.com/peri4ko), PR [#273](https://github.com/Psysonic/psysonic/pull/273), follow-up by [@Psychotoxical](https://github.com/Psychotoxical), PR [#276](https://github.com/Psysonic/psysonic/pull/276)**
 
 Hidden Windows WebView2 windows now pause more UI work while hidden, including CSS animations and selected periodic tasks.
 
 ### Linux Wayland Drag Ghost
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#268](https://github.com/Psychotoxical/psysonic/pull/268)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#268](https://github.com/Psysonic/psysonic/pull/268)**
 
 Wayland drag operations no longer leave GTK drag proxies or PsyDnD ghost elements behind after drag end or cancel.
 
 ### Queue Panel Resize Handle
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#324](https://github.com/Psychotoxical/psysonic/pull/324)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#324](https://github.com/Psysonic/psysonic/pull/324)**
 
 The queue panel resize handle is no longer blocked by the main page scroll hit-test area at certain viewport widths.
 
 ### Album Queueing and Smart Playlist Targets
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#322](https://github.com/Psychotoxical/psysonic/pull/322)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#322](https://github.com/Psysonic/psysonic/pull/322)**
 
 Queueing a full album after the current track now behaves reliably. Smart playlists are also filtered out of manual “Add to playlist” target lists.
 
 ### Analysis Cache Logging
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#320](https://github.com/Psychotoxical/psysonic/pull/320)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#320](https://github.com/Psysonic/psysonic/pull/320)**
 
 Waveform path logging in the analysis cache now reports the correct LUFS pipeline state.
 
 ### UI Overlay and Scroll Fixes
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#255](https://github.com/Psychotoxical/psysonic/pull/255)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#255](https://github.com/Psysonic/psysonic/pull/255)**
 
 Overlay-scrollbar state reporting, column-resizer hit testing and Linux mini-player mouse-wheel scrolling were improved.
 
@@ -4194,7 +4194,7 @@ Overlay-scrollbar state reporting, column-resizer hit testing and Linux mini-pla
 
 - **User Management — admin-gated tab in Settings** *(by [@Psychotoxical](https://github.com/Psychotoxical))*: When the active server is Navidrome and the logged-in user is an admin, Settings gets a new "Users" tab. Lists every user with username, display name, email, last-access timestamp and assigned libraries. Add / edit / delete via Navidrome's native REST API (`/api/user`) using a Bearer token obtained from `/auth/login` — the Subsonic API doesn't expose this, so non-Navidrome servers don't get the tab.
 
-- **User Management — per-user library assignment** *(by [@Psychotoxical](https://github.com/Psychotoxical), PR [#222](https://github.com/Psychotoxical/psysonic/pull/222))*: Mirrors the Navidrome web client. Non-admin users get a checkbox picker showing every library on the server; the picker is hidden for admins (Navidrome auto-grants them access to all libraries). Inline validation prevents saving a non-admin with zero libraries.
+- **User Management — per-user library assignment** *(by [@Psychotoxical](https://github.com/Psychotoxical), PR [#222](https://github.com/Psysonic/psysonic/pull/222))*: Mirrors the Navidrome web client. Non-admin users get a checkbox picker showing every library on the server; the picker is hidden for admins (Navidrome auto-grants them access to all libraries). Inline validation prevents saving a non-admin with zero libraries.
 
 - **User Management — last-access timestamp per user** *(by [@Psychotoxical](https://github.com/Psychotoxical))*: Each row shows when the user was last active, formatted as a localised relative time (`vor 5 Min.`, `2h ago`, etc.) using `Intl.RelativeTimeFormat`. Tooltip carries the absolute timestamp. Users who have never logged in show "Never".
 
@@ -4202,15 +4202,15 @@ Overlay-scrollbar state reporting, column-resizer hit testing and Linux mini-pla
 
 - **Mini player — queue-style meta block, action toolbar, vertical volume slider** *(by [@Psychotoxical](https://github.com/Psychotoxical))*: The mini's right column gets a richer track-info block matching the queue panel's styling. A dedicated action toolbar (love / queue / context menu) sits below the transport. The horizontal volume slider is replaced by a tall vertical one on the right edge for a more compact footprint.
 
-- **Settings — compact spacing pass + row hover affordance** *(by [@Psychotoxical](https://github.com/Psychotoxical), PR [#223](https://github.com/Psychotoxical/psysonic/pull/223))*: Section margins, card padding and divider spacing all tightened — every Settings tab fits more content per viewport. Each toggle row gains a subtle accent-tinted hover background that bleeds to the card edges so the active row is visually obvious.
+- **Settings — compact spacing pass + row hover affordance** *(by [@Psychotoxical](https://github.com/Psychotoxical), PR [#223](https://github.com/Psysonic/psysonic/pull/223))*: Section margins, card padding and divider spacing all tightened — every Settings tab fits more content per viewport. Each toggle row gains a subtle accent-tinted hover background that bleeds to the card edges so the active row is visually obvious.
 
-- **Floating player bar — toggleable variant** *(by [@kveld9](https://github.com/kveld9), PR [#216](https://github.com/Psychotoxical/psysonic/pull/216))*: Settings → Appearance → "Floating player bar" turns the player bar into a floating, rounded panel that sits above the page content with a margin around all four edges. Off by default. Solid background, works with every theme.
+- **Floating player bar — toggleable variant** *(by [@kveld9](https://github.com/kveld9), PR [#216](https://github.com/Psysonic/psysonic/pull/216))*: Settings → Appearance → "Floating player bar" turns the player bar into a floating, rounded panel that sits above the page content with a margin around all four edges. Off by default. Solid background, works with every theme.
 
 - **Floating player bar — liquid-glass look on macOS and Windows** *(by [@Psychotoxical](https://github.com/Psychotoxical))*: When the floating bar is enabled, macOS and Windows users get a gentler glass-effect background (subtle blur + tint) on top of @kveld9's solid variant. Linux keeps the solid look — WebKitGTK's `backdrop-filter` cost is too high for an always-visible panel. A new `data-platform` attribute on `<html>` is the generic platform-gate that other CSS can hook into.
 
-- **NVIDIA proprietary driver — DMA-BUF auto-disabled on Linux** *(by [@kveld9](https://github.com/kveld9), PR [#217](https://github.com/Psychotoxical/psysonic/pull/217), refactored by [@Psychotoxical](https://github.com/Psychotoxical))*: Detects the NVIDIA proprietary driver at startup and sets `WEBKIT_DISABLE_DMABUF_RENDERER=1` for the WebKitGTK process, avoiding rendering glitches that show up specifically on that combo. Confirmed via blind A/B testing — only the proprietary driver is targeted; Nouveau / AMD / Intel are not touched.
+- **NVIDIA proprietary driver — DMA-BUF auto-disabled on Linux** *(by [@kveld9](https://github.com/kveld9), PR [#217](https://github.com/Psysonic/psysonic/pull/217), refactored by [@Psychotoxical](https://github.com/Psychotoxical))*: Detects the NVIDIA proprietary driver at startup and sets `WEBKIT_DISABLE_DMABUF_RENDERER=1` for the WebKitGTK process, avoiding rendering glitches that show up specifically on that combo. Confirmed via blind A/B testing — only the proprietary driver is targeted; Nouveau / AMD / Intel are not touched.
 
-- **Lyrics — cubic ease-out scroll animator** *(by [@kilyabin](https://github.com/kilyabin), PRs [#214](https://github.com/Psychotoxical/psysonic/pull/214) / [#215](https://github.com/Psychotoxical/psysonic/pull/215))*: The lyrics auto-scroll animation is replaced by a smoother cubic ease-out curve (renamed internally from `springScroll` to `easeScroll`). Active line transitions are noticeably less jerky on long line-spacing changes.
+- **Lyrics — cubic ease-out scroll animator** *(by [@kilyabin](https://github.com/kilyabin), PRs [#214](https://github.com/Psysonic/psysonic/pull/214) / [#215](https://github.com/Psysonic/psysonic/pull/215))*: The lyrics auto-scroll animation is replaced by a smoother cubic ease-out curve (renamed internally from `springScroll` to `easeScroll`). Active line transitions are noticeably less jerky on long line-spacing changes.
 
 - **Fullscreen lyrics — fade bottom edge of plain lyrics scroll viewport** *(by [@kilyabin](https://github.com/kilyabin))*: Plain (unsynced) lyrics in the fullscreen player now fade out at the bottom of the scroll viewport via a `mask-image` gradient, matching the existing fade on the synced-lyrics overlay.
 
@@ -4218,9 +4218,9 @@ Overlay-scrollbar state reporting, column-resizer hit testing and Linux mini-pla
 
 - **Mini player — main window minimises on open + width cap on non-tiling WMs** *(by [@Psychotoxical](https://github.com/Psychotoxical))*: Opening the mini now reliably minimises the main window (previously hit-or-miss on some WMs), and the mini's width is capped on non-tiling Linux WMs so it doesn't open larger than its intended footprint when the user's WM hands it the full screen.
 
-- **Artist page — Top Songs continues playback past the last track** *(by [@kveld9](https://github.com/kveld9), PR [#220](https://github.com/Psychotoxical/psysonic/pull/220))*: Playing a song from the Artist page's Top Songs row no longer stops after the row's last track — the queue continues into the surrounding context as intended.
+- **Artist page — Top Songs continues playback past the last track** *(by [@kveld9](https://github.com/kveld9), PR [#220](https://github.com/Psysonic/psysonic/pull/220))*: Playing a song from the Artist page's Top Songs row no longer stops after the row's last track — the queue continues into the surrounding context as intended.
 
-- **Padding fixes across several pages** *(by [@kveld9](https://github.com/kveld9), PR [#221](https://github.com/Psychotoxical/psysonic/pull/221))*: Layout polish, mostly aligning content to the page-level container padding instead of the inner card padding.
+- **Padding fixes across several pages** *(by [@kveld9](https://github.com/kveld9), PR [#221](https://github.com/Psysonic/psysonic/pull/221))*: Layout polish, mostly aligning content to the page-level container padding instead of the inner card padding.
 
 - **Jayfin theme — WCAG AA contrast fixes for nav + primary buttons** *(by [@Psychotoxical](https://github.com/Psychotoxical))*: Hover and active states on the Jayfin theme's sidebar nav items and primary buttons now pass WCAG AA contrast against the underlying background.
 
@@ -4257,11 +4257,11 @@ Overlay-scrollbar state reporting, column-resizer hit testing and Linux mini-pla
 
 > **🛠️ Note on the 1.41.0 jump:** The 1.41.0 tag exists as an internal Draft release on GitHub — it was used to wire up and verify the Cachix substituter pipeline and never went public. **1.42.0 is the first public release after 1.40.0** and consolidates everything that was prepared for 1.41.0 plus the work landed on top in the days since.
 >
-> **❄️ Cachix is live for NixOS users.** The `psysonic.cachix.org` substituter is now actually fed by every release. Earlier 1.40.x runs were silently skipping the cache push (see *Fixed* below), so the first user to ask for a given output paid the full compile cost. Starting with 1.42.0, `nix run github:Psychotoxical/psysonic` and the NixOS module both pull the prebuilt closure straight from Cachix — no local Rust + symphonia + libopus build required.
+> **❄️ Cachix is live for NixOS users.** The `psysonic.cachix.org` substituter is now actually fed by every release. Earlier 1.40.x runs were silently skipping the cache push (see *Fixed* below), so the first user to ask for a given output paid the full compile cost. Starting with 1.42.0, `nix run github:Psysonic/psysonic` and the NixOS module both pull the prebuilt closure straight from Cachix — no local Rust + symphonia + libopus build required.
 
 ### Added
 
-- **Mini player — feature-complete second cut** *(Issue [#162](https://github.com/Psychotoxical/psysonic/issues/162), by [@Psychotoxical](https://github.com/Psychotoxical))*: The early-alpha mini from the internal 1.41.0 prep gets the rest of the workflow it was missing.
+- **Mini player — feature-complete second cut** *(Issue [#162](https://github.com/Psysonic/psysonic/issues/162), by [@Psychotoxical](https://github.com/Psychotoxical))*: The early-alpha mini from the internal 1.41.0 prep gets the rest of the workflow it was missing.
   - **Expandable queue panel** with full track list, search-style overlay scrollbar (no width-eating gutter), drag-to-reorder using the existing PsyDnD system, and a localized right-click context menu (Play now / Remove from queue / Open album / Go to artist / Favorite / Song info — all forwarded to the main window via Tauri events so the source-of-truth playerStore stays consistent).
   - **Custom in-page titlebar** on Windows + Linux with a drag region, the current track title and the queue / pin / open-main / close action icons. macOS keeps the native traffic-lights titlebar so the system look is preserved. The lower toolbar from the alpha is gone — its four buttons live in the titlebar now.
   - **Persistent geometry**: window position, expanded-queue height and queue-open state all survive an app restart. Position is written to `<app_config_dir>/mini_player_pos.json` on every move (throttled), and re-applied after each show — Linux WMs (Mutter/KWin) re-centre hidden windows on show, so without re-applying the position would be lost on the second open.
@@ -4270,21 +4270,21 @@ Overlay-scrollbar state reporting, column-resizer hit testing and Linux mini-pla
   - **Live theme / font / language sync**: changes in the main window propagate to an open mini via the shared localStorage `storage` event — no need to close + re-open the mini after rebinding a shortcut or switching themes.
   - **Always-on-top reliability fix**: WMs that silently ignore `set_always_on_top(true)` when the flag is "already true" (KWin, certain Mutter releases) get a forced false → true cycle so the constraint is actually re-evaluated. The frontend also re-asserts the pin state on mount and on focus, so the user no longer has to click the pin button twice for it to stick.
 
-- **Player bar — click-to-toggle duration / remaining time** *(contributed by [@kveld9](https://github.com/kveld9), PR [#212](https://github.com/Psychotoxical/psysonic/pull/212))*: Click the time read-out in the player bar to swap between total duration (`3:45`) and remaining time (`-2:34`). Updates live, persisted to `themeStore.showRemainingTime`. A small swap icon (⇄) and hover highlight signal the interaction.
+- **Player bar — click-to-toggle duration / remaining time** *(contributed by [@kveld9](https://github.com/kveld9), PR [#212](https://github.com/Psysonic/psysonic/pull/212))*: Click the time read-out in the player bar to swap between total duration (`3:45`) and remaining time (`-2:34`). Updates live, persisted to `themeStore.showRemainingTime`. A small swap icon (⇄) and hover highlight signal the interaction.
 
-- **Queue — ReplayGain in tech strip, expandable badge** *(Issue [#195](https://github.com/Psychotoxical/psysonic/issues/195), originally by [@cucadmuh](https://github.com/cucadmuh) in PRs [#196](https://github.com/Psychotoxical/psysonic/pull/196) / [#201](https://github.com/Psychotoxical/psysonic/pull/201) — UX iteration by [@Psychotoxical](https://github.com/Psychotoxical) on cucadmuh's feedback)*: Tracks with ReplayGain metadata now show a small `RG ⌄` pill at the end of the codec/bitrate/sample-rate strip. Hover reveals the values via tooltip; click expands a second line ("ReplayGain · T -8.9 dB · A -11.0 dB · Peak 0.998") that is persisted across sessions. Hides itself for tracks without RG metadata.
+- **Queue — ReplayGain in tech strip, expandable badge** *(Issue [#195](https://github.com/Psysonic/psysonic/issues/195), originally by [@cucadmuh](https://github.com/cucadmuh) in PRs [#196](https://github.com/Psysonic/psysonic/pull/196) / [#201](https://github.com/Psysonic/psysonic/pull/201) — UX iteration by [@Psychotoxical](https://github.com/Psychotoxical) on cucadmuh's feedback)*: Tracks with ReplayGain metadata now show a small `RG ⌄` pill at the end of the codec/bitrate/sample-rate strip. Hover reveals the values via tooltip; click expands a second line ("ReplayGain · T -8.9 dB · A -11.0 dB · Peak 0.998") that is persisted across sessions. Hides itself for tracks without RG metadata.
 
 - **Changelog — sidebar banner + dedicated `/whats-new` page** *(by [@Psychotoxical](https://github.com/Psychotoxical))*: The auto-popup modal that nagged the user on first launch after each update is replaced by a discreet sidebar banner. Clicking it opens a full `/whats-new` page that renders the latest CHANGELOG section in app — no separate Markdown viewer, no broken links to GitHub.
 
-- **Favorites — genre column + Top Favorite Artists row** *(Issue [#87](https://github.com/Psychotoxical/psysonic/issues/87), by [@Psychotoxical](https://github.com/Psychotoxical))*: The Favorites tracklist now has a toggleable Genre column (alongside the existing Album column and multi-genre filter). A new horizontally scrolling "Top Favorite Artists" row sits between Radio Stations and Songs, aggregated from starred tracks and sorted by star count. Clicking an artist card narrows the song list to that artist.
+- **Favorites — genre column + Top Favorite Artists row** *(Issue [#87](https://github.com/Psysonic/psysonic/issues/87), by [@Psychotoxical](https://github.com/Psychotoxical))*: The Favorites tracklist now has a toggleable Genre column (alongside the existing Album column and multi-genre filter). A new horizontally scrolling "Top Favorite Artists" row sits between Radio Stations and Songs, aggregated from starred tracks and sorted by star count. Clicking an artist card narrows the song list to that artist.
 
-- **Compilation filter on All Albums** *(Issue [#65](https://github.com/Psychotoxical/psysonic/issues/65), by [@Psychotoxical](https://github.com/Psychotoxical))*: A tri-state toggle in the Albums page header (All / Only compilations / Hide compilations) that reads the OpenSubsonic `isCompilation` tag exposed by Navidrome 0.61+. Client-side filter, no additional server calls. Translated into all 8 supported locales.
+- **Compilation filter on All Albums** *(Issue [#65](https://github.com/Psysonic/psysonic/issues/65), by [@Psychotoxical](https://github.com/Psychotoxical))*: A tri-state toggle in the Albums page header (All / Only compilations / Hide compilations) that reads the OpenSubsonic `isCompilation` tag exposed by Navidrome 0.61+. Client-side filter, no additional server calls. Translated into all 8 supported locales.
 
 - **Sticky header on Albums, New Releases, Artists** *(by [@Psychotoxical](https://github.com/Psychotoxical))*: The header row with search/sort/genre/year controls now pins to the top while scrolling, so filters stay reachable without jumping back up. Works the same on all three browse pages.
 
 - **Device Sync — album artist on both panels** *(by [@Psychotoxical](https://github.com/Psychotoxical))*: Album entries in both the library (left) and on-device (right) panels now display `Album · Artist` inline, so sampler discs and self-titled albums are no longer guesswork. Playlists unchanged.
 
-- **NixOS — first-class flake install guide** *(contributed by [@cucadmuh](https://github.com/cucadmuh), PRs [#209](https://github.com/Psychotoxical/psysonic/pull/209) / [#210](https://github.com/Psychotoxical/psysonic/pull/210))*: A new top-level `nixos-install.md` walks through adding Psysonic as a flake input, installing via `environment.systemPackages` / `home.packages`, and wiring up the public `psysonic.cachix.org` substituter so every NixOS user pulls prebuilt binaries. README links to it directly.
+- **NixOS — first-class flake install guide** *(contributed by [@cucadmuh](https://github.com/cucadmuh), PRs [#209](https://github.com/Psysonic/psysonic/pull/209) / [#210](https://github.com/Psysonic/psysonic/pull/210))*: A new top-level `nixos-install.md` walks through adding Psysonic as a flake input, installing via `environment.systemPackages` / `home.packages`, and wiring up the public `psysonic.cachix.org` substituter so every NixOS user pulls prebuilt binaries. README links to it directly.
 
 - **README — AppImage in the Linux install options + Cachix badge** *(by [@Psychotoxical](https://github.com/Psychotoxical))*: The Linux install section now lists AppImage alongside `.deb`, `.rpm`, AUR and Nix flakes. A Cachix badge on the README header signals that NixOS users get prebuilt binaries.
 
@@ -4304,7 +4304,7 @@ Overlay-scrollbar state reporting, column-resizer hit testing and Linux mini-pla
 
 - **Player bar — black-flash on WebKitGTK** *(by [@Psychotoxical](https://github.com/Psychotoxical))*: Linux users occasionally saw the entire player bar paint fully black for one frame when an unrelated layer elsewhere on the page invalidated. `contain: layout paint` makes the bar its own paint boundary so it can no longer be pulled into a surrounding dirty rect. No-op on platforms that don't exhibit the flash (Wayland-with-GPU, Chromium webviews on Windows / macOS).
 
-- **Player bar — time-toggle tooltip uses the in-app TooltipPortal** *(follow-up to PR [#212](https://github.com/Psychotoxical/psysonic/pull/212), by [@Psychotoxical](https://github.com/Psychotoxical))*: The new time-swap control was rendering the native browser `title=` tooltip (unstyled OS popup, ignored by every other control). Switched to `data-tooltip="…"` so it matches every other player-bar tooltip.
+- **Player bar — time-toggle tooltip uses the in-app TooltipPortal** *(follow-up to PR [#212](https://github.com/Psysonic/psysonic/pull/212), by [@Psychotoxical](https://github.com/Psychotoxical))*: The new time-swap control was rendering the native browser `title=` tooltip (unstyled OS popup, ignored by every other control). Switched to `data-tooltip="…"` so it matches every other player-bar tooltip.
 
 - **Fullscreen player — lyrics menu toggle + readability** *(by [@Psychotoxical](https://github.com/Psychotoxical))*: Re-clicking the mic icon now actually closes the lyrics settings panel instead of the outside-click handler closing it and the click re-opening it — the trigger button is excluded from the outside-check. The panel itself is now a solid surface (no backdrop blur, near-opaque background, higher-contrast button text) so settings remain readable over the busy fullscreen background.
 
@@ -4327,7 +4327,7 @@ Overlay-scrollbar state reporting, column-resizer hit testing and Linux mini-pla
 
 - **macOS — in-app auto-update** *(by [@Psychotoxical](https://github.com/Psychotoxical))*: The Tauri Updater plugin is now active on macOS. When a new release is available, clicking **Install now** in the notification modal downloads the signed `.app.tar.gz` bundle, verifies its minisign signature against the bundled public key, replaces `/Applications/Psysonic.app` in place, and relaunches the app — all in one click, no Gatekeeper re-approval, no manual DMG handling. The modal shows trust badges ("Notarized by Apple" + "Signature verified"), a 3-second restart countdown after install with a manual "Restart now" option, and hides redundant buttons during each download/install phase. Windows and Linux continue to use the existing "download installer / point to folder" flow until their signing pipelines are wired up.
 
-- **WebKitGTK wheel scroll mode (Linux)** *(contributed by [@cucadmuh](https://github.com/cucadmuh), PR [#207](https://github.com/Psychotoxical/psysonic/pull/207))*: The Linux build now defaults to WebKitGTK's native smooth (kinetic) wheel scrolling and exposes a toggle in Settings → General to fall back to classic linear line-by-line scroll. Existing installs are migrated to smooth scrolling once, after which the toggle is fully user-controlled.
+- **WebKitGTK wheel scroll mode (Linux)** *(contributed by [@cucadmuh](https://github.com/cucadmuh), PR [#207](https://github.com/Psysonic/psysonic/pull/207))*: The Linux build now defaults to WebKitGTK's native smooth (kinetic) wheel scrolling and exposes a toggle in Settings → General to fall back to classic linear line-by-line scroll. Existing installs are migrated to smooth scrolling once, after which the toggle is fully user-controlled.
 
 ### Changed
 
@@ -4351,9 +4351,9 @@ Overlay-scrollbar state reporting, column-resizer hit testing and Linux mini-pla
 
 ### Contributors
 
-- **PR [#205](https://github.com/Psychotoxical/psysonic/pull/205)** — Apple Music-style scrolling lyrics with spring-physics scroll, by [@kilyabin](https://github.com/kilyabin).
-- **PR [#206](https://github.com/Psychotoxical/psysonic/pull/206)** — Golos Text + Unbounded fonts with Cyrillic support, by [@kilyabin](https://github.com/kilyabin).
-- **PR [#207](https://github.com/Psychotoxical/psysonic/pull/207)** — WebKitGTK wheel scroll mode toggle, by [@cucadmuh](https://github.com/cucadmuh).
+- **PR [#205](https://github.com/Psysonic/psysonic/pull/205)** — Apple Music-style scrolling lyrics with spring-physics scroll, by [@kilyabin](https://github.com/kilyabin).
+- **PR [#206](https://github.com/Psysonic/psysonic/pull/206)** — Golos Text + Unbounded fonts with Cyrillic support, by [@kilyabin](https://github.com/kilyabin).
+- **PR [#207](https://github.com/Psysonic/psysonic/pull/207)** — WebKitGTK wheel scroll mode toggle, by [@cucadmuh](https://github.com/cucadmuh).
 
 All three now credited in Settings → About.
 
@@ -4363,7 +4363,7 @@ All three now credited in Settings → About.
 
 ### Added
 
-- **YouLyPlus — word-by-word synced lyrics (karaoke)** *(Issue [#172](https://github.com/Psychotoxical/psysonic/issues/172), by [@Psychotoxical](https://github.com/Psychotoxical))*: Settings → Lyrics now exposes a mode toggle between the existing **Standard** pipeline (Server tags + LRCLIB + Netease, configurable order) and a new **YouLyPlus** mode that fetches karaoke-style word-sync lyrics from the public `lyricsplus` aggregator (Apple Music / Spotify / Musixmatch / QQ Music). When a track has no YouLyPlus entry the app silently falls back to the Standard pipeline, so obscure titles still resolve. Active word highlighting in both the sidebar Lyrics pane and the Fullscreen Player. Five backend mirrors are tried on network failure; no API keys on the user side — subscription costs are borne by the lyricsplus operator.
+- **YouLyPlus — word-by-word synced lyrics (karaoke)** *(Issue [#172](https://github.com/Psysonic/psysonic/issues/172), by [@Psychotoxical](https://github.com/Psychotoxical))*: Settings → Lyrics now exposes a mode toggle between the existing **Standard** pipeline (Server tags + LRCLIB + Netease, configurable order) and a new **YouLyPlus** mode that fetches karaoke-style word-sync lyrics from the public `lyricsplus` aggregator (Apple Music / Spotify / Musixmatch / QQ Music). When a track has no YouLyPlus entry the app silently falls back to the Standard pipeline, so obscure titles still resolve. Active word highlighting in both the sidebar Lyrics pane and the Fullscreen Player. Five backend mirrors are tried on network failure; no API keys on the user side — subscription costs are borne by the lyricsplus operator.
 
 - **Static-only lyrics option** *(by [@Psychotoxical](https://github.com/Psychotoxical))*: A new toggle renders synced lyrics as plain static text — no auto-scroll, no word highlighting — for users who prefer to read rather than follow. Works in both Standard and YouLyPlus modes.
 
@@ -4379,21 +4379,21 @@ All three now credited in Settings → About.
 
 ### Added
 
-- **Playback source indicator in Queue** *(contributed by [@cucadmuh](https://github.com/cucadmuh), PR [#201](https://github.com/Psychotoxical/psysonic/pull/201))*: The current-track tech strip in the Queue panel now shows a **source badge** indicating how the track was loaded: `stream` (live from server), `preloaded` (buffered before playback), or `cache` (served from local hot cache). Preload tracking is wired through the Rust audio engine so the badge reflects actual playback origin, not just current state.
+- **Playback source indicator in Queue** *(contributed by [@cucadmuh](https://github.com/cucadmuh), PR [#201](https://github.com/Psysonic/psysonic/pull/201))*: The current-track tech strip in the Queue panel now shows a **source badge** indicating how the track was loaded: `stream` (live from server), `preloaded` (buffered before playback), or `cache` (served from local hot cache). Preload tracking is wired through the Rust audio engine so the badge reflects actual playback origin, not just current state.
 
-- **ReplayGain metadata in Queue tech strip** *(Issue [#195](https://github.com/Psychotoxical/psysonic/issues/195), contributed by [@cucadmuh](https://github.com/cucadmuh), PR [#196](https://github.com/Psychotoxical/psysonic/pull/196))*: The current-track tech strip now shows track and album ReplayGain values alongside bitrate and format when the file contains gain tags.
+- **ReplayGain metadata in Queue tech strip** *(Issue [#195](https://github.com/Psysonic/psysonic/issues/195), contributed by [@cucadmuh](https://github.com/cucadmuh), PR [#196](https://github.com/Psysonic/psysonic/pull/196))*: The current-track tech strip now shows track and album ReplayGain values alongside bitrate and format when the file contains gain tags.
 
-- **Discord Rich Presence enhancements** *(contributed by [@kveld9](https://github.com/kveld9), PR [#198](https://github.com/Psychotoxical/psysonic/pull/198))*: Discord Rich Presence received several improvements: dead/unused fields removed, the `{paused}` placeholder that Discord does not support was dropped, and a `timeChanged` invoke loop that fired redundantly on every progress tick was eliminated. The DRP timer is now accurate and stable.
+- **Discord Rich Presence enhancements** *(contributed by [@kveld9](https://github.com/kveld9), PR [#198](https://github.com/Psysonic/psysonic/pull/198))*: Discord Rich Presence received several improvements: dead/unused fields removed, the `{paused}` placeholder that Discord does not support was dropped, and a `timeChanged` invoke loop that fired redundantly on every progress tick was eliminated. The DRP timer is now accurate and stable.
 
-- **Context menu in Search results** *(contributed by [@kveld9](https://github.com/kveld9), PR [#191](https://github.com/Psychotoxical/psysonic/pull/191))*: Song rows in the Search panel now support the full right-click context menu (Play, Queue, Playlist, etc.) — previously search results were click-only with no context actions.
+- **Context menu in Search results** *(contributed by [@kveld9](https://github.com/kveld9), PR [#191](https://github.com/Psysonic/psysonic/pull/191))*: Song rows in the Search panel now support the full right-click context menu (Play, Queue, Playlist, etc.) — previously search results were click-only with no context actions.
 
-- **Spotify CSV playlist import** *(contributed by [@kveld9](https://github.com/kveld9), PR [#190](https://github.com/Psychotoxical/psysonic/pull/190))*: Playlists exported from Spotify as CSV can now be imported directly into Psysonic. Tracks are matched by ISRC when available, with title/artist fallback. Unmatched tracks are listed in a report after import. Duplicate checking is done before writing.
+- **Spotify CSV playlist import** *(contributed by [@kveld9](https://github.com/kveld9), PR [#190](https://github.com/Psysonic/psysonic/pull/190))*: Playlists exported from Spotify as CSV can now be imported directly into Psysonic. Tracks are matched by ISRC when available, with title/artist fallback. Unmatched tracks are listed in a report after import. Duplicate checking is done before writing.
 
-- **CLI completions and expanded player controls** *(contributed by [@cucadmuh](https://github.com/cucadmuh), PR [#187](https://github.com/Psychotoxical/psysonic/pull/187))*: The `psysonic` CLI gains shell completions for bash/fish/zsh/elvish, new subcommands for library browsing and audio device listing, a server switcher command, and an opaque play-ID scheme for stable track references. The tray icon on Linux no longer requires `libayatana-appindicator` / `libindicator` — it falls back gracefully when the library is absent.
+- **CLI completions and expanded player controls** *(contributed by [@cucadmuh](https://github.com/cucadmuh), PR [#187](https://github.com/Psysonic/psysonic/pull/187))*: The `psysonic` CLI gains shell completions for bash/fish/zsh/elvish, new subcommands for library browsing and audio device listing, a server switcher command, and an opaque play-ID scheme for stable track references. The tray icon on Linux no longer requires `libayatana-appindicator` / `libindicator` — it falls back gracefully when the library is absent.
 
-- **Albums and Playlists header redesign** *(contributed by [@kveld9](https://github.com/kveld9), PR [#186](https://github.com/Psychotoxical/psysonic/pull/186))*: The header sections on the Albums and Playlists pages have been redesigned for a cleaner, more consistent layout.
+- **Albums and Playlists header redesign** *(contributed by [@kveld9](https://github.com/kveld9), PR [#186](https://github.com/Psysonic/psysonic/pull/186))*: The header sections on the Albums and Playlists pages have been redesigned for a cleaner, more consistent layout.
 
-- **Favorites page redesign** *(contributed by [@kveld9](https://github.com/kveld9), PR [#184](https://github.com/Psychotoxical/psysonic/pull/184))*: The Favorites page has been overhauled with sortable columns, a gender filter, an age range filter, and additional metadata columns.
+- **Favorites page redesign** *(contributed by [@kveld9](https://github.com/kveld9), PR [#184](https://github.com/Psysonic/psysonic/pull/184))*: The Favorites page has been overhauled with sortable columns, a gender filter, an age range filter, and additional metadata columns.
 
 - **Split Mix navigation mode** *(by [@Psychotoxical](https://github.com/Psychotoxical))*: A new toggle in Settings switches the Mix section between a single **Build a Mix** hub entry and **two separate sidebar entries** — Random Mix and Random Albums — for users who prefer direct access. Navigation items are now defined in `src/config/navItems.ts`; the toggle is stored as `randomNavMode` in authStore.
 
@@ -4407,17 +4407,17 @@ All three now credited in Settings → About.
 
 ### Fixed
 
-- **Streaming playback stability** *(contributed by [@cucadmuh](https://github.com/cucadmuh), PR [#200](https://github.com/Psychotoxical/psysonic/pull/200))*: Several edge cases in the Rust audio engine around stream start, mid-track seeking, and track transitions were hardened. Cache promotion (moving a preloaded track into the hot cache) is now safer under concurrent access. Stream decoder errors during transitions no longer leave the engine in a stuck state.
+- **Streaming playback stability** *(contributed by [@cucadmuh](https://github.com/cucadmuh), PR [#200](https://github.com/Psysonic/psysonic/pull/200))*: Several edge cases in the Rust audio engine around stream start, mid-track seeking, and track transitions were hardened. Cache promotion (moving a preloaded track into the hot cache) is now safer under concurrent access. Stream decoder errors during transitions no longer leave the engine in a stuck state.
 
-- **CSV import reliability** *(contributed by [@kveld9](https://github.com/kveld9), PR [#199](https://github.com/Psychotoxical/psysonic/pull/199))*: The CSV import pipeline now guards the `ISRC` field type before calling `toUpperCase`, preventing a crash on rows with numeric or null ISRC values. The playlist public/private toggle in the edit modal (accidentally removed during a post-merge fix) is restored.
+- **CSV import reliability** *(contributed by [@kveld9](https://github.com/kveld9), PR [#199](https://github.com/Psysonic/psysonic/pull/199))*: The CSV import pipeline now guards the `ISRC` field type before calling `toUpperCase`, preventing a crash on rows with numeric or null ISRC values. The playlist public/private toggle in the edit modal (accidentally removed during a post-merge fix) is restored.
 
-- **Tracklist column picker** *(contributed by [@kveld9](https://github.com/kveld9), PR [#188](https://github.com/Psychotoxical/psysonic/pull/188) and PR [#192](https://github.com/Psychotoxical/psysonic/pull/192))*: Fixed a column picker overflow where the dropdown was clipped by the tracklist container. Also fixed column toggle state and alignment issues in the picker UI. An `overflow-x: visible` regression introduced in PR #188 was subsequently reverted.
+- **Tracklist column picker** *(contributed by [@kveld9](https://github.com/kveld9), PR [#188](https://github.com/Psysonic/psysonic/pull/188) and PR [#192](https://github.com/Psysonic/psysonic/pull/192))*: Fixed a column picker overflow where the dropdown was clipped by the tracklist container. Also fixed column toggle state and alignment issues in the picker UI. An `overflow-x: visible` regression introduced in PR #188 was subsequently reverted.
 
 - **macOS — spurious microphone permission prompt** *(by [@Psychotoxical](https://github.com/Psychotoxical))*: Removed `NSMicrophoneUsageDescription` from `Info.plist`. It was inherited from an earlier Tauri template but Psysonic never uses the microphone; its presence caused macOS to show a permission dialog on first launch.
 
 - **Device Sync — auto-import and disconnect cleanup** *(by [@Psychotoxical](https://github.com/Psychotoxical))*: The sync manifest is now automatically imported when the Device Sync page is opened if a device with a manifest is already mounted. The sync file list is cleared when the device is disconnected.
 
-- **Audio — streaming decoder log labels** *(contributed by [@cucadmuh](https://github.com/cucadmuh), PR [#201](https://github.com/Psychotoxical/psysonic/pull/201))*: Rust log lines from the streaming decoder are now tagged with the source type, making it easier to distinguish stream vs. local decode paths in debug output.
+- **Audio — streaming decoder log labels** *(contributed by [@cucadmuh](https://github.com/cucadmuh), PR [#201](https://github.com/Psysonic/psysonic/pull/201))*: Rust log lines from the streaming decoder are now tagged with the source type, making it easier to distinguish stream vs. local decode paths in debug output.
 
 - **Theme — Latte and GTA readability** *(by [@Psychotoxical](https://github.com/Psychotoxical))*: Improved contrast and text readability in the Catppuccin Latte and GTA themes.
 
@@ -4439,26 +4439,26 @@ All three now credited in Settings → About.
 
 ### Added
 
-- **Opus audio playback** *(Issue [#180](https://github.com/Psychotoxical/psysonic/issues/180), contributed by [@cucadmuh](https://github.com/cucadmuh), PR [#183](https://github.com/Psychotoxical/psysonic/pull/183))*: Psysonic can now decode Opus audio natively via `symphonia-adapter-libopus`, which bundles and compiles libopus from source. Previously `.opus` files were sent to the server for transcoding — a workaround that never worked reliably. Native decoding is now used directly; the server is no longer involved. Note: building from source requires `cmake` to be installed (see README).
+- **Opus audio playback** *(Issue [#180](https://github.com/Psysonic/psysonic/issues/180), contributed by [@cucadmuh](https://github.com/cucadmuh), PR [#183](https://github.com/Psysonic/psysonic/pull/183))*: Psysonic can now decode Opus audio natively via `symphonia-adapter-libopus`, which bundles and compiles libopus from source. Previously `.opus` files were sent to the server for transcoding — a workaround that never worked reliably. Native decoding is now used directly; the server is no longer involved. Note: building from source requires `cmake` to be installed (see README).
 
-- **Device Sync — synchronise your library to USB and SD card players** *(Issue [#161](https://github.com/Psychotoxical/psysonic/issues/161), by [@Psychotoxical](https://github.com/Psychotoxical))*: A fully overhauled Device Sync page lets you copy music from your Navidrome library to any mounted USB drive or SD card. Browse albums via live search (300 ms debounce) or a random album selection. Choose a filename template (Artist/Album/Track format), pick a target folder, and review a pre-sync summary showing files to add, files to delete, and available space — including a warning if the device would run out of space after accounting for pending deletions. Already-synced files are detected and skipped automatically so incremental syncs are fast.
+- **Device Sync — synchronise your library to USB and SD card players** *(Issue [#161](https://github.com/Psysonic/psysonic/issues/161), by [@Psychotoxical](https://github.com/Psychotoxical))*: A fully overhauled Device Sync page lets you copy music from your Navidrome library to any mounted USB drive or SD card. Browse albums via live search (300 ms debounce) or a random album selection. Choose a filename template (Artist/Album/Track format), pick a target folder, and review a pre-sync summary showing files to add, files to delete, and available space — including a warning if the device would run out of space after accounting for pending deletions. Already-synced files are detected and skipped automatically so incremental syncs are fast.
 
-- **3 visual toggles** *(contributed by [@kveld9](https://github.com/kveld9), PR [#181](https://github.com/Psychotoxical/psysonic/pull/181))*: Three new toggles in Settings → Appearance:
+- **3 visual toggles** *(contributed by [@kveld9](https://github.com/kveld9), PR [#181](https://github.com/Psysonic/psysonic/pull/181))*: Three new toggles in Settings → Appearance:
   - **Cover art background** — enables/disables the blurred album art background in Album Detail and the Hero section.
   - **Playlist cover photo** — shows/hides the cover collage at the top of Playlist Detail pages.
   - **Show bitrate badge** — toggles the bitrate label displayed on tracks in the queue and track lists.
 
-- **8 community themes** *(contributed by [@kveld9](https://github.com/kveld9), PR [#182](https://github.com/Psychotoxical/psysonic/pull/182))*: A new **Community** theme group appears directly below Psysonic Themes in the Theme Picker, containing eight new themes: **AMOLED Black Pure** (pure black for OLED), **Monochrome Dark** (grayscale), **Amber Night** (warm golden amber), **Phosphor Green** (classic terminal green), **Midnight Blue** (deep blue), **Rose Dark** (pink/rose accents), **Sepia Dark** (warm cream sepia), and **Ice Blue** (cool cyan). Psysonic now ships with 75 themes across 9 groups.
+- **8 community themes** *(contributed by [@kveld9](https://github.com/kveld9), PR [#182](https://github.com/Psysonic/psysonic/pull/182))*: A new **Community** theme group appears directly below Psysonic Themes in the Theme Picker, containing eight new themes: **AMOLED Black Pure** (pure black for OLED), **Monochrome Dark** (grayscale), **Amber Night** (warm golden amber), **Phosphor Green** (classic terminal green), **Midnight Blue** (deep blue), **Rose Dark** (pink/rose accents), **Sepia Dark** (warm cream sepia), and **Ice Blue** (cool cyan). Psysonic now ships with 75 themes across 9 groups.
 
 ### Fixed
 
-- **HTTPS streaming failures and server URL trailing slash** *(Issue [#178](https://github.com/Psychotoxical/psysonic/issues/178), by [@Psychotoxical](https://github.com/Psychotoxical) with fix ported from PR [#179](https://github.com/Psychotoxical/psysonic/pull/179) by [@kveld9](https://github.com/kveld9))*: Two bugs that broke HTTPS server connections are now fixed. A trailing slash in the configured server URL caused double-slash stream URLs (`//rest/stream.view`) that reverse proxies like Caddy would reject, and also caused album browsing to return 0 results. Additionally, `reqwest` now loads the OS native certificate store alongside Mozilla's root store — fixing HTTPS streaming failures when the server certificate is signed by a local CA (e.g. Caddy's internal CA) that is trusted in the system keychain but not in Mozilla's bundle.
+- **HTTPS streaming failures and server URL trailing slash** *(Issue [#178](https://github.com/Psysonic/psysonic/issues/178), by [@Psychotoxical](https://github.com/Psychotoxical) with fix ported from PR [#179](https://github.com/Psysonic/psysonic/pull/179) by [@kveld9](https://github.com/kveld9))*: Two bugs that broke HTTPS server connections are now fixed. A trailing slash in the configured server URL caused double-slash stream URLs (`//rest/stream.view`) that reverse proxies like Caddy would reject, and also caused album browsing to return 0 results. Additionally, `reqwest` now loads the OS native certificate store alongside Mozilla's root store — fixing HTTPS streaming failures when the server certificate is signed by a local CA (e.g. Caddy's internal CA) that is trusted in the system keychain but not in Mozilla's bundle.
 
 - **Server display in Settings** *(by [@Psychotoxical](https://github.com/Psychotoxical))*: The server list in Settings → Servers now shows the URL and username on separate lines instead of a single truncated `username@url` string. Protocol prefixes (`http://`, `https://`) are stripped for cleaner display. HTTPS connections show a green lock icon.
 
 ### Changed
 
-- **Waveform seekbar — live theme updates** *(contributed by [@kveld9](https://github.com/kveld9), PR [#182](https://github.com/Psychotoxical/psysonic/pull/182))*: The canvas-based seekbar now listens for `data-theme` attribute changes via `MutationObserver` and redraws immediately with the new theme colours. Switching themes no longer requires an app restart to update the waveform.
+- **Waveform seekbar — live theme updates** *(contributed by [@kveld9](https://github.com/kveld9), PR [#182](https://github.com/Psysonic/psysonic/pull/182))*: The canvas-based seekbar now listens for `data-theme` attribute changes via `MutationObserver` and redraws immediately with the new theme colours. Switching themes no longer requires an app restart to update the waveform.
 
 ---
 
@@ -4474,27 +4474,27 @@ All three now credited in Settings → About.
 
 - **AppImage bundle for Linux** + X11/XWayland enforcement on all Linux packages: CI now builds `.AppImage` in addition to `.deb` and `.rpm`. `GDK_BACKEND=x11` and `WEBKIT_DISABLE_COMPOSITING_MODE=1` are set automatically at startup on all Linux packages — WebKitGTK on Wayland is unstable. Both environment variables are still overridable by setting them before launch.
 
-- **Audio output device selection** *(Issue [#169](https://github.com/Psychotoxical/psysonic/issues/169))*: Settings → Audio now shows a dropdown of all available output devices. The current OS default is pinned at the top with a label; a Refresh button re-enumerates silently. A device watcher detects hot-plug events and emits `audio:device-reset` after ~9 s of consecutive misses, preventing false positives on busy ALSA devices. On Linux, technical ALSA prefixes are stripped for display (`sysdefault:CARD=U192k` → `U192k`).
+- **Audio output device selection** *(Issue [#169](https://github.com/Psysonic/psysonic/issues/169))*: Settings → Audio now shows a dropdown of all available output devices. The current OS default is pinned at the top with a label; a Refresh button re-enumerates silently. A device watcher detects hot-plug events and emits `audio:device-reset` after ~9 s of consecutive misses, preventing false positives on busy ALSA devices. On Linux, technical ALSA prefixes are stripped for display (`sysdefault:CARD=U192k` → `U192k`).
 
-- **Vision Dark & Vision Navy — colorblind-safe themes** *(Issue [#166](https://github.com/Psychotoxical/psysonic/issues/166))*: Two new themes using a Purple & Gold palette designed to be safe for Deuteranopia, Protanopia, and Tritanopia. Vision Dark pairs near-black `#0D0B12` with Gold `#FFD700` (~14.7:1 WCAG AAA); Vision Navy uses deep navy `#0A1628` + Gold (~14.5:1 WCAG AAA). Both appear under a new **Accessibility** group in the Theme Picker. These themes are a first step toward proper colorblind support and will be revised and expanded in upcoming releases — structural improvements such as secondary indicators and pattern/shape cues are still on the roadmap.
+- **Vision Dark & Vision Navy — colorblind-safe themes** *(Issue [#166](https://github.com/Psysonic/psysonic/issues/166))*: Two new themes using a Purple & Gold palette designed to be safe for Deuteranopia, Protanopia, and Tritanopia. Vision Dark pairs near-black `#0D0B12` with Gold `#FFD700` (~14.7:1 WCAG AAA); Vision Navy uses deep navy `#0A1628` + Gold (~14.5:1 WCAG AAA). Both appear under a new **Accessibility** group in the Theme Picker. These themes are a first step toward proper colorblind support and will be revised and expanded in upcoming releases — structural improvements such as secondary indicators and pattern/shape cues are still on the roadmap.
 
-- **Folder Browser — per-column filter & Shift+Enter queue append** *(contributed by [@cucadmuh](https://github.com/cucadmuh), PR [#165](https://github.com/Psychotoxical/psysonic/pull/165))*: Press Ctrl+F to open a filter field for the active Folder Browser column. Focus hands off cleanly between the filter input and the row list. Clearing a parent-column selection clears all right-side filters automatically. Press Shift+Enter on a filtered track list to **append** the visible tracks to the queue without replacing it.
+- **Folder Browser — per-column filter & Shift+Enter queue append** *(contributed by [@cucadmuh](https://github.com/cucadmuh), PR [#165](https://github.com/Psysonic/psysonic/pull/165))*: Press Ctrl+F to open a filter field for the active Folder Browser column. Focus hands off cleanly between the filter input and the row list. Clearing a parent-column selection clears all right-side filters automatically. Press Shift+Enter on a filtered track list to **append** the visible tracks to the queue without replacing it.
 
-- **Keybindings — in-app modifier chords** *(contributed by [@cucadmuh](https://github.com/cucadmuh), PR [#167](https://github.com/Psychotoxical/psysonic/pull/167))*: In-app keybindings now support Ctrl/Alt/Shift+Key chords in addition to bare keys. The settings capture flow uses `buildInAppBinding`; the runtime handler uses `matchInAppBinding` and skips any chord already claimed as a global shortcut. Bare-key bindings still match without modifiers. Additionally, the seek forward/backward shortcuts now correctly interpret the configured value as seconds — previously the value was treated as a 0–1 progress fraction.
+- **Keybindings — in-app modifier chords** *(contributed by [@cucadmuh](https://github.com/cucadmuh), PR [#167](https://github.com/Psysonic/psysonic/pull/167))*: In-app keybindings now support Ctrl/Alt/Shift+Key chords in addition to bare keys. The settings capture flow uses `buildInAppBinding`; the runtime handler uses `matchInAppBinding` and skips any chord already claimed as a global shortcut. Bare-key bindings still match without modifiers. Additionally, the seek forward/backward shortcuts now correctly interpret the configured value as seconds — previously the value was treated as a 0–1 progress fraction.
 
-- **Playlist management enhancements** *(contributed by [@kveld9](https://github.com/kveld9), PR [#168](https://github.com/Psychotoxical/psysonic/pull/168))*: Multi-select context-menu actions for Albums, Artists, and Playlists now include a bulk **Add to Playlist** submenu. The sidebar playlist section is now collapsible. The Artists page gains infinite scroll via `IntersectionObserver`. Submenus flip upward automatically when they would overflow the viewport bottom. A **Remove from Playlist** entry is now available in the Playlist Detail context menu.
+- **Playlist management enhancements** *(contributed by [@kveld9](https://github.com/kveld9), PR [#168](https://github.com/Psysonic/psysonic/pull/168))*: Multi-select context-menu actions for Albums, Artists, and Playlists now include a bulk **Add to Playlist** submenu. The sidebar playlist section is now collapsible. The Artists page gains infinite scroll via `IntersectionObserver`. Submenus flip upward automatically when they would overflow the viewport bottom. A **Remove from Playlist** entry is now available in the Playlist Detail context menu.
 
 ### Fixed
 
-- **Fullscreen Player — animation overhead in no-compositing mode** *(contributed by [@kilyabin](https://github.com/kilyabin), PR [#175](https://github.com/Psychotoxical/psysonic/pull/175))*: In software-rendering mode (`WEBKIT_DISABLE_COMPOSITING_MODE=1`) the mesh blob pan animations are now stopped (static gradients are preserved), the portrait drift animation is stopped, and `box-shadow` is removed from the seekbar played bar. The seekbar played bar width changes on every playback tick; triggering a full shadow repaint in software mode caused significant CPU overhead.
+- **Fullscreen Player — animation overhead in no-compositing mode** *(contributed by [@kilyabin](https://github.com/kilyabin), PR [#175](https://github.com/Psysonic/psysonic/pull/175))*: In software-rendering mode (`WEBKIT_DISABLE_COMPOSITING_MODE=1`) the mesh blob pan animations are now stopped (static gradients are preserved), the portrait drift animation is stopped, and `box-shadow` is removed from the seekbar played bar. The seekbar played bar width changes on every playback tick; triggering a full shadow repaint in software mode caused significant CPU overhead.
 
-- **Folder Browser — arrow keys with modifier keys** *(contributed by [@cucadmuh](https://github.com/cucadmuh), PR [#174](https://github.com/Psychotoxical/psysonic/pull/174))*: Column and list arrow-key handling is now skipped when any modifier key is held, preventing conflicts with browser focus navigation and OS-level shortcuts. Modifier detection uses both `nativeEvent` and `getModifierState` for WebKit/WebView2 compatibility.
+- **Folder Browser — arrow keys with modifier keys** *(contributed by [@cucadmuh](https://github.com/cucadmuh), PR [#174](https://github.com/Psysonic/psysonic/pull/174))*: Column and list arrow-key handling is now skipped when any modifier key is held, preventing conflicts with browser focus navigation and OS-level shortcuts. Modifier detection uses both `nativeEvent` and `getModifierState` for WebKit/WebView2 compatibility.
 
-- **Audio output device — Linux stability** *(contributed by [@cucadmuh](https://github.com/cucadmuh), PR [#176](https://github.com/Psychotoxical/psysonic/pull/176))*: Pinned ALSA/cpal device IDs now stay stable when enumeration temporarily omits the active sink or returns an equivalent name. The Linux device-watcher no longer clears the pin based solely on missing list entries — only macOS and Windows treat repeated absence as "device unplugged". The Settings refresh flow calls `canonicalize` and refetches the list; an i18n label is now shown when the active device is no longer in the enumerated list.
+- **Audio output device — Linux stability** *(contributed by [@cucadmuh](https://github.com/cucadmuh), PR [#176](https://github.com/Psysonic/psysonic/pull/176))*: Pinned ALSA/cpal device IDs now stay stable when enumeration temporarily omits the active sink or returns an equivalent name. The Linux device-watcher no longer clears the pin based solely on missing list entries — only macOS and Windows treat repeated absence as "device unplugged". The Settings refresh flow calls `canonicalize` and refetches the list; an i18n label is now shown when the active device is no longer in the enumerated list.
 
-- **Login — server URL field** *(Issue [#171](https://github.com/Psychotoxical/psysonic/issues/171))*: The placeholder text in the Add Server form was previously a hardcoded English string. It is now fully localised and clarifies that `https://` URLs are accepted.
+- **Login — server URL field** *(Issue [#171](https://github.com/Psysonic/psysonic/issues/171))*: The placeholder text in the Add Server form was previously a hardcoded English string. It is now fully localised and clarifies that `https://` URLs are accepted.
 
-- **Offline mode — non-blocking banner** *(Issue [#170](https://github.com/Psychotoxical/psysonic/issues/170))*: The full-screen blocking overlay shown when Psysonic starts without a cached library is replaced with a slim banner at the top of the content area. The banner includes a direct link to Server Settings so the user can fix the connection without navigating manually.
+- **Offline mode — non-blocking banner** *(Issue [#170](https://github.com/Psysonic/psysonic/issues/170))*: The full-screen blocking overlay shown when Psysonic starts without a cached library is replaced with a slim banner at the top of the content area. The banner includes a direct link to Server Settings so the user can fix the connection without navigating manually.
 
 ---
 
@@ -4509,23 +4509,23 @@ All three now credited in Settings → About.
 
 ### Added
 
-- **Multi-select in Playlist Detail & Favorites** *(Issue [#157](https://github.com/Psychotoxical/psysonic/issues/157))*: The same Ctrl/Cmd+Click multi-select system that was previously exclusive to album track lists is now available everywhere. Hold Ctrl (or ⌘ on macOS) to enter select mode, Shift+Click to range-select, click the header checkbox to toggle all. Selected tracks can be dragged as a group directly into the queue. A bulk action bar appears with **Add to Playlist** and **Clear selection** options. Works in Playlist Detail (main tracklist) and in the Favorites song list.
+- **Multi-select in Playlist Detail & Favorites** *(Issue [#157](https://github.com/Psysonic/psysonic/issues/157))*: The same Ctrl/Cmd+Click multi-select system that was previously exclusive to album track lists is now available everywhere. Hold Ctrl (or ⌘ on macOS) to enter select mode, Shift+Click to range-select, click the header checkbox to toggle all. Selected tracks can be dragged as a group directly into the queue. A bulk action bar appears with **Add to Playlist** and **Clear selection** options. Works in Playlist Detail (main tracklist) and in the Favorites song list.
 
 - **"Open Artist" in context menu**: Song context menus now show an **Open Artist** entry directly below **Open Album**, navigating to the artist detail page. Previously only accessible via the tracklist artist link.
 
 - **"Add to Playlist" for Artists**: The context menu for artists now includes an **Add to Playlist** submenu. Psysonic fetches all albums from the artist and collects every track, then forwards them to the playlist picker — identical to the existing album-level submenu.
 
-- **Infinite queue — Instant Mix strategy** *(contributed by [@cucadmuh](https://github.com/cucadmuh), PR [#163](https://github.com/Psychotoxical/psysonic/pull/163))*: When Infinite Queue is enabled, Psysonic now builds the upcoming track list using the same artist-driven logic as Instant Mix. It fetches **Top Songs** and **Similar Songs** for the current track's artist, shuffles and deduplicates the pool, and only falls back to fully random songs when no artist-driven candidates are available. This results in much more coherent listening sessions that stay close to your current musical context.
+- **Infinite queue — Instant Mix strategy** *(contributed by [@cucadmuh](https://github.com/cucadmuh), PR [#163](https://github.com/Psysonic/psysonic/pull/163))*: When Infinite Queue is enabled, Psysonic now builds the upcoming track list using the same artist-driven logic as Instant Mix. It fetches **Top Songs** and **Similar Songs** for the current track's artist, shuffles and deduplicates the pool, and only falls back to fully random songs when no artist-driven candidates are available. This results in much more coherent listening sessions that stay close to your current musical context.
 
-- **Fullscreen Player — appearance settings** *(contributed by [@kilyabin](https://github.com/kilyabin), PR [#156](https://github.com/Psychotoxical/psysonic/pull/156))*: Settings → Appearance → Fullscreen Player now offers a toggle to show/hide the artist portrait and a 0–80 % dimming slider for the background portrait.
+- **Fullscreen Player — appearance settings** *(contributed by [@kilyabin](https://github.com/kilyabin), PR [#156](https://github.com/Psysonic/psysonic/pull/156))*: Settings → Appearance → Fullscreen Player now offers a toggle to show/hide the artist portrait and a 0–80 % dimming slider for the background portrait.
 
-- **Build a Mix hub** *(contributed by [@kilyabin](https://github.com/kilyabin), PR [#155](https://github.com/Psychotoxical/psysonic/pull/155))*: The previous *Random Mix* and *Random Albums* sidebar entries have been merged into a single **Build a Mix** page (Wand icon) at `/random`. A landing card lets you choose between *Mix by Tracks* and *Mix by Albums*. Old routes remain fully functional.
+- **Build a Mix hub** *(contributed by [@kilyabin](https://github.com/kilyabin), PR [#155](https://github.com/Psysonic/psysonic/pull/155))*: The previous *Random Mix* and *Random Albums* sidebar entries have been merged into a single **Build a Mix** page (Wand icon) at `/random`. A landing card lets you choose between *Mix by Tracks* and *Mix by Albums*. Old routes remain fully functional.
 
-- **Spanish translation** *(contributed by [@Kveld9](https://github.com/Kveld9), PR [#159](https://github.com/Psychotoxical/psysonic/pull/159))*: Complete Spanish (es) locale with 964 translated strings. Psysonic now ships in 8 languages: English, German, French, Dutch, Chinese, Norwegian, Russian, and Spanish.
+- **Spanish translation** *(contributed by [@Kveld9](https://github.com/Kveld9), PR [#159](https://github.com/Psysonic/psysonic/pull/159))*: Complete Spanish (es) locale with 964 translated strings. Psysonic now ships in 8 languages: English, German, French, Dutch, Chinese, Norwegian, Russian, and Spanish.
 
-- **Column-header sorting for Albums & Playlists** *(contributed by [@Kveld9](https://github.com/Kveld9), PR [#160](https://github.com/Psychotoxical/psysonic/pull/160))*: Track lists in Album Detail and Playlist Detail now support click-to-sort directly on the column headers. Three-click cycle: ascending → descending → natural order. Sortable columns: Title, Artist, Album, Favourite, Rating, Duration. The active column is shown bold with a ▲/▼ indicator.
+- **Column-header sorting for Albums & Playlists** *(contributed by [@Kveld9](https://github.com/Kveld9), PR [#160](https://github.com/Psysonic/psysonic/pull/160))*: Track lists in Album Detail and Playlist Detail now support click-to-sort directly on the column headers. Three-click cycle: ascending → descending → natural order. Sortable columns: Title, Artist, Album, Favourite, Rating, Duration. The active column is shown bold with a ▲/▼ indicator.
 
-- **Folder Browser — keyboard navigation & context menus** *(contributed by [@cucadmuh](https://github.com/cucadmuh), PR [#158](https://github.com/Psychotoxical/psysonic/pull/158))*: Full keyboard navigation in the Folder Browser with arrow keys, Enter to open, and Ctrl+Enter to open the context menu. Context menus for all row types include keyboard-operable submenus and star-rating control via arrow keys. The now-playing path is visually emphasized and updates live. Adaptive column layout prioritizes right-side visibility for deep directory trees. A new configurable *Open Folder Browser* keybinding is available in Settings → Keyboard.
+- **Folder Browser — keyboard navigation & context menus** *(contributed by [@cucadmuh](https://github.com/cucadmuh), PR [#158](https://github.com/Psysonic/psysonic/pull/158))*: Full keyboard navigation in the Folder Browser with arrow keys, Enter to open, and Ctrl+Enter to open the context menu. Context menus for all row types include keyboard-operable submenus and star-rating control via arrow keys. The now-playing path is visually emphasized and updates live. Adaptive column layout prioritizes right-side visibility for deep directory trees. A new configurable *Open Folder Browser* keybinding is available in Settings → Keyboard.
 
 - **PLS/M3U playlist resolution for Internet Radio**: Stations configured with a `.pls` or `.m3u`/`.m3u8` URL (e.g. SomaFM, schizoid.in) are now resolved to their first direct stream URL before playback. ICY metadata fetching also auto-resolves playlist URLs. Previously these stations would fail to play or show no track info.
 
@@ -4553,11 +4553,11 @@ All three now credited in Settings → About.
 
 - **Hot Cache + Preload — mutual exclusion on rehydration**: Users who had both Hot Cache and Preload enabled before the mutual-exclusion rule was introduced will have both automatically reset to off on first launch, preventing a conflicting state.
 
-- **Fullscreen Player — Linux compositing performance** *(contributed by [@kilyabin](https://github.com/kilyabin), PR [#156](https://github.com/Psychotoxical/psysonic/pull/156))*: A new `no_compositing_mode` Tauri command detects Linux software-rendering mode and adds an `html.no-compositing` class, which swaps GPU-only CSS effects (`backdrop-filter`, `filter`, `mask-image`) for software-friendly equivalents throughout the fullscreen player.
+- **Fullscreen Player — Linux compositing performance** *(contributed by [@kilyabin](https://github.com/kilyabin), PR [#156](https://github.com/Psysonic/psysonic/pull/156))*: A new `no_compositing_mode` Tauri command detects Linux software-rendering mode and adds an `html.no-compositing` class, which swaps GPU-only CSS effects (`backdrop-filter`, `filter`, `mask-image`) for software-friendly equivalents throughout the fullscreen player.
 
 - **Fullscreen Player — long lyric lines wrapping**: Long words in lyric lines now wrap correctly instead of overflowing the container.
 
-- **Russian locale** *(contributed by [@kilyabin](https://github.com/kilyabin), PR [#148](https://github.com/Psychotoxical/psysonic/pull/148))*: Numerous translation improvements across the application, replacing machine-translated or awkward phrasings with natural Russian.
+- **Russian locale** *(contributed by [@kilyabin](https://github.com/kilyabin), PR [#148](https://github.com/Psysonic/psysonic/pull/148))*: Numerous translation improvements across the application, replacing machine-translated or awkward phrasings with natural Russian.
 
 - **npm audit vulnerabilities**: Updated `axios` and `vite` to address reported security advisories.
 
@@ -4571,9 +4571,9 @@ All three now credited in Settings → About.
 
 Thank you to everyone who contributed to **v1.34.9**:
 
-- [@cucadmuh](https://github.com/cucadmuh) — Infinite queue via Instant Mix strategy (PR [#163](https://github.com/Psychotoxical/psysonic/pull/163)), Folder Browser keyboard navigation & context menus (PR [#158](https://github.com/Psychotoxical/psysonic/pull/158))
-- [@kilyabin](https://github.com/kilyabin) — Fullscreen Player performance & appearance settings (PR [#156](https://github.com/Psychotoxical/psysonic/pull/156)), Build a Mix hub (PR [#155](https://github.com/Psychotoxical/psysonic/pull/155)), Russian locale improvements (PR [#148](https://github.com/Psychotoxical/psysonic/pull/148))
-- [@Kveld9](https://github.com/Kveld9) — Spanish translation (PR [#159](https://github.com/Psychotoxical/psysonic/pull/159)), Column-header sorting (PR [#160](https://github.com/Psychotoxical/psysonic/pull/160))
+- [@cucadmuh](https://github.com/cucadmuh) — Infinite queue via Instant Mix strategy (PR [#163](https://github.com/Psysonic/psysonic/pull/163)), Folder Browser keyboard navigation & context menus (PR [#158](https://github.com/Psysonic/psysonic/pull/158))
+- [@kilyabin](https://github.com/kilyabin) — Fullscreen Player performance & appearance settings (PR [#156](https://github.com/Psysonic/psysonic/pull/156)), Build a Mix hub (PR [#155](https://github.com/Psysonic/psysonic/pull/155)), Russian locale improvements (PR [#148](https://github.com/Psysonic/psysonic/pull/148))
+- [@Kveld9](https://github.com/Kveld9) — Spanish translation (PR [#159](https://github.com/Psysonic/psysonic/pull/159)), Column-header sorting (PR [#160](https://github.com/Psysonic/psysonic/pull/160))
 
 A huge thank you to all three of you — your contributions have made this one of the most feature-packed patch releases yet. Psysonic keeps getting better because of people like you. 🙌
 
@@ -4585,9 +4585,9 @@ A huge thank you to all three of you — your contributions have made this one o
 
 - **Netease Cloud Music Lyrics** *(opt-in)*: Netease Cloud Music can now be enabled in Settings → General as a last-resort lyrics fallback. It only fires when neither the server nor LRCLIB return results — the existing lyrics chain is completely unaffected. Particularly useful for Asian and international music. Chinese metadata lines (作词/作曲/编曲 etc.) are automatically stripped from the LRC output.
 
-- **Navidrome AudioMuse-AI Integration** *(contributed by [@cucadmuh](https://github.com/cucadmuh), PR [#147](https://github.com/Psychotoxical/psysonic/pull/147))*: Psysonic now  supports [AudioMuse-AI](https://github.com/cucadmuh/audiomuse-ai) if it is active on the Navidrome server and uses it for Random Mix, Similar Artists, and Instant Mix. No configuration required — Psysonic keeps its existing behavior when AudioMuse is unavailable. Also includes an Instant Mix probe, ping identity, and improved UX for AudioMuse-specific actions.
+- **Navidrome AudioMuse-AI Integration** *(contributed by [@cucadmuh](https://github.com/cucadmuh), PR [#147](https://github.com/Psysonic/psysonic/pull/147))*: Psysonic now  supports [AudioMuse-AI](https://github.com/cucadmuh/audiomuse-ai) if it is active on the Navidrome server and uses it for Random Mix, Similar Artists, and Instant Mix. No configuration required — Psysonic keeps its existing behavior when AudioMuse is unavailable. Also includes an Instant Mix probe, ping identity, and improved UX for AudioMuse-specific actions.
 
-- **ICY metadata & AzuraCast radio** *(contributed by [@nisrael](https://github.com/nisrael), PR [#146](https://github.com/Psychotoxical/psysonic/pull/146))*: Internet radio now displays live track metadata from ICY streams. AzuraCast stations are supported with extended now-playing information.
+- **ICY metadata & AzuraCast radio** *(contributed by [@nisrael](https://github.com/nisrael), PR [#146](https://github.com/Psysonic/psysonic/pull/146))*: Internet radio now displays live track metadata from ICY streams. AzuraCast stations are supported with extended now-playing information.
 
 - **Automatic audio device switching**: Psysonic now detects newly connected or changed audio output devices and switches to them automatically — no app restart required.
 
@@ -4623,8 +4623,8 @@ A huge thank you to all three of you — your contributions have made this one o
 
 Thank you to everyone who contributed to this release:
 
-- [@cucadmuh](https://github.com/cucadmuh) — AudioMuse-AI Navidrome integration (PR [#147](https://github.com/Psychotoxical/psysonic/pull/147))
-- [@sorensiimSalling](https://github.com/sorensiimSalling) — ICY metadata & AzuraCast radio support (PR [#146](https://github.com/Psychotoxical/psysonic/pull/146))
+- [@cucadmuh](https://github.com/cucadmuh) — AudioMuse-AI Navidrome integration (PR [#147](https://github.com/Psysonic/psysonic/pull/147))
+- [@sorensiimSalling](https://github.com/sorensiimSalling) — ICY metadata & AzuraCast radio support (PR [#146](https://github.com/Psysonic/psysonic/pull/146))
 
 You make Psysonic better. 🙌
 
@@ -4660,20 +4660,20 @@ You make Psysonic better. 🙌
 
 - **Corrupt MP3s — VLC-style frame tolerance**: The audio decoder now tolerates up to 100 consecutive bad frames before giving up (previously 3), matching VLC's behavior for files with invalid `main_data` offset frames. Frame-drop log messages are suppressed in release builds.
 
-- **Statistics — album/song totals respect selected music library**: Album and track counts on the Statistics page were previously derived from `getGenres()`, which is not scoped to the active music folder. Both counts are now derived from the same paginated `getAlbumList` pass used for playtime, with the same 5,000-album cap and a `≥` prefix when capped. *(PR [#138](https://github.com/Psychotoxical/psysonic/pull/138) by [@cucadmuh](https://github.com/cucadmuh))*
+- **Statistics — album/song totals respect selected music library**: Album and track counts on the Statistics page were previously derived from `getGenres()`, which is not scoped to the active music folder. Both counts are now derived from the same paginated `getAlbumList` pass used for playtime, with the same 5,000-album cap and a `≥` prefix when capped. *(PR [#138](https://github.com/Psysonic/psysonic/pull/138) by [@cucadmuh](https://github.com/cucadmuh))*
 
 - **Fullscreen — resize grips visible in native fullscreen**: Resize grips are now hidden whenever the window enters native fullscreen on all platforms (previously only tracked on Linux). An initial check on mount also catches windows that start in a maximized or fullscreen state.
 
 - **Albums page — year filter input height**: The "From year" / "To year" inputs in the Albums filter bar now match the height and font size of adjacent buttons, fixing the mixed-height row introduced in v1.34.4.
 
-- **Russian locale — missing lyrics-source strings**: The `lyricsServerFirst` and related settings strings were not translated in the Russian locale. *(PR [#140](https://github.com/Psychotoxical/psysonic/pull/140) by [@kilyabin](https://github.com/kilyabin))*
+- **Russian locale — missing lyrics-source strings**: The `lyricsServerFirst` and related settings strings were not translated in the Russian locale. *(PR [#140](https://github.com/Psysonic/psysonic/pull/140) by [@kilyabin](https://github.com/kilyabin))*
 
 ### Contributors
 
 Thank you to everyone who contributed to this release:
 
-- [@cucadmuh](https://github.com/cucadmuh) — Statistics music-folder scope fix (PR [#138](https://github.com/Psychotoxical/psysonic/pull/138))
-- [@kilyabin](https://github.com/kilyabin) — Russian locale lyrics strings (PR [#140](https://github.com/Psychotoxical/psysonic/pull/140))
+- [@cucadmuh](https://github.com/cucadmuh) — Statistics music-folder scope fix (PR [#138](https://github.com/Psysonic/psysonic/pull/138))
+- [@kilyabin](https://github.com/kilyabin) — Russian locale lyrics strings (PR [#140](https://github.com/Psysonic/psysonic/pull/140))
 
 ---
 
@@ -4701,7 +4701,7 @@ Thank you to everyone who contributed to this release:
 
 ### 🚨 Critical Fix
 
-- **Massive API request flood fixed** *(closes [#133](https://github.com/Psychotoxical/psysonic/issues/133))*: Psysonic was generating 15,000+ background requests per day, filling reverse-proxy access logs (Traefik, nginx) and in some cases crashing the proxy entirely. Four root causes identified and resolved:
+- **Massive API request flood fixed** *(closes [#133](https://github.com/Psysonic/psysonic/issues/133))*: Psysonic was generating 15,000+ background requests per day, filling reverse-proxy access logs (Traefik, nginx) and in some cases crashing the proxy entirely. Four root causes identified and resolved:
   - **Now Playing polling**: Was firing every 10 seconds unconditionally — even when minimized or the dropdown was closed. Now only polls while the dropdown is open, and respects the Page Visibility API to pause immediately when the window is hidden.
   - **Connection check interval**: Reduced from every 30 seconds to every **120 seconds** (4× reduction).
   - **Queue sync debounce**: Increased from 1.5 s to **5 s**, preventing request bursts when skipping rapidly through tracks.
@@ -4721,7 +4721,7 @@ Thank you to everyone who contributed to this release:
 
 - **Cover art fallback logo**: When a cover art image fails to load (broken URL, server error), the Psysonic logo is shown as a placeholder instead of a broken image icon.
 
-- **Tiling WM support** *(PR [#134](https://github.com/Psychotoxical/psysonic/pull/134))*: On tiling window managers (Hyprland, Sway, i3, bspwm, AwesomeWM, etc.) the custom title bar is automatically hidden — the WM manages window decorations. The title bar toggle in Settings is also hidden on tiling WMs. Detection is based on environment variables (`HYPRLAND_INSTANCE_SIGNATURE`, `SWAYSOCK`, `I3SOCK`, `XDG_CURRENT_DESKTOP`).
+- **Tiling WM support** *(PR [#134](https://github.com/Psysonic/psysonic/pull/134))*: On tiling window managers (Hyprland, Sway, i3, bspwm, AwesomeWM, etc.) the custom title bar is automatically hidden — the WM manages window decorations. The title bar toggle in Settings is also hidden on tiling WMs. Detection is based on environment variables (`HYPRLAND_INSTANCE_SIGNATURE`, `SWAYSOCK`, `I3SOCK`, `XDG_CURRENT_DESKTOP`).
 
 ### Changed
 
@@ -4733,7 +4733,7 @@ Thank you to everyone who contributed to this release:
 
 - **Fullscreen Player — accent color delay**: The dynamic accent color extracted from album artwork now appears in ~200–300 ms instead of up to 18 seconds. The previous implementation queued the cover fetch behind up to 5 concurrent image loads via the app-wide image cache. It now fetches the cover directly and independently. The extracted color is also cached per cover ID, so switching between tracks on the same album is instant.
 
-- **Artist Detail page — slow initial render** *(closes [#132](https://github.com/Psychotoxical/psysonic/issues/132))*: Artist info and biography are now fetched independently of the main artist data, so the page renders immediately and the bio fades in once available. Previously, a slow `getArtistInfo` response blocked the entire page from rendering.
+- **Artist Detail page — slow initial render** *(closes [#132](https://github.com/Psysonic/psysonic/issues/132))*: Artist info and biography are now fetched independently of the main artist data, so the page renders immediately and the bio fades in once available. Previously, a slow `getArtistInfo` response blocked the entire page from rendering.
 
 - **Seekbar — Pulse Wave & Retro Tape styles**: Pulse Wave no longer leaves a stray connecting line at the playhead position. Retro Tape's rolling wheel is now anchored at the playhead instead of the center of the bar.
 
@@ -4745,13 +4745,13 @@ Thank you to everyone who contributed to this release:
 
 ### Added
 
-- **Entity ratings** *(PR [#130](https://github.com/Psychotoxical/psysonic/pull/130))*: Full star-rating support (1–5 ★) for songs, albums, and artists via the OpenSubsonic `setRating` API. Ratings are shown and editable in the album track list, artist detail page, and the Favorites song list. A new shared `StarRating` component is used consistently across all surfaces. Requires an OpenSubsonic-compatible server (e.g. Navidrome ≥ 0.53).
+- **Entity ratings** *(PR [#130](https://github.com/Psysonic/psysonic/pull/130))*: Full star-rating support (1–5 ★) for songs, albums, and artists via the OpenSubsonic `setRating` API. Ratings are shown and editable in the album track list, artist detail page, and the Favorites song list. A new shared `StarRating` component is used consistently across all surfaces. Requires an OpenSubsonic-compatible server (e.g. Navidrome ≥ 0.53).
 
 - **Song ratings — context menu & player bar**: Songs can additionally be rated directly from the **right-click context menu** and from the **player bar** (below the artist name), with optimistic updates reflected immediately across all views.
 
-- **Skip-to-1★** *(PR [#130](https://github.com/Psychotoxical/psysonic/pull/130))*: Automatically assigns a 1-star rating to a song after it has been manually skipped a configurable number of consecutive times. This skip count threshold can be enabled and adjusted in Settings → Ratings.
+- **Skip-to-1★** *(PR [#130](https://github.com/Psysonic/psysonic/pull/130))*: Automatically assigns a 1-star rating to a song after it has been manually skipped a configurable number of consecutive times. This skip count threshold can be enabled and adjusted in Settings → Ratings.
 
-- **Mix minimum rating filter** *(PR [#130](https://github.com/Psychotoxical/psysonic/pull/130))*: Random Mix and Home Quick Mix can now be filtered by minimum rating per entity type (song / album / artist). Configure thresholds in Settings → Ratings.
+- **Mix minimum rating filter** *(PR [#130](https://github.com/Psysonic/psysonic/pull/130))*: Random Mix and Home Quick Mix can now be filtered by minimum rating per entity type (song / album / artist). Configure thresholds in Settings → Ratings.
 
 - **Statistics — Top Rated Songs & Artists**: New "Top Rated Songs" and "Top Rated Artists" sections on the Statistics page, derived from starred items with a `userRating > 0`. Lists update live as ratings are changed without a page reload.
 
@@ -4779,9 +4779,9 @@ Thank you to everyone who contributed to this release:
 
 ### Added
 
-- **Most Played page** *(closes [#86](https://github.com/Psychotoxical/psysonic/issues/86))*: New dedicated page accessible via the sidebar (TrendingUp icon, `/most-played`). Shows **Top Artists** (ranked by total play count, derived by aggregating album play counts per artist) and a paginated **Top Albums** list with cover art, play count, sort toggle (most/fewest first), and a Load More button.
+- **Most Played page** *(closes [#86](https://github.com/Psysonic/psysonic/issues/86))*: New dedicated page accessible via the sidebar (TrendingUp icon, `/most-played`). Shows **Top Artists** (ranked by total play count, derived by aggregating album play counts per artist) and a paginated **Top Albums** list with cover art, play count, sort toggle (most/fewest first), and a Load More button.
 
-- **Playlist ZIP download** *(closes [#127](https://github.com/Psychotoxical/psysonic/issues/127))*: Download (ZIP) button in the playlist hero header — same UX as album download. Uses the Subsonic `/rest/download.view` endpoint with the playlist ID, shows a progress bar during transfer, and remembers the last used folder.
+- **Playlist ZIP download** *(closes [#127](https://github.com/Psysonic/psysonic/issues/127))*: Download (ZIP) button in the playlist hero header — same UX as album download. Uses the Subsonic `/rest/download.view` endpoint with the playlist ID, shows a progress bar during transfer, and remembers the last used folder.
 
 - **Fullscreen Player — adaptive accent color**: Extracts the most vibrant pixel from the current album cover (8×8 Canvas downscale, max-HSL-saturation) and applies a WCAG 4.5:1-compliant accent as `--dynamic-fs-accent`. Song title, play button, seekbar, active states, background mesh blobs, and cover art glow all transition smoothly to the extracted color. Resets to the theme accent when the player closes.
 
@@ -4805,13 +4805,13 @@ Thank you to everyone who contributed to this release:
 
 ### Added
 
-- **M4A / ALAC / AAC-LC support** *(closes [#51](https://github.com/Psychotoxical/psysonic/issues/51))*: Apple Lossless (ALAC) and AAC-LC files in M4A containers are now decoded natively by the Rust audio engine (Symphonia) without requiring server-side transcoding.
+- **M4A / ALAC / AAC-LC support** *(closes [#51](https://github.com/Psysonic/psysonic/issues/51))*: Apple Lossless (ALAC) and AAC-LC files in M4A containers are now decoded natively by the Rust audio engine (Symphonia) without requiring server-side transcoding.
 
-- **Per-server music folder filter** *(PR [#125](https://github.com/Psychotoxical/psysonic/pull/125) by [@cucadmuh](https://github.com/cucadmuh))*: Users with multiple music libraries on their Navidrome server can now scope browsing to a single folder. A dropdown in the sidebar (visible only when more than one library exists) lets you pick a folder or switch back to "All Libraries". The selection is persisted per server and automatically resets to "All" if the selected folder is no longer available.
+- **Per-server music folder filter** *(PR [#125](https://github.com/Psysonic/psysonic/pull/125) by [@cucadmuh](https://github.com/cucadmuh))*: Users with multiple music libraries on their Navidrome server can now scope browsing to a single folder. A dropdown in the sidebar (visible only when more than one library exists) lets you pick a folder or switch back to "All Libraries". The selection is persisted per server and automatically resets to "All" if the selected folder is no longer available.
 
 - **Hi-Res / Bit-Perfect Playback** *(Alpha)*: New opt-in toggle in Settings → Playback. When enabled, the audio output stream is re-opened at the file's native sample rate (e.g. 88.2 kHz, 96 kHz) — bypassing rodio's internal resampler for a bit-perfect signal path. Disabled by default (safe 44.1 kHz mode). Includes ALSA/PipeWire underrun hardening: scaled quantum size, 500 ms sink pre-fill at high rates, and scheduler priority escalation only when needed.
 
-- **Hot Playback Cache** *(Alpha, PR [#123](https://github.com/Psychotoxical/psysonic/pull/123) by [@cucadmuh](https://github.com/cucadmuh))*: Configurable on-disk prefetch cache for the next track in the queue. Reduces playback latency on slow or metered connections. Toggle and directory can be configured in Settings → Storage.
+- **Hot Playback Cache** *(Alpha, PR [#123](https://github.com/Psysonic/psysonic/pull/123) by [@cucadmuh](https://github.com/cucadmuh))*: Configurable on-disk prefetch cache for the next track in the queue. Reduces playback latency on slow or metered connections. Toggle and directory can be configured in Settings → Storage.
 
 ### Changed
 
@@ -4819,7 +4819,7 @@ Thank you to everyone who contributed to this release:
 
 - **Fullscreen lyrics — line wrapping**: Long lyric lines now wrap onto a second line instead of being truncated. Slot height increased from 3.6 vh to 6 vh to accommodate two-line entries without breaking rail positioning.
 
-- **Update notifications**: Removed the Tauri auto-updater (in-app download and install). The app now shows a simple dismissible toast when a newer version is detected on GitHub, with direct links to the [GitHub Releases page](https://github.com/Psychotoxical/psysonic/releases/latest) and the [Psysonic website](https://psysonic.psychotoxic.eu/#downloads). No signing keys, no update manifests.
+- **Update notifications**: Removed the Tauri auto-updater (in-app download and install). The app now shows a simple dismissible toast when a newer version is detected on GitHub, with direct links to the [GitHub Releases page](https://github.com/Psysonic/psysonic/releases/latest) and the [Psysonic website](https://psysonic.psychotoxic.eu/#downloads). No signing keys, no update manifests.
 
 ### Fixed
 
@@ -4853,8 +4853,8 @@ Thank you to everyone who contributed to this release:
   > **Requires `EnableArtworkUpload = true`** in your Navidrome configuration (new option in Navidrome [#5110](https://github.com/navidrome/navidrome/issues/5110) / [#5198](https://github.com/navidrome/navidrome/issues/5198) — default: `true`). The same requirement applies to the existing Radio Station cover upload.
 
 - **Discord Rich Presence — Album Cover Art**: Album artwork is now displayed in Discord's Rich Presence card. Because Subsonic cover URLs require authentication (and can't be accessed by Discord directly), artwork is fetched from the iTunes Search API using a 3-strategy search (exact → relaxed → track-title fallback), cached for 1 hour, and passed as a direct URL to Discord. Falls back to the static Psysonic asset when no match is found.
-- **Nightfox themes** *(PR [#112](https://github.com/Psychotoxical/psysonic/pull/112) by [@nisrael](https://github.com/nisrael))*: Six themes from the [nightfox.nvim](https://github.com/EdenEast/nightfox.nvim) palette have been added to the **Open Source Classics** group — Dawnfox, Dayfox, Nightfox, Nordfox, Carbonfox, and Terafox.
-- **Auto-install script** *(PR [#121](https://github.com/Psychotoxical/psysonic/pull/121) by [@kilyabin](https://github.com/kilyabin))*: `install.sh` now supports Debian/Ubuntu (`.deb`) and RHEL/Fedora (`.rpm`) — automatically detects the distro, downloads the correct package from the latest release, and installs it.
+- **Nightfox themes** *(PR [#112](https://github.com/Psysonic/psysonic/pull/112) by [@nisrael](https://github.com/nisrael))*: Six themes from the [nightfox.nvim](https://github.com/EdenEast/nightfox.nvim) palette have been added to the **Open Source Classics** group — Dawnfox, Dayfox, Nightfox, Nordfox, Carbonfox, and Terafox.
+- **Auto-install script** *(PR [#121](https://github.com/Psysonic/psysonic/pull/121) by [@kilyabin](https://github.com/kilyabin))*: `install.sh` now supports Debian/Ubuntu (`.deb`) and RHEL/Fedora (`.rpm`) — automatically detects the distro, downloads the correct package from the latest release, and installs it.
 
 ### Changed
 
@@ -4869,14 +4869,14 @@ Thank you to everyone who contributed to this release:
 
 ### Fixed
 
-- **Gapless playback — manual skip** *(PR [#119](https://github.com/Psychotoxical/psysonic/pull/119) by [@cucadmuh](https://github.com/cucadmuh))*: When the next track had already been gapless-pre-chained into the Sink, a manual skip would not interrupt it — the pre-chained track continued playing at full volume from the old Sink after the fade-out. The chain is now matched by stream identity so user-initiated playback always takes precedence.
+- **Gapless playback — manual skip** *(PR [#119](https://github.com/Psysonic/psysonic/pull/119) by [@cucadmuh](https://github.com/cucadmuh))*: When the next track had already been gapless-pre-chained into the Sink, a manual skip would not interrupt it — the pre-chained track continued playing at full volume from the old Sink after the fade-out. The chain is now matched by stream identity so user-initiated playback always takes precedence.
 - **Radio / Artist cover cache**: `invalidateCoverArt` is now called after every cover upload and delete, so the old image is evicted from the local cache immediately.
 - **Queue auto-scroll**: The active track now scrolls reliably into view; eliminated unnecessary component re-renders caused by unstable selector references.
-- **macOS TLS** *(PR [#114](https://github.com/Psychotoxical/psysonic/pull/114) by [@nisrael](https://github.com/nisrael))*: Switched `reqwest` from `native-tls` (macOS Security framework) to `rustls-tls` (statically linked). The native backend was returning *bad protocol version* when connecting to HTTPS music servers, silently preventing playback.
+- **macOS TLS** *(PR [#114](https://github.com/Psysonic/psysonic/pull/114) by [@nisrael](https://github.com/nisrael))*: Switched `reqwest` from `native-tls` (macOS Security framework) to `rustls-tls` (statically linked). The native backend was returning *bad protocol version* when connecting to HTTPS music servers, silently preventing playback.
 
 ### i18n
 
-- **Russian translation improvements** *(PR [#120](https://github.com/Psychotoxical/psysonic/pull/120) by [@kilyabin](https://github.com/kilyabin))*: Extensive phrasing refinements across the entire Russian locale.
+- **Russian translation improvements** *(PR [#120](https://github.com/Psysonic/psysonic/pull/120) by [@kilyabin](https://github.com/kilyabin))*: Extensive phrasing refinements across the entire Russian locale.
 - New keys (`fsLyricsToggle`, embedded lyrics settings) added to all 7 languages (EN, DE, FR, NL, ZH, NB, RU).
 
 ---
@@ -4892,12 +4892,12 @@ Thank you to everyone who contributed to this release:
   - **Mobile Album Header** — Compact two-row icon button layout (Play + Queue primary, Favorite + Bio + Download + Offline secondary).
   - **Mobile Tracklist** — Simplified track rows; disc headers preserved for multi-disc albums.
   - **Mobile Hero / Carousel** — Blurred-background-only layout with circular Play + Queue buttons.
-- **Russian 2 translation** *(PR [#107](https://github.com/Psychotoxical/psysonic/pull/107) by [@kilyabin](https://github.com/kilyabin))*: A second Russian translation alongside the existing one from [@cucadmuh](https://github.com/cucadmuh) *(PR [#106](https://github.com/Psychotoxical/psysonic/pull/106))*. Both are selectable in Settings → Appearance as **Russian** and **Russian 2**. Since the maintainer neither speaks nor reads Russian, **community feedback is essential here** — please vote on the [Discord](https://discord.gg/ckVPGPMS) or via GitHub which translation feels more natural so we can retire the weaker one in a future release.
+- **Russian 2 translation** *(PR [#107](https://github.com/Psysonic/psysonic/pull/107) by [@kilyabin](https://github.com/kilyabin))*: A second Russian translation alongside the existing one from [@cucadmuh](https://github.com/cucadmuh) *(PR [#106](https://github.com/Psysonic/psysonic/pull/106))*. Both are selectable in Settings → Appearance as **Russian** and **Russian 2**. Since the maintainer neither speaks nor reads Russian, **community feedback is essential here** — please vote on the [Discord](https://discord.gg/ckVPGPMS) or via GitHub which translation feels more natural so we can retire the weaker one in a future release.
 - **Clickable Mainstage section headers** — "Zuletzt hinzugefügt", "Entdecken", "Künstler entdecken", and "Persönliche Favoriten" now navigate to their respective pages on click, with a `ChevronRight` indicator and accent-color hover effect.
 
 ### Fixed
 
-- **macOS network playback** *(Issue [#108](https://github.com/Psychotoxical/psysonic/issues/108))*: Added `com.apple.security.network.client` to `Entitlements.plist` and disabled the app sandbox for unsigned/ad-hoc builds. Without this, macOS silently blocked outbound TCP connections from the Rust audio engine, causing the player to skip through every track without playing anything.
+- **macOS network playback** *(Issue [#108](https://github.com/Psysonic/psysonic/issues/108))*: Added `com.apple.security.network.client` to `Entitlements.plist` and disabled the app sandbox for unsigned/ad-hoc builds. Without this, macOS silently blocked outbound TCP connections from the Rust audio engine, causing the player to skip through every track without playing anything.
 - **Auto-updater** *(under observation)*: Fixed an incorrect signature in the auto-generated `latest.json` — the CI was writing the public key as the signature value. The updater now receives a correctly signed manifest. **Note:** Due to OS-level restrictions on macOS (Gatekeeper) and Windows (SmartScreen) for unsigned apps, it is not yet certain whether the in-app updater will reliably work on these platforms. Manual installation from the Releases page remains the safe fallback.
 
 ### Changed
@@ -4908,8 +4908,8 @@ Thank you to everyone who contributed to this release:
 
 ### Added
 
-- **Norwegian (Bokmål) translation** *(PR [#101](https://github.com/Psychotoxical/psysonic/pull/101) by [@zz5zz](https://github.com/zz5zz))*: Psysonic is now fully translated into Norwegian Bokmål — selectable in Settings → Appearance.
-- **Configurable next-track preload** *(Issue [#102](https://github.com/Psychotoxical/psysonic/issues/102))*: A new setting in Settings → Playback controls when Psysonic starts buffering the next track. Three modes available:
+- **Norwegian (Bokmål) translation** *(PR [#101](https://github.com/Psysonic/psysonic/pull/101) by [@zz5zz](https://github.com/zz5zz))*: Psysonic is now fully translated into Norwegian Bokmål — selectable in Settings → Appearance.
+- **Configurable next-track preload** *(Issue [#102](https://github.com/Psysonic/psysonic/issues/102))*: A new setting in Settings → Playback controls when Psysonic starts buffering the next track. Three modes available:
   - **Balanced** (default) — begins buffering 30 s before the end of the current track (previous behaviour).
   - **Early** — begins buffering after just 5 s of playback, maximising reliability on slow connections.
   - **Custom** — set the exact threshold (5 – 120 s before the end) via a slider.
@@ -4942,7 +4942,7 @@ Thank you to everyone who contributed to this release:
 - **Internet Radio — Radio Browser directory** *(via [radio-browser.info](https://www.radio-browser.info))*: Discover new stations directly inside Psysonic. Top stations by vote are shown as suggestions; a debounced search finds stations by name. Favicon images can be imported as cover art in one click.
 - **Settings — Backup & Restore**: Export all your settings (servers, theme, font, keybindings, EQ preset, sidebar order) to a single JSON file and import them on another machine or after a reinstall. Available in Settings → Storage.
 - **Albums — Year Range Filter**: A From/To year input now appears in the Albums toolbar alongside the existing genre filter. Filtering by year and by genre can be combined; clearing both inputs returns to the default view.
-- **Statistics — Library Insights** *(requested via [#88](https://github.com/Psychotoxical/psysonic/issues/88))*:
+- **Statistics — Library Insights** *(requested via [#88](https://github.com/Psysonic/psysonic/issues/88))*:
   - **Total Playtime** card: computed in the background by paginating your full album list (up to 5 000 albums). Shows `≥ Xh Ym` if the library is larger.
   - **Genre Insights**: Top 10 genres ranked by song count with proportional progress bars.
   - **Format Distribution**: Codec breakdown from a random 500-track sample — shows format name and percentage.
@@ -4953,7 +4953,7 @@ Thank you to everyone who contributed to this release:
 
 - **Crossfade — fine-grained control**: The crossfade duration slider now ranges from 0.1 s to 10 s in 0.1 s steps (previously 1 s minimum, 0.5 s steps). The current value is shown with one decimal place.
 - **Settings — Storage tab redesign**: The "Offline Library" section now has a short description and includes Cache settings. The "Downloads" section is now labelled "ZIP Export & Archiving". Both sections have been visually consolidated.
-- **Artists page — Load More button** *(reported via [#90](https://github.com/Psychotoxical/psysonic/issues/90))*: The button is now styled as `btn-primary` with a `ChevronDown` icon and proper spacing. Previously it was an unstyled ghost button with no visual affordance.
+- **Artists page — Load More button** *(reported via [#90](https://github.com/Psysonic/psysonic/issues/90))*: The button is now styled as `btn-primary` with a `ChevronDown` icon and proper spacing. Previously it was an unstyled ghost button with no visual affordance.
 - **Tracklist layout consistency**: The Play-button column is now uniformly 60 px and the title column uses `minmax(150px, 1fr)` across all list views — Search Results, Artist Detail, Random Mix, and Advanced Search now match the Album tracklist layout.
 - **Internet Radio — HTML5 playback**: Radio now streams via the browser's native `<audio>` element instead of a custom Rust pipeline. This improves compatibility with AAC/MP3/HLS streams.
 - **AppUpdater — error visibility** *(experimental, still in progress)*: Update failures are now shown inside the update card rather than silently logged. Auto-update remains experimental — a direct GitHub Releases link is always shown as a fallback.
@@ -5006,15 +5006,15 @@ Thank you to everyone who contributed to this release:
 
 ### Added
 
-- **Bulk offline download — Playlists & Artist discographies** *(requested by [@Apollosport](https://github.com/Apollosport), [#54](https://github.com/Psychotoxical/psysonic/issues/54))*: Download an entire playlist or a full artist discography for offline use in one click. Progress is tracked per album on the Artist page ("Caching… 2/5 albums").
+- **Bulk offline download — Playlists & Artist discographies** *(requested by [@Apollosport](https://github.com/Apollosport), [#54](https://github.com/Psysonic/psysonic/issues/54))*: Download an entire playlist or a full artist discography for offline use in one click. Progress is tracked per album on the Artist page ("Caching… 2/5 albums").
 - **Offline Library filter tabs**: The Offline Library now has four filter tabs — All, Albums, Playlists, and Discographies. The Discographies tab groups albums under their respective artist with section headings.
-- **Discord Rich Presence** *(requested by [@Bewenben](https://github.com/Bewenben), [#49](https://github.com/Psychotoxical/psysonic/issues/49))* (opt-in): Psysonic can now update your Discord status with the currently playing track, artist, and a live elapsed timer. Toggle in Settings → General → "Discord Rich Presence".
-- **Artist images on Artists page** *(reported by [@Apollosport](https://github.com/Apollosport), [#53](https://github.com/Psychotoxical/psysonic/issues/53))* (opt-in): Artist avatars on the Artists overview can now show the actual artist image from the server instead of the coloured initial. Toggle in Settings → General → "Show artist images". Off by default to preserve performance on large libraries.
+- **Discord Rich Presence** *(requested by [@Bewenben](https://github.com/Bewenben), [#49](https://github.com/Psysonic/psysonic/issues/49))* (opt-in): Psysonic can now update your Discord status with the currently playing track, artist, and a live elapsed timer. Toggle in Settings → General → "Discord Rich Presence".
+- **Artist images on Artists page** *(reported by [@Apollosport](https://github.com/Apollosport), [#53](https://github.com/Psysonic/psysonic/issues/53))* (opt-in): Artist avatars on the Artists overview can now show the actual artist image from the server instead of the coloured initial. Toggle in Settings → General → "Show artist images". Off by default to preserve performance on large libraries.
 - **Image lazy loading**: Cover art and artist images across all pages now load lazily via `IntersectionObserver` (300 px pre-fetch margin), significantly reducing initial page render time on large libraries.
 
 ### Fixed
 
-- **Crossfade triggers on manual track skip** *(reported by [@netherguy4](https://github.com/netherguy4), [#35](https://github.com/Psychotoxical/psysonic/issues/35))*: Manually clicking Next/Prev or selecting a track from the queue no longer triggers the crossfade transition. Crossfade now only fires on natural track end.
+- **Crossfade triggers on manual track skip** *(reported by [@netherguy4](https://github.com/netherguy4), [#35](https://github.com/Psysonic/psysonic/issues/35))*: Manually clicking Next/Prev or selecting a track from the queue no longer triggers the crossfade transition. Crossfade now only fires on natural track end.
 - **Playlist offline cache showing individual album cards**: Caching a playlist offline previously created one card per album group in the Offline Library. The playlist is now stored as a single cohesive entry.
 - **Image cache abort handling**: Aborted image fetches no longer prevented the cached result from being written to IndexedDB, causing covers to reload on every page visit.
 
@@ -5032,11 +5032,11 @@ Thank you to everyone who contributed to this release:
 ### Added
 
 - **Radio: instant start + background enrichment** *(requested by [@netherguy4](https://github.com/netherguy4))*: Artist Radio now starts immediately from fast local `getTopSongs` results. `getSimilarSongs2` (Last.fm-dependent, slow) continues in the background and silently enriches the queue once it resolves — no waiting before the first song.
-- **OGG/Vorbis playback** *(contributed by [@JulianNymark](https://github.com/JulianNymark), [PR #42](https://github.com/Psychotoxical/psysonic/pull/42))*: Added `symphonia-format-ogg` — `.ogg` files now play natively without server-side transcoding.
-- **Click-to-seek in synced lyrics** *(contributed by [@nisarg-78](https://github.com/nisarg-78), [PR #38](https://github.com/Psychotoxical/psysonic/pull/38))*: Clicking any line in the synced lyrics pane seeks directly to that timestamp.
-- **Volume scroll wheel** *(contributed by [@nisarg-78](https://github.com/nisarg-78), [PR #38](https://github.com/Psychotoxical/psysonic/pull/38))*: Scrolling the mouse wheel over the volume slider adjusts volume in ±5 % steps.
-- **Lyrics visual states** *(contributed by [@nisarg-78](https://github.com/nisarg-78), [PR #38](https://github.com/Psychotoxical/psysonic/pull/38))*: Synced lyrics lines now show three distinct visual states — active (highlighted), completed (muted), upcoming (neutral).
-- **Themed audio error toasts** *(contributed by [@JulianNymark](https://github.com/JulianNymark), [PR #43](https://github.com/Psychotoxical/psysonic/pull/43) / [PR #44](https://github.com/Psychotoxical/psysonic/pull/44))*: Unsupported formats and decode failures are now surfaced as themed in-app toast notifications with human-readable messages instead of silent failures.
+- **OGG/Vorbis playback** *(contributed by [@JulianNymark](https://github.com/JulianNymark), [PR #42](https://github.com/Psysonic/psysonic/pull/42))*: Added `symphonia-format-ogg` — `.ogg` files now play natively without server-side transcoding.
+- **Click-to-seek in synced lyrics** *(contributed by [@nisarg-78](https://github.com/nisarg-78), [PR #38](https://github.com/Psysonic/psysonic/pull/38))*: Clicking any line in the synced lyrics pane seeks directly to that timestamp.
+- **Volume scroll wheel** *(contributed by [@nisarg-78](https://github.com/nisarg-78), [PR #38](https://github.com/Psysonic/psysonic/pull/38))*: Scrolling the mouse wheel over the volume slider adjusts volume in ±5 % steps.
+- **Lyrics visual states** *(contributed by [@nisarg-78](https://github.com/nisarg-78), [PR #38](https://github.com/Psysonic/psysonic/pull/38))*: Synced lyrics lines now show three distinct visual states — active (highlighted), completed (muted), upcoming (neutral).
+- **Themed audio error toasts** *(contributed by [@JulianNymark](https://github.com/JulianNymark), [PR #43](https://github.com/Psysonic/psysonic/pull/43) / [PR #44](https://github.com/Psysonic/psysonic/pull/44))*: Unsupported formats and decode failures are now surfaced as themed in-app toast notifications with human-readable messages instead of silent failures.
 
 ### Fixed
 
