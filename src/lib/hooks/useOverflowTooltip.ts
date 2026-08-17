@@ -28,7 +28,11 @@ import { useCallback } from 'react';
 export function useOverflowTooltip(
   anchorText: string | null | undefined,
   enabled = true,
-): { onMouseEnter?: (e: React.MouseEvent<HTMLElement>) => void; 'data-tooltip'?: string } {
+): {
+  onMouseEnter?: (e: React.MouseEvent<HTMLElement>) => void;
+  'data-tooltip'?: string;
+  'data-tooltip-wrap'?: string;
+} {
   const onMouseEnter = useCallback((e: React.MouseEvent<HTMLElement>) => {
     const el = e.currentTarget;
     // scrollWidth is the full content width, clientWidth the visible box — they
@@ -39,5 +43,10 @@ export function useOverflowTooltip(
   }, []);
 
   if (!enabled || !anchorText) return {};
-  return { onMouseEnter, 'data-tooltip': anchorText };
+  // Wrapping is not optional here: the anchor only shows a tooltip when its text
+  // is too wide for the card, so the long titles this exists for are exactly the
+  // ones that would overflow an unwrapped, unbounded tooltip box. `TooltipPortal`
+  // clamps `left` to the viewport but never the width, so the tail would sit off
+  // screen with no ellipsis and no way to reach it.
+  return { onMouseEnter, 'data-tooltip': anchorText, 'data-tooltip-wrap': '' };
 }

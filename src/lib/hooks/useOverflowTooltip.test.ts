@@ -32,6 +32,13 @@ describe('useOverflowTooltip', () => {
     expect(result.current.onMouseEnter).toBeTypeOf('function');
   });
 
+  it('opts into wrapping, since only over-wide text gets here', () => {
+    // Without the marker TooltipPortal renders `nowrap` with no max width, and
+    // its horizontal clamp pins `left` at the margin — so a long title would run
+    // off the right edge unreachable. See the hook's closing comment.
+    expect(renderHook(() => useOverflowTooltip('Album name')).result.current['data-tooltip-wrap']).toBe('');
+  });
+
   it('stays out of the DOM entirely when disabled or textless', () => {
     expect(renderHook(() => useOverflowTooltip('Album name', false)).result.current).toEqual({});
     expect(renderHook(() => useOverflowTooltip('')).result.current).toEqual({});
