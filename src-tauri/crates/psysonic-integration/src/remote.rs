@@ -1,12 +1,19 @@
 use psysonic_core::icy::IcyMetadataBlock;
 use psysonic_core::user_agent::subsonic_wire_user_agent;
 
+mod provider_http;
+
+use provider_http::provider_http_client;
+
 pub const RADIO_PAGE_SIZE: u32 = 25;
 
 /// Search the radio-browser.info directory (needs User-Agent header — CORS would block WebView).
 // NOT specta-collected: serde_json::Value in the command signature — specta rc.25 can't export it. Stays hand-written on generate_handler!.
 #[tauri::command]
-pub async fn search_radio_browser(query: String, offset: u32) -> Result<Vec<serde_json::Value>, String> {
+pub async fn search_radio_browser(
+    query: String,
+    offset: u32,
+) -> Result<Vec<serde_json::Value>, String> {
     let client = reqwest::Client::new();
     let limit_s = RADIO_PAGE_SIZE.to_string();
     let offset_s = offset.to_string();
@@ -24,7 +31,9 @@ pub async fn search_radio_browser(query: String, offset: u32) -> Result<Vec<serd
         .map_err(|e| e.to_string())?
         .error_for_status()
         .map_err(|e| e.to_string())?;
-    resp.json::<Vec<serde_json::Value>>().await.map_err(|e| e.to_string())
+    resp.json::<Vec<serde_json::Value>>()
+        .await
+        .map_err(|e| e.to_string())
 }
 
 /// Fetch top-voted stations from radio-browser.info for initial suggestions.
@@ -43,7 +52,9 @@ pub async fn get_top_radio_stations(offset: u32) -> Result<Vec<serde_json::Value
         .map_err(|e| e.to_string())?
         .error_for_status()
         .map_err(|e| e.to_string())?;
-    resp.json::<Vec<serde_json::Value>>().await.map_err(|e| e.to_string())
+    resp.json::<Vec<serde_json::Value>>()
+        .await
+        .map_err(|e| e.to_string())
 }
 
 /// Fetch arbitrary URL bytes (e.g. radio station favicon) through Rust to bypass CORS.
@@ -116,22 +127,26 @@ pub struct IcyMetadata {
 
 /// Extract the first `File1=` stream URL from a PLS playlist file.
 pub fn parse_pls_stream_url(content: &str) -> Option<String> {
-    content.lines()
+    content
+        .lines()
         .map(str::trim)
         .find(|l| l.to_lowercase().starts_with("file1="))
         .and_then(|l| {
             let url = l[6..].trim();
-            (url.starts_with("http://") || url.starts_with("https://"))
-                .then(|| url.to_string())
+            (url.starts_with("http://") || url.starts_with("https://")).then(|| url.to_string())
         })
 }
 
 /// Extract the first non-comment HTTP URL from an M3U/M3U8 playlist file.
 pub fn parse_m3u_stream_url(content: &str) -> Option<String> {
-    content.lines()
+    content
+        .lines()
         .map(str::trim)
-        .find(|l| !l.is_empty() && !l.starts_with('#')
-            && (l.starts_with("http://") || l.starts_with("https://")))
+        .find(|l| {
+            !l.is_empty()
+                && !l.starts_with('#')
+                && (l.starts_with("http://") || l.starts_with("https://"))
+        })
         .map(str::to_string)
 }
 
@@ -200,10 +215,22 @@ pub async fn fetch_icy_metadata(url: String) -> Result<IcyMetadata, String> {
 
     // Harvest ICY headers before consuming the body.
     let headers = resp.headers();
-    let icy_name        = headers.get("icy-name").and_then(|v| v.to_str().ok()).map(str::to_string);
-    let icy_genre       = headers.get("icy-genre").and_then(|v| v.to_str().ok()).map(str::to_string);
-    let icy_url         = headers.get("icy-url").and_then(|v| v.to_str().ok()).map(str::to_string);
-    let icy_description = headers.get("icy-description").and_then(|v| v.to_str().ok()).map(str::to_string);
+    let icy_name = headers
+        .get("icy-name")
+        .and_then(|v| v.to_str().ok())
+        .map(str::to_string);
+    let icy_genre = headers
+        .get("icy-genre")
+        .and_then(|v| v.to_str().ok())
+        .map(str::to_string);
+    let icy_url = headers
+        .get("icy-url")
+        .and_then(|v| v.to_str().ok())
+        .map(str::to_string);
+    let icy_description = headers
+        .get("icy-description")
+        .and_then(|v| v.to_str().ok())
+        .map(str::to_string);
     let metaint: Option<usize> = headers
         .get("icy-metaint")
         .and_then(|v| v.to_str().ok())
@@ -211,50 +238,78 @@ pub async fn fetch_icy_metadata(url: String) -> Result<IcyMetadata, String> {
 
     // If the server doesn't advertise a metaint we can still return header info.
     let Some(metaint) = metaint else {
-        return Ok(IcyMetadata { stream_title: None, icy_name, icy_genre, icy_url, icy_description });
+        return Ok(IcyMetadata {
+            stream_title: None,
+            icy_name,
+            icy_genre,
+            icy_url,
+            icy_description,
+        });
     };
 
     // Cap metaint at 64 KiB to avoid reading unreasonably large audio chunks.
     let metaint = metaint.min(65_536);
-    let needed  = metaint + 1; // +1 for the metadata-length byte
+    let needed = metaint + 1; // +1 for the metadata-length byte
 
     let mut buf: Vec<u8> = Vec::with_capacity(needed + 256);
     let mut stream = resp.bytes_stream();
 
     while buf.len() < needed {
-        let Some(chunk) = stream.next().await else { break };
+        let Some(chunk) = stream.next().await else {
+            break;
+        };
         let chunk = chunk.map_err(|e| e.to_string())?;
         buf.extend_from_slice(&chunk);
     }
 
     if buf.len() < needed {
         // Stream ended before we reached the metadata block.
-        return Ok(IcyMetadata { stream_title: None, icy_name, icy_genre, icy_url, icy_description });
+        return Ok(IcyMetadata {
+            stream_title: None,
+            icy_name,
+            icy_genre,
+            icy_url,
+            icy_description,
+        });
     }
 
     // The byte immediately after `metaint` audio bytes encodes metadata length:
     //   actual_bytes = length_byte * 16
     let meta_len = buf[metaint] as usize * 16;
     if meta_len == 0 {
-        return Ok(IcyMetadata { stream_title: None, icy_name, icy_genre, icy_url, icy_description });
+        return Ok(IcyMetadata {
+            stream_title: None,
+            icy_name,
+            icy_genre,
+            icy_url,
+            icy_description,
+        });
     }
 
     // We may need to read a few more chunks to get the full metadata block.
     let total_needed = needed + meta_len;
     while buf.len() < total_needed {
-        let Some(chunk) = stream.next().await else { break };
+        let Some(chunk) = stream.next().await else {
+            break;
+        };
         let chunk = chunk.map_err(|e| e.to_string())?;
         buf.extend_from_slice(&chunk);
     }
 
     let meta_start = needed; // index of first metadata byte
-    let meta_end   = (meta_start + meta_len).min(buf.len());
+    let meta_end = (meta_start + meta_len).min(buf.len());
     let meta_bytes = &buf[meta_start..meta_end];
 
     let metadata = IcyMetadataBlock::parse(meta_bytes);
     let stream_title = metadata.stream_title().map(str::to_owned);
 
-    Ok(IcyMetadata { stream_title, icy_name, icy_genre, icy_url, icy_description })
+    Ok(IcyMetadata {
+        stream_title,
+        icy_name,
+        icy_genre,
+        icy_url,
+        icy_description,
+    })
 }
 
 /// Resolve a PLS or M3U playlist URL to its first direct stream URL.
@@ -276,19 +331,6 @@ pub async fn resolve_stream_url(url: String) -> String {
 /// Rocksky, GNU FM, Maloja compat) pass their own `base_url`.
 const LASTFM_API_BASE: &str = "https://ws.audioscrobbler.com/2.0/";
 
-/// Generic Audioscrobbler v2 transport. Provider-agnostic: the caller supplies
-/// the endpoint `base_url`, so Last.fm, Libre.fm, Rocksky, custom GNU FM and the
-/// Shared HTTP client for the Music Network provider transports
-/// (audioscrobbler / listenbrainz / maloja). A bounded timeout keeps a hung
-/// provider from leaving scrobble/probe/loved-sync promises unresolved — the
-/// sibling `fetch_*` commands in this module set the same kind of bound.
-fn provider_http_client() -> Result<reqwest::Client, String> {
-    reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(15))
-        .build()
-        .map_err(|e| e.to_string())
-}
-
 /// Maloja Audioscrobbler-compat surface all share this one command.
 ///
 /// `params` is a list of [key, value] pairs (method must be included). If `sign`
@@ -306,7 +348,11 @@ pub async fn audioscrobbler_request(
 ) -> Result<serde_json::Value, String> {
     use std::collections::HashMap;
 
-    let base = if base_url.trim().is_empty() { LASTFM_API_BASE.to_string() } else { base_url };
+    let base = if base_url.trim().is_empty() {
+        LASTFM_API_BASE.to_string()
+    } else {
+        base_url
+    };
 
     let mut map: HashMap<String, String> = params.into_iter().map(|[k, v]| (k, v)).collect();
     map.insert("api_key".into(), api_key.clone());
@@ -314,7 +360,8 @@ pub async fn audioscrobbler_request(
     if sign {
         let mut keys: Vec<String> = map.keys().cloned().collect();
         keys.sort();
-        let sig_str: String = keys.iter()
+        let sig_str: String = keys
+            .iter()
             .filter(|k| k.as_str() != "format" && k.as_str() != "callback")
             .map(|k| format!("{}{}", k, map[k]))
             .collect::<String>();
@@ -340,12 +387,17 @@ pub async fn audioscrobbler_request(
             .header("User-Agent", subsonic_wire_user_agent())
             .send()
             .await
-    }.map_err(|e| e.to_string())?;
+    }
+    .map_err(|e| e.to_string())?;
 
     let json: serde_json::Value = resp.json().await.map_err(|e| e.to_string())?;
 
     if let Some(err) = json.get("error") {
-        return Err(format!("Audioscrobbler {} {}", err, json.get("message").and_then(|m| m.as_str()).unwrap_or("")));
+        return Err(format!(
+            "Audioscrobbler {} {}",
+            err,
+            json.get("message").and_then(|m| m.as_str()).unwrap_or("")
+        ));
     }
 
     Ok(json)
@@ -435,247 +487,8 @@ pub async fn maloja_request(
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use wiremock::matchers::{header, method, path as wm_path};
-    use wiremock::{Mock, MockServer, ResponseTemplate};
-
-    // ── parse_pls_stream_url ──────────────────────────────────────────────────
-
-    #[test]
-    fn parse_pls_returns_first_file_entry() {
-        let pls = "[playlist]\nNumberOfEntries=2\nFile1=https://stream.example/audio\nTitle1=Foo\n";
-        assert_eq!(
-            parse_pls_stream_url(pls),
-            Some("https://stream.example/audio".to_string())
-        );
-    }
-
-    #[test]
-    fn parse_pls_is_case_insensitive_on_key() {
-        let pls = "[playlist]\nfile1=http://stream.example/x\n";
-        assert_eq!(parse_pls_stream_url(pls), Some("http://stream.example/x".to_string()));
-    }
-
-    #[test]
-    fn parse_pls_returns_none_for_non_http_url() {
-        let pls = "File1=ftp://example/audio\n";
-        assert!(parse_pls_stream_url(pls).is_none());
-    }
-
-    #[test]
-    fn parse_pls_returns_none_when_no_file_entry() {
-        let pls = "[playlist]\nNumberOfEntries=0\n";
-        assert!(parse_pls_stream_url(pls).is_none());
-    }
-
-    #[test]
-    fn parse_pls_skips_leading_whitespace_on_lines() {
-        let pls = "  File1=https://stream/audio\n";
-        assert_eq!(parse_pls_stream_url(pls), Some("https://stream/audio".to_string()));
-    }
-
-    // ── parse_m3u_stream_url ──────────────────────────────────────────────────
-
-    #[test]
-    fn parse_m3u_skips_extm3u_header_and_extinf_comments() {
-        let m3u = "#EXTM3U\n#EXTINF:-1,Stream\nhttps://stream.example/audio\n";
-        assert_eq!(
-            parse_m3u_stream_url(m3u),
-            Some("https://stream.example/audio".to_string())
-        );
-    }
-
-    #[test]
-    fn parse_m3u_returns_first_url_in_order() {
-        let m3u = "#EXTM3U\nhttps://first.example/a\nhttps://second.example/b\n";
-        assert_eq!(parse_m3u_stream_url(m3u), Some("https://first.example/a".to_string()));
-    }
-
-    #[test]
-    fn parse_m3u_returns_none_when_no_url() {
-        let m3u = "#EXTM3U\n#EXTINF:-1,Just a comment\n";
-        assert!(parse_m3u_stream_url(m3u).is_none());
-    }
-
-    #[test]
-    fn parse_m3u_returns_none_for_relative_paths() {
-        let m3u = "track.mp3\n";
-        assert!(parse_m3u_stream_url(m3u).is_none());
-    }
-
-    #[tokio::test(flavor = "multi_thread")]
-    async fn fetch_icy_metadata_preserves_utf8() {
-        let server = MockServer::start().await;
-        let title = "TimJamFer - \u{ff59}\u{ff4f}\u{ff55} \
-                     \u{84b8}\u{6c17}\u{30bd}\u{30d5}\u{30c8} \
-                     \u{d55c}\u{ae00}";
-        let metadata = format!("StreamTitle='{title}';StreamUrl='';");
-        let padded_len = metadata.len().div_ceil(16) * 16;
-        let mut body = b"AAAA".to_vec();
-        body.push((padded_len / 16) as u8);
-        body.extend_from_slice(metadata.as_bytes());
-        body.resize(5 + padded_len, 0);
-
-        Mock::given(method("GET"))
-            .and(wm_path("/stream"))
-            .and(header("icy-metadata", "1"))
-            .respond_with(
-                ResponseTemplate::new(200)
-                    .insert_header("icy-metaint", "4")
-                    .set_body_bytes(body),
-            )
-            .mount(&server)
-            .await;
-
-        let result = fetch_icy_metadata(format!("{}/stream", server.uri()))
-            .await
-            .expect("ICY metadata request should succeed");
-        assert_eq!(result.stream_title.as_deref(), Some(title));
-    }
-
-    // ── resolve_playlist_url ──────────────────────────────────────────────────
-
-    #[tokio::test(flavor = "multi_thread")]
-    async fn resolve_returns_none_for_non_playlist_url() {
-        let client = reqwest::Client::new();
-        // Direct stream URLs (without .pls/.m3u/.m3u8 extension) are returned as None.
-        assert!(resolve_playlist_url(&client, "https://stream.example/audio").await.is_none());
-    }
-
-    #[tokio::test(flavor = "multi_thread")]
-    async fn resolve_returns_none_for_non_playlist_url_with_query() {
-        let client = reqwest::Client::new();
-        assert!(
-            resolve_playlist_url(&client, "https://stream.example/audio?foo=bar")
-                .await
-                .is_none()
-        );
-    }
-
-    #[tokio::test(flavor = "multi_thread")]
-    async fn resolve_extracts_first_stream_from_pls() {
-        let server = MockServer::start().await;
-        Mock::given(method("GET"))
-            .and(wm_path("/station.pls"))
-            .respond_with(
-                ResponseTemplate::new(200)
-                    .set_body_string("[playlist]\nFile1=https://stream.example/x\n"),
-            )
-            .mount(&server)
-            .await;
-
-        let client = reqwest::Client::new();
-        let url = format!("{}/station.pls", server.uri());
-        assert_eq!(
-            resolve_playlist_url(&client, &url).await,
-            Some("https://stream.example/x".to_string())
-        );
-    }
-
-    #[tokio::test(flavor = "multi_thread")]
-    async fn resolve_extracts_first_stream_from_m3u8() {
-        let server = MockServer::start().await;
-        Mock::given(method("GET"))
-            .and(wm_path("/station.m3u8"))
-            .respond_with(
-                ResponseTemplate::new(200)
-                    .set_body_string("#EXTM3U\n#EXTINF:-1,Stream\nhttps://stream.example/y\n"),
-            )
-            .mount(&server)
-            .await;
-
-        let client = reqwest::Client::new();
-        let url = format!("{}/station.m3u8", server.uri());
-        assert_eq!(
-            resolve_playlist_url(&client, &url).await,
-            Some("https://stream.example/y".to_string())
-        );
-    }
-
-    #[tokio::test(flavor = "multi_thread")]
-    async fn resolve_dispatches_pls_when_content_type_says_so_even_with_other_extension() {
-        // Some servers return .m3u extension but with audio/x-scpls Content-Type;
-        // resolve_playlist_url honors the Content-Type for the parser choice.
-        // set_body_raw lets us pin the Content-Type header — set_body_string
-        // would force text/plain regardless of insert_header order.
-        let server = MockServer::start().await;
-        Mock::given(method("GET"))
-            .and(wm_path("/weird.m3u"))
-            .respond_with(ResponseTemplate::new(200).set_body_raw(
-                "[playlist]\nFile1=https://pls.example/audio\n",
-                "audio/x-scpls",
-            ))
-            .mount(&server)
-            .await;
-
-        let client = reqwest::Client::new();
-        let url = format!("{}/weird.m3u", server.uri());
-        assert_eq!(
-            resolve_playlist_url(&client, &url).await,
-            Some("https://pls.example/audio".to_string())
-        );
-    }
-
-    // ── audioscrobbler_request ────────────────────────────────────────────────
-
-    #[tokio::test(flavor = "multi_thread")]
-    async fn audioscrobbler_request_uses_custom_base_url() {
-        let server = MockServer::start().await;
-        Mock::given(method("GET"))
-            .and(wm_path("/2.0/"))
-            .respond_with(ResponseTemplate::new(200).set_body_raw(
-                r#"{"similarartists":{"artist":[{"name":"Boards of Canada"}]}}"#,
-                "application/json",
-            ))
-            .mount(&server)
-            .await;
-
-        let base = format!("{}/2.0/", server.uri());
-        let json = audioscrobbler_request(
-            base,
-            vec![
-                ["method".into(), "artist.getSimilar".into()],
-                ["artist".into(), "Aphex Twin".into()],
-            ],
-            false,
-            true,
-            "key".into(),
-            "secret".into(),
-        )
-        .await
-        .expect("request should succeed");
-
-        assert_eq!(
-            json["similarartists"]["artist"][0]["name"].as_str(),
-            Some("Boards of Canada")
-        );
-    }
-
-    #[tokio::test(flavor = "multi_thread")]
-    async fn audioscrobbler_request_surfaces_api_error() {
-        let server = MockServer::start().await;
-        Mock::given(method("POST"))
-            .and(wm_path("/2.0/"))
-            .respond_with(ResponseTemplate::new(200).set_body_raw(
-                r#"{"error":9,"message":"Invalid session key"}"#,
-                "application/json",
-            ))
-            .mount(&server)
-            .await;
-
-        let base = format!("{}/2.0/", server.uri());
-        let err = audioscrobbler_request(
-            base,
-            vec![["method".into(), "track.scrobble".into()]],
-            true,
-            false,
-            "key".into(),
-            "secret".into(),
-        )
-        .await
-        .expect_err("api error should map to Err");
-
-        assert!(err.contains("Audioscrobbler 9"), "unexpected error: {err}");
-    }
-}
+mod icy_tests;
+#[cfg(test)]
+mod playlist_tests;
+#[cfg(test)]
+mod provider_tests;

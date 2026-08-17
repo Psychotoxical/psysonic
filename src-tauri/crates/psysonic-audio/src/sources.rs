@@ -1,141 +1,13 @@
 //! Rodio `Source` wrappers: EQ, type erasure, fades, end-of-source notify, sample counter.
-use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
-use biquad::{Biquad, Coefficients, DirectForm2Transposed, ToHertz, Type as FilterType};
 use rodio::Source;
 
-// ─── 10-Band Graphic Equalizer ────────────────────────────────────────────────
+mod eq;
 
-const EQ_BANDS_HZ: [f32; 10] = [31.0, 62.0, 125.0, 250.0, 500.0, 1000.0, 2000.0, 4000.0, 8000.0, 16000.0];
-const EQ_Q: f32 = 1.41;
-const EQ_CHECK_INTERVAL: usize = 1024;
-
-pub(crate) struct EqSource<S: Source<Item = f32>> {
-    inner: S,
-    channels: rodio::ChannelCount,
-    gains: Arc<[AtomicU32; 10]>,
-    enabled: Arc<AtomicBool>,
-    pre_gain: Arc<AtomicU32>,
-    filters: [[DirectForm2Transposed<f32>; 2]; 10],
-    current_gains: [f32; 10],
-    sample_counter: usize,
-    channel_idx: usize,
-}
-
-impl<S: Source<Item = f32>> EqSource<S> {
-    pub(crate) fn new(inner: S, gains: Arc<[AtomicU32; 10]>, enabled: Arc<AtomicBool>, pre_gain: Arc<AtomicU32>) -> Self {
-        let sample_rate = inner.sample_rate();
-        let channels = inner.channels();
-        let filters = std::array::from_fn(|band| {
-            let freq = EQ_BANDS_HZ[band].clamp(20.0, (sample_rate.get() as f32 / 2.0) - 100.0);
-            std::array::from_fn(|_| {
-                let coeffs = Coefficients::<f32>::from_params(
-                    FilterType::PeakingEQ(0.0),
-                    (sample_rate.get() as f32).hz(),
-                    freq.hz(),
-                    EQ_Q,
-                ).unwrap_or_else(|_| Coefficients::<f32>::from_params(
-                    FilterType::PeakingEQ(0.0),
-                    (sample_rate.get() as f32).hz(),
-                    1000.0f32.hz(),
-                    EQ_Q,
-                ).unwrap());
-                DirectForm2Transposed::<f32>::new(coeffs)
-            })
-        });
-        Self {
-            inner, channels, gains, enabled, pre_gain,
-            filters,
-            current_gains: [0.0; 10],
-            sample_counter: 0,
-            channel_idx: 0,
-        }
-    }
-
-    #[allow(clippy::needless_range_loop)]
-    fn refresh_if_needed(&mut self) {
-        let sample_rate = self.inner.sample_rate();
-        for band in 0..10 {
-            let gain_db = f32::from_bits(self.gains[band].load(Ordering::Relaxed));
-            if (gain_db - self.current_gains[band]).abs() > 0.01 {
-                self.current_gains[band] = gain_db;
-                let freq = EQ_BANDS_HZ[band].clamp(20.0, (sample_rate.get() as f32 / 2.0) - 100.0);
-                if let Ok(coeffs) = Coefficients::<f32>::from_params(
-                    FilterType::PeakingEQ(gain_db),
-                    (sample_rate.get() as f32).hz(),
-                    freq.hz(),
-                    EQ_Q,
-                ) {
-                    for ch in 0..2 {
-                        self.filters[band][ch].update_coefficients(coeffs);
-                    }
-                }
-            }
-        }
-    }
-}
-
-impl<S: Source<Item = f32>> Iterator for EqSource<S> {
-    type Item = f32;
-
-    fn next(&mut self) -> Option<f32> {
-        let sample = self.inner.next()?;
-
-        if self.sample_counter.is_multiple_of(EQ_CHECK_INTERVAL) {
-            self.refresh_if_needed();
-        }
-        self.sample_counter = self.sample_counter.wrapping_add(1);
-
-        if !self.enabled.load(Ordering::Relaxed) {
-            self.channel_idx = (self.channel_idx + 1) % self.channels.get() as usize;
-            return Some(sample);
-        }
-
-        let ch = self.channel_idx.min(1);
-        self.channel_idx = (self.channel_idx + 1) % self.channels.get() as usize;
-
-        let pre_gain_db = f32::from_bits(self.pre_gain.load(Ordering::Relaxed));
-        let pre_gain_factor = 10_f32.powf(pre_gain_db / 20.0);
-        let mut s = sample * pre_gain_factor;
-        for band in 0..10 {
-            s = self.filters[band][ch].run(s);
-        }
-        Some(s.clamp(-1.0, 1.0))
-    }
-}
-
-impl<S: Source<Item = f32>> Source for EqSource<S> {
-    fn current_span_len(&self) -> Option<usize> { self.inner.current_span_len() }
-    fn channels(&self) -> rodio::ChannelCount { self.channels }
-    fn sample_rate(&self) -> rodio::SampleRate { self.inner.sample_rate() }
-    fn total_duration(&self) -> Option<Duration> { self.inner.total_duration() }
-
-    #[allow(clippy::needless_range_loop)]
-    fn try_seek(&mut self, pos: Duration) -> Result<(), rodio::source::SeekError> {
-        let sample_rate = self.inner.sample_rate();
-        // Reset biquad filter state to avoid glitches after seek.
-        for band in 0..10 {
-            let gain_db = f32::from_bits(self.gains[band].load(Ordering::Relaxed));
-            self.current_gains[band] = gain_db;
-            let freq = EQ_BANDS_HZ[band].clamp(20.0, (sample_rate.get() as f32 / 2.0) - 100.0);
-            if let Ok(coeffs) = Coefficients::<f32>::from_params(
-                FilterType::PeakingEQ(gain_db),
-                (sample_rate.get() as f32).hz(),
-                freq.hz(),
-                EQ_Q,
-            ) {
-                for ch in 0..2 {
-                    self.filters[band][ch] = DirectForm2Transposed::<f32>::new(coeffs);
-                }
-            }
-        }
-        self.channel_idx = 0;
-        self.sample_counter = 0;
-        self.inner.try_seek(pos)
-    }
-}
+pub(crate) use eq::EqSource;
 
 // ─── DynSource — type-erased Source wrapper ───────────────────────────────────
 //
@@ -150,20 +22,33 @@ pub(crate) struct DynSource {
 impl DynSource {
     pub(crate) fn new(src: impl Source<Item = f32> + Send + 'static) -> Self {
         let channels = src.channels();
-        Self { inner: Box::new(src), channels }
+        Self {
+            inner: Box::new(src),
+            channels,
+        }
     }
 }
 
 impl Iterator for DynSource {
     type Item = f32;
-    fn next(&mut self) -> Option<f32> { self.inner.next() }
+    fn next(&mut self) -> Option<f32> {
+        self.inner.next()
+    }
 }
 
 impl Source for DynSource {
-    fn current_span_len(&self) -> Option<usize> { self.inner.current_span_len() }
-    fn channels(&self) -> rodio::ChannelCount { self.channels }
-    fn sample_rate(&self) -> rodio::SampleRate { self.inner.sample_rate() }
-    fn total_duration(&self) -> Option<Duration> { self.inner.total_duration() }
+    fn current_span_len(&self) -> Option<usize> {
+        self.inner.current_span_len()
+    }
+    fn channels(&self) -> rodio::ChannelCount {
+        self.channels
+    }
+    fn sample_rate(&self) -> rodio::SampleRate {
+        self.inner.sample_rate()
+    }
+    fn total_duration(&self) -> Option<Duration> {
+        self.inner.total_duration()
+    }
     fn try_seek(&mut self, pos: Duration) -> Result<(), rodio::source::SeekError> {
         self.inner.try_seek(pos)
     }
@@ -202,9 +87,15 @@ impl<S: Source<Item = f32>> Source for CancellableSource<S> {
             self.inner.current_span_len()
         }
     }
-    fn channels(&self) -> rodio::ChannelCount { self.inner.channels() }
-    fn sample_rate(&self) -> rodio::SampleRate { self.inner.sample_rate() }
-    fn total_duration(&self) -> Option<Duration> { self.inner.total_duration() }
+    fn channels(&self) -> rodio::ChannelCount {
+        self.inner.channels()
+    }
+    fn sample_rate(&self) -> rodio::SampleRate {
+        self.inner.sample_rate()
+    }
+    fn total_duration(&self) -> Option<Duration> {
+        self.inner.total_duration()
+    }
     fn try_seek(&mut self, pos: Duration) -> Result<(), rodio::source::SeekError> {
         self.inner.try_seek(pos)
     }
@@ -237,7 +128,11 @@ impl<S: Source<Item = f32>> EqualPowerFadeIn<S> {
         } else {
             (fade_dur.as_secs_f64() * sample_rate.get() as f64 * channels as f64) as u64
         };
-        Self { inner, sample_count: 0, fade_samples }
+        Self {
+            inner,
+            sample_count: 0,
+            fade_samples,
+        }
     }
 }
 
@@ -257,10 +152,18 @@ impl<S: Source<Item = f32>> Iterator for EqualPowerFadeIn<S> {
 }
 
 impl<S: Source<Item = f32>> Source for EqualPowerFadeIn<S> {
-    fn current_span_len(&self) -> Option<usize> { self.inner.current_span_len() }
-    fn channels(&self) -> rodio::ChannelCount { self.inner.channels() }
-    fn sample_rate(&self) -> rodio::SampleRate { self.inner.sample_rate() }
-    fn total_duration(&self) -> Option<Duration> { self.inner.total_duration() }
+    fn current_span_len(&self) -> Option<usize> {
+        self.inner.current_span_len()
+    }
+    fn channels(&self) -> rodio::ChannelCount {
+        self.inner.channels()
+    }
+    fn sample_rate(&self) -> rodio::SampleRate {
+        self.inner.sample_rate()
+    }
+    fn total_duration(&self) -> Option<Duration> {
+        self.inner.total_duration()
+    }
     fn try_seek(&mut self, pos: Duration) -> Result<(), rodio::source::SeekError> {
         if self.sample_count == 0 {
             // Seek before any audio has played → this is the initial start-offset
@@ -302,7 +205,11 @@ pub(crate) struct TriggeredFadeOut<S: Source<Item = f32>> {
 }
 
 impl<S: Source<Item = f32>> TriggeredFadeOut<S> {
-    pub(crate) fn new(inner: S, trigger: Arc<AtomicBool>, fade_total_samples: Arc<AtomicU64>) -> Self {
+    pub(crate) fn new(
+        inner: S,
+        trigger: Arc<AtomicBool>,
+        fade_total_samples: Arc<AtomicU64>,
+    ) -> Self {
         Self {
             inner,
             trigger,
@@ -341,10 +248,18 @@ impl<S: Source<Item = f32>> Iterator for TriggeredFadeOut<S> {
 }
 
 impl<S: Source<Item = f32>> Source for TriggeredFadeOut<S> {
-    fn current_span_len(&self) -> Option<usize> { self.inner.current_span_len() }
-    fn channels(&self) -> rodio::ChannelCount { self.inner.channels() }
-    fn sample_rate(&self) -> rodio::SampleRate { self.inner.sample_rate() }
-    fn total_duration(&self) -> Option<Duration> { self.inner.total_duration() }
+    fn current_span_len(&self) -> Option<usize> {
+        self.inner.current_span_len()
+    }
+    fn channels(&self) -> rodio::ChannelCount {
+        self.inner.channels()
+    }
+    fn sample_rate(&self) -> rodio::SampleRate {
+        self.inner.sample_rate()
+    }
+    fn total_duration(&self) -> Option<Duration> {
+        self.inner.total_duration()
+    }
     fn try_seek(&mut self, pos: Duration) -> Result<(), rodio::source::SeekError> {
         // If we seek back during a fade, cancel the fade.
         if self.fading {
@@ -370,7 +285,11 @@ pub(crate) struct NotifyingSource<S: Source<Item = f32>> {
 
 impl<S: Source<Item = f32>> NotifyingSource<S> {
     pub(crate) fn new(inner: S, done: Arc<AtomicBool>) -> Self {
-        Self { inner, done, signalled: false }
+        Self {
+            inner,
+            done,
+            signalled: false,
+        }
     }
 }
 
@@ -387,10 +306,18 @@ impl<S: Source<Item = f32>> Iterator for NotifyingSource<S> {
 }
 
 impl<S: Source<Item = f32>> Source for NotifyingSource<S> {
-    fn current_span_len(&self) -> Option<usize> { self.inner.current_span_len() }
-    fn channels(&self) -> rodio::ChannelCount { self.inner.channels() }
-    fn sample_rate(&self) -> rodio::SampleRate { self.inner.sample_rate() }
-    fn total_duration(&self) -> Option<Duration> { self.inner.total_duration() }
+    fn current_span_len(&self) -> Option<usize> {
+        self.inner.current_span_len()
+    }
+    fn channels(&self) -> rodio::ChannelCount {
+        self.inner.channels()
+    }
+    fn sample_rate(&self) -> rodio::SampleRate {
+        self.inner.sample_rate()
+    }
+    fn total_duration(&self) -> Option<Duration> {
+        self.inner.total_duration()
+    }
     fn try_seek(&mut self, pos: Duration) -> Result<(), rodio::source::SeekError> {
         // If we seek backwards the source is no longer exhausted.
         self.signalled = false;
@@ -448,10 +375,18 @@ impl<S: Source<Item = f32>> Iterator for CountingSource<S> {
 }
 
 impl<S: Source<Item = f32>> Source for CountingSource<S> {
-    fn current_span_len(&self) -> Option<usize> { self.inner.current_span_len() }
-    fn channels(&self) -> rodio::ChannelCount { self.inner.channels() }
-    fn sample_rate(&self) -> rodio::SampleRate { self.inner.sample_rate() }
-    fn total_duration(&self) -> Option<Duration> { self.inner.total_duration() }
+    fn current_span_len(&self) -> Option<usize> {
+        self.inner.current_span_len()
+    }
+    fn channels(&self) -> rodio::ChannelCount {
+        self.inner.channels()
+    }
+    fn sample_rate(&self) -> rodio::SampleRate {
+        self.inner.sample_rate()
+    }
+    fn total_duration(&self) -> Option<Duration> {
+        self.inner.total_duration()
+    }
     fn try_seek(&mut self, pos: Duration) -> Result<(), rodio::source::SeekError> {
         // Reset counter only after confirming the inner seek succeeded.
         // If we reset first and the seek fails, the counter ends up at the
@@ -459,7 +394,8 @@ impl<S: Source<Item = f32>> Source for CountingSource<S> {
         // a permanent desync between displayed time and actual audio.
         let result = self.inner.try_seek(pos);
         if result.is_ok() && self.should_count() {
-            let samples = (pos.as_secs_f64() * self.inner.sample_rate().get() as f64
+            let samples = (pos.as_secs_f64()
+                * self.inner.sample_rate().get() as f64
                 * self.inner.channels().get() as f64) as u64;
             self.counter.store(samples, Ordering::Relaxed);
         }
@@ -494,9 +430,16 @@ fn promote_thread_to_pro_audio() {
 
     // Null-terminated UTF-16 task name, lifetime-pinned for the call.
     let task: [u16; 10] = [
-        b'P' as u16, b'r' as u16, b'o' as u16, b' ' as u16,
-        b'A' as u16, b'u' as u16, b'd' as u16, b'i' as u16,
-        b'o' as u16, 0,
+        b'P' as u16,
+        b'r' as u16,
+        b'o' as u16,
+        b' ' as u16,
+        b'A' as u16,
+        b'u' as u16,
+        b'd' as u16,
+        b'i' as u16,
+        b'o' as u16,
+        0,
     ];
     let mut idx: u32 = 0;
     let result = unsafe { AvSetMmThreadCharacteristicsW(PCWSTR(task.as_ptr()), &mut idx) };
@@ -522,7 +465,10 @@ pub(crate) struct PriorityBoostSource<S: Source<Item = f32>> {
 
 impl<S: Source<Item = f32>> PriorityBoostSource<S> {
     pub(crate) fn new(inner: S) -> Self {
-        Self { inner, promoted: false }
+        Self {
+            inner,
+            promoted: false,
+        }
     }
 }
 
@@ -539,74 +485,22 @@ impl<S: Source<Item = f32>> Iterator for PriorityBoostSource<S> {
 }
 
 impl<S: Source<Item = f32>> Source for PriorityBoostSource<S> {
-    fn current_span_len(&self) -> Option<usize> { self.inner.current_span_len() }
-    fn channels(&self) -> rodio::ChannelCount { self.inner.channels() }
-    fn sample_rate(&self) -> rodio::SampleRate { self.inner.sample_rate() }
-    fn total_duration(&self) -> Option<Duration> { self.inner.total_duration() }
+    fn current_span_len(&self) -> Option<usize> {
+        self.inner.current_span_len()
+    }
+    fn channels(&self) -> rodio::ChannelCount {
+        self.inner.channels()
+    }
+    fn sample_rate(&self) -> rodio::SampleRate {
+        self.inner.sample_rate()
+    }
+    fn total_duration(&self) -> Option<Duration> {
+        self.inner.total_duration()
+    }
     fn try_seek(&mut self, pos: Duration) -> Result<(), rodio::source::SeekError> {
         self.inner.try_seek(pos)
     }
 }
 
 #[cfg(test)]
-mod counting_source_tests {
-    use super::*;
-    use rodio::Source;
-    use std::time::Duration;
-
-    struct TwoSamples(u8);
-    impl Iterator for TwoSamples {
-        type Item = f32;
-        fn next(&mut self) -> Option<f32> {
-            match self.0 {
-                0 => {
-                    self.0 = 1;
-                    Some(0.1)
-                }
-                1 => {
-                    self.0 = 2;
-                    Some(0.2)
-                }
-                _ => None,
-            }
-        }
-    }
-    impl Source for TwoSamples {
-        fn current_span_len(&self) -> Option<usize> {
-            Some(1)
-        }
-        fn channels(&self) -> rodio::ChannelCount {
-            std::num::NonZero::new(1).unwrap()
-        }
-        fn sample_rate(&self) -> rodio::SampleRate {
-            std::num::NonZero::new(44_100).unwrap()
-        }
-        fn total_duration(&self) -> Option<Duration> {
-            Some(Duration::from_secs_f32(2.0 / 44_100.0))
-        }
-    }
-
-    #[test]
-    fn gated_counter_skips_samples_until_gate_is_set() {
-        let counter = Arc::new(AtomicU64::new(0));
-        let gate = Arc::new(AtomicBool::new(false));
-        let mut src = CountingSource::new_gated(TwoSamples(0), counter.clone(), gate.clone());
-        assert_eq!(src.next(), Some(0.1));
-        assert_eq!(src.next(), Some(0.2));
-        assert_eq!(counter.load(Ordering::Relaxed), 0);
-        gate.store(true, Ordering::SeqCst);
-        let mut src2 = CountingSource::new_gated(TwoSamples(0), counter.clone(), gate);
-        assert_eq!(src2.next(), Some(0.1));
-        assert_eq!(counter.load(Ordering::Relaxed), 1);
-    }
-
-    #[test]
-    fn cancelled_source_exhausts_without_reading_more_successor_samples() {
-        let cancel = Arc::new(AtomicBool::new(false));
-        let mut src = CancellableSource::new(TwoSamples(0), cancel.clone());
-        assert_eq!(src.next(), Some(0.1));
-        cancel.store(true, Ordering::Release);
-        assert_eq!(src.next(), None);
-        assert_eq!(src.current_span_len(), Some(0));
-    }
-}
+mod counting_source_tests;

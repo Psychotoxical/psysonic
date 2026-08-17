@@ -1,0 +1,10 @@
+mod album_sort;
+mod audio_filters;
+mod compilation;
+mod core_filters;
+mod random;
+mod scope_basic;
+mod scope_merge;
+mod scope_merge_artists;
+mod support;
+mod text;

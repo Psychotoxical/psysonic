@@ -1,71 +1,22 @@
 use tauri::menu::{MenuBuilder, MenuItemBuilder, PredefinedMenuItem};
-use tauri::tray::{MouseButton, TrayIcon, TrayIconBuilder, TrayIconEvent};
-use tauri::{Emitter, Manager};
 #[cfg(not(target_os = "windows"))]
 use tauri::tray::MouseButtonState;
+use tauri::tray::{MouseButton, TrayIcon, TrayIconBuilder, TrayIconEvent};
+use tauri::{Emitter, Manager};
 
+use crate::lib_commands::app_api::{
+    run_native_lifecycle_fallback, LifecycleRequest, MainWindowLifecycleState,
+};
 use crate::tray_runtime::{
     tray_state_icon, TrayMenuItems, TrayMenuItemsState, TrayMenuLabels, TrayMenuLabelsState,
     TrayPlaybackState, TrayState, TrayTooltip,
 };
-use crate::lib_commands::app_api::{
-    run_native_lifecycle_fallback, LifecycleRequest, MainWindowLifecycleState,
-};
 
 use super::super::ui::{hide_main_window, restore_main_window};
-use tauri::image::Image;
 
-/// Debug builds: mirror the default app icon horizontally so the tray differs from release.
-fn app_tray_icon(app: &tauri::AppHandle) -> Image<'static> {
-    let icon = app.default_window_icon().expect("default window icon");
-    #[cfg(debug_assertions)]
-    {
-        flip_image_horizontal(icon)
-    }
-    #[cfg(not(debug_assertions))]
-    {
-        icon.clone().to_owned()
-    }
-}
+mod icon;
 
-#[cfg(debug_assertions)]
-fn flip_image_horizontal(icon: &Image<'_>) -> Image<'static> {
-    let width = icon.width();
-    let height = icon.height();
-    let mut rgba = icon.rgba().to_vec();
-    flip_rgba_horizontal(&mut rgba, width, height);
-    Image::new_owned(rgba, width, height)
-}
-
-#[cfg(debug_assertions)]
-fn flip_rgba_horizontal(rgba: &mut [u8], width: u32, height: u32) {
-    let w = width as usize;
-    let h = height as usize;
-    if w == 0 || h == 0 || rgba.len() < w * h * 4 {
-        return;
-    }
-    for y in 0..h {
-        let row = y * w * 4;
-        for x in 0..w / 2 {
-            let l = row + x * 4;
-            let r = row + (w - 1 - x) * 4;
-            let left = [
-                rgba[l],
-                rgba[l + 1],
-                rgba[l + 2],
-                rgba[l + 3],
-            ];
-            let right = [
-                rgba[r],
-                rgba[r + 1],
-                rgba[r + 2],
-                rgba[r + 3],
-            ];
-            rgba[l..l + 4].copy_from_slice(&right);
-            rgba[r..r + 4].copy_from_slice(&left);
-        }
-    }
-}
+use icon::app_tray_icon;
 
 /// Stable tray-icon id. Without a fixed id, `TrayIconBuilder::new()` assigns a
 /// fresh id on every rebuild; on KDE (StatusNotifierItem) each new id registers
@@ -81,18 +32,22 @@ pub(crate) fn build_tray_icon(app: &tauri::AppHandle) -> tauri::Result<TrayIcon>
         .unwrap_or_default();
 
     let play_pause = MenuItemBuilder::with_id("play_pause", &labels.play_pause).build(app)?;
-    let next       = MenuItemBuilder::with_id("next",       &labels.next).build(app)?;
-    let previous   = MenuItemBuilder::with_id("previous",   &labels.previous).build(app)?;
-    let sep1       = PredefinedMenuItem::separator(app)?;
-    let show_hide  = MenuItemBuilder::with_id("show_hide",  &labels.show_hide).build(app)?;
-    let sep2       = PredefinedMenuItem::separator(app)?;
-    let quit       = MenuItemBuilder::with_id("quit",       &labels.quit).build(app)?;
+    let next = MenuItemBuilder::with_id("next", &labels.next).build(app)?;
+    let previous = MenuItemBuilder::with_id("previous", &labels.previous).build(app)?;
+    let sep1 = PredefinedMenuItem::separator(app)?;
+    let show_hide = MenuItemBuilder::with_id("show_hide", &labels.show_hide).build(app)?;
+    let sep2 = PredefinedMenuItem::separator(app)?;
+    let quit = MenuItemBuilder::with_id("quit", &labels.quit).build(app)?;
 
     let cached_tooltip = app
         .try_state::<TrayTooltip>()
         .and_then(|s| {
             let g = s.lock().ok()?;
-            if g.is_empty() { None } else { Some(g.clone()) }
+            if g.is_empty() {
+                None
+            } else {
+                Some(g.clone())
+            }
         })
         .unwrap_or_else(|| "Psysonic".to_string());
     #[cfg(any(target_os = "windows", target_os = "linux"))]
@@ -171,10 +126,16 @@ pub(crate) fn build_tray_icon(app: &tauri::AppHandle) -> tauri::Result<TrayIcon>
 
     tray_builder
         .on_menu_event(|app, event| match event.id.as_ref() {
-            "play_pause" => { let _ = app.emit("tray:play-pause", ()); }
-            "next"       => { let _ = app.emit("tray:next", ()); }
-            "previous"   => { let _ = app.emit("tray:previous", ()); }
-            "show_hide"  => {
+            "play_pause" => {
+                let _ = app.emit("tray:play-pause", ());
+            }
+            "next" => {
+                let _ = app.emit("tray:next", ());
+            }
+            "previous" => {
+                let _ = app.emit("tray:previous", ());
+            }
+            "show_hide" => {
                 if let Some(win) = app.get_webview_window("main") {
                     if win.is_visible().unwrap_or(false) {
                         let _ = hide_main_window(&win);
@@ -211,7 +172,10 @@ pub(crate) fn build_tray_icon(app: &tauri::AppHandle) -> tauri::Result<TrayIcon>
             #[cfg(target_os = "windows")]
             let should_toggle = matches!(
                 event,
-                TrayIconEvent::DoubleClick { button: MouseButton::Left, .. }
+                TrayIconEvent::DoubleClick {
+                    button: MouseButton::Left,
+                    ..
+                }
             );
             #[cfg(not(target_os = "windows"))]
             let should_toggle = matches!(
@@ -282,7 +246,9 @@ pub(crate) fn set_tray_tooltip(
     playback_state: Option<String>,
 ) -> Result<(), String> {
     let has_track_input = !tooltip.is_empty();
-    let state = playback_state.as_deref().unwrap_or(if has_track_input { "play" } else { "stop" });
+    let state = playback_state
+        .as_deref()
+        .unwrap_or(if has_track_input { "play" } else { "stop" });
     let icon = tray_state_icon(state);
     let icon_prefix_len = format!("{icon} ").chars().count();
     let max_text_chars = 127usize.saturating_sub(icon_prefix_len);
@@ -294,7 +260,11 @@ pub(crate) fn set_tray_tooltip(
         tooltip
     };
     let has_track = !truncated.is_empty();
-    let effective = if has_track { truncated.clone() } else { "Psysonic".to_string() };
+    let effective = if has_track {
+        truncated.clone()
+    } else {
+        "Psysonic".to_string()
+    };
     #[cfg(target_os = "windows")]
     let effective_with_icon = format!("{icon} {effective}");
 
@@ -303,9 +273,11 @@ pub(crate) fn set_tray_tooltip(
 
     if let Some(tray) = tray_state.lock().unwrap().as_ref() {
         #[cfg(target_os = "windows")]
-        tray.set_tooltip(Some(&effective_with_icon)).map_err(|e| e.to_string())?;
+        tray.set_tooltip(Some(&effective_with_icon))
+            .map_err(|e| e.to_string())?;
         #[cfg(not(target_os = "windows"))]
-        tray.set_tooltip(Some(&effective)).map_err(|e| e.to_string())?;
+        tray.set_tooltip(Some(&effective))
+            .map_err(|e| e.to_string())?;
     }
 
     #[cfg(target_os = "linux")]
@@ -316,7 +288,8 @@ pub(crate) fn set_tray_tooltip(
                     let label = if has_track {
                         format!("{icon} {effective}")
                     } else {
-                        let nothing = app.try_state::<TrayMenuLabelsState>()
+                        let nothing = app
+                            .try_state::<TrayMenuLabelsState>()
                             .map(|s| s.lock().unwrap().nothing_playing.clone())
                             .unwrap_or_else(|| "Nothing playing".to_string());
                         format!("{icon} {nothing}")
@@ -439,9 +412,9 @@ pub(crate) fn is_tiling_wm() -> bool {
     // Direct compositor signatures (most reliable).
     let direct = [
         "HYPRLAND_INSTANCE_SIGNATURE", // Hyprland
-        "NIRI_SOCKET",                  // Niri
-        "SWAYSOCK",                     // Sway
-        "I3SOCK",                       // i3
+        "NIRI_SOCKET",                 // Niri
+        "SWAYSOCK",                    // Sway
+        "I3SOCK",                      // i3
     ]
     .iter()
     .any(|&var| std::env::var_os(var).is_some());
@@ -454,8 +427,19 @@ pub(crate) fn is_tiling_wm() -> bool {
     if let Ok(desktop) = std::env::var("XDG_CURRENT_DESKTOP") {
         let desktop = desktop.to_lowercase();
         let tiling_wms = [
-            "hyprland", "niri", "sway", "i3", "bspwm", "awesome", "openbox",
-            "xmonad", "dwm", "qtile", "herbstluftwm", "leftwm", "mango",
+            "hyprland",
+            "niri",
+            "sway",
+            "i3",
+            "bspwm",
+            "awesome",
+            "openbox",
+            "xmonad",
+            "dwm",
+            "qtile",
+            "herbstluftwm",
+            "leftwm",
+            "mango",
         ];
         if tiling_wms.iter().any(|&wm| desktop.contains(wm)) {
             return true;
@@ -502,23 +486,4 @@ pub(crate) fn is_tiling_wm() -> bool {
 #[specta::specta]
 pub(crate) fn is_tiling_wm_cmd() -> bool {
     is_tiling_wm()
-}
-
-#[cfg(all(test, debug_assertions))]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn flip_rgba_horizontal_mirrors_pixels() {
-        // 3×1: A B C → C B A
-        let mut rgba = vec![
-            1, 0, 0, 255, // A
-            2, 0, 0, 255, // B
-            3, 0, 0, 255, // C
-        ];
-        flip_rgba_horizontal(&mut rgba, 3, 1);
-        assert_eq!(rgba[0], 3);
-        assert_eq!(rgba[4], 2);
-        assert_eq!(rgba[8], 1);
-    }
 }

@@ -169,7 +169,10 @@ pub fn subsonic_song_to_track_row(
         play_count: song.play_count,
         played_at: parse_iso_ms(song.played.as_deref()),
         server_path: song.path.clone(),
-        library_id: song.library_id.clone().or_else(|| library_id_fallback.map(String::from)),
+        library_id: song
+            .library_id
+            .clone()
+            .or_else(|| library_id_fallback.map(String::from)),
         isrc: song.isrc.clone(),
         mbid_recording: song.mbid_recording.clone(),
         bpm: song.bpm,
@@ -247,14 +250,21 @@ pub fn navidrome_song_to_track_row(
         bit_rate: raw.get("bitRate").and_then(|v| v.as_i64()),
         size_bytes: raw.get("size").and_then(|v| v.as_i64()),
         cover_art_id: string_field(raw, "coverArtId").or_else(|| string_field(raw, "coverArt")),
-        starred_at: raw.get("starredAt").and_then(|v| v.as_str()).and_then(parse_iso_ms_str),
+        starred_at: raw
+            .get("starredAt")
+            .and_then(|v| v.as_str())
+            .and_then(parse_iso_ms_str),
         user_rating: raw.get("rating").and_then(|v| v.as_i64()),
         play_count: raw.get("playCount").and_then(|v| v.as_i64()),
-        played_at: raw.get("playedAt").and_then(|v| v.as_str()).and_then(parse_iso_ms_str),
+        played_at: raw
+            .get("playedAt")
+            .and_then(|v| v.as_str())
+            .and_then(parse_iso_ms_str),
         server_path: string_field(raw, "path"),
         library_id,
         isrc: string_field(raw, "isrc"),
-        mbid_recording: string_field(raw, "mbzTrackId").or_else(|| string_field(raw, "musicBrainzId")),
+        mbid_recording: string_field(raw, "mbzTrackId")
+            .or_else(|| string_field(raw, "musicBrainzId")),
         bpm: raw.get("bpm").and_then(|v| v.as_i64()),
         replay_gain_track_db: raw.get("rgTrackGain").and_then(|v| v.as_f64()),
         replay_gain_album_db: raw.get("rgAlbumGain").and_then(|v| v.as_f64()),
@@ -317,7 +327,12 @@ pub(crate) fn parse_iso_ms_str(s: &str) -> Option<i64> {
     // are already in UTC for Navidrome, and we don't track timezone
     // in the schema column.
     let core = trimmed
-        .find(|c: char| c == '.' || c == 'Z' || c == '+' || (c == '-' && trimmed.find('T').is_some_and(|t| trimmed[t..].contains(c))))
+        .find(|c: char| {
+            c == '.'
+                || c == 'Z'
+                || c == '+'
+                || (c == '-' && trimmed.find('T').is_some_and(|t| trimmed[t..].contains(c)))
+        })
         .map(|i| &trimmed[..i])
         .unwrap_or(trimmed);
     let mut parts = core.split(['T', '-', ':']);
@@ -384,234 +399,4 @@ fn civil_from_days(z: i64) -> (i32, u32, u32) {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use serde_json::json;
-
-    #[test]
-    fn format_iso_roundtrips_zulu_suffix() {
-        let ms = parse_iso_ms_str("2024-01-01T00:00:00Z").unwrap();
-        assert_eq!(format_iso_ms_z(ms).as_deref(), Some("2024-01-01T00:00:00Z"));
-    }
-
-    #[test]
-    fn parse_iso_handles_zulu_suffix() {
-        // 2024-01-01T00:00:00Z = 1704067200000 ms.
-        let ms = parse_iso_ms_str("2024-01-01T00:00:00Z").unwrap();
-        assert_eq!(ms, 1_704_067_200_000);
-    }
-
-    #[test]
-    fn parse_iso_handles_fractional_and_offset() {
-        let ms = parse_iso_ms_str("2024-01-01T00:00:00.123+02:00").unwrap();
-        // Truncated before offset → same epoch-second as Zulu of the
-        // wall-clock value. Good enough for the schema's integer-ms
-        // column.
-        assert_eq!(ms, 1_704_067_200_000);
-    }
-
-    #[test]
-    fn parse_iso_rejects_garbage() {
-        assert!(parse_iso_ms_str("").is_none());
-        assert!(parse_iso_ms_str("not-a-date").is_none());
-        assert!(parse_iso_ms_str("9999-99-99").is_none());
-    }
-
-    #[test]
-    fn merge_album_open_subsonic_track_raw_copies_album_flags() {
-        let album = json!({ "compilation": true, "releaseTypes": ["Compilation"] });
-        let mut song = json!({ "id": "tr_1", "title": "A" });
-        merge_album_open_subsonic_track_raw(&album, &mut song);
-        assert_eq!(song.get("compilation"), Some(&json!(true)));
-        assert_eq!(song.get("releaseTypes"), Some(&json!(["Compilation"])));
-    }
-
-    // The album header reads its individually linkable credits from the track's
-    // `albumArtists`; without this the header falls back to the joined display string
-    // ("Ice Nine Kills feat. Shavo") and cannot link the guest.
-    #[test]
-    fn merge_album_open_subsonic_track_raw_maps_album_participants_to_album_fields() {
-        let album = json!({
-            "artists": [{ "id": "ar1", "name": "Ice Nine Kills" }, { "id": "ar2", "name": "Shavo" }],
-            "displayArtist": "Ice Nine Kills feat. Shavo",
-        });
-        let mut song = json!({ "id": "tr_1", "title": "A Work of Art" });
-        merge_album_open_subsonic_track_raw(&album, &mut song);
-        assert_eq!(
-            song.get("albumArtists"),
-            Some(&json!([{ "id": "ar1", "name": "Ice Nine Kills" }, { "id": "ar2", "name": "Shavo" }]))
-        );
-        assert_eq!(
-            song.get("displayAlbumArtist"),
-            Some(&json!("Ice Nine Kills feat. Shavo"))
-        );
-        // The track performer fields must stay untouched: on an album these names mean
-        // the album artist, so copying them across would credit every song of a
-        // compilation to it.
-        assert_eq!(song.get("artists"), None);
-        assert_eq!(song.get("displayArtist"), None);
-    }
-
-    #[test]
-    fn merge_album_open_subsonic_track_raw_keeps_track_own_album_artists() {
-        let album = json!({ "artists": [{ "id": "ar1", "name": "Album Artist" }] });
-        let mut song = json!({
-            "id": "tr_1",
-            "albumArtists": [{ "id": "ar9", "name": "Track's Own" }],
-        });
-        merge_album_open_subsonic_track_raw(&album, &mut song);
-        assert_eq!(
-            song.get("albumArtists"),
-            Some(&json!([{ "id": "ar9", "name": "Track's Own" }]))
-        );
-    }
-
-    // A song that carries the key but no value states nothing; the album's list in the
-    // same response is the authoritative one and must not be suppressed by it.
-    #[test]
-    fn merge_album_open_subsonic_track_raw_fills_null_and_empty_song_participants() {
-        let album = json!({
-            "artists": [{ "id": "ar1", "name": "Album Artist" }],
-            "displayArtist": "Album Artist",
-        });
-        for empty in [json!(null), json!([])] {
-            let mut song = json!({ "id": "tr_1", "albumArtists": empty, "displayAlbumArtist": "" });
-            merge_album_open_subsonic_track_raw(&album, &mut song);
-            assert_eq!(
-                song.get("albumArtists"),
-                Some(&json!([{ "id": "ar1", "name": "Album Artist" }]))
-            );
-            assert_eq!(song.get("displayAlbumArtist"), Some(&json!("Album Artist")));
-        }
-    }
-
-    #[test]
-    fn merge_album_open_subsonic_track_raw_ignores_empty_album_participants() {
-        let album = json!({ "artists": [], "displayArtist": "   " });
-        let mut song = json!({ "id": "tr_1" });
-        merge_album_open_subsonic_track_raw(&album, &mut song);
-        assert_eq!(song.get("albumArtists"), None);
-        assert_eq!(song.get("displayAlbumArtist"), None);
-    }
-
-    #[test]
-    fn subsonic_song_maps_hot_columns_and_keeps_raw_json() {
-        let raw = json!({
-            "id": "tr_1",
-            "title": "Hello",
-            "artist": "World",
-            "displayAlbumArtist": "World & Guests",
-            "albumId": "al_1",
-            "sortName": "Hello, The",
-            "duration": 240,
-            "track": 3,
-            "year": 2024,
-            "created": "2024-01-01T00:00:00Z",
-            "updatedAt": "2024-06-01T00:00:00Z",
-            "musicBrainzId": "mb-1",
-            "replayGain": { "trackGain": -1.2, "albumGain": -0.8, "trackPeak": 0.91 }
-        });
-        let song: Song = serde_json::from_value(raw.clone()).unwrap();
-        let row = subsonic_song_to_track_row("s1", &song, &raw, 1_000, Some("lib-fb"));
-        assert_eq!(row.id, "tr_1");
-        assert_eq!(row.album_id.as_deref(), Some("al_1"));
-        assert_eq!(row.album_artist.as_deref(), Some("World & Guests"));
-        assert_eq!(row.title_sort.as_deref(), Some("Hello, The"));
-        assert_eq!(row.duration_sec, 240);
-        assert_eq!(row.mbid_recording.as_deref(), Some("mb-1"));
-        assert_eq!(row.replay_gain_track_db, Some(-1.2));
-        assert_eq!(row.replay_gain_album_db, Some(-0.8));
-        assert_eq!(row.replay_gain_peak, Some(0.91));
-        assert!(row.server_created_at.unwrap_or(0) > 0);
-        assert!(row.server_updated_at.unwrap_or(0) > 0);
-        // Fallback library_id kicks in when the song didn't ship one.
-        assert_eq!(row.library_id.as_deref(), Some("lib-fb"));
-        assert!(row.raw_json.contains("replayGain"));
-    }
-
-    #[test]
-    fn sparse_typed_fallback_does_not_invent_explicit_nulls() {
-        let song: Song = serde_json::from_value(json!({
-            "id": "tr_1",
-            "title": "Hello"
-        }))
-        .unwrap();
-
-        let raw = sparse_song_raw_fallback(&song);
-
-        assert_eq!(raw.get("id"), Some(&json!("tr_1")));
-        assert!(raw.get("albumArtist").is_none());
-        assert!(raw.get("updatedAt").is_none());
-    }
-
-    #[test]
-    fn navidrome_song_maps_native_field_shape() {
-        let raw = json!({
-            "id": "tr_1",
-            "title": "Hello",
-            "sortTitle": "Hello, The",
-            "artist": "World",
-            "artistId": "ar_1",
-            "album": "An Album",
-            "albumId": "al_1",
-            "albumArtist": "World",
-            "duration": 240,
-            "trackNumber": 3,
-            "discNumber": 1,
-            "year": 2024,
-            "genre": "Ambient",
-            "suffix": "flac",
-            "bitRate": 1000,
-            "size": 32_000_000_i64,
-            "path": "World/An Album/03.flac",
-            "libraryId": "1",
-            "isrc": "USRC17607839",
-            "mbzTrackId": "mb-1",
-            "bpm": 128,
-            "rgTrackGain": -1.2,
-            "rgAlbumGain": -0.8,
-            "createdAt": "2024-01-01T00:00:00Z",
-            "updatedAt": "2024-06-01T00:00:00Z"
-        });
-        let row = navidrome_song_to_track_row("s1", &raw, 9_999, None).unwrap();
-        assert_eq!(row.id, "tr_1");
-        assert_eq!(row.title_sort.as_deref(), Some("Hello, The"));
-        assert_eq!(row.track_number, Some(3));
-        assert_eq!(row.isrc.as_deref(), Some("USRC17607839"));
-        assert_eq!(row.mbid_recording.as_deref(), Some("mb-1"));
-        assert_eq!(row.replay_gain_track_db, Some(-1.2));
-        assert_eq!(row.library_id.as_deref(), Some("1"));
-        assert!(row.server_created_at.unwrap_or(0) > 0);
-        assert!(row.server_updated_at.unwrap_or(0) > 0);
-    }
-
-    #[test]
-    fn navidrome_song_maps_numeric_library_id() {
-        let raw = json!({
-            "id": "tr_1",
-            "title": "Hello",
-            "libraryId": 3
-        });
-        let row = navidrome_song_to_track_row("s1", &raw, 1, None).unwrap();
-        assert_eq!(row.library_id.as_deref(), Some("3"));
-    }
-
-    #[test]
-    fn navidrome_song_rounds_decimal_duration_seconds() {
-        let raw = json!({
-            "id": "tr_1",
-            "title": "Hello",
-            "duration": 229.85,
-        });
-
-        let row = navidrome_song_to_track_row("s1", &raw, 1, None).unwrap();
-
-        assert_eq!(row.duration_sec, 230);
-    }
-
-    #[test]
-    fn navidrome_song_skips_rows_without_id() {
-        let row = navidrome_song_to_track_row("s1", &json!({"title": "no id"}), 1, None);
-        assert!(row.is_none());
-    }
-}
+mod tests;
