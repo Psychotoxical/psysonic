@@ -9,6 +9,7 @@ Psysonic is **GPLv3** — see [LICENSE](LICENSE). Forks and modifications are we
 - [Quick start](#quick-start)
 - [Before you write code](#before-you-write-code)
 - [Repository layout](#repository-layout)
+- [Repository location](#repository-location)
 - [Environment and running the app](#environment-and-running-the-app)
 - [Where processes and conventions are documented](#where-processes-and-conventions-are-documented)
 - [House rules](#house-rules)
@@ -55,6 +56,25 @@ scripts/     CI helpers (coverage gates, install, version sync)
 .github/     Workflows, issue templates, hot-path lists
 flake.nix    Nix development shell + packaging
 ```
+
+---
+
+## Repository location
+
+This repository lives at **`Psysonic/psysonic`**. It moved there from a personal account in August
+2026, and GitHub redirects the old path for clones, links and release downloads.
+
+> **The old path `Psychotoxical/psysonic` must never be occupied again — no repository, no fork,
+> not even temporarily.**
+
+Creating anything at the old location permanently deletes those redirects. Every release built
+before the move carries the old URL baked into its updater endpoint, so thousands of existing
+installations depend on that redirect for the rest of their lives, and they would fail silently
+with no error a user could act on.
+
+Two things deliberately keep the old owner name and are not location references: the WinGet package
+identifier `Psychotoxical.Psysonic` (changing it would orphan every installation updated through
+WinGet) and contributor handles.
 
 ---
 

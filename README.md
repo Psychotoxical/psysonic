@@ -18,7 +18,7 @@ Psysonic is built primarily for **Navidrome** and also works with **Gonic**, **A
 
 <br><br>
 
-**Available languages:** English, German, Spanish, French, Norwegian Bokmål, Dutch, Romanian, Russian, Chinese, Japanese, Hungarian and Polish.
+**Available languages:** English, German, Spanish, French, Norwegian Bokmål, Dutch, Romanian, Russian, Chinese, Japanese, Hungarian, Polish, Bulgarian and Italian.
 
 More translations are added over time.
 
@@ -57,6 +57,14 @@ The clever part: Orbit rides entirely on **your own Navidrome**. There is no ext
 <div align="left">
   <img src="public/orbit.png" alt="Orbit shared listening" width="520"/>
 </div>
+
+## 🗄️ Multi-Server — Every Server, One Library
+
+**Several servers at once, browsed as a single collection.**
+
+Configure more than one server and pick the music folders you care about across all of them, in a priority order you set. Home, Albums, Artists, Composers, Genres, Favourites, Playlists, Folder Browser, Search and Statistics aggregate into one catalogue — no switching the active server before every search, album or playback action.
+
+Shared music shows up once instead of once per server, and nothing gets thrown away doing it: every track keeps its real owner, so streaming, artwork, metadata and edits always go to the server that actually holds the file. One queue can mix tracks from different servers, and each item resolves against its own.
 
 ## ⚡ Local Library — Instant, and Almost Offline
 
@@ -117,7 +125,7 @@ Features that go well beyond the basics. Not all of these are unique to Psysonic
 
 ## Lyrics & Listening
 
-* Synced lyrics with seek support, from multiple providers ([YouLy+](https://github.com/ibratabian17/YouLyPlus), LRCLIB, NetEase)
+* Synced lyrics with seek support, from multiple providers (your own server, [LRCLIB](https://lrclib.net), NetEase)
 * Auto-scrolling sidebar lyrics and a fullscreen lyric mode
 * Last.fm scrobbling, similar artists, loved tracks and listening stats
 * Smart Radio sessions and an Infinite Queue
