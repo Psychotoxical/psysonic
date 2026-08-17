@@ -47,6 +47,7 @@ src-tauri/crates/psysonic-audio/src/ipc.rs
 
 # ── psysonic-integration ─────────────────────────────────────────────
 # discord.rs retains the concrete Discord IPC/Tauri command layer; gate the
-# extracted, testable artwork hot path rather than its unmockable transport.
+# extracted, testable pure helpers rather than its unmockable transport.
 src-tauri/crates/psysonic-integration/src/discord/artwork.rs
+src-tauri/crates/psysonic-integration/src/discord/presence.rs
 src-tauri/crates/psysonic-integration/src/navidrome/client.rs
