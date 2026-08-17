@@ -815,6 +815,8 @@ export const settings = {
   playlistCoverPhotoSub: 'Показвай мрежа от корици в изгледа с детайли на плейлистата',
   showBitrate: 'Показвай битрейт',
   showBitrateSub: 'Показвай аудио битрейта в списъците с песни',
+  showAlbumTooltips: 'Пълно заглавие при посочване',
+  showAlbumTooltipsSub: 'Показва пълното заглавие на албума и изпълнителя, когато картата ги отрязва',
   floatingPlayerBar: 'Плаваща лента на плейъра',
   floatingPlayerBarSub: 'Пази лентата на плейъра плаваща над съдържанието',
   squareCorners: 'Прави ъгли',

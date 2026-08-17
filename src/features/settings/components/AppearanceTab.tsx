@@ -119,6 +119,13 @@ export function AppearanceTab() {
             />
             <div className="settings-section-divider" />
             <SettingsToggle
+              label={t('settings.showAlbumTooltips')}
+              desc={t('settings.showAlbumTooltipsSub')}
+              checked={theme.showAlbumTooltips}
+              onChange={theme.setShowAlbumTooltips}
+            />
+            <div className="settings-section-divider" />
+            <SettingsToggle
               label={t('settings.floatingPlayerBar')}
               desc={t('settings.floatingPlayerBarSub')}
               checked={theme.floatingPlayerBar}

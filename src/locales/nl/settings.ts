@@ -735,6 +735,8 @@ export const settings = {
   playlistCoverPhotoSub: 'Toon coverfoto raster in playlist detailweergave',
   showBitrate: 'Toon Bitrate',
   showBitrateSub: 'Toon audio bitrate in tracklijsten',
+  showAlbumTooltips: 'Volledige titel bij zweven',
+  showAlbumTooltipsSub: 'Toon de volledige albumtitel en artiest wanneer de kaart ze afkapt',
   floatingPlayerBar: 'Zwevende Spelerbalk',
   floatingPlayerBarSub: 'Houd de spelerbalk zwevend boven de inhoud',
   squareCorners: 'Rechte hoeken',

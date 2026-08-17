@@ -815,6 +815,8 @@ export const settings = {
   playlistCoverPhotoSub: 'Borítókép-rács megjelenítése a lejátszási lista részletes nézetében',
   showBitrate: 'Bitráta megjelenítése',
   showBitrateSub: 'A hang bitrátájának megjelenítése a számlistákban',
+  showAlbumTooltips: 'Teljes cím rámutatáskor',
+  showAlbumTooltipsSub: 'A teljes albumcím és előadó megjelenítése, ha a kártya levágja őket',
   floatingPlayerBar: 'Lebegő lejátszósáv',
   floatingPlayerBarSub: 'A lejátszósáv lebegve tartása a tartalom felett',
   squareCorners: 'Szögletes sarkok',
