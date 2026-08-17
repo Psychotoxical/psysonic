@@ -23,7 +23,12 @@ import { useCallback } from 'react';
  *                   out on an empty one)
  *
  * Measuring on enter rather than at render also stays correct across resizes
- * and late font swaps, without a layout read per card.
+ * and late font swaps, without a layout read per card. The one gap that leaves:
+ * a layout change *during* the portal's open delay, while the pointer sits
+ * still, is not re-measured — the worst case is a tooltip on text that just
+ * stopped being clipped. Closing it would mean either re-measuring inside the
+ * shared portal or a `mousemove` handler on every card, which costs more than
+ * the cosmetic slip it prevents.
  */
 export function useOverflowTooltip(
   anchorText: string | null | undefined,
@@ -35,8 +40,10 @@ export function useOverflowTooltip(
 } {
   const onMouseEnter = useCallback((e: React.MouseEvent<HTMLElement>) => {
     const el = e.currentTarget;
-    // scrollWidth is the full content width, clientWidth the visible box — they
-    // differ exactly when `text-overflow: ellipsis` has something to cut.
+    // scrollWidth is the full content width, clientWidth the visible box. Both
+    // are rounded to integers, so with fractional grid columns this can disagree
+    // with the actual ellipsis by up to a pixel either way — close enough for a
+    // convenience tooltip, and cheaper than a per-card range measurement.
     const text = el.textContent?.trim();
     if (text && el.scrollWidth > el.clientWidth) el.setAttribute('data-tooltip', text);
     else el.removeAttribute('data-tooltip');

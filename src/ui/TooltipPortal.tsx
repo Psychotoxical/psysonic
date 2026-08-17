@@ -182,6 +182,10 @@ export default function TooltipPortal() {
         pointerEvents: 'none',
         whiteSpace: tooltip.wrap ? 'pre-line' : 'nowrap',
         maxWidth: tooltip.wrap ? '220px' : undefined,
+        // `max-width` alone does not break a token without spaces, and the
+        // horizontal clamp below measures the painted box — so an unbreakable
+        // string would still run off the edge despite having opted into wrapping.
+        overflowWrap: tooltip.wrap ? 'anywhere' : undefined,
         transition: 'opacity 0.15s ease',
         ...style,
       }}
