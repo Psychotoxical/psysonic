@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 >
 
 
+## [1.52.0]
+
+## Changed
+
+### Rust internals — smaller focused modules with the same behaviour
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1430](https://github.com/Psysonic/psysonic/pull/1430)**
+
+* Large analysis, audio, library, sync, cache, integration, CLI and startup modules are split into focused child modules behind the same public APIs and Tauri command/event contracts. Hand-written Rust files above 600 lines drop from 61 to 5 without an intended user-visible change.
+* Hot-path coverage follows the extracted implementation files, including Discord presence URL safety and text helpers. Comparable runtime benchmarks plus Linux and Windows CI found no reproducible behaviour or performance regression.
+
 ## [1.51.0] - 2026-08-17
 
 ## Added
