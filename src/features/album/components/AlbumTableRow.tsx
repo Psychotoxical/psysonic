@@ -110,7 +110,6 @@ function AlbumTableRow({
       className={`album-table__row album-table__grid${selected ? ' album-table__row--selected' : ''}`}
       role="row"
       aria-rowindex={rowIndex}
-      aria-selected={selectionMode ? selected : undefined}
       onClick={e => activate({ shiftKey: e.shiftKey })}
       onMouseDown={handleDragStart}
       onContextMenu={e => {
@@ -138,9 +137,15 @@ function AlbumTableRow({
           <div className="album-table__cover album-table__cover--placeholder" aria-hidden="true" />
         )}
         {selectionMode && (
+          // `aria-selected` on a row only carries inside role="grid"/"treegrid",
+          // and this is a role="table" — promoting it would promise cell-wise
+          // keyboard navigation that does not exist. The marker that already
+          // shows the state visually carries it instead, named after the album.
           <span
             className={`album-table__select${selected ? ' album-table__select--on' : ''}`}
-            aria-hidden="true"
+            role="checkbox"
+            aria-checked={selected}
+            aria-label={album.name}
           >
             {selected && <Check size={12} strokeWidth={3} />}
           </span>

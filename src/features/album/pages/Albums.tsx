@@ -562,6 +562,7 @@ export default function Albums() {
                   <AlbumViewModeToggle
                     value={viewMode}
                     onChange={mode => setViewMode('albums', mode)}
+                    scrollRootId={ALBUMS_INPAGE_SCROLL_VIEWPORT_ID}
                   />
                 </>
               )}

@@ -453,6 +453,7 @@ export default function NewReleases() {
                 <AlbumViewModeToggle
                   value={viewMode}
                   onChange={mode => setViewMode('new-releases', mode)}
+                  scrollRootId={NEW_RELEASES_INPAGE_SCROLL_VIEWPORT_ID}
                 />
               </>
             )}

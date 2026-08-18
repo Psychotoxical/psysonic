@@ -46,6 +46,8 @@ import { useOfflineLocalLibrarySyncRevision } from '@/store/offlineLocalLibraryS
 
 /** Local index page size — SQLite is cheap; larger pages than the network walk. */
 const LOCAL_PAGE_SIZE = 30;
+/** Module level so the table's row-index map is not rebuilt on every render. */
+const losslessAlbumKey = (album: SubsonicAlbum) => album.id;
 
 /** Per-loadMore budget for the Navidrome bit_depth song-stream fallback. */
 const NETWORK_TARGET_ALBUMS = 12;
@@ -344,6 +346,7 @@ export default function LosslessAlbums() {
                   <AlbumViewModeToggle
                     value={viewMode}
                     onChange={mode => setViewMode('lossless', mode)}
+                    scrollRootId={LOSSLESS_ALBUMS_INPAGE_SCROLL_VIEWPORT_ID}
                   />
                 </>
               )}
@@ -410,7 +413,7 @@ export default function LosslessAlbums() {
             {viewMode === 'table' ? (
               <AlbumTable
                 albums={displayAlbums}
-                itemKey={a => a.id}
+                itemKey={losslessAlbumKey}
                 scrollRootId={LOSSLESS_ALBUMS_INPAGE_SCROLL_VIEWPORT_ID}
                 disableVirtualization={perfFlags.disableMainstageVirtualLists}
                 selectionMode={selectionMode}

@@ -5,6 +5,8 @@ import type { AlbumViewMode } from '@/features/album/store/albumViewModeStore';
 interface AlbumViewModeToggleProps {
   value: AlbumViewMode;
   onChange: (mode: AlbumViewMode) => void;
+  /** Viewport this page scrolls; reset to top on a switch, see `select`. */
+  scrollRootId: string;
 }
 
 const ACTIVE_STYLE = {
@@ -21,14 +23,27 @@ const IDLE_STYLE = { padding: '0.5rem' } as const;
  * classes, same icons, same placement in the filter bar — so the two controls
  * do not read as different mechanisms.
  */
-export default function AlbumViewModeToggle({ value, onChange }: AlbumViewModeToggleProps) {
+export default function AlbumViewModeToggle({
+  value,
+  onChange,
+  scrollRootId,
+}: AlbumViewModeToggleProps) {
   const { t } = useTranslation();
+  const select = (mode: AlbumViewMode) => {
+    if (mode === value) return;
+    // A table row is a good deal shorter than a grid row, so the same catalogue is
+    // far less tall as a table. Keeping the offset would clamp it close to the new
+    // bottom, where the load-more sentinel waits — switching views would quietly
+    // pull another page. Starting at the top also puts the header in view.
+    document.getElementById(scrollRootId)?.scrollTo({ top: 0 });
+    onChange(mode);
+  };
   return (
     <>
       <button
         type="button"
         className={`btn btn-surface ${value === 'grid' ? 'btn-sort-active' : ''}`}
-        onClick={() => onChange('grid')}
+        onClick={() => select('grid')}
         style={value === 'grid' ? ACTIVE_STYLE : IDLE_STYLE}
         aria-pressed={value === 'grid'}
         data-tooltip={t('albums.gridView')}
@@ -39,7 +54,7 @@ export default function AlbumViewModeToggle({ value, onChange }: AlbumViewModeTo
       <button
         type="button"
         className={`btn btn-surface ${value === 'table' ? 'btn-sort-active' : ''}`}
-        onClick={() => onChange('table')}
+        onClick={() => select('table')}
         style={value === 'table' ? ACTIVE_STYLE : IDLE_STYLE}
         aria-pressed={value === 'table'}
         data-tooltip={t('albums.tableView')}
