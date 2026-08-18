@@ -299,8 +299,13 @@ pub fn list_mainstage_albums(
             overlay_album_artist_links(conn, &mut albums);
             // The candidate window cannot count a whole release (see
             // `map_mainstage_album`), so the totals are read back per album —
-            // after `truncate`, for the returned page only.
-            overlay_album_size_and_added(conn, &mut albums);
+            // after `truncate`, for the returned page only. New Releases alone:
+            // it is the feed the catalogue pages render, and Recently Played
+            // withholds a catalog date on purpose, since its ordering key is the
+            // play time rather than when the album arrived.
+            if request.feed == LibraryMainstageAlbumFeed::NewReleases {
+                overlay_album_size_and_added(conn, &mut albums);
+            }
             let result_count = albums.len();
             return Ok((
                 LibraryMainstageAlbumsResponse {
