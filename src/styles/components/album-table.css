@@ -7,6 +7,10 @@
   --album-table-cover-size: 40px;
   display: block;
   width: 100%;
+  /* Breakpoints below measure this element, not the window: the table sits in an
+     in-page viewport beside the sidebar and, when open, the queue panel, so a wide
+     window can still leave a narrow content column. */
+  container-type: inline-size;
 }
 
 .album-table__grid {
@@ -162,7 +166,7 @@
 }
 
 /* ── Narrow widths: drop columns right to left, cover + title + artist stay ── */
-@media (max-width: 1100px) {
+@container (max-width: 1100px) {
   .album-table__cell--added {
     display: none;
   }
@@ -178,7 +182,7 @@
   }
 }
 
-@media (max-width: 900px) {
+@container (max-width: 900px) {
   .album-table__cell--duration {
     display: none;
   }
@@ -193,7 +197,7 @@
   }
 }
 
-@media (max-width: 760px) {
+@container (max-width: 760px) {
   .album-table__cell--songs {
     display: none;
   }

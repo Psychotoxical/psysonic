@@ -137,15 +137,12 @@ function AlbumTableRow({
           <div className="album-table__cover album-table__cover--placeholder" aria-hidden="true" />
         )}
         {selectionMode && (
-          // `aria-selected` on a row only carries inside role="grid"/"treegrid",
-          // and this is a role="table" — promoting it would promise cell-wise
-          // keyboard navigation that does not exist. The marker that already
-          // shows the state visually carries it instead, named after the album.
+          // Purely visual: the state it shows is announced on the title button,
+          // which is the element keyboard focus actually reaches and the control
+          // that toggles selection while the mode is on.
           <span
             className={`album-table__select${selected ? ' album-table__select--on' : ''}`}
-            role="checkbox"
-            aria-checked={selected}
-            aria-label={album.name}
+            aria-hidden="true"
           >
             {selected && <Check size={12} strokeWidth={3} />}
           </span>
@@ -158,6 +155,11 @@ function AlbumTableRow({
           className="album-table__title-btn truncate"
           onClick={e => { e.stopPropagation(); activate({ shiftKey: e.shiftKey }); }}
           aria-label={t('common.albumByArtist', { album: album.name, artist: artistLabel })}
+          // In selection mode this button toggles the row instead of opening the
+          // album, so it is also where the state belongs. `aria-selected` on the
+          // row would carry only inside role="grid"/"treegrid", and promoting the
+          // table to one would advertise cell-wise keyboard navigation it lacks.
+          aria-pressed={selectionMode ? selected : undefined}
           {...titleTooltip}
         >
           {album.name}
