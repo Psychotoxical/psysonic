@@ -32,6 +32,9 @@ import { useMainstageInpageHeaderTight } from '@/lib/hooks/useMainstageInpageHea
 import { useInpageScrollViewport } from '@/lib/hooks/useInpageScrollViewport';
 import InpageScrollSentinel from '@/ui/InpageScrollSentinel';
 import { VirtualCardGrid } from '@/ui/VirtualCardGrid';
+import AlbumTable from '@/features/album/components/AlbumTable';
+import AlbumViewModeToggle from '@/features/album/components/AlbumViewModeToggle';
+import { useAlbumViewMode, useAlbumViewModeStore } from '@/features/album/store/albumViewModeStore';
 import OverlayScrollArea from '@/ui/OverlayScrollArea';
 import { ALBUMS_INPAGE_SCROLL_VIEWPORT_ID } from '@/constants/appScroll';
 import { useLibraryIndexStore } from '@/store/libraryIndexStore';
@@ -122,6 +125,9 @@ export default function Albums() {
     losslessOnly,
     setLosslessOnly,
   } = useAlbumBrowseFilters(serverId, scrollSnapshotRef);
+
+  const viewMode = useAlbumViewMode('albums');
+  const setViewMode = useAlbumViewModeStore(s => s.setViewMode);
 
   const albumsSearchQuery = useScopedBrowseSearchQuery('albums');
   const { textSearchAlbums, textSearchLoading } = useBrowseAlbumTextSearch(
@@ -552,6 +558,11 @@ export default function Albums() {
                       <FilterQuickClear onActiveChip onClear={() => setCompFilter('all')} />
                     )}
                   </button>
+
+                  <AlbumViewModeToggle
+                    value={viewMode}
+                    onChange={mode => setViewMode('albums', mode)}
+                  />
                 </>
               )}
 
@@ -583,6 +594,7 @@ export default function Albums() {
           albumsSearchQuery,
           perfFlags.disableMainstageGridCards,
           albumBrowsePlainLayout,
+          viewMode,
         ]}
       >
         {loading && albums.length === 0 ? (
@@ -612,30 +624,45 @@ export default function Albums() {
             <div style={{ visibility: isScrollRestorePending ? 'hidden' : 'visible' }}>
               {!perfFlags.disableMainstageGridCards && (
                 <div ref={gridMeasureRef}>
-                  <VirtualCardGrid
-                    items={displayAlbums}
+                  {viewMode === 'table' ? (
+                    <AlbumTable
+                      albums={displayAlbums}
+                      itemKey={ownedEntityKey}
+                      scrollRootId={ALBUMS_INPAGE_SCROLL_VIEWPORT_ID}
+                      disableVirtualization={albumBrowsePlainLayout}
+                      selectionMode={selectionMode}
+                      selectedIds={selectedIds}
+                      onToggleSelect={(a, opts) => toggleSelect(ownedEntityKey(a), opts)}
+                      selectedAlbums={selectedAlbums}
+                      linkQuery={losslessOnly ? LOSSLESS_MODE_QUERY : undefined}
+                      sort={{ value: sort, onChange: onSortChange }}
+                    />
+                  ) : (
+                    <VirtualCardGrid
+                      items={displayAlbums}
                       itemKey={(a, _i) => ownedEntityKey(a)}
-                    rowVariant="album"
-                    disableVirtualization={albumBrowsePlainLayout}
-                    layoutSignal={displayAlbums.length}
-                    scrollRootId={ALBUMS_INPAGE_SCROLL_VIEWPORT_ID}
-                    warmGridCovers={albumGridWarmCovers(
-                      albumCellDisplayCssPx,
-                      Math.min(displayAlbums.length, Math.max(albumGridCols * 6, 48)),
-                    )}
-                    renderItem={a => (
-                      <AlbumCard
-                        album={a}
-                        displayCssPx={albumCellDisplayCssPx}
-                        observeScrollRootId={ALBUMS_INPAGE_SCROLL_VIEWPORT_ID}
-                        linkQuery={losslessOnly ? LOSSLESS_MODE_QUERY : undefined}
-                        selectionMode={selectionMode}
-                        selected={selectedIds.has(ownedEntityKey(a))}
-                        onToggleSelect={(_id, opts) => toggleSelect(ownedEntityKey(a), opts)}
-                        selectedAlbums={selectedAlbums}
-                      />
-                    )}
-                  />
+                      rowVariant="album"
+                      disableVirtualization={albumBrowsePlainLayout}
+                      layoutSignal={displayAlbums.length}
+                      scrollRootId={ALBUMS_INPAGE_SCROLL_VIEWPORT_ID}
+                      warmGridCovers={albumGridWarmCovers(
+                        albumCellDisplayCssPx,
+                        Math.min(displayAlbums.length, Math.max(albumGridCols * 6, 48)),
+                      )}
+                      renderItem={a => (
+                        <AlbumCard
+                          album={a}
+                          displayCssPx={albumCellDisplayCssPx}
+                          observeScrollRootId={ALBUMS_INPAGE_SCROLL_VIEWPORT_ID}
+                          linkQuery={losslessOnly ? LOSSLESS_MODE_QUERY : undefined}
+                          selectionMode={selectionMode}
+                          selected={selectedIds.has(ownedEntityKey(a))}
+                          onToggleSelect={(_id, opts) => toggleSelect(ownedEntityKey(a), opts)}
+                          selectedAlbums={selectedAlbums}
+                        />
+                      )}
+                    />
+                  )}
                 </div>
               )}
               {hasMore && (

@@ -16,12 +16,11 @@ import { coverStorageKeyFromRef } from '@/cover/storageKeys';
 import type { CoverPrefetchPriority } from '@/cover/types';
 import { COVER_DENSE_GRID_MIN_CELL_CSS_PX } from '@/cover/layoutSizes';
 import { resolveCoverDisplayTier } from '@/cover/tiers';
-import { acquireUrl } from '@/cover';
 import { ResolvedArtistRefInline } from '@/ui/ResolvedArtistRefInline';
 import { fetchAlbumTracks, playAlbum, playAlbumShuffled } from '@/features/playback/utils/playback/playAlbum';
 import { useLongPressAction } from '@/lib/hooks/useLongPressAction';
 import { LongPressWaveOverlay } from '@/ui/LongPressWaveOverlay';
-import { useDragDrop } from '@/lib/dnd/DragDropContext';
+import { useAlbumDragStart } from '@/features/album/hooks/useAlbumDragStart';
 import { isAlbumRecentlyAdded } from '@/features/album/utils/albumRecency';
 import { albumArtistDisplayName, deriveAlbumArtistRefs } from '@/features/album/utils/deriveAlbumHeaderArtistRefs';
 import { coverServerScopeForServerId } from '@/cover/serverScope';
@@ -82,7 +81,6 @@ function AlbumCard({
     [linkQuery, album.serverId],
   );
   void localEntries;
-  const psyDrag = useDragDrop();
   const coverServerScope = useMemo(
     () => coverServerScopeForServerId(album.serverId),
     [album.serverId],
@@ -93,6 +91,7 @@ function AlbumCard({
     const tier = resolveCoverDisplayTier(displayCssPx, { surface: 'dense' });
     return coverStorageKeyFromRef(coverRef, tier);
   }, [coverRef, displayCssPx]);
+  const handleDragStart = useAlbumDragStart(album, dragCoverKey, selectionMode);
   const isNewAlbum = isAlbumRecentlyAdded(album.created);
   const artistRefs = useMemo(() => deriveAlbumArtistRefs(album), [album]);
   const artistLabel = useMemo(() => albumArtistDisplayName(album), [album]);
@@ -121,31 +120,7 @@ function AlbumCard({
           openContextMenu(e.clientX, e.clientY, album, 'album');
         }
       }}
-      onMouseDown={e => {
-        if (selectionMode || e.button !== 0) return;
-        e.preventDefault();
-        const sx = e.clientX, sy = e.clientY;
-        const onMove = (me: MouseEvent) => {
-          if (Math.abs(me.clientX - sx) > 5 || Math.abs(me.clientY - sy) > 5) {
-            document.removeEventListener('mousemove', onMove);
-            document.removeEventListener('mouseup', onUp);
-            const coverUrl = dragCoverKey ? acquireUrl(dragCoverKey) ?? undefined : undefined;
-            psyDrag.startDrag({
-              data: JSON.stringify({
-                type: 'album',
-                id: album.id,
-                name: album.name,
-                serverId: album.serverId,
-              }),
-              label: album.name,
-              coverUrl,
-            }, me.clientX, me.clientY);
-          }
-        };
-        const onUp = () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
-        document.addEventListener('mousemove', onMove);
-        document.addEventListener('mouseup', onUp);
-      }}
+      onMouseDown={handleDragStart}
     >
       <div className="album-card-cover">
         {!disableArtwork && coverRef ? (

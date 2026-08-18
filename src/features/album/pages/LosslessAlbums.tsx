@@ -22,6 +22,9 @@ import { Download, HardDriveDownload, ListPlus } from 'lucide-react';
 import SelectionToggleButton from '@/ui/SelectionToggleButton';
 import { albumGridWarmCovers } from '@/cover/layoutSizes';
 import { VirtualCardGrid } from '@/ui/VirtualCardGrid';
+import AlbumTable from '@/features/album/components/AlbumTable';
+import AlbumViewModeToggle from '@/features/album/components/AlbumViewModeToggle';
+import { useAlbumViewMode, useAlbumViewModeStore } from '@/features/album/store/albumViewModeStore';
 import OverlayScrollArea from '@/ui/OverlayScrollArea';
 import { LOSSLESS_ALBUMS_INPAGE_SCROLL_VIEWPORT_ID } from '@/constants/appScroll';
 import { useInpageScrollSentinel } from '@/lib/hooks/useInpageScrollSentinel';
@@ -73,6 +76,8 @@ export default function LosslessAlbums() {
   const [hasMore, setHasMore] = useState(true);
   const [unsupported, setUnsupported] = useState(false);
   const [selectionMode, setSelectionMode] = useState(false);
+  const viewMode = useAlbumViewMode('lossless');
+  const setViewMode = useAlbumViewModeStore(s => s.setViewMode);
   /** `true` = local SQLite; `false` = Navidrome song-stream walk; `null` until first fetch picks. */
   const [useLocalIndex, setUseLocalIndex] = useState<boolean | null>(null);
 
@@ -330,11 +335,17 @@ export default function LosslessAlbums() {
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
               {!(selectionMode && selectedIds.size > 0) && (
-                <SortDropdown
-                  value={sort}
-                  options={sortOptions}
-                  onChange={value => setBrowseSort(serverId, value)}
-                />
+                <>
+                  <SortDropdown
+                    value={sort}
+                    options={sortOptions}
+                    onChange={value => setBrowseSort(serverId, value)}
+                  />
+                  <AlbumViewModeToggle
+                    value={viewMode}
+                    onChange={mode => setViewMode('lossless', mode)}
+                  />
+                </>
               )}
               {selectionMode && selectedIds.size > 0 && (
                 <>
@@ -379,6 +390,7 @@ export default function LosslessAlbums() {
           useLocalIndex,
           perfFlags.disableMainstageVirtualLists,
           perfFlags.disableMainstageStickyHeader,
+          viewMode,
         ]}
       >
         {unsupported ? (
@@ -395,26 +407,41 @@ export default function LosslessAlbums() {
           </div>
         ) : (
           <>
-            <VirtualCardGrid
-              items={displayAlbums}
-              itemKey={(a, _i) => a.id}
-              rowVariant="album"
-              disableVirtualization={perfFlags.disableMainstageVirtualLists}
-              layoutSignal={displayAlbums.length}
-              scrollRootId={LOSSLESS_ALBUMS_INPAGE_SCROLL_VIEWPORT_ID}
-              warmGridCovers={albumGridWarmCovers()}
-              renderItem={a => (
-                <AlbumCard
-                  album={a}
-                  observeScrollRootId={LOSSLESS_ALBUMS_INPAGE_SCROLL_VIEWPORT_ID}
-                  linkQuery={LOSSLESS_MODE_QUERY}
-                  selectionMode={selectionMode}
-                  selected={selectedIds.has(a.id)}
-                  onToggleSelect={toggleSelect}
-                  selectedAlbums={selectedAlbums}
-                />
-              )}
-            />
+            {viewMode === 'table' ? (
+              <AlbumTable
+                albums={displayAlbums}
+                itemKey={a => a.id}
+                scrollRootId={LOSSLESS_ALBUMS_INPAGE_SCROLL_VIEWPORT_ID}
+                disableVirtualization={perfFlags.disableMainstageVirtualLists}
+                selectionMode={selectionMode}
+                selectedIds={selectedIds}
+                onToggleSelect={(a, opts) => toggleSelect(a.id, opts)}
+                selectedAlbums={selectedAlbums}
+                linkQuery={LOSSLESS_MODE_QUERY}
+                sort={{ value: sort, onChange: value => setBrowseSort(serverId, value) }}
+              />
+            ) : (
+              <VirtualCardGrid
+                items={displayAlbums}
+                itemKey={(a, _i) => a.id}
+                rowVariant="album"
+                disableVirtualization={perfFlags.disableMainstageVirtualLists}
+                layoutSignal={displayAlbums.length}
+                scrollRootId={LOSSLESS_ALBUMS_INPAGE_SCROLL_VIEWPORT_ID}
+                warmGridCovers={albumGridWarmCovers()}
+                renderItem={a => (
+                  <AlbumCard
+                    album={a}
+                    observeScrollRootId={LOSSLESS_ALBUMS_INPAGE_SCROLL_VIEWPORT_ID}
+                    linkQuery={LOSSLESS_MODE_QUERY}
+                    selectionMode={selectionMode}
+                    selected={selectedIds.has(a.id)}
+                    onToggleSelect={toggleSelect}
+                    selectedAlbums={selectedAlbums}
+                  />
+                )}
+              />
+            )}
             {hasMore && useLocalIndex !== null && (
               <InpageScrollSentinel
                 bindSentinel={bindLoadMoreSentinel}

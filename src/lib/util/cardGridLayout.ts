@@ -32,7 +32,16 @@ export function computeCellWidthPx(containerWidthPx: number, columnCount: number
   return (containerWidthPx - (c - 1) * CARD_GRID_GAP_PX) / c;
 }
 
-export type CardGridRowHeightVariant = 'artist' | 'album' | 'playlist' | 'offline' | 'composer';
+export type CardGridRowHeightVariant =
+  | 'artist'
+  | 'album'
+  | 'playlist'
+  | 'offline'
+  | 'composer'
+  | 'albumTableRow';
+
+/** Album table row height in CSS px — 40px cover thumb plus vertical padding. */
+export const ALBUM_TABLE_ROW_HEIGHT_PX = 48;
 
 const VARIANT: Record<CardGridRowHeightVariant, { extra: number; min: number; max: number }> = {
   artist: { extra: 72, min: 200, max: 520 },
@@ -44,6 +53,13 @@ const VARIANT: Record<CardGridRowHeightVariant, { extra: number; min: number; ma
   /** Text-only composer tiles: no imagery → fixed intrinsic height, does not
    * scale with cell width like the image variants. min === max pins it. */
   composer: { extra: 0, min: 88, max: 88 },
+  /** Full-width table rows: height is the row's own, independent of cell width
+   * (the row spans the container). Pinned like `composer`. */
+  albumTableRow: {
+    extra: 0,
+    min: ALBUM_TABLE_ROW_HEIGHT_PX,
+    max: ALBUM_TABLE_ROW_HEIGHT_PX,
+  },
 };
 
 export function estimateRowHeightPx(cellWidthPx: number, variant: CardGridRowHeightVariant): number {

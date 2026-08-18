@@ -22,6 +22,19 @@ export type VirtualCardGridProps<T> = {
   wrapStyle?: React.CSSProperties;
   /** Defaults to `var(--space-4)`; composer grid uses `var(--space-2)`. */
   gridGap?: string;
+  /**
+   * Pins the layout to one item per row, bypassing the width-derived column
+   * count. `computeCardGridColumnCount` floors its cap at four columns, so a
+   * full-width row (album table) can only be had by opting out of the
+   * derivation — it is not reachable by any container width above ~296px.
+   */
+  singleColumn?: boolean;
+  /**
+   * Marks the three layout wrappers this component owns as `presentation`, so
+   * an ARIA structure the caller builds around them (a table wrapping rows)
+   * keeps its parent/child relationship across them.
+   */
+  presentationalWrappers?: boolean;
   /** When set, row virtualization uses this scroll container instead of the main route viewport. */
   scrollRootId?: string;
   /** Pre-peek disk WebP for the first viewport of cards (one IPC batch before cells ensure). */
@@ -49,6 +62,8 @@ export function VirtualCardGrid<T>({
   wrapClassName = 'album-grid-wrap',
   wrapStyle,
   gridGap = 'var(--space-4)',
+  singleColumn = false,
+  presentationalWrappers = false,
   scrollRootId,
   warmGridCovers,
 }: VirtualCardGridProps<T>): React.JSX.Element {
@@ -73,7 +88,7 @@ export function VirtualCardGrid<T>({
 
   const wrapRef = useRef<HTMLDivElement>(null);
   const { gridCols, rowHeightEst } = useCardGridMetrics(wrapRef, true, rowVariant, layoutSignal);
-  const cols = Math.max(1, gridCols);
+  const cols = singleColumn ? 1 : Math.max(1, gridCols);
   const virtualRowCount = Math.max(0, Math.ceil(items.length / cols));
   const scrollMetricsElementId = scrollRootId ?? APP_MAIN_SCROLL_VIEWPORT_ID;
   const scrollViewportClientHeight = useElementClientHeightById(scrollMetricsElementId);
@@ -111,11 +126,14 @@ export function VirtualCardGrid<T>({
     virtualRowCount,
   });
 
+  const wrapperRole = presentationalWrappers ? 'presentation' : undefined;
+
   if (disableVirtualization) {
     return (
       <div
         ref={wrapRef}
         className={wrapClassName}
+        role={wrapperRole}
         style={{
           display: 'grid',
           gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`,
@@ -135,9 +153,11 @@ export function VirtualCardGrid<T>({
     <div
       ref={wrapRef}
       className={wrapClassName}
+      role={wrapperRole}
       style={{ display: 'block', position: 'relative', width: '100%', ...wrapStyle }}
     >
       <div
+        role={wrapperRole}
         style={{
           height: virtualRowCount === 0 ? 0 : virtualizer.getTotalSize(),
           width: '100%',
@@ -153,6 +173,7 @@ export function VirtualCardGrid<T>({
           return (
             <div
               key={vRow.key}
+              role={wrapperRole}
               style={{
                 position: 'absolute',
                 top: 0,

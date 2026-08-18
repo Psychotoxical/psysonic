@@ -22,6 +22,9 @@ import { usePerfProbeFlags } from '@/lib/perf/perfFlags';
 import { useMainstageInpageHeaderTight } from '@/lib/hooks/useMainstageInpageHeaderTight';
 import { albumGridWarmCovers } from '@/cover/layoutSizes';
 import { VirtualCardGrid } from '@/ui/VirtualCardGrid';
+import AlbumTable from '@/features/album/components/AlbumTable';
+import AlbumViewModeToggle from '@/features/album/components/AlbumViewModeToggle';
+import { useAlbumViewMode, useAlbumViewModeStore } from '@/features/album/store/albumViewModeStore';
 import OverlayScrollArea from '@/ui/OverlayScrollArea';
 import { NEW_RELEASES_INPAGE_SCROLL_VIEWPORT_ID } from '@/constants/appScroll';
 import { useAsyncInpagePagination } from '@/lib/hooks/useAsyncInpagePagination';
@@ -132,6 +135,8 @@ export default function NewReleases() {
     enabled: !scopedSearchQuery,
   });
   const [selectionMode, setSelectionMode] = useState(false);
+  const viewMode = useAlbumViewMode('new-releases');
+  const setViewMode = useAlbumViewModeStore(s => s.setViewMode);
   const genreFiltered = selectedGenres.length > 0;
   const hotOverlay = useHotNewReleaseOverlay(
     releaseScopes,
@@ -439,11 +444,17 @@ export default function NewReleases() {
                 </button>
               </>
             ) : (
-              <GenreFilterBar
-                selected={selectedGenres}
-                onSelectionChange={setSelectedGenres}
-                catalogGenres={genreCounts}
-              />
+              <>
+                <GenreFilterBar
+                  selected={selectedGenres}
+                  onSelectionChange={setSelectedGenres}
+                  catalogGenres={genreCounts}
+                />
+                <AlbumViewModeToggle
+                  value={viewMode}
+                  onChange={mode => setViewMode('new-releases', mode)}
+                />
+              </>
             )}
             <SelectionToggleButton
               active={selectionMode}
@@ -470,6 +481,7 @@ export default function NewReleases() {
           selectionMode,
           newReleasesSearchQuery,
           albumBrowsePlainLayout,
+          viewMode,
         ]}
       >
         {loadingGrid && displayAlbums.length === 0 ? (
@@ -487,25 +499,38 @@ export default function NewReleases() {
         ) : (
           <div style={{ position: 'relative' }}>
             <div style={{ visibility: isScrollRestorePending ? 'hidden' : 'visible' }}>
-            <VirtualCardGrid
-              items={displayAlbums}
-              itemKey={(a, _i) => ownedEntityKey(a)}
-              rowVariant="album"
-              disableVirtualization={albumBrowsePlainLayout}
-              layoutSignal={displayAlbums.length}
-              scrollRootId={NEW_RELEASES_INPAGE_SCROLL_VIEWPORT_ID}
-              warmGridCovers={albumGridWarmCovers()}
-              renderItem={a => (
-                <AlbumCard
-                  album={a}
-                  observeScrollRootId={NEW_RELEASES_INPAGE_SCROLL_VIEWPORT_ID}
-                  selectionMode={selectionMode}
-                  selected={selectedIds.has(ownedEntityKey(a))}
-                  onToggleSelect={(_id, opts) => toggleSelect(ownedEntityKey(a), opts)}
-                  selectedAlbums={selectedAlbums}
-                />
-              )}
-            />
+            {viewMode === 'table' ? (
+              <AlbumTable
+                albums={displayAlbums}
+                itemKey={ownedEntityKey}
+                scrollRootId={NEW_RELEASES_INPAGE_SCROLL_VIEWPORT_ID}
+                disableVirtualization={albumBrowsePlainLayout}
+                selectionMode={selectionMode}
+                selectedIds={selectedIds}
+                onToggleSelect={(a, opts) => toggleSelect(ownedEntityKey(a), opts)}
+                selectedAlbums={selectedAlbums}
+              />
+            ) : (
+              <VirtualCardGrid
+                items={displayAlbums}
+                itemKey={(a, _i) => ownedEntityKey(a)}
+                rowVariant="album"
+                disableVirtualization={albumBrowsePlainLayout}
+                layoutSignal={displayAlbums.length}
+                scrollRootId={NEW_RELEASES_INPAGE_SCROLL_VIEWPORT_ID}
+                warmGridCovers={albumGridWarmCovers()}
+                renderItem={a => (
+                  <AlbumCard
+                    album={a}
+                    observeScrollRootId={NEW_RELEASES_INPAGE_SCROLL_VIEWPORT_ID}
+                    selectionMode={selectionMode}
+                    selected={selectedIds.has(ownedEntityKey(a))}
+                    onToggleSelect={(_id, opts) => toggleSelect(ownedEntityKey(a), opts)}
+                    selectedAlbums={selectedAlbums}
+                  />
+                )}
+              />
+            )}
             {gridHasMore && (
               <InpageScrollSentinel
                 bindSentinel={bindLoadMoreSentinel}

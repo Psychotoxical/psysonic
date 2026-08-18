@@ -1,0 +1,208 @@
+/* ─ Album table view (All Albums / New Releases / Lossless) ─
+   Header and rows share `.album-table__grid` so the columns line up; the row
+   height is pinned from `ALBUM_TABLE_ROW_HEIGHT_PX` because the virtualiser
+   positions rows on that exact pitch. */
+
+.album-table {
+  --album-table-cover-size: 40px;
+  display: block;
+  width: 100%;
+}
+
+.album-table__grid {
+  display: grid;
+  grid-template-columns:
+    var(--album-table-cover-size)
+    minmax(0, 3fr)
+    minmax(0, 2fr)
+    64px
+    64px
+    80px
+    112px;
+  gap: var(--space-3);
+  align-items: center;
+  padding: 0 var(--space-3);
+}
+
+.album-table__header {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  height: 34px;
+  background: var(--bg-app);
+  border-bottom: 1px solid var(--row-divider);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--col-header-text);
+}
+
+.album-table__row {
+  height: var(--album-table-row-height, 48px);
+  box-sizing: border-box;
+  border-bottom: 1px solid var(--row-divider);
+  cursor: pointer;
+  user-select: none;
+  contain: layout style;
+  transition: background var(--transition-fast);
+}
+
+.album-table__row:hover {
+  background: var(--row-hover);
+}
+
+.album-table__row--selected,
+.album-table__row--selected:hover {
+  background: var(--accent-dim);
+}
+
+.album-table__cell {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.album-table__cell--cover {
+  position: relative;
+  width: var(--album-table-cover-size);
+  height: var(--album-table-cover-size);
+  overflow: visible;
+}
+
+.album-table__cover {
+  width: var(--album-table-cover-size);
+  height: var(--album-table-cover-size);
+  border-radius: var(--radius-sm);
+  object-fit: cover;
+  background: var(--bg-hover);
+}
+
+.album-table__cover--placeholder {
+  background: var(--card-placeholder-bg, var(--bg-hover));
+}
+
+.album-table__select {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  background: rgba(0, 0, 0, 0.45);
+  color: #fff;
+}
+
+.album-table__select--on {
+  background: var(--accent);
+  color: var(--text-on-accent);
+}
+
+.album-table__title-btn {
+  display: block;
+  max-width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: var(--row-text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.album-table__title-btn:hover {
+  color: var(--accent);
+}
+
+.album-table__title-btn:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.album-table__artist {
+  display: block;
+  color: var(--row-text-secondary);
+  font-size: 13px;
+}
+
+.album-table__cell--songs,
+.album-table__cell--year,
+.album-table__cell--duration,
+.album-table__cell--added {
+  color: var(--row-text-muted);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.album-table__sort-btn {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.album-table__sort-btn:hover {
+  color: var(--text-primary);
+}
+
+.album-table__sort-btn--active {
+  color: var(--accent);
+}
+
+.album-table__sort-btn:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+}
+
+/* ── Narrow widths: drop columns right to left, cover + title + artist stay ── */
+@media (max-width: 1100px) {
+  .album-table__cell--added {
+    display: none;
+  }
+
+  .album-table__grid {
+    grid-template-columns:
+      var(--album-table-cover-size)
+      minmax(0, 3fr)
+      minmax(0, 2fr)
+      64px
+      64px
+      80px;
+  }
+}
+
+@media (max-width: 900px) {
+  .album-table__cell--duration {
+    display: none;
+  }
+
+  .album-table__grid {
+    grid-template-columns:
+      var(--album-table-cover-size)
+      minmax(0, 3fr)
+      minmax(0, 2fr)
+      64px
+      64px;
+  }
+}
+
+@media (max-width: 760px) {
+  .album-table__cell--songs {
+    display: none;
+  }
+
+  .album-table__grid {
+    grid-template-columns:
+      var(--album-table-cover-size)
+      minmax(0, 3fr)
+      minmax(0, 2fr)
+      64px;
+  }
+}

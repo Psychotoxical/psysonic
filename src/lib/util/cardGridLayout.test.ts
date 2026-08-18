@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { computeCardGridColumnCount, estimateRowHeightPx } from '@/lib/util/cardGridLayout';
+import {
+  ALBUM_TABLE_ROW_HEIGHT_PX,
+  computeCardGridColumnCount,
+  estimateRowHeightPx,
+} from '@/lib/util/cardGridLayout';
 import { LIBRARY_GRID_MAX_COLUMNS_MAX, LIBRARY_GRID_MAX_COLUMNS_MIN } from '@/store/authStoreDefaults';
 
 describe('estimateRowHeightPx', () => {
@@ -13,6 +17,18 @@ describe('estimateRowHeightPx', () => {
       expect(estimateRowHeightPx(150, 'composer')).toBe(88);
       expect(estimateRowHeightPx(400, 'composer')).toBe(88);
       expect(estimateRowHeightPx(2_000, 'composer')).toBe(88);
+    });
+  });
+
+  describe('album table row variant', () => {
+    // A table row spans the container, so its height is its own and must not
+    // follow cell width. The smallest image variant clamps at 260 px and the
+    // composer one at 88 px — both far above a 48 px row, which is why this
+    // variant exists rather than reusing one of them.
+    it('returns the pinned row height regardless of cell width', () => {
+      expect(estimateRowHeightPx(40, 'albumTableRow')).toBe(ALBUM_TABLE_ROW_HEIGHT_PX);
+      expect(estimateRowHeightPx(400, 'albumTableRow')).toBe(ALBUM_TABLE_ROW_HEIGHT_PX);
+      expect(estimateRowHeightPx(2_000, 'albumTableRow')).toBe(ALBUM_TABLE_ROW_HEIGHT_PX);
     });
   });
 
