@@ -99,7 +99,7 @@ export const help = {
   // ── Section 10: Integrations & Troubleshooting ─────────────────────────
   s10: '連携とトラブルシューティング',
   q39: 'Scrobbling: Last.fm、ListenBrainz、Maloja などは使えますか？',
-  a39: '設定 → 連携 → Music Network。1 つ以上の scrobble サービス (Last.fm、Libre.fm、Rocksky、ListenBrainz、Maloja、または任意の GNU FM 互換サーバー) に接続できます。Navidrome 側の設定は不要です。scrobbling が有効な接続済みサービスはすべて再生を受け取ります。マスターの "Scrobble を有効化" スイッチで全体の送信をオン/オフします。Music Network で設定した割合 (デフォルト 50%) に達すると scrobble が送信され、対応サービスでは開始時に now-playing ping が送信されます。1 つのサービスをプライマリにします。お気に入りトラック、類似アーティスト、再生統計はそこから読み取られます。ヒント: Navidrome サーバーがすでにサービス (例: Maloja) へ scrobble している場合、同じサービスをここでも接続しないでください。重複 scrobble になります。',
+  a39: '設定 → 連携 → Music Network。1 つ以上の scrobble サービス (Last.fm、Libre.fm、Rocksky、ListenBrainz、Maloja、または任意の GNU FM 互換サーバー) に接続できます。Navidrome 側の設定は不要です。scrobbling が有効な接続済みサービスはすべて再生を受け取ります。マスターの "Scrobble を有効化" スイッチで全体の送信をオン/オフします。Music Network で設定した割合 (デフォルト 50%) に達すると scrobble が送信されます。詳細設定では、現在のトラックをすぐに送信するプレイヤー操作も表示できます。対応サービスでは開始時に now-playing ping が送信されます。1 つのサービスをプライマリにします。お気に入りトラック、類似アーティスト、再生統計はそこから読み取られます。ヒント: Navidrome サーバーがすでにサービス (例: Maloja) へ scrobble している場合、同じサービスをここでも接続しないでください。重複 scrobble になります。',
   q40: 'Discord Rich Presence は？',
   a40: '設定 → 連携 → Discord で現在のトラックを Discord プロフィールに表示します。アプリアイコン、サーバーのカバーアート (getAlbumInfo2 経由。公開到達可能なサーバーが必要)、Apple Music カバーから選べます。表示文字列 (details、state、tooltip) はトークンテンプレートでカスタマイズできます。',
   q41: 'Bandsintown ツアー日程は？',
