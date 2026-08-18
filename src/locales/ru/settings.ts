@@ -837,6 +837,8 @@ export const settings = {
   playlistCoverPhotoSub: 'Показывать сетку обложек в детальном виде плейлиста',
   showBitrate: 'Показывать битрейт',
   showBitrateSub: 'Отображать битрейт аудио в списках треков',
+  showCardTooltips: 'Полное название при наведении',
+  showCardTooltipsSub: 'Показывать полное название альбома и исполнителя, когда карточка их обрезает',
   floatingPlayerBar: 'Плавающая панель плеера',
   floatingPlayerBarSub: 'Держать панель плеера плавающей над содержимым',
   squareCorners: 'Прямые углы',

@@ -2,6 +2,8 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router';
 import { Play, HardDriveDownload, Trash2, ListPlus, ListMusic, Heart } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { useThemeStore } from '@/store/themeStore';
+import { useOverflowTooltipFactory } from '@/lib/hooks/useOverflowTooltip';
 import { useOfflineStore } from '@/features/offline/store/offlineStore';
 import { useLocalPlaybackStore } from '@/store/localPlaybackStore';
 import { useAuthStore } from '@/store/authStore';
@@ -57,6 +59,8 @@ type OfflineGridItem =
 
 export default function OfflineLibrary() {
   const { t } = useTranslation();
+  const showCardTooltips = useThemeStore(st => st.showCardTooltips);
+  const cardTooltip = useOverflowTooltipFactory(showCardTooltips);
   const navigate = useNavigate();
   const perfFlags = usePerfProbeFlags();
   const servers = useAuthStore(s => s.servers);
@@ -557,16 +561,16 @@ export default function OfflineLibrary() {
             <button
               className="album-card-details-btn"
               onClick={() => handlePlay(card)}
-              aria-label={`${card.name} abspielen`}
+              aria-label={`${t('hero.playAlbum')} — ${card.name}`}
             >
               <Play size={15} fill="currentColor" />
             </button>
           </div>
         </div>
         <div className="album-card-info">
-          <p className="album-card-title truncate">{card.name}</p>
+          <p className="album-card-title truncate" {...cardTooltip(card.name)}>{card.name}</p>
           {card.artist ? (
-            <p className="album-card-artist truncate">{card.artist}</p>
+            <p className="album-card-artist truncate" {...cardTooltip(card.artist)}>{card.artist}</p>
           ) : null}
           {showServerLabels && serverLabel && (
             <p className="offline-library-server truncate" title={serverLabel}>

@@ -815,6 +815,8 @@ export const settings = {
   playlistCoverPhotoSub: 'Mostra la griglia delle foto di copertina nella vista dettaglio playlist',
   showBitrate: 'Mostra bitrate',
   showBitrateSub: 'Mostra il bitrate audio negli elenchi dei brani',
+  showCardTooltips: 'Titolo completo al passaggio del mouse',
+  showCardTooltipsSub: 'Mostra il titolo completo dell\'album e l\'artista quando la scheda li tronca',
   floatingPlayerBar: 'Barra del player flottante',
   floatingPlayerBarSub: 'Mantieni la barra del player fluttuante sopra i contenuti',
   squareCorners: 'Angoli squadrati',

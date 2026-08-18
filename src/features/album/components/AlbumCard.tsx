@@ -6,6 +6,8 @@ import { Play, ListPlus, HardDriveDownload, Check } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { usePlayerStore } from '@/features/playback/store/playerStore';
 import { useAuthStore } from '@/store/authStore';
+import { useThemeStore } from '@/store/themeStore';
+import { useOverflowTooltip } from '@/lib/hooks/useOverflowTooltip';
 import { useLocalPlaybackStore } from '@/store/localPlaybackStore';
 import { isOfflinePinComplete } from '@/features/offline';
 import { CoverArtImage } from '@/cover/CoverArtImage';
@@ -94,6 +96,9 @@ function AlbumCard({
   const isNewAlbum = isAlbumRecentlyAdded(album.created);
   const artistRefs = useMemo(() => deriveAlbumArtistRefs(album), [album]);
   const artistLabel = useMemo(() => albumArtistDisplayName(album), [album]);
+  const showCardTooltips = useThemeStore(s => s.showCardTooltips);
+  const titleTooltip = useOverflowTooltip(album.name, showCardTooltips);
+  const artistTooltip = useOverflowTooltip(artistLabel, showCardTooltips);
 
   const handleClick = (opts?: { shiftKey?: boolean }) => {
     if (selectionMode) { onToggleSelect?.(album.id, opts); return; }
@@ -106,7 +111,7 @@ function AlbumCard({
       onClick={e => handleClick({ shiftKey: e.shiftKey })}
       role="button"
       tabIndex={0}
-      aria-label={`${album.name} von ${artistLabel}`}
+      aria-label={t('common.albumByArtist', { album: album.name, artist: artistLabel })}
       onKeyDown={e => e.key === 'Enter' && handleClick()}
       onContextMenu={(e) => {
         e.preventDefault();
@@ -219,8 +224,8 @@ function AlbumCard({
         )}
       </div>
       <div className="album-card-info">
-        <p className="album-card-title truncate">{album.name}</p>
-        <p className="album-card-artist truncate">
+        <p className="album-card-title truncate" {...titleTooltip}>{album.name}</p>
+        <p className="album-card-artist truncate" {...artistTooltip}>
           <ResolvedArtistRefInline
             refs={artistRefs}
             serverId={album.serverId ?? activeServerId}

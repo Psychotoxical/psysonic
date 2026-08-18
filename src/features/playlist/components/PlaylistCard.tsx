@@ -1,5 +1,7 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
+import { useThemeStore } from '@/store/themeStore';
+import { useOverflowTooltip } from '@/lib/hooks/useOverflowTooltip';
 import { useNavigate } from 'react-router';
 import { Check, Clock3, ListMusic, Pencil, Play, Sparkles, Trash2 } from 'lucide-react';
 import type { SubsonicPlaylist } from '@/lib/api/subsonicTypes';
@@ -45,6 +47,8 @@ export default function PlaylistCard({
   serverLabel,
 }: Props) {
   const { t } = useTranslation();
+  const showCardTooltips = useThemeStore(st => st.showCardTooltips);
+  const nameTooltip = useOverflowTooltip(displayPlaylistName(pl.name), showCardTooltips);
   const navigate = useNavigate();
   const openContextMenu = usePlayerStore(s => s.openContextMenu);
   const playlistKey = ownedEntityKey(pl);
@@ -178,7 +182,7 @@ export default function PlaylistCard({
       </div>
 
       <div className="album-card-info">
-        <div className="album-card-title" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <div className="album-card-title" style={{ display: 'flex', alignItems: 'center', gap: 6 }} {...nameTooltip}>
           {isSmartPlaylistName(pl.name) && <Sparkles size={14} style={{ color: 'var(--text-muted)', flex: '0 0 auto' }} />}
           <span>{displayPlaylistName(pl.name)}</span>
         </div>

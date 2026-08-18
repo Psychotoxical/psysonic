@@ -734,6 +734,8 @@ export const settings = {
   playlistCoverPhotoSub: '在播放列表详细视图中显示封面照片网格',
   showBitrate: '显示比特率',
   showBitrateSub: '在曲目列表中显示音频比特率',
+  showCardTooltips: '悬停显示完整标题',
+  showCardTooltipsSub: '当卡片截断时显示完整的专辑标题和艺术家',
   floatingPlayerBar: '浮动播放栏',
   floatingPlayerBarSub: '保持播放栏悬浮在内容上方',
   squareCorners: '直角边角',

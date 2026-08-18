@@ -6,6 +6,8 @@ import type { PlayerState } from '@/features/playback/store/playerStoreTypes';
 import { ARTISTS_INPAGE_SCROLL_VIEWPORT_ID } from '@/constants/appScroll';
 import { VirtualCardGrid } from '@/ui/VirtualCardGrid';
 import { ArtistCardAvatar } from '@/features/artist/components/ArtistAvatars';
+import { useThemeStore } from '@/store/themeStore';
+import { useOverflowTooltip } from '@/lib/hooks/useOverflowTooltip';
 
 interface TileProps {
   artist: SubsonicArtist;
@@ -23,6 +25,8 @@ type TilePropsShared = Omit<TileProps, 'artist'>;
 
 function ArtistGridTile({ artist, ...rest }: TileProps) {
   const entityKey = artist.serverId ? `${artist.serverId}:${artist.id}` : artist.id;
+  const showCardTooltips = useThemeStore(s => s.showCardTooltips);
+  const nameTooltip = useOverflowTooltip(artist.name, showCardTooltips);
   return (
     <div
       className={`artist-card${rest.selectionMode ? ' artist-card--selectable' : ''}${rest.selectionMode && rest.selectedIds.has(entityKey) ? ' artist-card--selected' : ''}`}
@@ -49,7 +53,7 @@ function ArtistGridTile({ artist, ...rest }: TileProps) {
       )}
       <ArtistCardAvatar artist={artist} showImages={rest.showArtistImages} />
       <div className="artist-card-info artist-card-info--center">
-        <div className="artist-card-name">{artist.name}</div>
+        <div className="artist-card-name" {...nameTooltip}>{artist.name}</div>
         {artist.albumCount != null && (
           <div className="artist-card-meta">{rest.t('artists.albumCount', { count: artist.albumCount })}</div>
         )}

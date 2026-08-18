@@ -747,6 +747,8 @@ export const settings = {
   playlistCoverPhotoSub: 'Mostrar cuadrícula de fotos de portada en la vista detallada de playlists',
   showBitrate: 'Mostrar Bitrate',
   showBitrateSub: 'Mostrar bitrate de audio en las listas de pistas',
+  showCardTooltips: 'Título completo al pasar el ratón',
+  showCardTooltipsSub: 'Muestra el título completo del álbum y el artista cuando la tarjeta los recorta',
   floatingPlayerBar: 'Barra del Reproductor Flotante',
   floatingPlayerBarSub: 'Mantener la barra del reproductor flotando sobre el contenido',
   squareCorners: 'Esquinas rectas',

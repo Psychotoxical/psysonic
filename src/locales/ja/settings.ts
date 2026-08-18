@@ -809,6 +809,8 @@ export const settings = {
   playlistCoverPhotoSub: 'プレイリスト詳細ビューにカバー写真グリッドを表示',
   showBitrate: 'ビットレートを表示',
   showBitrateSub: 'トラック一覧に音声ビットレートを表示',
+  showCardTooltips: 'ホバーで完全なタイトル',
+  showCardTooltipsSub: 'カードで省略される場合にアルバム名とアーティスト名を全文表示',
   floatingPlayerBar: 'フローティングプレイヤーバー',
   floatingPlayerBarSub: 'コンテンツの上にプレイヤーバーを浮かせて表示',
   squareCorners: '角を四角に',

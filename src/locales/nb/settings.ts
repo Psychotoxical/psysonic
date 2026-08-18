@@ -734,6 +734,8 @@ export const settings = {
   playlistCoverPhotoSub: 'Vis coverfoto-rutenett i playlist-detailedvisning',
   showBitrate: 'Vis Bitrate',
   showBitrateSub: 'Vis audio-bitrate i sporlister',
+  showCardTooltips: 'Full tittel ved peking',
+  showCardTooltipsSub: 'Vis hele albumtittelen og artisten når kortet kutter dem av',
   floatingPlayerBar: 'Flytende Spillerlinje',
   floatingPlayerBarSub: 'Hold spillerlinjen flytende over innholdet',
   squareCorners: 'Firkantede hjørner',

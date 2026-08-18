@@ -4,6 +4,8 @@ import { ChevronLeft, ChevronRight, Users } from 'lucide-react';
 import { ArtistCoverArtImage } from '@/cover/ArtistCoverArtImage';
 import { COVER_DENSE_GRID_MIN_CELL_CSS_PX } from '@/cover/layoutSizes';
 import { coverServerScopeForServerId } from '@/cover/serverScope';
+import { useThemeStore } from '@/store/themeStore';
+import { useOverflowTooltip } from '@/lib/hooks/useOverflowTooltip';
 
 export interface TopFavoriteArtist {
   id: string;
@@ -89,6 +91,8 @@ interface TopFavoriteArtistCardProps {
 function TopFavoriteArtistCard({ artist, isSelected, onClick, songCountLabel }: TopFavoriteArtistCardProps) {
   const coverId = artist.coverArtId;
   const artistEntityId = artist.artistId ?? artist.coverArtId;
+  const showCardTooltips = useThemeStore(s => s.showCardTooltips);
+  const nameTooltip = useOverflowTooltip(artist.name, showCardTooltips);
 
   return (
     <div
@@ -116,7 +120,7 @@ function TopFavoriteArtistCard({ artist, isSelected, onClick, songCountLabel }: 
         )}
       </div>
       <div className="artist-card-info">
-        <span className="artist-card-name">{artist.name}</span>
+        <span className="artist-card-name" {...nameTooltip}>{artist.name}</span>
         <span className="artist-card-meta">{songCountLabel}</span>
       </div>
     </div>

@@ -1,6 +1,7 @@
 export const common = {
   albums: 'Альбомы',
   album: 'Альбом',
+  albumByArtist: '{{album}} от {{artist}}',
   loading: 'Загрузка…',
   loadingMore: 'Загрузка…',
   loadingPlaylists: 'Загрузка плейлистов…',

@@ -748,6 +748,8 @@ export const settings = {
   playlistCoverPhotoSub: 'Zeigt Coverfoto-Raster in der Playlist-Detailansicht',
   showBitrate: 'Bitrate anzeigen',
   showBitrateSub: 'Audio-Bitrate in Track-Listen anzeigen',
+  showCardTooltips: 'Vollständiger Titel bei Mauszeiger',
+  showCardTooltipsSub: 'Albumtitel und Interpret vollständig anzeigen, wenn die Karte sie abschneidet',
   floatingPlayerBar: 'Schwebende Player-Leiste',
   floatingPlayerBarSub: 'Player-Leiste über dem Inhalt schweben lassen',
   squareCorners: 'Eckige Ecken',

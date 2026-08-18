@@ -20,6 +20,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Settings → Integrations → Music Network now has a 25–90% scrobble threshold (default remains 50%).
 * Advanced settings can show a Force scrobble action in the player bar and fullscreen player. It shows listening progress and can immediately submit the current track to the media server and every enabled Music Network destination.
 
+### Full names on hover, wherever a card cuts one off
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1433](https://github.com/Psysonic/psysonic/pull/1433)**
+
+* Hovering a card whose title or artist is too long to fit now shows the complete text. Multi-disc releases carry the disc number at the end of the title, so it was exactly the part that got cut — telling disc 1 from disc 3 meant opening each album.
+* Applies to album, artist, playlist, radio, song and offline cards, and only appears when the text is actually shortened, so nothing pops up where there is nothing to reveal.
+* Can be turned off under Settings → Appearance → Display.
+* Screen readers now announce album cards and the offline play button in the selected language; both were stuck on a German word regardless of the chosen language.
+
 ## Changed
 
 ### Rust internals — smaller focused modules with the same behaviour

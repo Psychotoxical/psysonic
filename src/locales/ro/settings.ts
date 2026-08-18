@@ -750,6 +750,8 @@ export const settings = {
   playlistCoverPhotoSub: 'Arată poza grilă de copertă în afișajul de detalii al playlistului',
   showBitrate: 'Arată Bitrate',
   showBitrateSub: 'Arată bitrate-ul audio în listările de piese',
+  showCardTooltips: 'Titlu complet la survolare',
+  showCardTooltipsSub: 'Arată titlul complet al albumului și artistul când cardul le trunchiază',
   floatingPlayerBar: 'Bară Player plutitoare',
   floatingPlayerBarSub: 'Păstrează bara playerului plutind deasupra conținutului',
   squareCorners: 'Colțuri drepte',

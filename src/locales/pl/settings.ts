@@ -815,6 +815,8 @@ export const settings = {
   playlistCoverPhotoSub: 'Pokazuj siatkę okładek w widoku szczegółów playlisty',
   showBitrate: 'Pokazuj Bitrate',
   showBitrateSub: 'Wyświetlaj bitrate audio na listach utworów',
+  showCardTooltips: 'Pełny tytuł po najechaniu',
+  showCardTooltipsSub: 'Pokazuj pełny tytuł albumu i wykonawcę, gdy karta je przycina',
   floatingPlayerBar: 'Pasek odtwarzacza jako nakładka',
   floatingPlayerBarSub: 'Wyświetlaj pasek odtwarzacza jako nakładkę nad zawartością',
   squareCorners: 'Proste rogi',

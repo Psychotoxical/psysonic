@@ -735,6 +735,8 @@ export const settings = {
   playlistCoverPhotoSub: 'Afficher la grille de photos de couverture dans la vue détaillée des playlists',
   showBitrate: 'Afficher le Débit',
   showBitrateSub: 'Afficher le débit audio dans les listes de pistes',
+  showCardTooltips: 'Titre complet au survol',
+  showCardTooltipsSub: 'Afficher le titre complet de l\'album et l\'artiste lorsque la carte les tronque',
   floatingPlayerBar: 'Barre de Lecteur Flottante',
   floatingPlayerBarSub: 'Garder la barre du lecteur flottante au-dessus du contenu',
   squareCorners: 'Coins carrés',

@@ -2,6 +2,8 @@ import type { SubsonicArtist } from '@/lib/api/subsonicTypes';
 import React, { useMemo } from 'react';
 import { Users } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { useThemeStore } from '@/store/themeStore';
+import { useOverflowTooltip } from '@/lib/hooks/useOverflowTooltip';
 import { CoverArtImage } from '@/cover/CoverArtImage';
 import { useArtistCoverRef } from '@/cover/useLibraryCoverRef';
 import { COVER_DENSE_GRID_MIN_CELL_CSS_PX } from '@/cover/layoutSizes';
@@ -18,6 +20,8 @@ interface Props {
 
 export default function ArtistCardLocal({ artist, linkQuery, libraryResolve = false }: Props) {
   const { t } = useTranslation();
+  const showCardTooltips = useThemeStore(s => s.showCardTooltips);
+  const nameTooltip = useOverflowTooltip(artist.name, showCardTooltips);
   const navigateToArtist = useNavigateToArtist();
   const coverServerScope = useMemo(
     () => coverServerScopeForServerId(artist.serverId),
@@ -50,7 +54,7 @@ export default function ArtistCardLocal({ artist, linkQuery, libraryResolve = fa
         )}
       </div>
       <div className="artist-card-info">
-        <span className="artist-card-name">{artist.name}</span>
+        <span className="artist-card-name" {...nameTooltip}>{artist.name}</span>
         {typeof artist.albumCount === 'number' && (
           <span className="artist-card-meta">
             {t('artists.albumCount', { count: artist.albumCount })}

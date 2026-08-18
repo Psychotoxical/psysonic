@@ -87,7 +87,7 @@ describe('AlbumCard', () => {
     };
     renderWithProviders(<AlbumCard album={album} disableArtwork />);
 
-    fireEvent.mouseDown(screen.getByRole('button', { name: 'Owned Album von Artist' }), {
+    fireEvent.mouseDown(screen.getByRole('button', { name: 'Owned Album by Artist' }), {
       button: 0,
       clientX: 10,
       clientY: 10,

@@ -815,6 +815,8 @@ export const settings = {
   playlistCoverPhotoSub: 'Show cover photo grid in playlist detail view',
   showBitrate: 'Show Bitrate',
   showBitrateSub: 'Display audio bitrate in track listings',
+  showCardTooltips: 'Full Title on Hover',
+  showCardTooltipsSub: 'Show the complete album title and artist when the card cuts them off',
   floatingPlayerBar: 'Floating Player Bar',
   floatingPlayerBarSub: 'Keep the player bar floating above content',
   squareCorners: 'Square Corners',
