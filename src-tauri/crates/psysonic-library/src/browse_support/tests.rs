@@ -6,7 +6,8 @@ use crate::store::LibraryStore;
 
 use super::{
     apply_album_patch, catalog_year_bounds_for_server, genre_album_counts_for_server,
-    overlay_album_level_starred_at, reconcile_album_stars, StarredAlbumReconcileItem,
+    overlay_album_level_starred_at, overlay_album_size_and_added, reconcile_album_stars,
+    StarredAlbumReconcileItem,
 };
 use crate::dto::LibraryAlbumDto;
 
@@ -408,4 +409,125 @@ fn reconcile_album_stars_clears_all_when_server_list_empty() {
         })
         .unwrap();
     assert!(starred_at.is_none());
+}
+
+fn album_dto(server: &str, album_id: &str) -> LibraryAlbumDto {
+    LibraryAlbumDto {
+        server_id: server.into(),
+        id: album_id.into(),
+        name: "Album".into(),
+        artist: None,
+        artist_id: None,
+        song_count: None,
+        duration_sec: None,
+        year: None,
+        genre: None,
+        cover_art_id: None,
+        starred_at: None,
+        synced_at: 1,
+        raw_json: serde_json::Value::Null,
+    }
+}
+
+fn track_added_at(
+    server: &str,
+    id: &str,
+    album_id: &str,
+    track: i64,
+    created_ms: i64,
+) -> crate::repos::TrackRow {
+    let mut row = make_row(server, id, album_id, track);
+    row.server_created_at = Some(created_ms);
+    row
+}
+
+#[test]
+fn overlay_album_size_and_added_fills_totals_and_arrival_date() {
+    let store = Arc::new(LibraryStore::open_in_memory());
+    TrackRepository::new(&store)
+        .upsert_batch(&[
+            track_added_at("s1", "tr_1", "al1", 1, 1_000),
+            track_added_at("s1", "tr_2", "al1", 2, 5_000),
+        ])
+        .unwrap();
+    let mut albums = vec![album_dto("s1", "al1")];
+    store
+        .with_read_conn(|conn| {
+            overlay_album_size_and_added(conn, &mut albums);
+            Ok(())
+        })
+        .unwrap();
+
+    assert_eq!(albums[0].song_count, Some(2));
+    // `make_row` gives every track 200 s.
+    assert_eq!(albums[0].duration_sec, Some(400));
+    // The newest track decides, matching the key the mainstage feed sorts by.
+    assert_eq!(albums[0].raw_json.get("createdMs").and_then(|v| v.as_i64()), Some(5_000));
+}
+
+// A query that could count did so under its own semantics — a genre-filtered
+// browse counts the matching tracks on purpose. The overlay must not replace it.
+#[test]
+fn overlay_album_size_and_added_keeps_values_the_query_computed() {
+    let store = Arc::new(LibraryStore::open_in_memory());
+    TrackRepository::new(&store)
+        .upsert_batch(&[
+            track_added_at("s1", "tr_1", "al1", 1, 1_000),
+            track_added_at("s1", "tr_2", "al1", 2, 5_000),
+        ])
+        .unwrap();
+    let mut albums = vec![album_dto("s1", "al1")];
+    albums[0].song_count = Some(1);
+    albums[0].duration_sec = Some(200);
+    albums[0].raw_json = serde_json::json!({ "createdMs": 42 });
+    store
+        .with_read_conn(|conn| {
+            overlay_album_size_and_added(conn, &mut albums);
+            Ok(())
+        })
+        .unwrap();
+
+    assert_eq!(albums[0].song_count, Some(1));
+    assert_eq!(albums[0].duration_sec, Some(200));
+    assert_eq!(albums[0].raw_json.get("createdMs").and_then(|v| v.as_i64()), Some(42));
+}
+
+#[test]
+fn overlay_album_size_and_added_keeps_other_raw_json_fields() {
+    let store = Arc::new(LibraryStore::open_in_memory());
+    TrackRepository::new(&store)
+        .upsert_batch(&[track_added_at("s1", "tr_1", "al1", 1, 7_000)])
+        .unwrap();
+    let mut albums = vec![album_dto("s1", "al1")];
+    albums[0].raw_json = serde_json::json!({ "releaseTypes": ["Album"] });
+    store
+        .with_read_conn(|conn| {
+            overlay_album_size_and_added(conn, &mut albums);
+            Ok(())
+        })
+        .unwrap();
+
+    assert_eq!(albums[0].raw_json.get("createdMs").and_then(|v| v.as_i64()), Some(7_000));
+    assert!(albums[0].raw_json.get("releaseTypes").is_some());
+}
+
+// Deleted tracks are tombstones, not content: an album whose rows are all gone
+// must not come back as "0 songs, 0:00" — it should stay untouched.
+#[test]
+fn overlay_album_size_and_added_leaves_an_emptied_album_alone() {
+    let store = Arc::new(LibraryStore::open_in_memory());
+    let mut row = track_added_at("s1", "tr_1", "al1", 1, 1_000);
+    row.deleted = true;
+    TrackRepository::new(&store).upsert_batch(&[row]).unwrap();
+    let mut albums = vec![album_dto("s1", "al1")];
+    store
+        .with_read_conn(|conn| {
+            overlay_album_size_and_added(conn, &mut albums);
+            Ok(())
+        })
+        .unwrap();
+
+    assert_eq!(albums[0].song_count, None);
+    assert_eq!(albums[0].duration_sec, None);
+    assert!(albums[0].raw_json.get("createdMs").is_none());
 }

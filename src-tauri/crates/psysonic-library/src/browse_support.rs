@@ -116,6 +116,103 @@ pub(crate) fn overlay_album_artist_links(
     }
 }
 
+/// Fill in the three per-album figures no single browse query can supply for
+/// every surface — track count, total runtime, and when the album arrived —
+/// read back from the complete physical album.
+///
+/// Each browse path is short a different one, and for its own reason. A feed
+/// that selects a *window* of tracks (mainstage takes the most recently added)
+/// never sees a whole release, so counting inside that query would report the
+/// window; those callers leave both totals unset. The materialised
+/// `album_browse_projection` behind All Albums and the lossless walk carry the
+/// totals but have no column for the arrival date at all. Fields that already
+/// carry a value are left alone: where a query could compute one, its value
+/// matches that query's own semantics.
+///
+/// `created_ms` is `MAX(server_created_at)`, the same figure the mainstage feed
+/// sorts by, so an album near the top of New Releases does not show an older
+/// date in the table on another page.
+///
+/// Same shape and cost as [`overlay_album_artist_links`]: one `idx_track_album`
+/// range scan per returned card, hence the mandatory `deleted = 0` predicate.
+/// Aggregating over `(server_id, album_id)` — not per library — matches that
+/// neighbour and reports the release the user is looking at.
+pub(crate) fn overlay_album_size_and_added(
+    conn: &rusqlite::Connection,
+    albums: &mut [LibraryAlbumDto],
+) {
+    if albums.is_empty() {
+        return;
+    }
+    let Ok(mut stmt) = conn.prepare_cached(
+        "SELECT COUNT(*), COALESCE(SUM(t.duration_sec), 0), MAX(t.server_created_at) \
+         FROM track t \
+         WHERE t.server_id = ?1 AND t.album_id = ?2 AND t.deleted = 0",
+    ) else {
+        return;
+    };
+    for album in albums.iter_mut() {
+        if album.song_count.is_some()
+            && album.duration_sec.is_some()
+            && album_raw_created_ms(album).is_some()
+        {
+            continue;
+        }
+        let row = stmt
+            .query_row(params![album.server_id, album.id], |r| {
+                Ok((
+                    r.get::<_, i64>(0)?,
+                    r.get::<_, i64>(1)?,
+                    r.get::<_, Option<i64>>(2)?,
+                ))
+            })
+            .optional()
+            .unwrap_or(None);
+        let Some((song_count, duration_sec, created_ms)) = row else {
+            continue;
+        };
+        // COUNT over an album with no live tracks left is a row that should not
+        // be on this page at all — leave it untouched rather than stamping it
+        // with zeroes that read like real values.
+        if song_count <= 0 {
+            continue;
+        }
+        if album.song_count.is_none() {
+            album.song_count = Some(song_count);
+        }
+        if album.duration_sec.is_none() {
+            album.duration_sec = Some(duration_sec.max(0));
+        }
+        if let Some(created_ms) = created_ms {
+            set_album_raw_created_ms(album, created_ms);
+        }
+    }
+}
+
+/// `raw_json.createdMs` when the row already carries one (mainstage sets it from
+/// its own feed key).
+fn album_raw_created_ms(album: &LibraryAlbumDto) -> Option<i64> {
+    album.raw_json.get("createdMs").and_then(Value::as_i64)
+}
+
+/// Adds `createdMs` without disturbing a `raw_json` payload the row already has,
+/// and never overwrites one that is present.
+fn set_album_raw_created_ms(album: &mut LibraryAlbumDto, created_ms: i64) {
+    if album_raw_created_ms(album).is_some() {
+        return;
+    }
+    match album.raw_json.as_object_mut() {
+        Some(map) => {
+            map.insert("createdMs".to_string(), Value::from(created_ms));
+        }
+        None => {
+            let mut map = Map::new();
+            map.insert("createdMs".to_string(), Value::from(created_ms));
+            album.raw_json = Value::Object(map);
+        }
+    }
+}
+
 /// [`overlay_album_artist_links`] for callers that hold the store rather than a
 /// connection.
 pub(crate) fn overlay_album_artist_links_for_store(

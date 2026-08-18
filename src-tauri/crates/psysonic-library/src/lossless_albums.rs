@@ -115,6 +115,9 @@ pub fn list_lossless_albums(
             .query_map(rusqlite::params_from_iter(params.iter()), map_row)?
             .collect::<rusqlite::Result<Vec<_>>>()?;
         crate::browse_support::overlay_album_artist_links(conn, &mut rows);
+        // Same gap as the All Albums projection: the walk has the totals but no
+        // arrival date, so `createdMs` is read back per album here.
+        crate::browse_support::overlay_album_size_and_added(conn, &mut rows);
         Ok(rows)
     })?;
     let blocked_by = timing

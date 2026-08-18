@@ -4,7 +4,9 @@ use rusqlite::params_from_iter;
 use rusqlite::types::Value as SqlValue;
 
 use crate::album_compilation_filter::pick_album_group_artist;
-use crate::browse_support::{overlay_album_artist_links, overlay_album_starred_at_rows};
+use crate::browse_support::{
+    overlay_album_artist_links, overlay_album_size_and_added, overlay_album_starred_at_rows,
+};
 use crate::dto::{
     GenreAlbumCountDto, LibraryAlbumDto, LibraryMainstageAlbumFeed, LibraryMainstageAlbumsRequest,
     LibraryMainstageAlbumsResponse, LibraryScopePair,
@@ -295,6 +297,10 @@ pub fn list_mainstage_albums(
             albums.truncate(limit as usize);
             overlay_album_starred_at_rows(conn, &mut albums);
             overlay_album_artist_links(conn, &mut albums);
+            // The candidate window cannot count a whole release (see
+            // `map_mainstage_album`), so the totals are read back per album —
+            // after `truncate`, for the returned page only.
+            overlay_album_size_and_added(conn, &mut albums);
             let result_count = albums.len();
             return Ok((
                 LibraryMainstageAlbumsResponse {
