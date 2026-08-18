@@ -4,9 +4,7 @@ use rusqlite::params_from_iter;
 use rusqlite::types::Value as SqlValue;
 
 use crate::album_compilation_filter::pick_album_group_artist;
-use crate::browse_support::{
-    overlay_album_artist_links, overlay_album_size_and_added, overlay_album_starred_at_rows,
-};
+use crate::browse_support::{overlay_album_artist_links, overlay_album_starred_at_rows};
 use crate::dto::{
     GenreAlbumCountDto, LibraryAlbumDto, LibraryMainstageAlbumFeed, LibraryMainstageAlbumsRequest,
     LibraryMainstageAlbumsResponse, LibraryScopePair,
@@ -296,16 +294,12 @@ pub fn list_mainstage_albums(
             let has_more = albums.len() > limit as usize;
             albums.truncate(limit as usize);
             overlay_album_starred_at_rows(conn, &mut albums);
+            // Runs after `truncate`, for the returned page only. Besides the
+            // artist link it supplies the totals this feed cannot count out of
+            // its candidate window (see `map_mainstage_album`), and the arrival
+            // date — which for Recently Played is the album's own
+            // `server_created_at`, never the play time this feed orders by.
             overlay_album_artist_links(conn, &mut albums);
-            // The candidate window cannot count a whole release (see
-            // `map_mainstage_album`), so the totals are read back per album —
-            // after `truncate`, for the returned page only. New Releases alone:
-            // it is the feed the catalogue pages render, and Recently Played
-            // withholds a catalog date on purpose, since its ordering key is the
-            // play time rather than when the album arrived.
-            if request.feed == LibraryMainstageAlbumFeed::NewReleases {
-                overlay_album_size_and_added(conn, &mut albums);
-            }
             let result_count = albums.len();
             return Ok((
                 LibraryMainstageAlbumsResponse {

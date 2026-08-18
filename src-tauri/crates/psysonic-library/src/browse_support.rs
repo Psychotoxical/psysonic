@@ -81,7 +81,8 @@ pub(crate) fn overlay_album_artist_links(
         return;
     }
     let sql = format!(
-        "SELECT MAX(t.album_artist), MAX({album_artist_id}) \
+        "SELECT MAX(t.album_artist), MAX({album_artist_id}), \
+                COUNT(*), COALESCE(SUM(t.duration_sec), 0), MAX(t.server_created_at) \
          FROM track t \
          WHERE t.server_id = ?1 AND t.album_id = ?2 AND t.deleted = 0",
         album_artist_id = crate::scope_merge::album_artist_id_expr("t.raw_json"),
@@ -95,11 +96,15 @@ pub(crate) fn overlay_album_artist_links(
                 Ok((
                     r.get::<_, Option<String>>(0)?,
                     r.get::<_, Option<String>>(1)?,
+                    r.get::<_, i64>(2)?,
+                    r.get::<_, i64>(3)?,
+                    r.get::<_, Option<i64>>(4)?,
                 ))
             })
             .optional()
             .unwrap_or(None);
-        let Some((album_artist, album_artist_id)) = owner else {
+        let Some((album_artist, album_artist_id, song_count, duration_sec, created_ms)) = owner
+        else {
             continue;
         };
         // The displayed credit decides, because that is the name on the card; the
@@ -113,79 +118,53 @@ pub(crate) fn overlay_album_artist_links(
         };
         album.artist_id =
             pick_album_group_artist_id(album.artist_id.take(), credit, album_artist_id);
+        overlay_album_size_and_added(album, song_count, duration_sec, created_ms);
     }
 }
 
 /// Fill in the three per-album figures no single browse query can supply for
-/// every surface — track count, total runtime, and when the album arrived —
-/// read back from the complete physical album.
+/// every surface — track count, total runtime, and when the album arrived — from
+/// the aggregates its caller already read off the complete physical album.
 ///
-/// Each browse path is short a different one, and for its own reason. A feed
-/// that selects a *window* of tracks (mainstage takes the most recently added)
-/// never sees a whole release, so counting inside that query would report the
-/// window; those callers leave both totals unset. The materialised
+/// Each browse path is short a different one, and for its own reason. A feed that
+/// selects a *window* of tracks (mainstage takes the most recently added) never
+/// sees a whole release, so counting inside that query would report the window;
+/// those callers leave both totals unset. The materialised
 /// `album_browse_projection` behind All Albums and the lossless walk carry the
 /// totals but have no column for the arrival date at all. Fields that already
 /// carry a value are left alone: where a query could compute one, its value
-/// matches that query's own semantics.
+/// matches that query's own semantics — a genre-filtered browse counts what it
+/// counted on purpose.
 ///
 /// `created_ms` is `MAX(server_created_at)`, the same figure the mainstage feed
-/// sorts by, so an album near the top of New Releases does not show an older
-/// date in the table on another page.
+/// sorts by, so an album near the top of New Releases does not show an older date
+/// in the table on another page.
 ///
-/// Same shape and cost as [`overlay_album_artist_links`]: one `idx_track_album`
-/// range scan per returned card, hence the mandatory `deleted = 0` predicate.
-/// Aggregating over `(server_id, album_id)` — not per library — matches that
-/// neighbour and reports the release the user is looking at.
-pub(crate) fn overlay_album_size_and_added(
-    conn: &rusqlite::Connection,
-    albums: &mut [LibraryAlbumDto],
+/// This rides along with [`overlay_album_artist_links`] rather than taking a scan
+/// of its own: both read the same `(server_id, album_id)` range over the same
+/// `deleted = 0` rows, so the figures cost no additional lookup. Reading them per
+/// physical album — not per library — matches that neighbour and reports the
+/// release the user is looking at.
+fn overlay_album_size_and_added(
+    album: &mut LibraryAlbumDto,
+    song_count: i64,
+    duration_sec: i64,
+    created_ms: Option<i64>,
 ) {
-    if albums.is_empty() {
+    // COUNT over an album with no live tracks left is a row that should not be on
+    // this page at all — leave it untouched rather than stamping it with zeroes
+    // that read like real values.
+    if song_count <= 0 {
         return;
     }
-    let Ok(mut stmt) = conn.prepare_cached(
-        "SELECT COUNT(*), COALESCE(SUM(t.duration_sec), 0), MAX(t.server_created_at) \
-         FROM track t \
-         WHERE t.server_id = ?1 AND t.album_id = ?2 AND t.deleted = 0",
-    ) else {
-        return;
-    };
-    for album in albums.iter_mut() {
-        if album.song_count.is_some()
-            && album.duration_sec.is_some()
-            && album_raw_created_ms(album).is_some()
-        {
-            continue;
-        }
-        let row = stmt
-            .query_row(params![album.server_id, album.id], |r| {
-                Ok((
-                    r.get::<_, i64>(0)?,
-                    r.get::<_, i64>(1)?,
-                    r.get::<_, Option<i64>>(2)?,
-                ))
-            })
-            .optional()
-            .unwrap_or(None);
-        let Some((song_count, duration_sec, created_ms)) = row else {
-            continue;
-        };
-        // COUNT over an album with no live tracks left is a row that should not
-        // be on this page at all — leave it untouched rather than stamping it
-        // with zeroes that read like real values.
-        if song_count <= 0 {
-            continue;
-        }
-        if album.song_count.is_none() {
-            album.song_count = Some(song_count);
-        }
-        if album.duration_sec.is_none() {
-            album.duration_sec = Some(duration_sec.max(0));
-        }
-        if let Some(created_ms) = created_ms {
-            set_album_raw_created_ms(album, created_ms);
-        }
+    if album.song_count.is_none() {
+        album.song_count = Some(song_count);
+    }
+    if album.duration_sec.is_none() {
+        album.duration_sec = Some(duration_sec.max(0));
+    }
+    if let Some(created_ms) = created_ms {
+        set_album_raw_created_ms(album, created_ms);
     }
 }
 

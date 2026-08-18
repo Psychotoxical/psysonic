@@ -353,9 +353,6 @@ pub(super) fn browse_albums(
     store
         .with_read_conn(|conn| {
             overlay_album_artist_links(conn, &mut albums);
-            // The projection carries the totals but has no arrival-date column,
-            // so `createdMs` is read back per album here.
-            overlay_album_size_and_added(conn, &mut albums);
             Ok(())
         })
         .map_err(|error| error.to_string())?;

@@ -9,7 +9,7 @@ use std::collections::{HashMap, HashSet};
 use rusqlite::{params_from_iter, types::Value as SqlValue};
 use serde::{Deserialize, Serialize};
 
-use crate::browse_support::{overlay_album_artist_links, overlay_album_size_and_added};
+use crate::browse_support::overlay_album_artist_links;
 use crate::dto::{
     LibraryAlbumDto, LibraryScopeBrowseEntity, LibraryScopeBrowseRequest,
     LibraryScopeBrowseResponse, LibraryScopePair, LibrarySortClause, LibraryTrackDto,

@@ -6,7 +6,7 @@ use crate::store::LibraryStore;
 
 use super::{
     apply_album_patch, catalog_year_bounds_for_server, genre_album_counts_for_server,
-    overlay_album_level_starred_at, overlay_album_size_and_added, reconcile_album_stars,
+    overlay_album_artist_links, overlay_album_level_starred_at, reconcile_album_stars,
     StarredAlbumReconcileItem,
 };
 use crate::dto::LibraryAlbumDto;
@@ -453,7 +453,7 @@ fn overlay_album_size_and_added_fills_totals_and_arrival_date() {
     let mut albums = vec![album_dto("s1", "al1")];
     store
         .with_read_conn(|conn| {
-            overlay_album_size_and_added(conn, &mut albums);
+            overlay_album_artist_links(conn, &mut albums);
             Ok(())
         })
         .unwrap();
@@ -482,7 +482,7 @@ fn overlay_album_size_and_added_keeps_values_the_query_computed() {
     albums[0].raw_json = serde_json::json!({ "createdMs": 42 });
     store
         .with_read_conn(|conn| {
-            overlay_album_size_and_added(conn, &mut albums);
+            overlay_album_artist_links(conn, &mut albums);
             Ok(())
         })
         .unwrap();
@@ -502,7 +502,7 @@ fn overlay_album_size_and_added_keeps_other_raw_json_fields() {
     albums[0].raw_json = serde_json::json!({ "releaseTypes": ["Album"] });
     store
         .with_read_conn(|conn| {
-            overlay_album_size_and_added(conn, &mut albums);
+            overlay_album_artist_links(conn, &mut albums);
             Ok(())
         })
         .unwrap();
@@ -522,7 +522,7 @@ fn overlay_album_size_and_added_leaves_an_emptied_album_alone() {
     let mut albums = vec![album_dto("s1", "al1")];
     store
         .with_read_conn(|conn| {
-            overlay_album_size_and_added(conn, &mut albums);
+            overlay_album_artist_links(conn, &mut albums);
             Ok(())
         })
         .unwrap();

@@ -145,7 +145,13 @@ fn recently_played_does_not_expose_play_time_as_catalog_created_at() {
     )
     .unwrap();
 
-    assert_eq!(response.albums[0].raw_json, serde_json::Value::Null);
+    // The feed orders by play time (999) but the album arrived at 100, and the
+    // arrival date is what the catalog surfaces report. The row therefore carries
+    // its own `server_created_at` — the play time must never stand in for it.
+    assert_eq!(
+        response.albums[0].raw_json.get("createdMs").and_then(serde_json::Value::as_i64),
+        Some(100)
+    );
 }
 
 #[test]
