@@ -1,4 +1,4 @@
-import { memo, useMemo } from 'react';
+import { useMemo } from 'react';
 import { useNavigate } from 'react-router';
 import { Check } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -189,4 +189,8 @@ function AlbumTableRow({
   );
 }
 
-export default memo(AlbumTableRow);
+// No `memo` here, unlike `AlbumCard`: a row also takes the selection callback and
+// the selected-album list, and both are rebuilt on every parent render, so the
+// comparison could never short-circuit — it would only add cost. Rows are
+// virtualized, so only the visible window renders either way.
+export default AlbumTableRow;
