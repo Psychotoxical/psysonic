@@ -461,8 +461,53 @@ fn overlay_album_size_and_added_fills_totals_and_arrival_date() {
     assert_eq!(albums[0].song_count, Some(2));
     // `make_row` gives every track 200 s.
     assert_eq!(albums[0].duration_sec, Some(400));
-    // The newest track decides, matching the key the mainstage feed sorts by.
-    assert_eq!(albums[0].raw_json.get("createdMs").and_then(|v| v.as_i64()), Some(5_000));
+    // The oldest track decides: the column reports when the album arrived, so a
+    // later addition must not move the date forward.
+    assert_eq!(albums[0].raw_json.get("createdMs").and_then(|v| v.as_i64()), Some(1_000));
+}
+
+// A release from years back that gains one track today — a late rip, or a re-tag
+// that made the server recreate the row — still arrived years back. Dating it to
+// the new track would also light up the "new" badge on every grid showing it.
+#[test]
+fn overlay_album_size_and_added_keeps_the_arrival_date_when_a_track_lands_later() {
+    let store = Arc::new(LibraryStore::open_in_memory());
+    TrackRepository::new(&store)
+        .upsert_batch(&[
+            track_added_at("s1", "tr_1", "al1", 1, 1_000),
+            track_added_at("s1", "tr_2", "al1", 2, 9_999_000),
+        ])
+        .unwrap();
+    let mut albums = vec![album_dto("s1", "al1")];
+    store
+        .with_read_conn(|conn| {
+            overlay_album_artist_links(conn, &mut albums);
+            Ok(())
+        })
+        .unwrap();
+
+    assert_eq!(albums[0].raw_json.get("createdMs").and_then(|v| v.as_i64()), Some(1_000));
+}
+
+// A row whose `raw_json` is neither absent nor an object carries a shape this
+// overlay does not understand; replacing it with a one-field object would lose
+// more than the date adds.
+#[test]
+fn overlay_album_size_and_added_leaves_a_non_object_raw_json_alone() {
+    let store = Arc::new(LibraryStore::open_in_memory());
+    TrackRepository::new(&store)
+        .upsert_batch(&[track_added_at("s1", "tr_1", "al1", 1, 1_000)])
+        .unwrap();
+    let mut albums = vec![album_dto("s1", "al1")];
+    albums[0].raw_json = serde_json::json!("unexpected");
+    store
+        .with_read_conn(|conn| {
+            overlay_album_artist_links(conn, &mut albums);
+            Ok(())
+        })
+        .unwrap();
+
+    assert_eq!(albums[0].raw_json, serde_json::json!("unexpected"));
 }
 
 // A query that could count did so under its own semantics — a genre-filtered

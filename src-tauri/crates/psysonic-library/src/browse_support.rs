@@ -82,7 +82,7 @@ pub(crate) fn overlay_album_artist_links(
     }
     let sql = format!(
         "SELECT MAX(t.album_artist), MAX({album_artist_id}), \
-                COUNT(*), COALESCE(SUM(t.duration_sec), 0), MAX(t.server_created_at) \
+                COUNT(*), COALESCE(SUM(t.duration_sec), 0), MIN(t.server_created_at) \
          FROM track t \
          WHERE t.server_id = ?1 AND t.album_id = ?2 AND t.deleted = 0",
         album_artist_id = crate::scope_merge::album_artist_id_expr("t.raw_json"),
@@ -136,9 +136,12 @@ pub(crate) fn overlay_album_artist_links(
 /// matches that query's own semantics — a genre-filtered browse counts what it
 /// counted on purpose.
 ///
-/// `created_ms` is `MAX(server_created_at)`, the same figure the mainstage feed
-/// sorts by, so an album near the top of New Releases does not show an older date
-/// in the table on another page.
+/// `created_ms` is `MIN(server_created_at)`: the column answers when the album
+/// arrived, so it must not move when one late track lands years afterwards — a
+/// re-tag that recreates a single row would otherwise date the whole release to
+/// today and mark it as new. The mainstage feed orders by the *newest* track
+/// instead, which is its own concern; it sets its `createdMs` from that key
+/// before this runs and keeps it, since a present value is never replaced.
 ///
 /// This rides along with [`overlay_album_artist_links`] rather than taking a scan
 /// of its own: both read the same `(server_id, album_id)` range over the same
@@ -180,15 +183,17 @@ fn set_album_raw_created_ms(album: &mut LibraryAlbumDto, created_ms: i64) {
     if album_raw_created_ms(album).is_some() {
         return;
     }
-    match album.raw_json.as_object_mut() {
-        Some(map) => {
-            map.insert("createdMs".to_string(), Value::from(created_ms));
-        }
-        None => {
-            let mut map = Map::new();
-            map.insert("createdMs".to_string(), Value::from(created_ms));
-            album.raw_json = Value::Object(map);
-        }
+    // Only an absent payload becomes a fresh object. A row carrying something that
+    // is not an object holds a shape this function does not understand, and
+    // dropping it to make room for one field would lose more than it adds.
+    if album.raw_json.is_null() {
+        let mut map = Map::new();
+        map.insert("createdMs".to_string(), Value::from(created_ms));
+        album.raw_json = Value::Object(map);
+        return;
+    }
+    if let Some(map) = album.raw_json.as_object_mut() {
+        map.insert("createdMs".to_string(), Value::from(created_ms));
     }
 }
 
