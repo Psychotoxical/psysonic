@@ -1,8 +1,10 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { render } from '@testing-library/react';
-import { VirtualCardGrid } from './VirtualCardGrid';
+import { VirtualCardGrid, type VirtualCardGridProps } from './VirtualCardGrid';
 
-const ITEMS = [{ id: 'a' }, { id: 'b' }, { id: 'c' }];
+type GridItem = { id: string };
+
+const ITEMS: GridItem[] = [{ id: 'a' }, { id: 'b' }, { id: 'c' }];
 
 // jsdom reports every element as 0 px wide, and a 0 px container derives one
 // column on its own — which would make the single-column assertion below pass
@@ -24,12 +26,12 @@ afterAll(() => {
   }
 });
 
-function renderGrid(props: Partial<React.ComponentProps<typeof VirtualCardGrid>> = {}) {
+function renderGrid(props: Partial<VirtualCardGridProps<GridItem>> = {}) {
   return render(
     <VirtualCardGrid
       items={ITEMS}
-      itemKey={(item: { id: string }) => item.id}
-      renderItem={(item: { id: string }) => <div data-testid="cell">{item.id}</div>}
+      itemKey={item => item.id}
+      renderItem={item => <div data-testid="cell">{item.id}</div>}
       rowVariant="album"
       disableVirtualization
       layoutSignal={ITEMS.length}
