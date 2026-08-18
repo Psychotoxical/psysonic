@@ -34,7 +34,10 @@ export interface OverflowTooltipAttrs {
  * still, is not re-measured — the worst case is a tooltip on text that just
  * stopped being clipped. Closing it would mean either re-measuring inside the
  * shared portal or a `mousemove` handler on every card, which costs more than
- * the cosmetic slip it prevents.
+ * the cosmetic slip it prevents. Removing the attribute also puts it out of
+ * sync with React's bookkeeping, so an unchanged `anchorText` will not restore
+ * it on a later render — same shape of gap, same cure: the next enter measures
+ * again.
  */
 export function useOverflowTooltip(
   anchorText: string | null | undefined,

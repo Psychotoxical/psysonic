@@ -40,7 +40,10 @@ function SongCard({
   const { t } = useTranslation();
   const showCardTooltips = useThemeStore(st => st.showCardTooltips);
   const titleTooltip = useOverflowTooltip(song.title, showCardTooltips);
-  const artistTooltip = useOverflowTooltip(song.artist, showCardTooltips);
+  // The anchor only has to be non-empty: servers that fill only the structured
+  // `artists[]` send an empty `artist`, while the line still renders a credit from
+  // the refs. The shown text is read from the DOM either way.
+  const artistTooltip = useOverflowTooltip(song.artist || '—', showCardTooltips);
   const navigateToArtist = useNavigateToArtist();
   const openContextMenu = usePlayerStore(s => s.openContextMenu);
   const enqueue = usePlayerStore(s => s.enqueue);
