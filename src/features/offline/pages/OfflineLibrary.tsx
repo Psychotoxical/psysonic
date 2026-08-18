@@ -561,7 +561,7 @@ export default function OfflineLibrary() {
             <button
               className="album-card-details-btn"
               onClick={() => handlePlay(card)}
-              aria-label={`${card.name} abspielen`}
+              aria-label={`${t('hero.playAlbum')} — ${card.name}`}
             >
               <Play size={15} fill="currentColor" />
             </button>
