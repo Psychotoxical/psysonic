@@ -234,7 +234,7 @@ export function applyQueueHistorySnapshot(
   get().updateReplayGainForCurrentTrack();
 
   if (!keepPlaybackFromPrior) {
-    playbackReportStart(nextTrack.id, getPlaybackServerId());
+    playbackReportStart(nextTrack.id, getPlaybackServerId(), playingRestore);
 
     queueUndoRestoreAudioEngine({
       generation: gen,

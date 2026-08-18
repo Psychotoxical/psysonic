@@ -549,7 +549,6 @@ export const settings = {
   playerBarStarRating: 'Csillagos értékelés',
   playerBarFavorite: 'Kedvenc (szív)',
   playerBarLastfmLove: 'Tetszik gomb',
-  playerBarScrobble: 'Force scrobble',
   playerBarPlaybackRate: 'Lejátszási sebesség',
   playerBarEqualizer: 'Hangszínszabályzó',
   playerBarMiniPlayer: 'Mini lejátszó',

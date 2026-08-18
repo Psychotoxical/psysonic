@@ -80,6 +80,11 @@ import { resetPlayerStore, resetAuthStore } from '@/test/helpers/storeReset';
 import { makeServer, makeTrack, makeTracks, seedQueue } from '@/test/helpers/factories';
 import { useAuthStore } from '@/store/authStore';
 import { usePlaybackAlternativeStore } from '@/features/playback/store/playbackAlternativeStore';
+import {
+  _resetScrobblePlaySessionForTest,
+  beginScrobblePlay,
+  scrobblePlayStartedAtMs,
+} from '@/features/playback/store/scrobblePlaySession';
 
 function stubPlaybackInvokes(): void {
   onInvoke('audio_play', () => undefined);
@@ -107,6 +112,7 @@ beforeEach(() => {
   orbitMocks.allowsTrackServer.mockReturnValue(true);
   orbitMocks.showToast.mockReset();
   playbackMocks.refreshLoudnessForTrack.mockClear();
+  _resetScrobblePlaySessionForTest();
   stubPlaybackInvokes();
 });
 
@@ -182,10 +188,78 @@ describe('resume — warm path (engine has the track loaded, just paused)', () =
     expect(invokeMock).toHaveBeenCalledWith('audio_resume', { fadeSecs: 0.7 });
   });
 
+  it('preserves the original scrobble timestamp across pause and warm resume', () => {
+    vi.setSystemTime(10_000);
+    const track = makeTrack({ id: 'warm-resume', serverId: 'server-a' });
+    beginScrobblePlay(track.id, 'server-a');
+    usePlayerStore.setState({ currentTrack: track, isPlaying: true });
+    usePlayerStore.getState().pause();
+
+    vi.setSystemTime(20_000);
+    usePlayerStore.getState().resume();
+
+    expect(scrobblePlayStartedAtMs(track.id, 'server-a', 0)).toBe(10_000);
+  });
+
+  it('starts the scrobble timestamp when a paused restore resumes for the first time', () => {
+    const server = makeServer({ id: 'server-a', url: 'https://a.test' });
+    useAuthStore.setState({ servers: [server], activeServerId: server.id });
+    const track = makeTrack({ id: 'restored-paused', serverId: server.id });
+    seedQueue([track], { currentTrack: track, serverId: server.id });
+    usePlayerStore.setState({ isPlaying: true });
+    usePlayerStore.getState().pause();
+
+    vi.setSystemTime(20_000);
+    usePlayerStore.getState().resume();
+
+    expect(scrobblePlayStartedAtMs(track.id, server.id, 0)).toBe(20_000);
+  });
+
   it('returns without invoking when there is no current track', () => {
     usePlayerStore.setState({ currentTrack: null });
     usePlayerStore.getState().resume();
     expect(invokeMock).not.toHaveBeenCalledWith('audio_resume');
+  });
+});
+
+describe('resume — cold path', () => {
+  it('starts a fresh scrobble play after stop instead of reusing the old timestamp', async () => {
+    vi.setSystemTime(10_000);
+    const server = makeServer({ id: 'server-a', url: 'https://a.test' });
+    useAuthStore.setState({ servers: [server], activeServerId: server.id });
+    const track = makeTrack({ id: 'cold-resume', serverId: server.id });
+    seedQueue([track], { currentTrack: track, serverId: server.id });
+    beginScrobblePlay(track.id, server.id);
+    usePlayerStore.setState({ isPlaying: true, scrobbled: true });
+    usePlayerStore.getState().stop();
+
+    vi.setSystemTime(20_000);
+    usePlayerStore.getState().resume();
+
+    vi.setSystemTime(25_000);
+    expect(scrobblePlayStartedAtMs(track.id, server.id, 0)).toBe(20_000);
+    expect(usePlayerStore.getState().scrobbled).toBe(false);
+    await vi.runAllTimersAsync();
+  });
+
+  it('keeps the outgoing owner when cold-resuming during a deferred handoff', async () => {
+    const serverA = makeServer({ id: 'server-a', url: 'https://a.test' });
+    const serverB = makeServer({ id: 'server-b', url: 'https://b.test' });
+    useAuthStore.setState({ servers: [serverA, serverB], activeServerId: serverB.id });
+    const outgoing = makeTrack({ id: 'outgoing', serverId: serverA.id });
+    const incoming = makeTrack({ id: 'incoming', serverId: serverB.id });
+    seedQueue([outgoing, incoming], { index: 0, currentTrack: outgoing });
+    usePlayerStore.setState({ queueIndex: 1, currentTime: 0, isPlaying: false });
+
+    vi.setSystemTime(20_000);
+    usePlayerStore.getState().resume();
+
+    vi.setSystemTime(25_000);
+    expect(scrobblePlayStartedAtMs(outgoing.id, serverA.id, 0)).toBe(20_000);
+    await vi.runAllTimersAsync();
+    expect(invokeMock).toHaveBeenCalledWith('audio_play', expect.objectContaining({
+      serverId: 'a.test',
+    }));
   });
 });
 

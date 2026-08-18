@@ -16,7 +16,6 @@ import {
 import { readInitialQueueVisibility } from '@/features/playback/store/queueVisibilityStorage';
 import { createNetworkLoveActions } from '@/features/playback/store/networkLoveActions';
 import { createMiscActions } from '@/features/playback/store/miscActions';
-import { createScrobbleActions } from '@/features/playback/store/scrobbleActions';
 import { runNext } from '@/features/playback/store/nextAction';
 import { runPlayTrack } from '@/features/playback/store/playTrackAction';
 import { runResume } from '@/features/playback/store/resumeAction';
@@ -93,7 +92,6 @@ export const usePlayerStore = create<PlayerState>()(
       ...createTransportLightActions(set, get),
       ...createUndoRedoActions(set, get),
       ...createMiscActions(set, get),
-      ...createScrobbleActions(set, get),
       ...createScheduleActions(set, get),
 
       playTrack: (track, queue, manual = true, _orbitConfirmed = false, targetQueueIndex, _skipQueueUndo = false) =>

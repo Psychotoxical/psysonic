@@ -5,7 +5,6 @@ import { useThemeStore } from '@/store/themeStore';
 import { formatTrackTime, playbarMinuteFieldWidth } from '@/lib/format/formatDuration';
 import { WaveformSeek } from '@/features/waveform';
 import { PlaybackTime, ToggleClock } from '@/features/playback/components/playerBar/PlaybackClock';
-import { ScrobbleStatus } from '@/features/playback/components/playerBar/ScrobbleStatus';
 
 interface Props {
   isRadio: boolean;
@@ -57,7 +56,7 @@ export function PlayerSeekbarSection({
         </>
       ) : (
         <>
-          <ScrobbleStatus minuteFieldWidth={minuteFieldWidth} t={t} />
+          <PlaybackTime className="player-time" minuteFieldWidth={minuteFieldWidth} />
           <div className="player-waveform-wrap">
             {disableWaveformCanvas
               ? <div className="radio-progress-bar" aria-hidden />

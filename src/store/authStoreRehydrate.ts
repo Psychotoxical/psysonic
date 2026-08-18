@@ -10,7 +10,10 @@ import {
   LOUDNESS_PRE_ANALYSIS_REF_TARGET_LUFS,
   clampStoredLoudnessPreAnalysisAttenuationRefDb,
 } from '@/lib/audio/loudnessPreAnalysisSlider';
-import { DEFAULT_LOUDNESS_PRE_ANALYSIS_ATTENUATION_DB } from './authStoreDefaults';
+import {
+  DEFAULT_LOUDNESS_PRE_ANALYSIS_ATTENUATION_DB,
+  clampScrobbleThresholdPercent,
+} from './authStoreDefaults';
 import {
   clampMixFilterMinStars,
   clampRandomMixSize,
@@ -326,6 +329,10 @@ export function computeAuthStoreRehydration(state: AuthState): Partial<AuthState
     mixMinRatingAlbum: clampMixFilterMinStars(state.mixMinRatingAlbum as number),
     mixMinRatingArtist: clampMixFilterMinStars(state.mixMinRatingArtist as number),
     randomMixSize: clampRandomMixSize(state.randomMixSize as number),
+    scrobbleThresholdPercent: clampScrobbleThresholdPercent(
+      (state as { scrobbleThresholdPercent?: unknown }).scrobbleThresholdPercent,
+    ),
+    forceScrobbleEnabled: state.forceScrobbleEnabled === true,
     libraryGridMaxColumns: clampLibraryGridMaxColumns(
       (state as { libraryGridMaxColumns?: unknown }).libraryGridMaxColumns,
     ),

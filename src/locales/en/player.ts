@@ -72,6 +72,7 @@ export const player = {
   forceScrobble: 'Force scrobble',
   scrobbleAlreadySent: 'Already scrobbled',
   scrobbleUnavailable: 'Scrobble unavailable',
+  scrobblePreview: 'Unavailable during track preview',
   scrobbleOffline: 'Unavailable while offline',
   scrobbleRadio: 'Radio streams are not scrobbled',
   sourceFailureTitle: 'Couldn’t play {{title}}',

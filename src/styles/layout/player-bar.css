@@ -338,30 +338,11 @@ html[data-platform="windows"] .player-bar.floating {
   min-width: 2.5rem;
 }
 
-.player-waveform-section > .player-time:first-child,
-.player-waveform-section > .player-time-scrobble {
+.player-waveform-section > .player-time:first-child {
   flex: 0 0 calc(var(--playbar-clock-body-ch, 4) * 1ch);
   width: calc(var(--playbar-clock-body-ch, 4) * 1ch);
   min-width: unset;
   text-align: right;
-}
-
-.player-time-scrobble {
-  appearance: none;
-  border: 0;
-  background: transparent;
-  padding: 2px 0;
-  cursor: pointer;
-  border-radius: 4px;
-  color: inherit;
-  font: inherit;
-}
-
-.player-time-scrobble:hover,
-.player-time-scrobble.is-open,
-.player-time-scrobble:focus-visible {
-  background-color: var(--player-time-toggle-hover);
-  color: var(--text-primary);
 }
 
 .player-scrobble-popover {
@@ -566,4 +547,3 @@ html[data-platform="windows"] .player-bar.floating {
   width: 100%;
   min-width: 0;
 }
-

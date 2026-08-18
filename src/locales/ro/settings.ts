@@ -507,7 +507,6 @@ export const settings = {
   playerBarStarRating: 'Evaluare cu stele',
   playerBarFavorite: 'Favorit (inimă)',
   playerBarLastfmLove: 'Buton de apreciere',
-  playerBarScrobble: 'Force scrobble',
   playerBarPlaybackRate: 'Viteză redare',
   playerBarEqualizer: 'Egalizator',
   playerBarMiniPlayer: 'Mini player',

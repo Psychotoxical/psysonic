@@ -16,7 +16,7 @@ vi.mock('@/lib/api/audio', () => ({
   audioPreload: vi.fn(async () => undefined),
 }));
 
-import { handleAudioProgress } from './audioEventHandlers';
+import { handleAudioEnded, handleAudioProgress } from './audioEventHandlers';
 
 beforeEach(() => {
   resetAllStores();
@@ -47,5 +47,21 @@ describe('handleAudioProgress scrobble threshold', () => {
 
     expect(usePlayerStore.getState().scrobbled).toBe(true);
     expect(submitTrackScrobble).toHaveBeenCalledTimes(1);
+  });
+
+  it('settles a high-threshold play when an early crossfade boundary ends progress', () => {
+    vi.useFakeTimers();
+    const track = makeTrack({ duration: 100 });
+    usePlayerStore.setState({ currentTrack: track, isPlaying: true, scrobbled: false });
+    useAuthStore.setState({ scrobbleThresholdPercent: 90 });
+
+    handleAudioProgress(82, 100);
+    expect(submitTrackScrobble).not.toHaveBeenCalled();
+
+    handleAudioEnded();
+    expect(usePlayerStore.getState().scrobbled).toBe(true);
+    expect(submitTrackScrobble).toHaveBeenCalledTimes(1);
+    vi.clearAllTimers();
+    vi.useRealTimers();
   });
 });

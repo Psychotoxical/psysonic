@@ -4,7 +4,7 @@ import {
   SkipBack, SkipForward, Play, Pause, Repeat, Repeat1,
   ListMusic, MessageSquare, Shrink,
 } from 'lucide-react';
-import { usePlayerStore, type PlaybackProgressSnapshot, usePlaybackLibraryNavigate, TrackArtistLinks } from '@/features/playback';
+import { usePlayerStore, type PlaybackProgressSnapshot, usePlaybackLibraryNavigate, TrackArtistLinks, ScrobbleActionButton } from '@/features/playback';
 import { FsVolume } from './FsVolume';
 import { useAlbumCoverRef } from '@/cover/useLibraryCoverRef';
 import { usePlaybackCoverArt } from '@/cover/usePlaybackCoverArt';
@@ -17,7 +17,6 @@ import { FsLyricsApple } from './FsLyricsApple';
 import { FsQueueModal } from './FsQueueModal';
 import { VisualizerPanel } from '@/features/visualizer';
 import { prepareTransientUiOpen } from '@/lib/dom/transientUi';
-import { ScrobbleActionButton } from '@/features/playback/components/playerBar/ScrobbleStatus';
 
 /** The now-playing pill's integrated progress line — imperative width + scrub seek. */
 const PrismProgress = memo(function PrismProgress() {

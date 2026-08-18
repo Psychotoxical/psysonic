@@ -4,6 +4,41 @@ import { useAuthStore } from './authStore';
 import type { AuthState } from './authStoreTypes';
 import { resetAuthStore } from '@/test/helpers/storeReset';
 
+describe('computeAuthStoreRehydration — scrobbling', () => {
+  beforeEach(resetAuthStore);
+
+  it.each([
+    [undefined, 50],
+    [null, 50],
+    ['75', 50],
+    [24, 25],
+    [91, 90],
+    [75, 75],
+  ] as const)('sanitizes threshold %j to %s', (value, expected) => {
+    const state = {
+      ...useAuthStore.getState(),
+      scrobbleThresholdPercent: value,
+    } as unknown as AuthState;
+    expect(computeAuthStoreRehydration(state).scrobbleThresholdPercent).toBe(expected);
+  });
+
+  it.each([undefined, null, 'true', 1, false] as const)(
+    'keeps force scrobble off for non-true persisted value %j',
+    value => {
+      const state = {
+        ...useAuthStore.getState(),
+        forceScrobbleEnabled: value,
+      } as unknown as AuthState;
+      expect(computeAuthStoreRehydration(state).forceScrobbleEnabled).toBe(false);
+    },
+  );
+
+  it('preserves an explicit force-scrobble opt-in', () => {
+    const state = { ...useAuthStore.getState(), forceScrobbleEnabled: true };
+    expect(computeAuthStoreRehydration(state).forceScrobbleEnabled).toBe(true);
+  });
+});
+
 describe('computeAuthStoreRehydration — queueDurationDisplayMode', () => {
   beforeEach(() => {
     resetAuthStore();

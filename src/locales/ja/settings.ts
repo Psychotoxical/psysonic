@@ -543,7 +543,6 @@ export const settings = {
   playerBarStarRating: '星評価',
   playerBarFavorite: 'お気に入り (ハート)',
   playerBarLastfmLove: 'Love ボタン',
-  playerBarScrobble: 'Force scrobble',
   playerBarPlaybackRate: '再生速度',
   playerBarEqualizer: 'イコライザー',
   playerBarMiniPlayer: 'ミニプレイヤー',

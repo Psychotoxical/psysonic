@@ -5,9 +5,11 @@ import { audioResume, audioSeek } from '@/lib/api/audio';
 import { estimateLivePosition, orbitSnapshot } from '@/store/orbitRuntime';
 import { setDeferHotCachePrefetch } from '@/lib/cache/hotCacheGate';
 import {
+  playbackCacheKeyForTrack,
   getPlaybackCacheServerKey,
-  getPlaybackIndexKey,
+  playbackProfileIdForTrack,
 } from '@/features/playback/utils/playback/playbackServer';
+import { findQueueItemRefForTrack } from '@/features/playback/utils/playback/queueIdentity';
 import { resolvePlaybackUrlForTrack } from '@/features/playback/utils/playback/resolvePlaybackUrl';
 import { resolveReplayGainDb } from '@/features/playback/utils/audio/resolveReplayGainDb';
 import { audioPlayHiResBlendArgs } from '@/lib/audio/hiResCrossfadeResample';
@@ -34,10 +36,14 @@ import { resolveQueueTrack } from '@/features/playback/store/queueTrackView';
 import { promoteCompletedStreamToHotCache } from '@/features/playback/store/promoteStreamCache';
 import { pushQueueOnPlaybackStart, flushLocalQueueWhenTakingPlayback } from '@/features/playback/store/queueSync';
 import { markPlaybackActive } from '@/features/playback/store/queuePlaybackIdle';
-import { playbackReportPlaying } from '@/features/playback/store/playbackReportSession';
+import {
+  playbackReportPlaying,
+  playbackReportStart,
+} from '@/features/playback/store/playbackReportSession';
 import { resumeRadio } from '@/features/playback/store/radioPlayer';
 import { clearAllPlaybackScheduleTimers } from '@/features/playback/store/scheduleTimers';
 import { sanitizePauseResumeFadeSecs } from '@/lib/audio/pauseResumeFade';
+import { ensureScrobblePlay } from '@/features/playback/store/scrobblePlaySession';
 
 type SetState = (
   partial: Partial<PlayerState> | ((state: PlayerState) => Partial<PlayerState>),
@@ -126,15 +132,14 @@ export function runResume(set: SetState, get: GetState): void {
   }
   const { currentTrack, queueItems, queueIndex, currentTime } = get();
   if (!currentTrack) return;
-  // ReplayGain album-mode neighbours (resolver cache → placeholder; only their
-  // RG tags matter, which a placeholder lacks → fallback dB).
-  const coldPrev = queueIndex > 0 && queueItems[queueIndex - 1]
-    ? resolveQueueTrack(queueItems[queueIndex - 1]) : null;
-  const coldNext = queueIndex + 1 < queueItems.length && queueItems[queueIndex + 1]
-    ? resolveQueueTrack(queueItems[queueIndex + 1]) : null;
 
   if (getIsAudioPaused()) {
     // Rust engine has audio loaded but paused — just resume it.
+    const warmRef = findQueueItemRefForTrack(queueItems, currentTrack, queueIndex);
+    ensureScrobblePlay(
+      currentTrack.id,
+      playbackProfileIdForTrack(currentTrack, warmRef),
+    );
     audioResume({ fadeSecs }).catch(console.error);
     setIsAudioPaused(false);
     set({ isPlaying: true });
@@ -148,12 +153,25 @@ export function runResume(set: SetState, get: GetState): void {
     // `stream_completed_cache` from the prior play to hot disk before resolving URL.
     const gen = bumpPlayGeneration();
     const vol = get().volume;
-    set({ isPlaying: true });
-    playbackReportPlaying(currentTime);
+    const coldRef = findQueueItemRefForTrack(queueItems, currentTrack, queueIndex);
+    const coldQueueIndex = coldRef ? queueItems.indexOf(coldRef) : queueIndex;
+    const coldIndexKey = playbackCacheKeyForTrack(currentTrack, coldRef);
+    const coldProfileId = playbackProfileIdForTrack(currentTrack, coldRef);
+    // ReplayGain album-mode neighbours (resolver cache → placeholder; only their
+    // RG tags matter, which a placeholder lacks → fallback dB).
+    const coldPrev = coldQueueIndex > 0 && queueItems[coldQueueIndex - 1]
+      ? resolveQueueTrack(queueItems[coldQueueIndex - 1]) : null;
+    const coldNext = coldQueueIndex + 1 < queueItems.length && queueItems[coldQueueIndex + 1]
+      ? resolveQueueTrack(queueItems[coldQueueIndex + 1]) : null;
+    set({
+      isPlaying: true,
+      ...(currentTime <= 0 ? { scrobbled: false } : {}),
+    });
+    playbackReportStart(currentTrack.id, coldProfileId);
 
     void (async () => {
       const authHot = useAuthStore.getState();
-      const resumePromoteSid = getPlaybackCacheServerKey();
+      const resumePromoteSid = coldIndexKey;
       if (authHot.hotCacheEnabled && resumePromoteSid) {
         await promoteCompletedStreamToHotCache(
           currentTrack,
@@ -165,11 +183,10 @@ export function runResume(set: SetState, get: GetState): void {
 
       if (getPlayGeneration() !== gen) return;
 
-      const coldServerId = getPlaybackIndexKey();
       let trackToPlay = currentTrack;
       try {
-        if (coldServerId) {
-          trackToPlay = await enrichTrackPlaybackMetadata(currentTrack, coldServerId);
+        if (coldIndexKey) {
+          trackToPlay = await enrichTrackPlaybackMetadata(currentTrack, coldIndexKey);
         }
       } catch { /* keep currentTrack */ }
       if (getPlayGeneration() !== gen) return;
@@ -182,23 +199,23 @@ export function runResume(set: SetState, get: GetState): void {
       );
       const replayGainPeakCold = isReplayGainActive() ? (trackToPlay.replayGainPeak ?? null) : null;
       setDeferHotCachePrefetch(true);
-      const coldUrl = resolvePlaybackUrlForTrack(trackToPlay, coldServerId);
-      set({ currentPlaybackSource: playbackSourceHintForResolvedUrl(trackToPlay.id, coldServerId, coldUrl) });
+      const coldUrl = resolvePlaybackUrlForTrack(trackToPlay, coldIndexKey);
+      set({ currentPlaybackSource: playbackSourceHintForResolvedUrl(trackToPlay.id, coldIndexKey, coldUrl) });
       recordEnginePlayUrl(trackToPlay.id, coldUrl);
-      touchHotCacheOnPlayback(trackToPlay.id, coldServerId);
+      touchHotCacheOnPlayback(trackToPlay.id, coldIndexKey);
       invoke('audio_play', {
         url: coldUrl,
         volume: vol,
         durationHint: trackToPlay.duration,
         replayGainDb: replayGainDbCold,
         replayGainPeak: replayGainPeakCold,
-        loudnessGainDb: loudnessGainDbForEngineBind(analysisTrackRef(trackToPlay.id, coldServerId)),
+        loudnessGainDb: loudnessGainDbForEngineBind(analysisTrackRef(trackToPlay.id, coldIndexKey)),
         preGainDb: authStateCold.replayGainPreGainDb,
         fallbackDb: authStateCold.replayGainFallbackDb,
         manual: false,
         ...audioPlayHiResBlendArgs(useAuthStore.getState()),
         analysisTrackId: trackToPlay.id,
-        serverId: coldServerId || null,
+        serverId: coldIndexKey || null,
         streamFormatSuffix: trackToPlay.suffix ?? null,
         startPaused: false,
       }).then(() => {

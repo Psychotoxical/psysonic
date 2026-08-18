@@ -16,6 +16,7 @@ export {
 export { useVolumeToggle } from './hooks/useVolumeToggle';
 export { usePlaybackLibraryNavigate } from './hooks/usePlaybackLibraryNavigate';
 export { TrackArtistLinks } from './components/TrackArtistLinks';
+export { ScrobbleActionButton } from './components/playerBar/ScrobbleStatus';
 /** Visualizer tap and reactive availability for internet radio. */
 export {
   getRadioSpectrumAnalyser,

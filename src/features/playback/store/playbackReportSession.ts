@@ -7,6 +7,10 @@ import { isOrbitPlaybackSyncActive } from '@/store/orbitRuntime';
 import { useAuthStore } from '@/store/authStore';
 import { getPlaybackProgressSnapshot } from '@/features/playback/store/playbackProgress';
 import { usePlaybackRateStore } from '@/features/playback/store/playbackRateStore';
+import {
+  beginScrobblePlay,
+  clearScrobblePlay,
+} from '@/features/playback/store/scrobblePlaySession';
 
 /**
  * Live now-playing presence on the Subsonic server channel.
@@ -96,7 +100,13 @@ function openExtensionSession(
  * `reportNowPlaying` presence call at those sites: the extension path opens the
  * FSM (starting → playing); otherwise the legacy presence call is used.
  */
-export function playbackReportStart(trackId: string, serverId: string): void {
+export function playbackReportStart(
+  trackId: string,
+  serverId: string,
+  startScrobbleSession = true,
+): void {
+  if (startScrobbleSession) beginScrobblePlay(trackId, serverId);
+  else clearScrobblePlay();
   if (!serverId || !nowPlayingEnabled()) return;
 
   const prev = session;

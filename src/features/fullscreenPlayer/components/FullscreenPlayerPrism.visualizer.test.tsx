@@ -13,6 +13,14 @@ vi.mock('@/features/visualizer/components/VisualizerCanvas', () => ({
 vi.mock('@/features/visualizer/hooks/useVisualizerCoverArt', () => ({
   useVisualizerCoverArt: () => ({ artUrl: '', artKey: '' }),
 }));
+vi.mock('@/features/offline', async importOriginal => {
+  const actual = await importOriginal<typeof import('@/features/offline')>();
+  return {
+    ...actual,
+    useOfflineBrowseActive: () => false,
+    offlineActionPolicy: () => ({ canScrobble: true }),
+  };
+});
 
 import FullscreenPlayerPrism from './FullscreenPlayerPrism';
 import { renderWithProviders } from '@/test/helpers/renderWithProviders';
@@ -78,5 +86,22 @@ describe('FullscreenPlayerPrism visualizer integration', () => {
     await user.tab();
     expect(screen.getByRole('button', { name: 'Mute' })).toHaveFocus();
     expect(document.querySelector<HTMLInputElement>('.fsp2-progress input')).not.toHaveFocus();
+  });
+
+  it('includes the opt-in force-scrobble control in keyboard order', async () => {
+    useAuthStore.setState({ forceScrobbleEnabled: true });
+    const user = userEvent.setup();
+    renderWithProviders(<PrismHarness />);
+    const pill = document.querySelector<HTMLElement>('.fsp2-pill');
+    pill!.style.display = 'none';
+
+    await user.click(screen.getByRole('button', { name: 'Fill the window' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Exit full window' })).toHaveFocus());
+    for (const name of ['Previous Track', 'Play', 'Next Track', 'Repeat', 'Force scrobble']) {
+      await user.tab();
+      expect(screen.getByRole('button', { name })).toHaveFocus();
+    }
+    await user.tab();
+    expect(screen.getByRole('button', { name: 'Mute' })).toHaveFocus();
   });
 });

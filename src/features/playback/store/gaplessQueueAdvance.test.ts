@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { onInvoke } from '@/test/mocks/tauri';
 import { useAuthStore } from '@/store/authStore';
 import { usePlayerStore } from '@/features/playback/store/playerStore';
@@ -106,16 +106,18 @@ describe('maybeReconcileGaplessFromProgress', () => {
   });
 
   it('catches up UI when engine position regresses without track_switched', () => {
+    const beforeAdvance = vi.fn();
     noteEngineProgressForGapless(170);
-    maybeReconcileGaplessFromProgress(0.4, 205);
+    expect(maybeReconcileGaplessFromProgress(0.4, 205, beforeAdvance)).toBe(true);
 
+    expect(beforeAdvance).toHaveBeenCalledOnce();
     expect(usePlayerStore.getState().currentTrack?.id).toBe('t2');
     expect(getPlaybackProgressSnapshot().progress).toBe(0);
   });
 
   it('no-ops when position moves forward normally', () => {
     noteEngineProgressForGapless(10);
-    maybeReconcileGaplessFromProgress(11, 200);
+    expect(maybeReconcileGaplessFromProgress(11, 200)).toBe(false);
 
     expect(usePlayerStore.getState().currentTrack?.id).toBe('t1');
   });

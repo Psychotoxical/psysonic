@@ -17,6 +17,7 @@ export function createMusicNetworkActions(set: SetState): Pick<
   | 'setEnrichmentPrimaryId'
   | 'setScrobblingMasterEnabled'
   | 'setScrobbleThresholdPercent'
+  | 'setForceScrobbleEnabled'
 > {
   return {
     setMusicNetworkAccounts: (accounts: PersistedAccount[]) =>
@@ -27,5 +28,7 @@ export function createMusicNetworkActions(set: SetState): Pick<
       set({ scrobblingMasterEnabled: v }),
     setScrobbleThresholdPercent: (v: number) =>
       set({ scrobbleThresholdPercent: clampScrobbleThresholdPercent(v) }),
+    setForceScrobbleEnabled: (v: boolean) =>
+      set({ forceScrobbleEnabled: v }),
   };
 }

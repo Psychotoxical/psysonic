@@ -31,7 +31,7 @@ describe('playerBarLayoutStore', () => {
   it('starts with every item visible in declared order', () => {
     const items = usePlayerBarLayoutStore.getState().items;
     expect(ids(items)).toEqual([
-      'stop', 'shuffle', 'starRating', 'favorite', 'lastfmLove', 'scrobble', 'playbackRate', 'equalizer', 'miniPlayer',
+      'stop', 'shuffle', 'starRating', 'favorite', 'lastfmLove', 'playbackRate', 'equalizer', 'miniPlayer',
     ]);
     expect(items.every(i => i.visible)).toBe(true);
     expect(usePlayerBarLayoutStore.getState().trackInfoMode).toBe(DEFAULT_PLAYER_BAR_TRACK_INFO_MODE);

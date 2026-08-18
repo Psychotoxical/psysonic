@@ -94,6 +94,17 @@ export function queueItemRefMatchesTrack(
   return !refServerId || !trackServerId || refServerId === trackServerId;
 }
 
+/** Prefer the current queue slot, then recover the matching mixed-server owner. */
+export function findQueueItemRefForTrack(
+  items: QueueItemRef[],
+  track: Pick<Track, 'id' | 'serverId'>,
+  preferredIndex: number,
+): QueueItemRef | undefined {
+  const preferred = items[preferredIndex];
+  if (queueItemRefMatchesTrack(preferred, track)) return preferred;
+  return items.find(ref => queueItemRefMatchesTrack(ref, track));
+}
+
 /** Canonical queue ref identity — server + track id (mixed-server safe). */
 export function sameQueueItemRef(
   a: Pick<QueueItemRef, 'serverId' | 'trackId'>,

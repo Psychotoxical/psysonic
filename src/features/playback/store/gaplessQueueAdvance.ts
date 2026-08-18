@@ -216,12 +216,13 @@ export function applyGaplessQueueAdvance(opts?: {
 export function maybeReconcileGaplessFromProgress(
   currentTime: number,
   engineDuration: number,
-): void {
-  if (!useAuthStore.getState().gaplessEnabled) return;
-  if (isSeekDebouncePending() || getSeekTarget() !== null) return;
+  onBeforeAdvance?: () => void,
+): boolean {
+  if (!useAuthStore.getState().gaplessEnabled) return false;
+  if (isSeekDebouncePending() || getSeekTarget() !== null) return false;
   const store = usePlayerStore.getState();
-  if (!store.isPlaying || store.currentRadio || !store.currentTrack) return;
-  if (Date.now() - getLastGaplessSwitchTime() < 400) return;
+  if (!store.isPlaying || store.currentRadio || !store.currentTrack) return false;
+  if (Date.now() - getLastGaplessSwitchTime() < 400) return false;
 
   const prevSec = getLastEngineProgressSec();
   // Gapless transitions restart near 0 — mid-track regressions are usually
@@ -230,7 +231,7 @@ export function maybeReconcileGaplessFromProgress(
   const regressed = nearStart && currentTime + 1.5 < prevSec && prevSec > 8;
   if (!regressed) {
     noteEngineProgressForGapless(currentTime);
-    return;
+    return false;
   }
 
   const { nextTrack, newIndex } = resolveGaplessSuccessor(
@@ -239,11 +240,12 @@ export function maybeReconcileGaplessFromProgress(
     store.repeatMode,
     store.currentTrack,
   );
-  if (!nextTrack || sameQueueTrack(nextTrack, store.currentTrack)) return;
+  if (!nextTrack || sameQueueTrack(nextTrack, store.currentTrack)) return false;
   const slotRef = store.queueItems[store.queueIndex];
-  if (!queueItemRefMatchesTrack(slotRef, store.currentTrack)) return;
-  if (store.repeatMode !== 'one' && newIndex <= store.queueIndex) return;
+  if (!queueItemRefMatchesTrack(slotRef, store.currentTrack)) return false;
+  if (store.repeatMode !== 'one' && newIndex <= store.queueIndex) return false;
 
+  onBeforeAdvance?.();
   applyGaplessQueueAdvance({
     engineDurationHint: engineDuration,
     source: 'progress-reconcile',
@@ -252,4 +254,5 @@ export function maybeReconcileGaplessFromProgress(
   clearPreloadingIds();
   setIsAudioPaused(false);
   noteEngineProgressForGapless(currentTime);
+  return true;
 }

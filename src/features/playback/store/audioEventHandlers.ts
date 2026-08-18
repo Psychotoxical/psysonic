@@ -1,4 +1,7 @@
-import { submitTrackScrobble } from '@/features/playback/store/submitTrackScrobble';
+import {
+  scrobbleCurrentTrackAtNaturalBoundary,
+  submitPlaybackTrackScrobble,
+} from '@/features/playback/store/scrobbleActions';
 import {
   playbackReportPlaying,
   playbackReportStopped,
@@ -281,7 +284,12 @@ export function handleAudioProgress(
   const track = store.currentTrack;
   if (!track) return;
   if (!buffering) {
-    maybeReconcileGaplessFromProgress(current_time, duration);
+    const reconciled = maybeReconcileGaplessFromProgress(
+      current_time,
+      duration,
+      scrobbleCurrentTrackAtNaturalBoundary,
+    );
+    if (reconciled) return;
   }
   if (!store.currentRadio && store.isPlaybackBuffering !== buffering) {
     usePlayerStore.setState({ isPlaybackBuffering: buffering });
@@ -351,7 +359,7 @@ export function handleAudioProgress(
   const threshold = useAuthStore.getState().scrobbleThresholdPercent / 100;
   if (progress >= threshold && !store.scrobbled) {
     usePlayerStore.setState({ scrobbled: true });
-    submitTrackScrobble(track, store.queueItems[store.queueIndex]);
+    submitPlaybackTrackScrobble(track, store.queueItems, store.queueIndex);
   }
   if (progressUiDisabled) return;
   // Critical architectural guard: avoid high-frequency writes to the persisted
@@ -434,6 +442,7 @@ export function handleAudioProgress(
           )
         ) {
           crossfadeTrimAdvanceGen = gen;
+          scrobbleCurrentTrackAtNaturalBoundary();
           armCrossfadeDynamicOverlap(nextTrackIdentity ?? nextTrackId, overlapSec, outgoingFadeSec);
           armAutodjMixing(overlapSec);
           store.next(false);
@@ -560,6 +569,7 @@ export function handleAudioEnded(): void {
     return;
   }
 
+  scrobbleCurrentTrackAtNaturalBoundary();
   void playListenSessionFinalize('ended');
   // Track finished — clear live now-playing. A follow-on track (next / repeat)
   // opens a fresh session via playbackReportStart.
@@ -625,6 +635,7 @@ export function handleAudioTrackSwitched(duration: number): void {
   setIsAudioPaused(false);
 
   const store = usePlayerStore.getState();
+  scrobbleCurrentTrackAtNaturalBoundary();
   if (store.currentTrack?.id) {
     useAuthStore.getState().clearSkipStarManualCountForTrack(
       store.currentTrack.id,

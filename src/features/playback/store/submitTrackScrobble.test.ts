@@ -27,15 +27,15 @@ beforeEach(() => {
 describe('submitTrackScrobble', () => {
   it('sends the play to the owning server and Music Network', () => {
     const track = makeTrack({ id: 't1', title: 'Song', artist: 'A', album: 'B', duration: 200, serverId: 'srv-a' });
-    submitTrackScrobble(track, { trackId: 't1', serverId: 'srv-queue' });
+    submitTrackScrobble(track, 'srv-queue', 1234);
 
-    expect(scrobbleSong).toHaveBeenCalledWith('t1', expect.any(Number), 'srv-queue');
+    expect(scrobbleSong).toHaveBeenCalledWith('t1', 1234, 'srv-queue');
     expect(dispatchScrobble).toHaveBeenCalledWith({
       title: 'Song',
       artist: 'A',
       album: 'B',
       duration: 200,
-      timestamp: expect.any(Number),
+      timestamp: 1234,
     });
   });
 });

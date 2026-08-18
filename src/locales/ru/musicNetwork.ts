@@ -6,6 +6,8 @@ export const musicNetwork = {
   thresholdLabel: 'Scrobble after',
   thresholdDesc: 'Send a scrobble when playback reaches this percentage of the track (25–90%). Default 50%.',
   thresholdValue: '{{n}}%',
+  forceScrobbleLabel: 'Ручной форсированный скробблинг',
+  forceScrobbleDesc: 'Показывать дополнительную кнопку плеера, которая немедленно отправляет текущий трек.',
   addService: 'Добавить сервис',
   connect: 'Подключить',
   connecting: 'Подключение…',

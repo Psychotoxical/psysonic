@@ -52,6 +52,7 @@ export const useAuthStore = create<AuthState>()(
       enrichmentPrimaryId: null,
       scrobblingMasterEnabled: true,
       scrobbleThresholdPercent: SCROBBLE_THRESHOLD_PERCENT_DEFAULT,
+      forceScrobbleEnabled: false,
       maxCacheMb: 0,
       coverRevalidateCycleDays: 30,
       coverRevalidateMaxProbesPerSession: 500,

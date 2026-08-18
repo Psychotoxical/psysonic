@@ -282,12 +282,10 @@ export default function PlayerBar() {
         </div>
       ) : (
         <>
-          {isLayoutVisible('scrobble') && (
-            <ScrobbleActionButton
-              t={t}
-              className="player-btn player-btn-sm player-scrobble-btn"
-            />
-          )}
+          <ScrobbleActionButton
+            t={t}
+            className="player-btn player-btn-sm player-scrobble-btn"
+          />
 
           {isLayoutVisible('playbackRate') && (
             <PlayerPlaybackRate t={t} />

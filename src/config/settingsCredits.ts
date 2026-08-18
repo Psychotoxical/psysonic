@@ -537,9 +537,9 @@ const CONTRIBUTOR_ENTRIES = [
   },
   {
     github: 'JayDawgThaGOAT',
-    since: '1.51.0',
+    since: '1.52.0',
     contributions: [
-      'Configurable scrobble threshold and force-scrobble action',
+      'Configurable scrobble threshold and force-scrobble action (PR #1425)',
     ],
   },
 ] as const;

@@ -4,7 +4,7 @@ import {
   Shuffle, ListMusic, ChevronDown, Star, MicVocal,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { usePlayerStore } from '@/features/playback/store/playerStore';
+import { ScrobbleActionButton, usePlayerStore } from '@/features/playback';
 import { queueSongStar, queueSongRating } from '@/features/playback/store/pendingStarSync';
 import { TrackArtistLinks, usePlaybackLibraryNavigate } from '@/features/playback';
 import { useAlbumCoverRef } from '@/cover/useLibraryCoverRef';
@@ -23,7 +23,6 @@ import { FsVolume } from '@/features/fullscreenPlayer/components/FsVolume';
 import { ownedOverrideValue } from '@/lib/util/ownedEntityKey';
 import { VisualizerPanel } from '@/features/visualizer';
 import { prepareTransientUiOpen } from '@/lib/dom/transientUi';
-import { ScrobbleActionButton } from '@/features/playback/components/playerBar/ScrobbleStatus';
 
 interface Props {
   onClose: () => void;

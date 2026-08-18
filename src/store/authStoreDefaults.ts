@@ -47,8 +47,8 @@ export const SCROBBLE_THRESHOLD_PERCENT_MIN = 25;
 export const SCROBBLE_THRESHOLD_PERCENT_MAX = 90;
 export const SCROBBLE_THRESHOLD_PERCENT_DEFAULT = 50;
 
-export function clampScrobbleThresholdPercent(v: number): number {
-  if (!Number.isFinite(v)) return SCROBBLE_THRESHOLD_PERCENT_DEFAULT;
+export function clampScrobbleThresholdPercent(v: unknown): number {
+  if (typeof v !== 'number' || !Number.isFinite(v)) return SCROBBLE_THRESHOLD_PERCENT_DEFAULT;
   return Math.max(
     SCROBBLE_THRESHOLD_PERCENT_MIN,
     Math.min(SCROBBLE_THRESHOLD_PERCENT_MAX, Math.round(v)),

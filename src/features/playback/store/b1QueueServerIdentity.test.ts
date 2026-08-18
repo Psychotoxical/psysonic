@@ -32,6 +32,11 @@ import type { QueueItemRef, Track } from '@/lib/media/trackTypes';
 import type { PlayerState } from '@/features/playback/store/playerStoreTypes';
 import { savePlayQueue } from '@/lib/api/subsonicPlayQueue';
 import { _resetQueueSyncForTest, flushPlayQueuePosition } from '@/features/playback/store/queueSync';
+import {
+  _resetScrobblePlaySessionForTest,
+  beginScrobblePlay,
+  scrobblePlayStartedAtMs,
+} from '@/features/playback/store/scrobblePlaySession';
 
 vi.mock('@/lib/api/subsonicPlayQueue', () => ({
   savePlayQueue: vi.fn(async () => undefined),
@@ -77,6 +82,7 @@ beforeEach(() => {
   resetPlayerStore();
   _resetQueueResolverForTest();
   _resetQueueSyncForTest();
+  _resetScrobblePlaySessionForTest();
   vi.mocked(savePlayQueue).mockClear();
   useAuthStore.setState({
     servers: [SERVER_A, SERVER_B],
@@ -259,6 +265,44 @@ describe('B1 + H3 — undo prepend binds to the snapshot\'s playback server', ()
     expect(after.queueItems[0]).toEqual({ serverId: KEY_A, trackId: 'p' });
   });
 
+  it('does not start the scrobble clock until a paused snapshot resumes', () => {
+    onInvoke('audio_play', () => undefined);
+    onInvoke('audio_seek', () => undefined);
+    onInvoke('audio_stop', () => undefined);
+    onInvoke('audio_get_state', () => ({ playing: false }));
+    const now = vi.spyOn(Date, 'now').mockReturnValue(5_000);
+    beginScrobblePlay('paused', SERVER_A.id);
+    now.mockReturnValue(10_000);
+
+    const priorTrack = track('prior', 'Prior');
+    const pausedTrack = { ...track('paused', 'Paused'), serverId: SERVER_A.id };
+    const prior: PlayerState = {
+      ...usePlayerStore.getState(),
+      currentTrack: priorTrack,
+      isPlaying: true,
+      queueItems: [{ serverId: KEY_B, trackId: priorTrack.id }],
+      queueServerId: KEY_B,
+      queueIndex: 0,
+    };
+    usePlayerStore.setState(prior);
+
+    const snap: QueueUndoSnapshot = {
+      queueItems: [{ serverId: KEY_A, trackId: pausedTrack.id }],
+      queueIndex: 0,
+      currentTrack: pausedTrack,
+      currentTime: 0,
+      progress: 0,
+      isPlaying: false,
+      queueServerId: KEY_A,
+    };
+
+    applyQueueHistorySnapshot(snap, prior, usePlayerStore.setState, usePlayerStore.getState);
+    now.mockReturnValue(20_000);
+
+    expect(scrobblePlayStartedAtMs(pausedTrack.id, SERVER_A.id, 0)).toBe(20_000);
+    now.mockRestore();
+  });
+
   it('snapshot from current state captures the canonical queueServerId', () => {
     pushQueueUndoSnapshot({
       queueItems: [{ serverId: KEY_A, trackId: 't1' }],
@@ -384,4 +428,3 @@ describe('B1+ — add-to-queue mutations pin queueServerId when it is null', () 
     expect(usePlayerStore.getState().queueServerId).toBe(KEY_A);
   });
 });
-

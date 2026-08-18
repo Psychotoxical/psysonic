@@ -1,64 +1,72 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { TFunction } from 'i18next';
 import { BadgeCheck, SendHorizontal } from 'lucide-react';
-import { offlineActionPolicy } from '@/features/offline/utils/offlineActionPolicy';
-import { useOfflineBrowseActive } from '@/features/offline/utils/offlineBrowseMode';
-import { PlaybackTime } from '@/features/playback/components/playerBar/PlaybackClock';
+import { offlineActionPolicy, useOfflineBrowseActive } from '@/features/offline';
 import { usePlayerBarAnchoredPopover } from '@/features/playback/hooks/usePlayerBarAnchoredPopover';
-import { prepareTransientUiOpen } from '@/lib/dom/transientUi';
 import {
   getPlaybackProgressSnapshot,
   subscribePlaybackProgress,
 } from '@/features/playback/store/playbackProgress';
+import { forceScrobbleCurrentTrack } from '@/features/playback/store/scrobbleActions';
 import { usePlayerStore } from '@/features/playback/store/playerStore';
+import { usePreviewStore } from '@/features/playback/store/previewStore';
 import { useAuthStore } from '@/store/authStore';
 
 const POPOVER_WIDTH = 220;
-const HOVER_OPEN_MS = 500;
-const HOVER_CLOSE_MS = 150;
 
-interface Props {
-  minuteFieldWidth: number;
-  t: TFunction;
-}
-
-function useScrobbleStatusState(t: TFunction) {
+function useScrobbleStatusState(t: TFunction, trackProgress: boolean) {
   const [heardPercent, setHeardPercent] = useState(() =>
     Math.round(getPlaybackProgressSnapshot().progress * 100),
   );
   const scrobbled = usePlayerStore(s => s.scrobbled);
   const hasTrack = usePlayerStore(s => s.currentTrack != null);
-  const forceScrobble = usePlayerStore(s => s.forceScrobbleCurrentTrack);
+  const hasRadio = usePlayerStore(s => s.currentRadio != null);
+  const previewing = usePreviewStore(s => s.previewingId != null);
   const threshold = useAuthStore(s => s.scrobbleThresholdPercent);
   const offline = useOfflineBrowseActive();
   const canScrobble = offlineActionPolicy('playerBar', offline).canScrobble;
 
   useEffect(() => {
+    if (!trackProgress) return;
     const sync = () => setHeardPercent(Math.round(getPlaybackProgressSnapshot().progress * 100));
     sync();
     return subscribePlaybackProgress(sync);
-  }, []);
+  }, [trackProgress]);
 
-  const blockedReason = !hasTrack
-    ? t('player.scrobbleUnavailable')
-    : !canScrobble
-      ? t('player.scrobbleOffline')
-      : scrobbled
-        ? t('player.scrobbleAlreadySent')
-        : null;
+  const blockedReason = hasRadio
+    ? t('player.scrobbleRadio')
+    : !hasTrack
+      ? t('player.scrobbleUnavailable')
+      : previewing
+        ? t('player.scrobblePreview')
+        : !canScrobble
+          ? t('player.scrobbleOffline')
+          : scrobbled
+            ? t('player.scrobbleAlreadySent')
+            : null;
 
   return {
     heardPercent,
     threshold,
     scrobbled,
     blockedReason,
-    forceScrobble,
+    canScrobble,
   };
 }
 
-function ScrobbleStatusContent({ t }: { t: TFunction }) {
-  const { heardPercent, threshold, blockedReason, forceScrobble } = useScrobbleStatusState(t);
+function ScrobbleStatusContent({
+  t,
+  forceButtonRef,
+  blockedStatusRef,
+  onForce,
+}: {
+  t: TFunction;
+  forceButtonRef: React.RefObject<HTMLButtonElement | null>;
+  blockedStatusRef: React.RefObject<HTMLDivElement | null>;
+  onForce: () => void;
+}) {
+  const { heardPercent, threshold, blockedReason } = useScrobbleStatusState(t, true);
   return (
     <>
       <div className="player-scrobble-popover__progress">
@@ -66,103 +74,80 @@ function ScrobbleStatusContent({ t }: { t: TFunction }) {
       </div>
       {blockedReason == null ? (
         <button
+          ref={forceButtonRef}
           type="button"
           className="player-scrobble-popover__force"
-          onClick={() => {
-            forceScrobble();
-          }}
+          onClick={onForce}
         >
           <SendHorizontal size={14} aria-hidden />
           {t('player.forceScrobble')}
         </button>
       ) : (
-        <div className="player-scrobble-popover__blocked">{blockedReason}</div>
-      )}
-    </>
-  );
-}
-
-export function ScrobbleStatus({ minuteFieldWidth, t }: Props) {
-  const { open, setOpen, popStyle, btnRef, popRef } = usePlayerBarAnchoredPopover(POPOVER_WIDTH);
-  const hoverTimer = useRef<number | null>(null);
-
-  const clearHoverTimer = () => {
-    if (hoverTimer.current != null) {
-      window.clearTimeout(hoverTimer.current);
-      hoverTimer.current = null;
-    }
-  };
-
-  const scheduleOpen = useCallback(() => {
-    clearHoverTimer();
-    hoverTimer.current = window.setTimeout(() => {
-      prepareTransientUiOpen();
-      setOpen(true);
-    }, HOVER_OPEN_MS);
-  }, [setOpen]);
-
-  const scheduleClose = useCallback(() => {
-    clearHoverTimer();
-    hoverTimer.current = window.setTimeout(() => setOpen(false), HOVER_CLOSE_MS);
-  }, [setOpen]);
-
-  useEffect(() => () => clearHoverTimer(), []);
-
-  return (
-    <>
-      <button
-        ref={btnRef}
-        type="button"
-        className={`player-time player-time-scrobble${open ? ' is-open' : ''}`}
-        aria-label={t('player.scrobbleStatus')}
-        aria-expanded={open}
-        aria-haspopup="dialog"
-        onMouseEnter={scheduleOpen}
-        onMouseLeave={scheduleClose}
-        onFocus={() => {
-          prepareTransientUiOpen();
-          setOpen(true);
-        }}
-        onClick={() => {
-          if (!open) prepareTransientUiOpen();
-          setOpen(v => !v);
-        }}
-      >
-        <PlaybackTime minuteFieldWidth={minuteFieldWidth} />
-      </button>
-      {open && createPortal(
         <div
-          ref={popRef}
-          className="player-scrobble-popover"
-          role="dialog"
-          aria-label={t('player.scrobbleStatus')}
-          style={popStyle}
-          onMouseEnter={clearHoverTimer}
-          onMouseLeave={scheduleClose}
+          ref={blockedStatusRef}
+          className="player-scrobble-popover__blocked"
+          tabIndex={-1}
         >
-          <ScrobbleStatusContent t={t} />
-        </div>,
-        document.body,
+          {blockedReason}
+        </div>
       )}
     </>
   );
 }
 
-export function ScrobbleActionButton({
-  t,
-  className,
-  activeClassName = 'active',
-  iconSize = 15,
-}: {
+interface ScrobbleActionButtonProps {
   t: TFunction;
   className: string;
   activeClassName?: string;
   iconSize?: number;
-}) {
-  const { open, toggleOpen, popStyle, btnRef, popRef } = usePlayerBarAnchoredPopover(POPOVER_WIDTH);
-  const { scrobbled, blockedReason } = useScrobbleStatusState(t);
+  direct?: boolean;
+  onDirectAction?: () => void;
+}
+
+function EnabledScrobbleActionButton({
+  t,
+  className,
+  activeClassName = 'active',
+  iconSize = 15,
+  direct = false,
+  onDirectAction,
+}: ScrobbleActionButtonProps) {
+  const { open, setOpen, toggleOpen, popStyle, btnRef, popRef } =
+    usePlayerBarAnchoredPopover(POPOVER_WIDTH);
+  const forceButtonRef = useRef<HTMLButtonElement>(null);
+  const blockedStatusRef = useRef<HTMLDivElement>(null);
+  const { scrobbled, blockedReason, canScrobble } = useScrobbleStatusState(t, false);
   const Icon = scrobbled ? BadgeCheck : SendHorizontal;
-  const tooltip = scrobbled ? t('player.scrobbleAlreadySent') : t('player.forceScrobble');
+  const tooltip = blockedReason
+    ?? (scrobbled ? t('player.scrobbleAlreadySent') : t('player.forceScrobble'));
+
+  useEffect(() => {
+    if (open) (forceButtonRef.current ?? blockedStatusRef.current)?.focus();
+  }, [blockedReason, open]);
+
+  const force = () => {
+    if (blockedReason == null) forceScrobbleCurrentTrack(canScrobble);
+  };
+
+  if (direct) {
+    return (
+      <button
+        ref={btnRef}
+        type="button"
+        className={`${className}${scrobbled ? ` ${activeClassName}` : ''}`}
+        onClick={() => {
+          if (blockedReason != null) return;
+          force();
+          onDirectAction?.();
+        }}
+        aria-label={tooltip}
+        aria-disabled={blockedReason != null}
+        data-tooltip={tooltip}
+      >
+        <Icon size={iconSize} aria-hidden />
+      </button>
+    );
+  }
 
   return (
     <>
@@ -174,7 +159,6 @@ export function ScrobbleActionButton({
         aria-label={tooltip}
         aria-expanded={open}
         aria-haspopup="dialog"
-        aria-disabled={blockedReason != null && !scrobbled}
         data-tooltip={open ? undefined : tooltip}
       >
         <Icon size={iconSize} aria-hidden />
@@ -186,11 +170,31 @@ export function ScrobbleActionButton({
           role="dialog"
           aria-label={t('player.scrobbleStatus')}
           style={popStyle}
+          onKeyDown={(event) => {
+            if (event.key !== 'Tab') return;
+            event.preventDefault();
+            (forceButtonRef.current ?? blockedStatusRef.current)?.focus();
+          }}
         >
-          <ScrobbleStatusContent t={t} />
+          <ScrobbleStatusContent
+            t={t}
+            forceButtonRef={forceButtonRef}
+            blockedStatusRef={blockedStatusRef}
+            onForce={() => {
+              force();
+              setOpen(false);
+              btnRef.current?.focus();
+            }}
+          />
         </div>,
         document.body,
       )}
     </>
   );
+}
+
+export function ScrobbleActionButton(props: ScrobbleActionButtonProps) {
+  const enabled = useAuthStore(s => s.forceScrobbleEnabled);
+  if (!enabled) return null;
+  return <EnabledScrobbleActionButton {...props} />;
 }

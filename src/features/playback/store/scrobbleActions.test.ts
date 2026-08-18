@@ -3,23 +3,23 @@ import { makeTrack, seedQueue } from '@/test/helpers/factories';
 import { resetAllStores } from '@/test/helpers/storeReset';
 
 const submitTrackScrobble = vi.hoisted(() => vi.fn());
-const isOfflineBrowseActive = vi.hoisted(() => vi.fn(() => false));
 
 vi.mock('@/features/playback/store/submitTrackScrobble', () => ({
   submitTrackScrobble,
 }));
 
-vi.mock('@/features/offline/utils/offlineBrowseMode', () => ({
-  isOfflineBrowseActive,
-  useOfflineBrowseActive: () => isOfflineBrowseActive(),
-}));
-
 import { usePlayerStore } from './playerStore';
+import { usePreviewStore } from './previewStore';
+import { forceScrobbleCurrentTrack } from './scrobbleActions';
+import { useAuthStore } from '@/store/authStore';
+import { emitPlaybackProgress } from './playbackProgress';
+import { _resetScrobblePlaySessionForTest } from './scrobblePlaySession';
 
 beforeEach(() => {
   resetAllStores();
   submitTrackScrobble.mockClear();
-  isOfflineBrowseActive.mockReturnValue(false);
+  _resetScrobblePlaySessionForTest();
+  useAuthStore.setState({ forceScrobbleEnabled: true });
 });
 
 describe('forceScrobbleCurrentTrack', () => {
@@ -27,25 +27,53 @@ describe('forceScrobbleCurrentTrack', () => {
     const track = makeTrack({ id: 't-force' });
     seedQueue([track], { index: 0, currentTrack: track });
 
-    expect(usePlayerStore.getState().forceScrobbleCurrentTrack()).toBe(true);
+    expect(forceScrobbleCurrentTrack(true)).toBe(true);
     expect(usePlayerStore.getState().scrobbled).toBe(true);
     expect(submitTrackScrobble).toHaveBeenCalledTimes(1);
 
-    expect(usePlayerStore.getState().forceScrobbleCurrentTrack()).toBe(false);
+    expect(forceScrobbleCurrentTrack(true)).toBe(false);
     expect(submitTrackScrobble).toHaveBeenCalledTimes(1);
   });
 
-  it('refuses radio, missing tracks, and offline browse', () => {
-    expect(usePlayerStore.getState().forceScrobbleCurrentTrack()).toBe(false);
+  it('refuses radio, missing tracks, previews, and disallowed submissions', () => {
+    expect(forceScrobbleCurrentTrack(true)).toBe(false);
 
     const track = makeTrack();
     seedQueue([track], { index: 0, currentTrack: track });
     usePlayerStore.setState({ currentRadio: { id: 'r1', name: 'Radio', streamUrl: 'http://x' } as never });
-    expect(usePlayerStore.getState().forceScrobbleCurrentTrack()).toBe(false);
+    expect(forceScrobbleCurrentTrack(true)).toBe(false);
 
     usePlayerStore.setState({ currentRadio: null, scrobbled: false });
-    isOfflineBrowseActive.mockReturnValue(true);
-    expect(usePlayerStore.getState().forceScrobbleCurrentTrack()).toBe(false);
+    usePreviewStore.setState({ previewingId: 'preview' });
+    expect(forceScrobbleCurrentTrack(true)).toBe(false);
+    usePreviewStore.setState({ previewingId: null });
+    expect(forceScrobbleCurrentTrack(false)).toBe(false);
     expect(submitTrackScrobble).not.toHaveBeenCalled();
+  });
+
+  it('keeps the outgoing track paired with its own server during a deferred handoff', () => {
+    const outgoing = makeTrack({ id: 'outgoing', serverId: 'server-a' });
+    const incoming = makeTrack({ id: 'incoming', serverId: 'server-b' });
+    seedQueue([outgoing, incoming], { index: 0, currentTrack: outgoing });
+    usePlayerStore.setState({ queueIndex: 1 });
+
+    expect(forceScrobbleCurrentTrack(true)).toBe(true);
+    expect(submitTrackScrobble).toHaveBeenCalledWith(
+      outgoing,
+      'server-a',
+      expect.any(Number),
+    );
+  });
+
+  it('uses restored paused time instead of stale progress from the previous track', () => {
+    const now = vi.spyOn(Date, 'now').mockReturnValue(100_000);
+    const track = makeTrack({ id: 'restored-paused', serverId: 'server-a' });
+    seedQueue([track], { index: 0, currentTrack: track });
+    usePlayerStore.setState({ currentTime: 12, isPlaying: false });
+    emitPlaybackProgress({ currentTime: 90, progress: 0.9, buffered: 0, buffering: false });
+
+    expect(forceScrobbleCurrentTrack(true)).toBe(true);
+    expect(submitTrackScrobble).toHaveBeenCalledWith(track, 'server-a', 88_000);
+    now.mockRestore();
   });
 });
