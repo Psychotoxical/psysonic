@@ -96,9 +96,9 @@ function AlbumCard({
   const isNewAlbum = isAlbumRecentlyAdded(album.created);
   const artistRefs = useMemo(() => deriveAlbumArtistRefs(album), [album]);
   const artistLabel = useMemo(() => albumArtistDisplayName(album), [album]);
-  const showAlbumTooltips = useThemeStore(s => s.showAlbumTooltips);
-  const titleTooltip = useOverflowTooltip(album.name, showAlbumTooltips);
-  const artistTooltip = useOverflowTooltip(artistLabel, showAlbumTooltips);
+  const showCardTooltips = useThemeStore(s => s.showCardTooltips);
+  const titleTooltip = useOverflowTooltip(album.name, showCardTooltips);
+  const artistTooltip = useOverflowTooltip(artistLabel, showCardTooltips);
 
   const handleClick = (opts?: { shiftKey?: boolean }) => {
     if (selectionMode) { onToggleSelect?.(album.id, opts); return; }

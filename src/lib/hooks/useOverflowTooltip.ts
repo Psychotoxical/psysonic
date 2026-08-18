@@ -1,5 +1,11 @@
 import { useCallback } from 'react';
 
+export interface OverflowTooltipAttrs {
+  onMouseEnter?: (e: React.MouseEvent<HTMLElement>) => void;
+  'data-tooltip'?: string;
+  'data-tooltip-wrap'?: string;
+}
+
 /**
  * Shows a hover tooltip with the full text, but only when the element actually
  * clips it. Spread the result onto a single-line truncating element:
@@ -33,12 +39,42 @@ import { useCallback } from 'react';
 export function useOverflowTooltip(
   anchorText: string | null | undefined,
   enabled = true,
-): {
-  onMouseEnter?: (e: React.MouseEvent<HTMLElement>) => void;
-  'data-tooltip'?: string;
-  'data-tooltip-wrap'?: string;
-} {
-  const onMouseEnter = useCallback((e: React.MouseEvent<HTMLElement>) => {
+): OverflowTooltipAttrs {
+  const onMouseEnter = useOverflowTooltipHandler();
+
+  if (!enabled || !anchorText) return {};
+  return { onMouseEnter, 'data-tooltip': anchorText, 'data-tooltip-wrap': '' };
+}
+
+/**
+ * Same behaviour for components that render many anchors through a plain helper
+ * function (`renderCard`, `renderItem`), where a hook per row is not allowed.
+ * Call this once in the component, then apply the returned factory per row.
+ *
+ * One shared handler is enough because it keeps no per-anchor state — it reads
+ * the text and the measurements off whichever element it fires on.
+ */
+export function useOverflowTooltipFactory(
+  enabled = true,
+): (anchorText: string | null | undefined) => OverflowTooltipAttrs {
+  const onMouseEnter = useOverflowTooltipHandler();
+  return useCallback(
+    (anchorText) => (enabled && anchorText
+      ? { onMouseEnter, 'data-tooltip': anchorText, 'data-tooltip-wrap': '' }
+      : {}),
+    [enabled, onMouseEnter],
+  );
+}
+
+/**
+ * Wrapping is not optional for these anchors: one only shows a tooltip when its
+ * text is too wide for its card, so the long names this exists for are exactly
+ * the ones that would overflow an unwrapped, unbounded box. `TooltipPortal`
+ * clamps `left` to the viewport but never the width, so the tail would sit off
+ * screen with no ellipsis and no way to reach it.
+ */
+function useOverflowTooltipHandler() {
+  return useCallback((e: React.MouseEvent<HTMLElement>) => {
     const el = e.currentTarget;
     // scrollWidth is the full content width, clientWidth the visible box. Both
     // are rounded to integers, so with fractional grid columns this can disagree
@@ -48,12 +84,4 @@ export function useOverflowTooltip(
     if (text && el.scrollWidth > el.clientWidth) el.setAttribute('data-tooltip', text);
     else el.removeAttribute('data-tooltip');
   }, []);
-
-  if (!enabled || !anchorText) return {};
-  // Wrapping is not optional here: the anchor only shows a tooltip when its text
-  // is too wide for the card, so the long titles this exists for are exactly the
-  // ones that would overflow an unwrapped, unbounded tooltip box. `TooltipPortal`
-  // clamps `left` to the viewport but never the width, so the tail would sit off
-  // screen with no ellipsis and no way to reach it.
-  return { onMouseEnter, 'data-tooltip': anchorText, 'data-tooltip-wrap': '' };
 }

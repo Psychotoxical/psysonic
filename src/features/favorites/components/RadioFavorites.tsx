@@ -1,5 +1,7 @@
 import React, { useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useThemeStore } from '@/store/themeStore';
+import { useOverflowTooltip } from '@/lib/hooks/useOverflowTooltip';
 import { Cast, ChevronLeft, ChevronRight, Heart, X } from 'lucide-react';
 import type { InternetRadioStation } from '@/lib/api/subsonicTypes';
 import { CoverArtImage } from '@/cover/CoverArtImage';
@@ -83,6 +85,8 @@ interface RadioFavCardProps {
 
 function RadioFavCard({ station: s, isActive, isPlaying, serverLabel, onPlay, onUnfavorite }: RadioFavCardProps) {
   const { t } = useTranslation();
+  const showCardTooltips = useThemeStore(st => st.showCardTooltips);
+  const nameTooltip = useOverflowTooltip(s.name, showCardTooltips);
   return (
     <div className={`album-card${isActive ? ' radio-card-active' : ''}`}>
       <div className="album-card-cover">
@@ -115,7 +119,7 @@ function RadioFavCard({ station: s, isActive, isPlaying, serverLabel, onPlay, on
         </div>
       </div>
       <div className="album-card-info">
-        <div className="album-card-title">{s.name}</div>
+        <div className="album-card-title" {...nameTooltip}>{s.name}</div>
         <div className="album-card-artist" style={{ display: 'flex', alignItems: 'center' }}>
           {serverLabel && <span style={{ marginRight: 6 }}>{serverLabel}</span>}
           <button

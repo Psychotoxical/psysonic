@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { renderHook } from '@testing-library/react';
-import { useOverflowTooltip } from '@/lib/hooks/useOverflowTooltip';
+import { useOverflowTooltip, useOverflowTooltipFactory } from '@/lib/hooks/useOverflowTooltip';
 
 /**
  * Stands in for the render: applies the returned attributes the way React would,
@@ -99,5 +99,37 @@ describe('useOverflowTooltip', () => {
     Object.defineProperty(el, 'clientWidth', { value: 50, configurable: true });
     enter(result.current, el);
     expect(el.getAttribute('data-tooltip')).toBe('Album name');
+  });
+});
+
+describe('useOverflowTooltipFactory', () => {
+  it('produces per-row attributes from one shared handler', () => {
+    const { result } = renderHook(() => useOverflowTooltipFactory());
+    const a = result.current('First album');
+    const b = result.current('Second album');
+    expect(a['data-tooltip']).toBe('First album');
+    expect(b['data-tooltip']).toBe('Second album');
+    // Shared on purpose: the handler reads everything off the event target.
+    expect(a.onMouseEnter).toBe(b.onMouseEnter);
+  });
+
+  it('measures the row it actually fired on', () => {
+    const { result } = renderHook(() => useOverflowTooltipFactory());
+    const clipped = makeAnchor(result.current('Long'), 'Long', { scrollWidth: 400, clientWidth: 200 });
+    const fits = makeAnchor(result.current('Short'), 'Short', { scrollWidth: 100, clientWidth: 200 });
+
+    enter(result.current('Long'), clipped);
+    enter(result.current('Short'), fits);
+
+    expect(clipped.getAttribute('data-tooltip')).toBe('Long');
+    expect(fits.hasAttribute('data-tooltip')).toBe(false);
+  });
+
+  it('yields nothing when disabled or textless', () => {
+    const off = renderHook(() => useOverflowTooltipFactory(false)).result.current;
+    expect(off('Album name')).toEqual({});
+    const on = renderHook(() => useOverflowTooltipFactory()).result.current;
+    expect(on('')).toEqual({});
+    expect(on(null)).toEqual({});
   });
 });

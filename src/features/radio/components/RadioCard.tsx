@@ -1,5 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useThemeStore } from '@/store/themeStore';
+import { useOverflowTooltip } from '@/lib/hooks/useOverflowTooltip';
 import { Cast, Globe, Heart, Square, Trash2, X } from 'lucide-react';
 import { open } from '@tauri-apps/plugin-shell';
 import type { InternetRadioStation } from '@/lib/api/subsonicTypes';
@@ -36,6 +38,8 @@ export default function RadioCard({
   onDropOnto, onCardMouseLeave,
 }: RadioCardProps) {
   const { t } = useTranslation();
+  const showCardTooltips = useThemeStore(st => st.showCardTooltips);
+  const nameTooltip = useOverflowTooltip(s.name, showCardTooltips);
   const cardRef = useRef<HTMLDivElement>(null);
   const lastSideRef = useRef<'before' | 'after'>('after');
   const { isDragging, payload } = useDragDrop();
@@ -139,7 +143,7 @@ export default function RadioCard({
 
       {/* Info */}
       <div className="album-card-info">
-        <div className="album-card-title">{s.name}</div>
+        <div className="album-card-title" {...nameTooltip}>{s.name}</div>
         <div className="album-card-artist" style={{ display: 'flex', gap: '0.35rem', alignItems: 'center' }}>
           {canManage && (
             <button className="radio-card-chip" onClick={onEdit}>

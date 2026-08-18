@@ -77,10 +77,10 @@ interface ThemeState {
   setTrackListCoverArtOnPages: (v: boolean) => void;
   showBitrate: boolean;
   setShowBitrate: (v: boolean) => void;
-  /** Hover tooltip with the full album title/artist when the card truncates it.
+  /** Hover tooltip with the full name when a card or tile truncates it.
    *  Only shown when the text is actually cut off — measured on hover. */
-  showAlbumTooltips: boolean;
-  setShowAlbumTooltips: (v: boolean) => void;
+  showCardTooltips: boolean;
+  setShowCardTooltips: (v: boolean) => void;
   /** Compact (icon-only) vs. large action/toolbar buttons across detail pages and browse views. */
   buttonSize: 'large' | 'small';
   setButtonSize: (v: 'large' | 'small') => void;
@@ -154,8 +154,8 @@ export const useThemeStore = create<ThemeState>()(
       setTrackListCoverArtOnPages: (v) => set({ trackListCoverArtOnPages: v }),
       showBitrate: true,
       setShowBitrate: (v) => set({ showBitrate: v }),
-      showAlbumTooltips: true,
-      setShowAlbumTooltips: (v) => set({ showAlbumTooltips: v }),
+      showCardTooltips: true,
+      setShowCardTooltips: (v) => set({ showCardTooltips: v }),
       buttonSize: 'large',
       setButtonSize: (v) => set({ buttonSize: v }),
       showRemainingTime: false,

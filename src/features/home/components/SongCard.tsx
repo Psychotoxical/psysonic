@@ -3,6 +3,8 @@ import { songToTrack } from '@/lib/media/songToTrack';
 import React, { memo, useMemo } from 'react';
 import { Play, ListPlus, Star, Disc3 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { useThemeStore } from '@/store/themeStore';
+import { useOverflowTooltip } from '@/lib/hooks/useOverflowTooltip';
 import { usePlayerStore } from '@/features/playback/store/playerStore';
 import { CoverArtImage } from '@/cover/CoverArtImage';
 import { useCoverArt } from '@/cover/useCoverArt';
@@ -36,6 +38,9 @@ function SongCard({
 }: SongCardProps) {
   const layoutPx = artworkSize ?? displayCssPx;
   const { t } = useTranslation();
+  const showCardTooltips = useThemeStore(st => st.showCardTooltips);
+  const titleTooltip = useOverflowTooltip(song.title, showCardTooltips);
+  const artistTooltip = useOverflowTooltip(song.artist, showCardTooltips);
   const navigateToArtist = useNavigateToArtist();
   const openContextMenu = usePlayerStore(s => s.openContextMenu);
   const enqueue = usePlayerStore(s => s.enqueue);
@@ -151,8 +156,8 @@ function SongCard({
         </div>
       </div>
       <div className="song-card-info">
-        <p className="song-card-title truncate" title={song.title}>{song.title}</p>
-        <p className="song-card-artist truncate" title={song.artist}>
+        <p className="song-card-title truncate" {...titleTooltip}>{song.title}</p>
+        <p className="song-card-artist truncate" {...artistTooltip}>
           <ResolvedArtistRefInline
             refs={artistRefs}
             serverId={song.serverId ?? activeServerId}
