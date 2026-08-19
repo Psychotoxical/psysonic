@@ -47,6 +47,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Large analysis, audio, library, sync, cache, integration, CLI and startup modules are split into focused child modules behind the same public APIs and Tauri command/event contracts. Hand-written Rust files above 600 lines drop from 61 to 5 without an intended user-visible change.
 * Hot-path coverage follows the extracted implementation files, including Discord presence URL safety and text helpers. Comparable runtime benchmarks plus Linux and Windows CI found no reproducible behaviour or performance regression.
 
+### Windows update notices arrive hours after a release instead of days
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1440](https://github.com/Psysonic/psysonic/pull/1440)**
+
+* On Windows the update notice is held back until WinGet has had time to moderate a new release, so it never points at a version `winget upgrade` cannot install yet. That wait was set to two days before any real timings were available.
+* Recent releases cleared WinGet moderation in one to two hours, so the wait is now twelve hours. Windows users see a new version roughly a day and a half sooner, with room left for a slower submission.
+
 ## Fixed
 
 ### Albums no longer start dragging on their own
