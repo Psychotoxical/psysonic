@@ -1,5 +1,9 @@
-import React, { memo, useCallback, useEffect, useRef } from 'react';
-import { usePlayerStore } from '@/features/playback';
+import React, { memo, useCallback, useEffect, useRef, useState } from 'react';
+import {
+  getSmoothPlaybackTime,
+  subscribeSmoothPlaybackTime,
+  usePlayerStore,
+} from '@/features/playback';
 import { useAuthStore } from '@/store/authStore';
 import { useLyrics, type WordLyricsLine, useWordLyricsSync } from '@/features/lyrics';
 import type { LrcLine } from '@/features/lyrics';
@@ -20,11 +24,27 @@ export const FsLyricsRail = memo(function FsLyricsRail({ currentTrack }: { curre
   const linesRef = useRef<LrcLine[]>([]);
   linesRef.current = hasSynced ? lineSrc! : [];
 
-  const activeIdx = usePlayerStore(s => {
-    const ls = linesRef.current;
-    if (ls.length === 0) return -1;
-    return ls.reduce((acc, line, i) => s.currentTime >= line.time ? i : acc, -1);
-  });
+  // The store's currentTime is committed at 20 s / 5 s granularity, which is
+  // far too coarse to pick a lyric line — the per-word highlighting in this
+  // same view already runs off the interpolated position, so the rail followed
+  // several seconds behind its own words. Both read the same clock now.
+  const [activeIdx, setActiveIdx] = useState(-1);
+  const activeIdxRef = useRef(-1);
+  useEffect(() => {
+    const apply = (time: number) => {
+      const ls = linesRef.current;
+      let idx = -1;
+      for (let i = 0; i < ls.length; i++) {
+        if (time >= ls[i].time) idx = i;
+        else break;
+      }
+      if (idx === activeIdxRef.current) return;
+      activeIdxRef.current = idx;
+      setActiveIdx(idx);
+    };
+    apply(getSmoothPlaybackTime());
+    return subscribeSmoothPlaybackTime(apply);
+  }, []);
 
   const duration = usePlayerStore(s => s.currentTrack?.duration ?? 0);
   const seek     = usePlayerStore(s => s.seek);

@@ -19,6 +19,15 @@ import { usePlayerStore } from '@/features/playback/store/playerStore';
 import { usePreviewStore } from '@/features/playback/store/previewStore';
 
 let clock = 0;
+let rafQueue: FrameRequestCallback[] = [];
+
+/** Run whatever frames are queued, once. Frames scheduled by those callbacks
+ *  land in the next batch, so a loop that re-arms keeps the queue non-empty. */
+function runFrame(): void {
+  const batch = rafQueue;
+  rafQueue = [];
+  batch.forEach(cb => cb(clock));
+}
 
 /** Advance the wall clock the module reads, without running real frames. */
 function advance(ms: number): void {
@@ -28,7 +37,11 @@ function advance(ms: number): void {
 beforeEach(() => {
   clock = 0;
   vi.spyOn(performance, 'now').mockImplementation(() => clock);
-  vi.stubGlobal('requestAnimationFrame', () => 1);
+  rafQueue = [];
+  vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => {
+    rafQueue.push(cb);
+    return rafQueue.length;
+  });
   vi.stubGlobal('cancelAnimationFrame', () => {});
   usePlayerStore.setState({ isPlaying: true });
   usePlaybackRateStore.setState({ enabled: false, speed: 1 });
@@ -236,6 +249,68 @@ describe('work bounds', () => {
 
     // Still capped 2 s past the original anchor, not 2 s past the UI write.
     expect(getSmoothPlaybackTime()).toBeCloseTo(12, 3);
+    off();
+  });
+});
+
+describe('frame loop', () => {
+  it('stops re-arming once the estimate sits at the cap', () => {
+    const off = subscribeSmoothPlaybackTime(() => {});
+    emitPlaybackProgress({ currentTime: 10, progress: 0.1, buffered: 0 });
+    expect(rafQueue.length).toBe(1);
+
+    advance(500);
+    runFrame();
+    expect(rafQueue.length).toBe(1); // below the cap, still running
+
+    advance(2000); // now past MAX_EXTRAPOLATION_SEC
+    runFrame();
+    expect(rafQueue.length).toBe(0); // nothing left to compute
+    off();
+  });
+
+  it('resumes the loop when a real update arrives after the cap', () => {
+    const off = subscribeSmoothPlaybackTime(() => {});
+    emitPlaybackProgress({ currentTime: 10, progress: 0.1, buffered: 0 });
+    advance(3000);
+    runFrame();
+    expect(rafQueue.length).toBe(0);
+
+    emitPlaybackProgress({ currentTime: 13, progress: 0.13, buffered: 0 });
+    expect(rafQueue.length).toBe(1);
+    off();
+  });
+
+  it('spaces interpolated pushes without delaying real updates', () => {
+    const seen: number[] = [];
+    const off = subscribeSmoothPlaybackTime(v => seen.push(v));
+    // Not 0: the channel below drops a snapshot identical to its own starting
+    // value, so that update would never arrive here.
+    emitPlaybackProgress({ currentTime: 1, progress: 0.01, buffered: 0 });
+    expect(seen).toHaveLength(1);
+
+    advance(10);
+    runFrame();
+    expect(seen).toHaveLength(1); // inside the 30 ms window, skipped
+
+    advance(40);
+    runFrame();
+    expect(seen).toHaveLength(2); // window elapsed, pushed
+    off();
+  });
+});
+
+describe('track boundaries', () => {
+  it('follows the reported zero when the track changed', () => {
+    usePlayerStore.setState({ currentTrack: { id: 'a' } as never });
+    const off = subscribeSmoothPlaybackTime(() => {});
+    emitPlaybackProgress({ currentTime: 240, progress: 0.99, buffered: 0 });
+    expect(getSmoothPlaybackTime()).toBeCloseTo(240, 3);
+
+    // Gapless advance: new track, position 0, buffering while the stream fills.
+    usePlayerStore.setState({ currentTrack: { id: 'b' } as never });
+    emitPlaybackProgress({ currentTime: 0, progress: 0, buffered: 0, buffering: true });
+    expect(getSmoothPlaybackTime()).toBeCloseTo(0, 3);
     off();
   });
 });

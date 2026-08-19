@@ -49,6 +49,10 @@ let lastKnownPlaying = false;
 let lastKnownPreviewing = false;
 let lastKnownRate = 1;
 let lastEmitAtMs = Number.NEGATIVE_INFINITY;
+/** Track the current anchor belongs to. A boundary reports currentTime 0 with
+ *  buffering set, and that zero is real — without this the estimate would hold
+ *  the previous track's end position into the new one. */
+let anchoredTrackId: string | null = null;
 
 /** Position the last real update reported, advanced by elapsed time while
  *  playback is running. */
@@ -89,9 +93,19 @@ function capReached(): boolean {
   return elapsed * anchoredRate >= MAX_EXTRAPOLATION_SEC;
 }
 
+/** The effective rate also depends on the Orbit session, which changes
+ *  without a rate-store write, so the value is re-checked as frames run. */
+function syncRateIfChanged(): void {
+  const rate = effectivePlaybackRate();
+  if (rate === anchoredRate) return;
+  anchor(getSmoothPlaybackTime(), extrapolating);
+  lastKnownRate = rate;
+}
+
 function tick(): void {
   frame = null;
   if (listeners.size === 0) return;
+  syncRateIfChanged();
   emit();
   if (extrapolating && !capReached()) frame = requestAnimationFrame(tick);
 }
@@ -114,12 +128,19 @@ function attachSources(): void {
   lastKnownPlaying = usePlayerStore.getState().isPlaying;
   lastKnownPreviewing = usePreviewStore.getState().previewingId != null;
   lastKnownRate = effectivePlaybackRate();
+  anchoredTrackId = usePlayerStore.getState().currentTrack?.id ?? null;
   anchor(snapshot.currentTime, isMoving(snapshot.buffering));
 
   const offProgress = subscribePlaybackProgress(next => {
-    if (next.buffering) {
-      // audioEventHandlers reports currentTime as 0 while buffering, so the
-      // reported value must not be trusted here — freeze where we are.
+    const trackId = usePlayerStore.getState().currentTrack?.id ?? null;
+    const sameTrack = trackId === anchoredTrackId;
+    anchoredTrackId = trackId;
+
+    if (next.buffering && sameTrack) {
+      // Mid-track buffering reports currentTime as 0, so the reported value
+      // must not be trusted — freeze where we are. A track boundary also
+      // reports 0 with buffering set, but there the zero is the truth, which
+      // is why this only applies while the track is unchanged.
       anchor(getSmoothPlaybackTime(), false);
     } else {
       anchor(next.currentTime, isMoving(next.buffering));
@@ -202,4 +223,5 @@ export function _resetSmoothPlaybackTimeForTest(): void {
   lastKnownPreviewing = false;
   lastKnownRate = 1;
   lastEmitAtMs = Number.NEGATIVE_INFINITY;
+  anchoredTrackId = null;
 }
