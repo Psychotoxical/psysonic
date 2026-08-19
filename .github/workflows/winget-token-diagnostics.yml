@@ -43,19 +43,19 @@ jobs:
             -H "Accept: application/vnd.github+json" \
             https://api.github.com/user || true)
 
-          # Classic PATs report their scopes in this header; fine-grained tokens
-          # omit it entirely. That difference is the whole point of this step.
-          # --retry can append several header blocks to the dump, so take the last.
-          scopes=$(grep -i '^x-oauth-scopes:' headers.txt | tail -n 1 | cut -d: -f2- | tr -d '\r' | sed 's/^[[:space:]]*//' || true)
-          expiry=$(grep -i '^github-authentication-token-expiration:' headers.txt | tail -n 1 | cut -d: -f2- | tr -d '\r' | sed 's/^[[:space:]]*//' || true)
-
-          if [ "${status}" = "000" ]; then
-            echo "::error::Could not reach api.github.com at all — this is a transport failure, not a verdict on the token."
-            echo "### WinGet token diagnostics" >> "$GITHUB_STEP_SUMMARY"
-            echo "" >> "$GITHUB_STEP_SUMMARY"
-            echo "- **GET /user:** could not reach the API (transport failure)" >> "$GITHUB_STEP_SUMMARY"
-            exit 1
-          fi
+          # An unreachable API leaves status empty or at curl's own 000; either way
+          # it is a transport failure and says nothing about the token.
+          case "${status}" in
+            ""|000)
+              echo "::error::Could not reach api.github.com at all — this is a transport failure, not a verdict on the token."
+              {
+                echo "### WinGet token diagnostics"
+                echo ""
+                echo "- **GET /user:** could not reach the API (transport failure)"
+              } >> "$GITHUB_STEP_SUMMARY"
+              exit 1
+              ;;
+          esac
 
           if [ "${status}" != "200" ]; then
             echo "::error::GET /user returned HTTP ${status} — the token is rejected before any repository is involved."
@@ -67,8 +67,24 @@ jobs:
             exit 1
           fi
 
+          if ! jq -e . body.json >/dev/null 2>&1; then
+            echo "::error::GET /user returned HTTP 200 but the body is not JSON — something between the runner and the API rewrote the response."
+            {
+              echo "### WinGet token diagnostics"
+              echo ""
+              echo "- **GET /user:** HTTP \`200\` with a non-JSON body"
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+
           login=$(jq -r '.login' body.json)
           echo "login=${login}" >> "$GITHUB_OUTPUT"
+
+          # Classic PATs report their scopes in this header; fine-grained tokens
+          # omit it entirely. That difference is the whole point of this step.
+          # --retry can append several header blocks to the dump, so take the last.
+          scopes=$(grep -i '^x-oauth-scopes:' headers.txt | tail -n 1 | cut -d: -f2- | tr -d '\r' | sed 's/^[[:space:]]*//' || true)
+          expiry=$(grep -i '^github-authentication-token-expiration:' headers.txt | tail -n 1 | cut -d: -f2- | tr -d '\r' | sed 's/^[[:space:]]*//' || true)
 
           # A classic PAT that carries no scopes still sends the header, with an
           # empty value — and that is exactly the case that would break createRef.
@@ -126,6 +142,14 @@ jobs:
           # A non-GraphQL body (401 "Bad credentials", a proxy error page) carries
           # no .errors array, and feeding it to jq unguarded would abort the step
           # under `set -e` without printing anything at all.
+          case "${repo_status}" in
+            ""|000)
+              echo "::error::Could not reach api.github.com — transport failure, nothing was asked of the token."
+              echo "- **Repository lookup:** could not reach the API (transport failure)" >> "$GITHUB_STEP_SUMMARY"
+              exit 1
+              ;;
+          esac
+
           if ! jq -e . repo.json >/dev/null 2>&1; then
             echo "::error::GraphQL returned HTTP ${repo_status} with a body that is not JSON."
             echo "- **Repository lookup:** HTTP \`${repo_status}\`, body was not JSON" >> "$GITHUB_STEP_SUMMARY"
@@ -148,7 +172,9 @@ jobs:
           elif [ "${head_oid}" = "${upstream_oid}" ]; then
             drift="fork is level with microsoft/winget-pkgs"
           else
-            drift="fork head \`${head_oid:0:7}\` differs from upstream \`${upstream_oid:0:7}\` — sync it before relying on a real publish"
+            # microsoft/winget-pkgs takes commits continuously, so an identical head
+            # is the exception. This is reported as an observation, not a warning.
+            drift="fork head \`${head_oid:0:7}\`, upstream \`${upstream_oid:0:7}\` (this repository moves constantly; a difference here is normal and not by itself a problem)"
           fi
           echo "Fork state: ${drift}"
           echo "- **Fork state:** ${drift}" >> "$GITHUB_STEP_SUMMARY"
@@ -162,6 +188,14 @@ jobs:
           # Same guard as the lookup above: a transport-level failure returns an
           # HTML page, and letting jq read it would kill the step under `set -e`
           # before any of the messages below are ever written.
+          case "${create_status}" in
+            ""|000)
+              echo "::error::Could not reach api.github.com — the request never left the runner, so no ref was created."
+              echo "- **createRef:** could not reach the API (transport failure)" >> "$GITHUB_STEP_SUMMARY"
+              exit 1
+              ;;
+          esac
+
           if ! jq -e . create.json >/dev/null 2>&1; then
             echo "::error::createRef returned HTTP ${create_status} with a body that is not JSON. The ref may have been created server-side — check for refs/heads/${BRANCH} in ${OWNER}/winget-pkgs and remove it by hand."
             echo "- **createRef on \`${OWNER}/winget-pkgs\`:** HTTP \`${create_status}\`, body was not JSON — check for a leftover \`refs/heads/${BRANCH}\`" >> "$GITHUB_STEP_SUMMARY"
