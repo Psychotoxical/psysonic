@@ -49,6 +49,9 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  // currentTrack drives the sameTrack branch, so a leak here would silently
+  // flip the buffering-freeze specs.
+  usePlayerStore.setState({ currentTrack: null, isPlaying: false });
   _resetSmoothPlaybackTimeForTest();
   _resetPlaybackProgressForTest();
   vi.restoreAllMocks();
@@ -311,6 +314,29 @@ describe('track boundaries', () => {
     usePlayerStore.setState({ currentTrack: { id: 'b' } as never });
     emitPlaybackProgress({ currentTime: 0, progress: 0, buffered: 0, buffering: true });
     expect(getSmoothPlaybackTime()).toBeCloseTo(0, 3);
+    off();
+  });
+});
+
+describe('first subscriber during a buffering stall', () => {
+  it('seeds from the store instead of the zeroed snapshot', () => {
+    // Mid-track stall: the progress snapshot reads 0, while the store still
+    // holds the last committed position. A view mounted now must not open at
+    // the top of the track.
+    usePlayerStore.setState({ currentTime: 137, isPlaying: true });
+    emitPlaybackProgress({ currentTime: 0, progress: 0, buffered: 0, buffering: true });
+
+    const off = subscribeSmoothPlaybackTime(() => {});
+    expect(getSmoothPlaybackTime()).toBeCloseTo(137, 3);
+    off();
+  });
+
+  it('still seeds from the snapshot when nothing is buffering', () => {
+    usePlayerStore.setState({ currentTime: 137, isPlaying: true });
+    emitPlaybackProgress({ currentTime: 42, progress: 0.4, buffered: 0 });
+
+    const off = subscribeSmoothPlaybackTime(() => {});
+    expect(getSmoothPlaybackTime()).toBeCloseTo(42, 3);
     off();
   });
 });

@@ -44,7 +44,10 @@ export const FsLyricsRail = memo(function FsLyricsRail({ currentTrack }: { curre
     };
     apply(getSmoothPlaybackTime());
     return subscribeSmoothPlaybackTime(apply);
-  }, []);
+    // Same deps as the Apple style: the lines arrive asynchronously, and while
+    // paused no progress event ever lands, so without these the rail would
+    // stay unhighlighted until playback resumes.
+  }, [hasSynced, currentTrack?.id]);
 
   const duration = usePlayerStore(s => s.currentTrack?.duration ?? 0);
   const seek     = usePlayerStore(s => s.seek);

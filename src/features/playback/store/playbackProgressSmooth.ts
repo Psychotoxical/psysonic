@@ -129,7 +129,13 @@ function attachSources(): void {
   lastKnownPreviewing = usePreviewStore.getState().previewingId != null;
   lastKnownRate = effectivePlaybackRate();
   anchoredTrackId = usePlayerStore.getState().currentTrack?.id ?? null;
-  anchor(snapshot.currentTime, isMoving(snapshot.buffering));
+  // The snapshot carries 0 during a buffering stall, so seeding from it would
+  // start a fresh subscriber at the top of the track. The store's committed
+  // position is coarse but keeps the last real one.
+  const seed = snapshot.buffering
+    ? usePlayerStore.getState().currentTime
+    : snapshot.currentTime;
+  anchor(seed, isMoving(snapshot.buffering));
 
   const offProgress = subscribePlaybackProgress(next => {
     const trackId = usePlayerStore.getState().currentTrack?.id ?? null;
