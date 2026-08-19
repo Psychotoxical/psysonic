@@ -47,6 +47,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Large analysis, audio, library, sync, cache, integration, CLI and startup modules are split into focused child modules behind the same public APIs and Tauri command/event contracts. Hand-written Rust files above 600 lines drop from 61 to 5 without an intended user-visible change.
 * Hot-path coverage follows the extracted implementation files, including Discord presence URL safety and text helpers. Comparable runtime benchmarks plus Linux and Windows CI found no reproducible behaviour or performance regression.
 
+## Fixed
+
+### Albums no longer start dragging on their own
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1437](https://github.com/Psysonic/psysonic/pull/1437)**
+
+* Holding the mouse button on an album while the list changed underneath — switching between grid and table, or a refresh arriving — could leave a drag primed. The next mouse movement anywhere then picked up that album, long after the pointer had moved on.
+
 ## [1.51.0] - 2026-08-17
 
 ## Added
