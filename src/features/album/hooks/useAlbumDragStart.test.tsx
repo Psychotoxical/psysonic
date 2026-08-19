@@ -107,8 +107,9 @@ describe('useAlbumDragStart', () => {
     expect(startDrag).not.toHaveBeenCalled();
   });
 
-  // Selection mode can arrive while a press is armed. The press must not survive
-  // it and drag a row the user is now trying to tick.
+  // Selection mode can arrive while a press is armed. The effect cleanup runs on
+  // the dependency change, so the press must not survive it and drag a row the
+  // user is now trying to tick.
   it('resolves an armed press when it becomes disabled', () => {
     const { rerender } = render(<Probe />);
     press(screen.getByTestId('source'));

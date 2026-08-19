@@ -29,14 +29,10 @@ export function useAlbumDragStart(
   // flip, and a refresh replaces the list. The listeners would then outlive the
   // component and turn the next pointer travel into a drag for an album that is
   // no longer on screen.
-  // The same applies when the press is disabled mid-flight: selection mode
-  // turning on must not leave a drag armed behind it. Today the toggle is a
-  // button, so releasing it resolves the press anyway — the dependency keeps
-  // that true when the trigger is not a click any more.
-  useEffect(() => {
-    if (disabled) endPressRef.current?.();
-    return () => endPressRef.current?.();
-  }, [disabled]);
+  // `disabled` is a dependency for the same reason: React runs this cleanup
+  // before re-running on a change, so selection mode turning on resolves an
+  // armed press instead of leaving a drag primed behind the new mode.
+  useEffect(() => () => endPressRef.current?.(), [disabled]);
 
   return useCallback((e: React.MouseEvent) => {
     if (disabled || e.button !== 0) return;
