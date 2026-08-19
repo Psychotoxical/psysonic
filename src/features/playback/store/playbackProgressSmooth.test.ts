@@ -356,7 +356,7 @@ describe('seeking', () => {
 
     emitPlaybackSeek(90);
     expect(getSmoothPlaybackTime()).toBeCloseTo(90, 3);
-    expect(seen.at(-1)).toBeCloseTo(90, 3);
+    expect(seen[seen.length - 1]).toBeCloseTo(90, 3);
 
     advance(5000);
     expect(getSmoothPlaybackTime()).toBeCloseTo(90, 3); // paused: no drift

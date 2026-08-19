@@ -62,6 +62,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * Holding the mouse button on an album while the list changed underneath — switching between grid and table, or a refresh arriving — could leave a drag primed. The next mouse movement anywhere then picked up that album, long after the pointer had moved on.
 
+### Synced lyrics keep up with the music
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1442](https://github.com/Psysonic/psysonic/pull/1442)**
+
+* Lines could light up close to a second after they were sung, and inconsistently so — some on time, others noticeably behind. The player only learned the playback position about once per second, which is imperceptible on a clock but not in lyrics, so the position is now followed continuously between those updates.
+* The fullscreen rail was worst affected, because it picked its line from an even coarser signal than its own word highlighting used. Every lyrics view now reads the same position, including after seeking to a line while paused.
+
 ## [1.51.0] - 2026-08-17
 
 ## Added
