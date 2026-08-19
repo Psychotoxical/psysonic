@@ -26,6 +26,13 @@ describe('isWithinModerationWindow', () => {
     expect(isWithinModerationWindow(published, now, 3 * 60 * 60 * 1000)).toBe(true);
   });
 
+  // Every other assertion is relative to the constant, so a slip such as
+  // `6 * 60 * 1000` (six minutes) would disable the guard with a green suite.
+  it('keeps the window within a plausible order of magnitude', () => {
+    expect(WINGET_MODERATION_DELAY_MS).toBeGreaterThanOrEqual(60 * 60 * 1000);
+    expect(WINGET_MODERATION_DELAY_MS).toBeLessThanOrEqual(48 * 60 * 60 * 1000);
+  });
+
   it('fails open on a missing date', () => {
     expect(isWithinModerationWindow(undefined, publishedMs)).toBe(false);
   });
