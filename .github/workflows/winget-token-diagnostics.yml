@@ -9,8 +9,10 @@ name: WinGet Token Diagnostics
 # This job reports what the token actually is — the status of an authenticated
 # API call, the login it resolves to, and its OAuth scopes (classic tokens
 # report scopes in a header, fine-grained ones do not) — and then performs the
-# same GraphQL createRef/deleteRef pair that winget-releaser needs, against the
-# caller's OWN winget-pkgs fork.
+# GraphQL createRef/deleteRef pair that winget-releaser needs, against the fork
+# it targets. That call is necessary but not sufficient: komac also commits to
+# the fork and opens a pull request against microsoft/winget-pkgs, and neither
+# of those is exercised here.
 #
 # It only ever reads from microsoft/winget-pkgs (to report fork drift), never
 # writes to it, opens no pull request, and never prints the token.
@@ -36,15 +38,23 @@ jobs:
             exit 1
           fi
 
-          status=$(curl -sS -o body.json -D headers.txt -w '%{http_code}' \
+          status=$(curl -sS --retry 3 --max-time 30 -o body.json -D headers.txt -w '%{http_code}' \
             -H "Authorization: Bearer ${WINGET_TOKEN}" \
             -H "Accept: application/vnd.github+json" \
-            https://api.github.com/user)
+            https://api.github.com/user || echo 000)
 
           # Classic PATs report their scopes in this header; fine-grained tokens
           # omit it entirely. That difference is the whole point of this step.
           scopes=$(grep -i '^x-oauth-scopes:' headers.txt | cut -d: -f2- | tr -d '\r' | sed 's/^[[:space:]]*//' || true)
           expiry=$(grep -i '^github-authentication-token-expiration:' headers.txt | cut -d: -f2- | tr -d '\r' | sed 's/^[[:space:]]*//' || true)
+
+          if [ "${status}" = "000" ]; then
+            echo "::error::Could not reach api.github.com at all — this is a transport failure, not a verdict on the token."
+            echo "### WinGet token diagnostics" >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "- **GET /user:** could not reach the API (transport failure)" >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
 
           if [ "${status}" != "200" ]; then
             echo "::error::GET /user returned HTTP ${status} — the token is rejected before any repository is involved."
@@ -88,20 +98,29 @@ jobs:
         id: createref
         env:
           WINGET_TOKEN: ${{ secrets.WINGET_TOKEN }}
-          OWNER: ${{ steps.identity.outputs.login }}
+          # winget-releaser's fork-user input defaults to ${{ github.repository_owner }},
+          # so that — not the token's own account — is the fork the real publish
+          # targets. Testing the token user's fork would answer a different question.
+          OWNER: ${{ github.repository_owner }}
+          TOKEN_LOGIN: ${{ steps.identity.outputs.login }}
           BRANCH: winget-token-diagnostics-${{ github.run_id }}-${{ github.run_attempt }}
         run: |
           set -euo pipefail
+
+          if [ "${OWNER}" != "${TOKEN_LOGIN}" ]; then
+            echo "Note: the token authenticates as ${TOKEN_LOGIN}, but the fork under test is ${OWNER}/winget-pkgs (the owner winget-releaser defaults to)."
+            echo "- **Note:** token is \`${TOKEN_LOGIN}\`, fork under test is \`${OWNER}/winget-pkgs\` — winget-releaser defaults to the repository owner" >> "$GITHUB_STEP_SUMMARY"
+          fi
 
           # winget-releaser drives komac, which creates its branch over GraphQL.
           # Testing the REST equivalent would not reproduce the failing call, so
           # this uses the same mutation komac does. The upstream head is read
           # alongside it purely to report how far the fork has drifted.
-          repo_status=$(curl -sS -o repo.json -w '%{http_code}' -X POST https://api.github.com/graphql \
+          repo_status=$(curl -sS --retry 3 --max-time 30 -o repo.json -w '%{http_code}' -X POST https://api.github.com/graphql \
             -H "Authorization: Bearer ${WINGET_TOKEN}" \
             -H "Content-Type: application/json" \
             -d "$(jq -n --arg owner "${OWNER}" \
-              '{query: "query($owner:String!){fork: repository(owner:$owner,name:\"winget-pkgs\"){id defaultBranchRef{name target{oid}}} upstream: repository(owner:\"microsoft\",name:\"winget-pkgs\"){defaultBranchRef{target{oid}}}}", variables: {owner: $owner}}')")
+              '{query: "query($owner:String!){fork: repository(owner:$owner,name:\"winget-pkgs\"){id defaultBranchRef{name target{oid}}} upstream: repository(owner:\"microsoft\",name:\"winget-pkgs\"){defaultBranchRef{target{oid}}}}", variables: {owner: $owner}}')" || echo 000)
 
           # A non-GraphQL body (401 "Bad credentials", a proxy error page) carries
           # no .errors array, and feeding it to jq unguarded would abort the step
@@ -133,18 +152,18 @@ jobs:
           echo "Fork state: ${drift}"
           echo "- **Fork state:** ${drift}" >> "$GITHUB_STEP_SUMMARY"
 
-          create_status=$(curl -sS -o create.json -w '%{http_code}' -X POST https://api.github.com/graphql \
+          create_status=$(curl -sS --retry 3 --max-time 30 -o create.json -w '%{http_code}' -X POST https://api.github.com/graphql \
             -H "Authorization: Bearer ${WINGET_TOKEN}" \
             -H "Content-Type: application/json" \
             -d "$(jq -n --arg rid "${repo_id}" --arg name "refs/heads/${BRANCH}" --arg oid "${head_oid}" \
-              '{query: "mutation($rid:ID!,$name:String!,$oid:GitObjectID!){createRef(input:{repositoryId:$rid,name:$name,oid:$oid}){ref{id name}}}", variables: {rid: $rid, name: $name, oid: $oid}}')")
+              '{query: "mutation($rid:ID!,$name:String!,$oid:GitObjectID!){createRef(input:{repositoryId:$rid,name:$name,oid:$oid}){ref{id name}}}", variables: {rid: $rid, name: $name, oid: $oid}}')" || echo 000)
 
           # Same guard as the lookup above: a transport-level failure returns an
           # HTML page, and letting jq read it would kill the step under `set -e`
           # before any of the messages below are ever written.
           if ! jq -e . create.json >/dev/null 2>&1; then
-            echo "::error::createRef returned HTTP ${create_status} with a body that is not JSON."
-            echo "- **createRef on \`${OWNER}/winget-pkgs\`:** HTTP \`${create_status}\`, body was not JSON" >> "$GITHUB_STEP_SUMMARY"
+            echo "::error::createRef returned HTTP ${create_status} with a body that is not JSON. The ref may have been created server-side — check for refs/heads/${BRANCH} in ${OWNER}/winget-pkgs and remove it by hand."
+            echo "- **createRef on \`${OWNER}/winget-pkgs\`:** HTTP \`${create_status}\`, body was not JSON — check for a leftover \`refs/heads/${BRANCH}\`" >> "$GITHUB_STEP_SUMMARY"
             exit 1
           fi
 
@@ -161,6 +180,7 @@ jobs:
           echo "ref_id=${ref_id}" >> "$GITHUB_OUTPUT"
           echo "createRef succeeded: refs/heads/${BRANCH}"
           echo "- **createRef on \`${OWNER}/winget-pkgs\`:** ✅ succeeded — the credential is allowed to create refs in the fork" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Not covered:** committing to the fork and opening the pull request against microsoft/winget-pkgs — a green run here does not prove those succeed" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Delete the throwaway ref
         if: always() && steps.createref.outputs.ref_id != ''
@@ -171,11 +191,11 @@ jobs:
         run: |
           set -euo pipefail
 
-          delete_status=$(curl -sS -o delete.json -w '%{http_code}' -X POST https://api.github.com/graphql \
+          delete_status=$(curl -sS --retry 3 --max-time 30 -o delete.json -w '%{http_code}' -X POST https://api.github.com/graphql \
             -H "Authorization: Bearer ${WINGET_TOKEN}" \
             -H "Content-Type: application/json" \
             -d "$(jq -n --arg rid "${REF_ID}" \
-              '{query: "mutation($rid:ID!){deleteRef(input:{refId:$rid}){clientMutationId}}", variables: {rid: $rid}}')")
+              '{query: "mutation($rid:ID!){deleteRef(input:{refId:$rid}){clientMutationId}}", variables: {rid: $rid}}')" || echo 000)
 
           # Success has to be proven, not inferred from a missing .errors key: an
           # unparseable body would otherwise read as "deleted" and leave the ref
