@@ -94,4 +94,37 @@ describe('useAlbumDragStart', () => {
     expect(acquireUrl).not.toHaveBeenCalled();
     expect(startDrag.mock.calls[0][0].coverUrl).toBeUndefined();
   });
+
+  // Rows are virtualised and the list can be swapped under a held button, so a
+  // press can lose its source before any mouseup arrives. Without cleanup the
+  // listeners outlive the component and the next pointer travel drags an album
+  // that is no longer there.
+  it('drops its listeners when the source unmounts mid-press', () => {
+    const { unmount } = render(<Probe />);
+    press(screen.getByTestId('source'));
+    unmount();
+    moveTo(140, 100);
+    expect(startDrag).not.toHaveBeenCalled();
+  });
+
+  // Selection mode can arrive while a press is armed. The press must not survive
+  // it and drag a row the user is now trying to tick.
+  it('resolves an armed press when it becomes disabled', () => {
+    const { rerender } = render(<Probe />);
+    press(screen.getByTestId('source'));
+    rerender(<Probe disabled />);
+    moveTo(140, 100);
+    expect(startDrag).not.toHaveBeenCalled();
+  });
+
+  // Two presses without a release in between — the first must not stay armed
+  // alongside the second and fire a second drag from a stale start point.
+  it('supersedes a press that never resolved', () => {
+    render(<Probe />);
+    const source = screen.getByTestId('source');
+    press(source);
+    press(source);
+    moveTo(140, 100);
+    expect(startDrag).toHaveBeenCalledTimes(1);
+  });
 });

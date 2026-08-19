@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import type { SubsonicAlbum } from '@/lib/api/subsonicTypes';
 import { acquireUrl } from '@/cover';
 import { useDragDrop } from '@/lib/dnd/DragDropContext';
@@ -20,9 +20,29 @@ export function useAlbumDragStart(
   disabled = false,
 ): (e: React.MouseEvent) => void {
   const psyDrag = useDragDrop();
+  /** Detaches the listeners of the press in flight, while one is unresolved. */
+  const endPressRef = useRef<(() => void) | null>(null);
+
+  // A press detaches its own listeners once it resolves — into a drag, or into a
+  // release. Nothing resolves it when the source disappears mid-press, and rows
+  // do disappear under a held button: they are virtualised, the view mode can
+  // flip, and a refresh replaces the list. The listeners would then outlive the
+  // component and turn the next pointer travel into a drag for an album that is
+  // no longer on screen.
+  // The same applies when the press is disabled mid-flight: selection mode
+  // turning on must not leave a drag armed behind it. Today the toggle is a
+  // button, so releasing it resolves the press anyway — the dependency keeps
+  // that true when the trigger is not a click any more.
+  useEffect(() => {
+    if (disabled) endPressRef.current?.();
+    return () => endPressRef.current?.();
+  }, [disabled]);
+
   return useCallback((e: React.MouseEvent) => {
     if (disabled || e.button !== 0) return;
     e.preventDefault();
+    // A second press supersedes one that never resolved.
+    endPressRef.current?.();
     const sx = e.clientX;
     const sy = e.clientY;
     const onMove = (me: MouseEvent) => {
@@ -30,8 +50,7 @@ export function useAlbumDragStart(
         Math.abs(me.clientX - sx) <= DRAG_THRESHOLD_PX
         && Math.abs(me.clientY - sy) <= DRAG_THRESHOLD_PX
       ) return;
-      document.removeEventListener('mousemove', onMove);
-      document.removeEventListener('mouseup', onUp);
+      endPress();
       const coverUrl = coverStorageKey ? acquireUrl(coverStorageKey) ?? undefined : undefined;
       psyDrag.startDrag({
         data: JSON.stringify({
@@ -44,11 +63,13 @@ export function useAlbumDragStart(
         coverUrl,
       }, me.clientX, me.clientY);
     };
-    const onUp = () => {
+    const endPress = () => {
       document.removeEventListener('mousemove', onMove);
-      document.removeEventListener('mouseup', onUp);
+      document.removeEventListener('mouseup', endPress);
+      endPressRef.current = null;
     };
     document.addEventListener('mousemove', onMove);
-    document.addEventListener('mouseup', onUp);
+    document.addEventListener('mouseup', endPress);
+    endPressRef.current = endPress;
   }, [album.id, album.name, album.serverId, coverStorageKey, disabled, psyDrag]);
 }
