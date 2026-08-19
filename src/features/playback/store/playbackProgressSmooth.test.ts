@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   _resetPlaybackProgressForTest,
   emitPlaybackProgress,
+  emitPlaybackSeek,
 } from '@/features/playback/store/playbackProgress';
 import {
   _resetSmoothPlaybackTimeForTest,
@@ -326,6 +327,8 @@ describe('first subscriber during a buffering stall', () => {
     usePlayerStore.setState({ currentTime: 137, isPlaying: true });
     emitPlaybackProgress({ currentTime: 0, progress: 0, buffered: 0, buffering: true });
 
+    // Consumers read before they subscribe, so that is the order under test.
+    expect(getSmoothPlaybackTime()).toBeCloseTo(137, 3);
     const off = subscribeSmoothPlaybackTime(() => {});
     expect(getSmoothPlaybackTime()).toBeCloseTo(137, 3);
     off();
@@ -335,8 +338,61 @@ describe('first subscriber during a buffering stall', () => {
     usePlayerStore.setState({ currentTime: 137, isPlaying: true });
     emitPlaybackProgress({ currentTime: 42, progress: 0.4, buffered: 0 });
 
+    expect(getSmoothPlaybackTime()).toBeCloseTo(42, 3);
     const off = subscribeSmoothPlaybackTime(() => {});
     expect(getSmoothPlaybackTime()).toBeCloseTo(42, 3);
+    off();
+  });
+});
+
+describe('seeking', () => {
+  it('follows a seek immediately while paused', () => {
+    // The engine emits no progress at all while paused, so without the seek
+    // signal the views would stay on the old line until playback resumed.
+    usePlayerStore.setState({ isPlaying: false });
+    const seen: number[] = [];
+    const off = subscribeSmoothPlaybackTime(v => seen.push(v));
+    emitPlaybackProgress({ currentTime: 30, progress: 0.3, buffered: 0 });
+
+    emitPlaybackSeek(90);
+    expect(getSmoothPlaybackTime()).toBeCloseTo(90, 3);
+    expect(seen.at(-1)).toBeCloseTo(90, 3);
+
+    advance(5000);
+    expect(getSmoothPlaybackTime()).toBeCloseTo(90, 3); // paused: no drift
+    off();
+  });
+
+  it('keeps advancing from the seeked position while playing', () => {
+    const off = subscribeSmoothPlaybackTime(() => {});
+    emitPlaybackProgress({ currentTime: 30, progress: 0.3, buffered: 0 });
+
+    emitPlaybackSeek(90);
+    advance(500);
+    expect(getSmoothPlaybackTime()).toBeCloseTo(90.5, 3);
+    off();
+  });
+
+  it('is ignored when nobody is listening', () => {
+    emitPlaybackProgress({ currentTime: 12, progress: 0.12, buffered: 0 });
+    emitPlaybackSeek(90);
+    // No subscriber means no anchor to move; the reported position still wins.
+    expect(getSmoothPlaybackTime()).toBeCloseTo(12, 3);
+  });
+});
+
+describe('hidden windows', () => {
+  it('skips the work but keeps the loop alive', () => {
+    const seen: number[] = [];
+    const off = subscribeSmoothPlaybackTime(v => seen.push(v));
+    emitPlaybackProgress({ currentTime: 1, progress: 0.01, buffered: 0 });
+    const before = seen.length;
+
+    vi.spyOn(document, 'hidden', 'get').mockReturnValue(true);
+    advance(100);
+    runFrame();
+    expect(seen).toHaveLength(before); // nothing pushed
+    expect(rafQueue.length).toBe(1);   // loop still armed
     off();
   });
 });

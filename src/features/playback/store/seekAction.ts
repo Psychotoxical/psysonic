@@ -20,6 +20,7 @@ import {
   clearSeekTarget,
   setSeekTarget,
 } from '@/features/playback/store/seekTargetState';
+import { emitPlaybackSeek } from '@/features/playback/store/playbackProgress';
 
 type SetState = (
   partial: Partial<PlayerState> | ((state: PlayerState) => Partial<PlayerState>),
@@ -47,6 +48,10 @@ export function runSeek(set: SetState, get: GetState, progress: number): void {
   if (!dur || !isFinite(dur)) return;
   const time = Math.max(0, Math.min(progress * dur, dur - 0.25));
   set({ progress: time / dur, currentTime: time });
+  // Views on the interpolated clock have no other way to learn about this:
+  // while paused the engine emits no progress at all, so without this a seek
+  // would leave the lyrics parked until playback resumed.
+  emitPlaybackSeek(time);
   armSeekDebounce(100, () => {
     const s0 = get();
     if (!s0.currentTrack) return;

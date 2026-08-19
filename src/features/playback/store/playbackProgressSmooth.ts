@@ -17,6 +17,7 @@
 import {
   getPlaybackProgressSnapshot,
   subscribePlaybackProgress,
+  subscribePlaybackSeek,
 } from '@/features/playback/store/playbackProgress';
 import { effectivePlaybackRate } from '@/features/playback/store/playbackReportSession';
 import { usePlaybackRateStore } from '@/features/playback/store/playbackRateStore';
@@ -56,11 +57,21 @@ let anchoredTrackId: string | null = null;
 
 /** Position the last real update reported, advanced by elapsed time while
  *  playback is running. */
+/** The position the engine last reported. While buffering the progress
+ *  snapshot carries 0, so the store's committed position — coarse but real —
+ *  stands in for it. */
+function reportedPosition(): number {
+  const snapshot = getPlaybackProgressSnapshot();
+  return snapshot.buffering
+    ? usePlayerStore.getState().currentTime
+    : snapshot.currentTime;
+}
+
 export function getSmoothPlaybackTime(): number {
   // Consumers read this once before subscribing, and the module only anchors
   // itself once it has a listener. Without this fallback that first read would
   // return a stale module global — or zero on the very first mount.
-  if (unsubscribeSources == null) return getPlaybackProgressSnapshot().currentTime;
+  if (unsubscribeSources == null) return reportedPosition();
   if (!extrapolating) return baseSeconds;
   const elapsed = (performance.now() - baseAtMs) / 1000;
   // Clamp the media position, not the wall clock: at 2x the latter would allow
@@ -105,6 +116,12 @@ function syncRateIfChanged(): void {
 function tick(): void {
   frame = null;
   if (listeners.size === 0) return;
+  // Same guard the waveform interpolation uses: a Tauri window the app counts
+  // as hidden may still be composited, so skip the work but keep the loop.
+  if (document.hidden || window.__psyHidden) {
+    frame = requestAnimationFrame(tick);
+    return;
+  }
   syncRateIfChanged();
   emit();
   if (extrapolating && !capReached()) frame = requestAnimationFrame(tick);
@@ -129,13 +146,7 @@ function attachSources(): void {
   lastKnownPreviewing = usePreviewStore.getState().previewingId != null;
   lastKnownRate = effectivePlaybackRate();
   anchoredTrackId = usePlayerStore.getState().currentTrack?.id ?? null;
-  // The snapshot carries 0 during a buffering stall, so seeding from it would
-  // start a fresh subscriber at the top of the track. The store's committed
-  // position is coarse but keeps the last real one.
-  const seed = snapshot.buffering
-    ? usePlayerStore.getState().currentTime
-    : snapshot.currentTime;
-  anchor(seed, isMoving(snapshot.buffering));
+  anchor(reportedPosition(), isMoving(snapshot.buffering));
 
   const offProgress = subscribePlaybackProgress(next => {
     const trackId = usePlayerStore.getState().currentTrack?.id ?? null;
@@ -181,6 +192,14 @@ function attachSources(): void {
   // A rate change must re-anchor before it takes effect: the estimate is
   // base + elapsed x rate, so applying a new rate to time already elapsed at
   // the old one would retroactively rescale the whole window and jump.
+  // A seek is the one position change the engine does not announce — and
+  // while paused it never would, so the views would sit on the old line.
+  const offSeek = subscribePlaybackSeek(seconds => {
+    anchor(seconds, isMoving(getPlaybackProgressSnapshot().buffering));
+    emit(true);
+    startFrameLoop();
+  });
+
   const offRate = usePlaybackRateStore.subscribe(() => {
     const rate = effectivePlaybackRate();
     if (rate === lastKnownRate) return;
@@ -193,6 +212,7 @@ function attachSources(): void {
     offPlayer();
     offPreview();
     offRate();
+    offSeek();
   };
   startFrameLoop();
 }

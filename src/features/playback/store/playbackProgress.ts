@@ -59,8 +59,30 @@ export function subscribePlaybackProgress(
   };
 }
 
+/**
+ * Seek notifications. The seek path knows the new position the instant the
+ * user asks for it, long before the engine reports anything — and while paused
+ * the engine never will. Consumers that interpolate need that moment.
+ *
+ * This lives here rather than in the interpolating module because this file
+ * imports nothing, so the seek path can reach it without a dependency cycle.
+ */
+const seekListeners = new Set<(seconds: number) => void>();
+
+export function emitPlaybackSeek(seconds: number): void {
+  seekListeners.forEach(cb => cb(seconds));
+}
+
+export function subscribePlaybackSeek(cb: (seconds: number) => void): () => void {
+  seekListeners.add(cb);
+  return () => {
+    seekListeners.delete(cb);
+  };
+}
+
 /** Test-only: reset module state between specs so suites stay isolated. */
 export function _resetPlaybackProgressForTest(): void {
   playbackProgressSnapshot = { currentTime: 0, progress: 0, buffered: 0, buffering: false };
   playbackProgressListeners.clear();
+  seekListeners.clear();
 }
