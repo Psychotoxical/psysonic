@@ -28,6 +28,11 @@ import { usePreviewStore } from '@/features/playback/store/previewStore';
  *  the estimate run away. */
 const MAX_EXTRAPOLATION_SEC = 2;
 
+/** Lower bound between pushes. Frame rate is far finer than anyone can
+ *  perceive in a highlighted lyric, and the raw channel this replaces ran at
+ *  roughly one update per second — 30 ms keeps the gain and drops the churn. */
+const EMIT_MIN_INTERVAL_MS = 30;
+
 type Listener = (seconds: number) => void;
 
 const listeners = new Set<Listener>();
@@ -42,6 +47,8 @@ let frame: number | null = null;
 let unsubscribeSources: (() => void) | null = null;
 let lastKnownPlaying = false;
 let lastKnownPreviewing = false;
+let lastKnownRate = 1;
+let lastEmitAtMs = Number.NEGATIVE_INFINITY;
 
 /** Position the last real update reported, advanced by elapsed time while
  *  playback is running. */
@@ -65,20 +72,32 @@ function anchor(seconds: number, moving: boolean): void {
   anchoredRate = effectivePlaybackRate();
 }
 
-function emit(): void {
+/** `force` is for real state changes (engine update, pause, rate) — those
+ *  must reach subscribers regardless of when the last frame went out. */
+function emit(force = false): void {
+  const now = performance.now();
+  if (!force && now - lastEmitAtMs < EMIT_MIN_INTERVAL_MS) return;
+  lastEmitAtMs = now;
   const value = getSmoothPlaybackTime();
   listeners.forEach(cb => cb(value));
+}
+
+/** True once the estimate sits at the cap: from here it cannot change until
+ *  a real update arrives, so running frames would push a constant value. */
+function capReached(): boolean {
+  const elapsed = (performance.now() - baseAtMs) / 1000;
+  return elapsed * anchoredRate >= MAX_EXTRAPOLATION_SEC;
 }
 
 function tick(): void {
   frame = null;
   if (listeners.size === 0) return;
   emit();
-  if (extrapolating) frame = requestAnimationFrame(tick);
+  if (extrapolating && !capReached()) frame = requestAnimationFrame(tick);
 }
 
 function startFrameLoop(): void {
-  if (frame == null && extrapolating && listeners.size > 0) {
+  if (frame == null && extrapolating && listeners.size > 0 && !capReached()) {
     frame = requestAnimationFrame(tick);
   }
 }
@@ -94,11 +113,18 @@ function attachSources(): void {
   const snapshot = getPlaybackProgressSnapshot();
   lastKnownPlaying = usePlayerStore.getState().isPlaying;
   lastKnownPreviewing = usePreviewStore.getState().previewingId != null;
+  lastKnownRate = effectivePlaybackRate();
   anchor(snapshot.currentTime, isMoving(snapshot.buffering));
 
   const offProgress = subscribePlaybackProgress(next => {
-    anchor(next.currentTime, isMoving(next.buffering));
-    emit();
+    if (next.buffering) {
+      // audioEventHandlers reports currentTime as 0 while buffering, so the
+      // reported value must not be trusted here — freeze where we are.
+      anchor(getSmoothPlaybackTime(), false);
+    } else {
+      anchor(next.currentTime, isMoving(next.buffering));
+    }
+    emit(true);
     startFrameLoop();
   });
 
@@ -108,7 +134,7 @@ function attachSources(): void {
   const reanchor = (): void => {
     const moving = isMoving(getPlaybackProgressSnapshot().buffering);
     anchor(getSmoothPlaybackTime(), moving);
-    emit();
+    emit(true);
     startFrameLoop();
   };
 
@@ -129,6 +155,9 @@ function attachSources(): void {
   // base + elapsed x rate, so applying a new rate to time already elapsed at
   // the old one would retroactively rescale the whole window and jump.
   const offRate = usePlaybackRateStore.subscribe(() => {
+    const rate = effectivePlaybackRate();
+    if (rate === lastKnownRate) return;
+    lastKnownRate = rate;
     reanchor();
   });
 
@@ -171,4 +200,6 @@ export function _resetSmoothPlaybackTimeForTest(): void {
   anchoredRate = 1;
   lastKnownPlaying = false;
   lastKnownPreviewing = false;
+  lastKnownRate = 1;
+  lastEmitAtMs = Number.NEGATIVE_INFINITY;
 }

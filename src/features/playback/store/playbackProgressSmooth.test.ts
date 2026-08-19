@@ -83,12 +83,18 @@ describe('getSmoothPlaybackTime', () => {
     off();
   });
 
-  it('does not advance while buffering', () => {
+  it('holds the last position while buffering instead of following the zeroed report', () => {
     const off = subscribeSmoothPlaybackTime(() => {});
-    emitPlaybackProgress({ currentTime: 5, progress: 0.05, buffered: 0, buffering: true });
+    emitPlaybackProgress({ currentTime: 60, progress: 0.3, buffered: 0 });
+    advance(200);
+
+    // audioEventHandlers sends currentTime: 0 alongside buffering: true, so a
+    // naive anchor would drop the lyrics to the start of the track.
+    emitPlaybackProgress({ currentTime: 0, progress: 0, buffered: 0, buffering: true });
+    expect(getSmoothPlaybackTime()).toBeCloseTo(60.2, 3);
 
     advance(1000);
-    expect(getSmoothPlaybackTime()).toBeCloseTo(5, 3);
+    expect(getSmoothPlaybackTime()).toBeCloseTo(60.2, 3);
     off();
   });
 
@@ -199,6 +205,36 @@ describe('regressions caught in review', () => {
 
     advance(60_000);
     // 2 s of media, not 2 s of wall clock scaled to 4 s.
+    expect(getSmoothPlaybackTime()).toBeCloseTo(12, 3);
+    off();
+  });
+});
+
+describe('work bounds', () => {
+  it('emits on every real update regardless of how recently a frame went out', () => {
+    const seen: number[] = [];
+    const off = subscribeSmoothPlaybackTime(v => seen.push(v));
+
+    // Two engine updates in the same millisecond must both reach listeners:
+    // the throttle is for interpolated frames, not for real state.
+    emitPlaybackProgress({ currentTime: 1, progress: 0.01, buffered: 0 });
+    emitPlaybackProgress({ currentTime: 2, progress: 0.02, buffered: 0 });
+    expect(seen).toEqual([1, 2]);
+    off();
+  });
+
+  it('ignores playback-rate writes that leave the effective rate unchanged', () => {
+    const off = subscribeSmoothPlaybackTime(() => {});
+    emitPlaybackProgress({ currentTime: 10, progress: 0.1, buffered: 0 });
+    advance(1000);
+    expect(getSmoothPlaybackTime()).toBeCloseTo(11, 3);
+
+    // UI-only writes must not re-anchor — each re-anchor would hand the
+    // estimate a fresh extrapolation budget.
+    usePlaybackRateStore.setState({ fineStep: true });
+    advance(1500);
+
+    // Still capped 2 s past the original anchor, not 2 s past the UI write.
     expect(getSmoothPlaybackTime()).toBeCloseTo(12, 3);
     off();
   });

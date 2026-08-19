@@ -60,7 +60,13 @@ export const FsLyricsApple = memo(function FsLyricsApple({ currentTrack }: { cur
     const apply = (time: number) => {
       const ls = linesRef.current;
       if (!ls.length) return;
-      const idx = ls.reduce((acc, line, i) => time >= line.time ? i : acc, -1);
+      // Lines are ordered, so stop at the first one past `time`. This runs on
+      // every emit rather than once a second now, so a full scan would be waste.
+      let idx = -1;
+      for (let i = 0; i < ls.length; i++) {
+        if (time >= ls[i].time) idx = i;
+        else break;
+      }
       if (idx !== activeIdxRef.current) {
         activeIdxRef.current = idx;
         setActiveIdx(idx);
