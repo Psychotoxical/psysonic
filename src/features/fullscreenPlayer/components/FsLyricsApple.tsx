@@ -3,7 +3,7 @@ import { usePlayerStore } from '@/features/playback/store/playerStore';
 import { useAuthStore } from '@/store/authStore';
 import { useLyrics, type WordLyricsLine } from '@/features/lyrics';
 import { useWordLyricsSync } from '@/features/lyrics';
-import { getPlaybackProgressSnapshot, subscribePlaybackProgress } from '@/features/playback/store/playbackProgress';
+import { getSmoothPlaybackTime, subscribeSmoothPlaybackTime } from '@/features/playback';
 import type { LrcLine } from '@/features/lyrics';
 import type { Track } from '@/lib/media/trackTypes';
 import { EaseScroller, targetForFraction } from '@/lib/dom/easeScroll';
@@ -66,8 +66,8 @@ export const FsLyricsApple = memo(function FsLyricsApple({ currentTrack }: { cur
         setActiveIdx(idx);
       }
     };
-    apply(getPlaybackProgressSnapshot().currentTime);
-    return subscribePlaybackProgress(s => apply(s.currentTime));
+    apply(getSmoothPlaybackTime());
+    return subscribeSmoothPlaybackTime(apply);
   }, [hasSynced, currentTrack?.id]);
 
   // Scroll the active line into view, honouring the "Lyrics scroll style" setting

@@ -1,4 +1,4 @@
-import { getPlaybackProgressSnapshot, subscribePlaybackProgress } from '@/features/playback/store/playbackProgress';
+import { getSmoothPlaybackTime, subscribeSmoothPlaybackTime } from '@/features/playback';
 import { useEffect, useRef, useCallback } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { usePlayerStore } from '@/features/playback/store/playerStore';
@@ -138,8 +138,8 @@ export default function LyricsPane({ currentTrack }: Props) {
       prevActive.current = { line: lineIdx, word: wordIdx };
     };
 
-    apply(getPlaybackProgressSnapshot().currentTime);
-    return subscribePlaybackProgress(s => apply(s.currentTime));
+    apply(getSmoothPlaybackTime());
+    return subscribeSmoothPlaybackTime(apply);
   }, [useWords, hasSynced, wordLines, syncedLines, scrollToLine]);
 
   if (!currentTrack) {

@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { getPlaybackProgressSnapshot, subscribePlaybackProgress } from '@/features/playback/store/playbackProgress';
+import { getSmoothPlaybackTime, subscribeSmoothPlaybackTime } from '@/features/playback';
 import type { Track } from '@/lib/media/trackTypes';
 import type { WordLyricsLine } from '@/features/lyrics/types';
 
@@ -49,8 +49,8 @@ export function useWordLyricsSync({ enabled, wordLines, currentTrack, classPrefi
       }
       prevWord.current = { line: li, word: wi };
     };
-    apply(getPlaybackProgressSnapshot().currentTime);
-    return subscribePlaybackProgress(s => apply(s.currentTime));
+    apply(getSmoothPlaybackTime());
+    return subscribeSmoothPlaybackTime(apply);
   }, [enabled, wordLines, classPrefix]);
 
   const setWordRef = (lineIdx: number, wordIdx: number) => (el: HTMLSpanElement | null) => {
