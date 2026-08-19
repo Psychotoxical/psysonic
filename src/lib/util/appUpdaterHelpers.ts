@@ -17,9 +17,11 @@ export function isNewer(a: string, b: string): boolean {
 // while after the GitHub release goes live (installer scan + manual review,
 // longer for freshly signed binaries building SmartScreen reputation). Holding
 // the update notice back until the release clears this window avoids pointing
-// Windows users at a version WinGet has not published yet. Conservative start
-// value — tune down once real winget-pkgs merge times are known.
-export const WINGET_MODERATION_DELAY_MS = 48 * 60 * 60 * 1000;
+// Windows users at a version WinGet has not published yet. Measured across the
+// 1.49.0, 1.50.0 and 1.51.0 submissions, winget-pkgs merged them in 1h22,
+// 1h01 and 1h09, so six hours keeps headroom for a slower run without
+// holding the notice back for two days.
+export const WINGET_MODERATION_DELAY_MS = 6 * 60 * 60 * 1000;
 
 // True while `publishedAt` is younger than `windowMs` relative to `now`.
 // Missing or unparseable date → false (fail open: show the notice rather than

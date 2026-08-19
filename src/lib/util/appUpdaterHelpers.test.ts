@@ -6,7 +6,7 @@ describe('isWithinModerationWindow', () => {
   const publishedMs = Date.parse(published);
 
   it('returns true while the release is younger than the window', () => {
-    const now = publishedMs + 12 * 60 * 60 * 1000; // 12h after release
+    const now = publishedMs + WINGET_MODERATION_DELAY_MS / 2; // halfway into the window
     expect(isWithinModerationWindow(published, now)).toBe(true);
   });
 
