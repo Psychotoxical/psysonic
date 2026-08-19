@@ -16,6 +16,7 @@ import {
 } from '@/features/playback/store/playbackProgressSmooth';
 import { usePlaybackRateStore } from '@/features/playback/store/playbackRateStore';
 import { usePlayerStore } from '@/features/playback/store/playerStore';
+import { usePreviewStore } from '@/features/playback/store/previewStore';
 
 let clock = 0;
 
@@ -31,6 +32,7 @@ beforeEach(() => {
   vi.stubGlobal('cancelAnimationFrame', () => {});
   usePlayerStore.setState({ isPlaying: true });
   usePlaybackRateStore.setState({ enabled: false, speed: 1 });
+  usePreviewStore.setState({ previewingId: null });
 });
 
 afterEach(() => {
@@ -142,5 +144,62 @@ describe('subscribeSmoothPlaybackTime', () => {
     off();
     emitPlaybackProgress({ currentTime: 2, progress: 0.02, buffered: 0 });
     expect(cb).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('regressions caught in review', () => {
+  it('reports the engine position when nothing is subscribed yet', () => {
+    // Consumers read once before they subscribe. Returning a module global
+    // here made the lyrics pane open on line 0 mid-playback.
+    emitPlaybackProgress({ currentTime: 150, progress: 0.5, buffered: 0 });
+    expect(getSmoothPlaybackTime()).toBeCloseTo(150, 3);
+  });
+
+  it('reports the engine position again after the last subscriber left', () => {
+    const off = subscribeSmoothPlaybackTime(() => {});
+    emitPlaybackProgress({ currentTime: 240, progress: 0.8, buffered: 0 });
+    off();
+
+    emitPlaybackProgress({ currentTime: 5, progress: 0.01, buffered: 0 });
+    expect(getSmoothPlaybackTime()).toBeCloseTo(5, 3);
+  });
+
+  it('does not retroactively rescale elapsed time when the rate changes', () => {
+    const off = subscribeSmoothPlaybackTime(() => {});
+    emitPlaybackProgress({ currentTime: 100, progress: 0.5, buffered: 0 });
+    advance(1800);
+    expect(getSmoothPlaybackTime()).toBeCloseTo(101.8, 3);
+
+    usePlaybackRateStore.setState({ enabled: true, speed: 2 });
+    // Must continue from where it was, not recompute 1.8 s at the new rate.
+    expect(getSmoothPlaybackTime()).toBeCloseTo(101.8, 3);
+
+    advance(1000);
+    expect(getSmoothPlaybackTime()).toBeCloseTo(103.8, 3);
+    off();
+  });
+
+  it('freezes while a track preview is running', () => {
+    const off = subscribeSmoothPlaybackTime(() => {});
+    emitPlaybackProgress({ currentTime: 60, progress: 0.3, buffered: 0 });
+
+    // A preview pauses the main sink without clearing isPlaying.
+    usePreviewStore.setState({ previewingId: 'song-1' });
+    const atPreview = getSmoothPlaybackTime();
+
+    advance(3000);
+    expect(getSmoothPlaybackTime()).toBeCloseTo(atPreview, 3);
+    off();
+  });
+
+  it('caps the media position, not the wall clock, at higher rates', () => {
+    usePlaybackRateStore.setState({ enabled: true, speed: 2 });
+    const off = subscribeSmoothPlaybackTime(() => {});
+    emitPlaybackProgress({ currentTime: 10, progress: 0.1, buffered: 0 });
+
+    advance(60_000);
+    // 2 s of media, not 2 s of wall clock scaled to 4 s.
+    expect(getSmoothPlaybackTime()).toBeCloseTo(12, 3);
+    off();
   });
 });

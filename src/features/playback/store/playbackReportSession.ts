@@ -42,8 +42,10 @@ function extensionActive(serverId: string): boolean {
   return isFeatureActiveForServer(serverId, FEATURE_PLAYBACK_REPORT);
 }
 
-/** Effective playback speed sent to the server (1.0 when the speed DSP is off). */
-function effectivePlaybackRate(): number {
+/** Effective playback speed: the engine's real rate, 1.0 when the speed DSP is
+ *  off or an Orbit session forces passthrough. Used for the server report and
+ *  by the interpolated lyrics position. */
+export function effectivePlaybackRate(): number {
   const { enabled, strategy, speed, pitchSemitones } = usePlaybackRateStore.getState();
   return isPlaybackRateApplied(enabled, strategy, speed, pitchSemitones, isOrbitPlaybackSyncActive())
     ? speed

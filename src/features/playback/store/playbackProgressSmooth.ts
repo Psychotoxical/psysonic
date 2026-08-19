@@ -18,8 +18,10 @@ import {
   getPlaybackProgressSnapshot,
   subscribePlaybackProgress,
 } from '@/features/playback/store/playbackProgress';
+import { effectivePlaybackRate } from '@/features/playback/store/playbackReportSession';
 import { usePlaybackRateStore } from '@/features/playback/store/playbackRateStore';
 import { usePlayerStore } from '@/features/playback/store/playerStore';
+import { usePreviewStore } from '@/features/playback/store/previewStore';
 
 /** Never extrapolate further than this past the last real update. Bounds the
  *  error if updates stop arriving (stall, suspended timers) instead of letting
@@ -33,21 +35,26 @@ const listeners = new Set<Listener>();
 let baseSeconds = 0;
 let baseAtMs = 0;
 let extrapolating = false;
+/** Rate in force since the last anchor. Read live, a rate change would apply
+ *  the new value to time already elapsed at the old one. */
+let anchoredRate = 1;
 let frame: number | null = null;
 let unsubscribeSources: (() => void) | null = null;
-
-function effectiveRate(): number {
-  const { enabled, speed } = usePlaybackRateStore.getState();
-  if (!enabled) return 1;
-  return speed > 0 ? speed : 1;
-}
+let lastKnownPlaying = false;
+let lastKnownPreviewing = false;
 
 /** Position the last real update reported, advanced by elapsed time while
  *  playback is running. */
 export function getSmoothPlaybackTime(): number {
+  // Consumers read this once before subscribing, and the module only anchors
+  // itself once it has a listener. Without this fallback that first read would
+  // return a stale module global — or zero on the very first mount.
+  if (unsubscribeSources == null) return getPlaybackProgressSnapshot().currentTime;
   if (!extrapolating) return baseSeconds;
   const elapsed = (performance.now() - baseAtMs) / 1000;
-  const advanced = Math.min(elapsed, MAX_EXTRAPOLATION_SEC) * effectiveRate();
+  // Clamp the media position, not the wall clock: at 2x the latter would allow
+  // twice the drift the cap is meant to permit.
+  const advanced = Math.min(elapsed * anchoredRate, MAX_EXTRAPOLATION_SEC);
   return baseSeconds + Math.max(0, advanced);
 }
 
@@ -55,6 +62,7 @@ function anchor(seconds: number, moving: boolean): void {
   baseSeconds = seconds;
   baseAtMs = performance.now();
   extrapolating = moving;
+  anchoredRate = effectivePlaybackRate();
 }
 
 function emit(): void {
@@ -76,11 +84,16 @@ function startFrameLoop(): void {
 }
 
 function isMoving(buffering: boolean | undefined): boolean {
+  // A running track preview pauses the main sink in Rust while `isPlaying`
+  // stays true and progress events stop — the same guard the waveform uses.
+  if (usePreviewStore.getState().previewingId != null) return false;
   return usePlayerStore.getState().isPlaying && !buffering;
 }
 
 function attachSources(): void {
   const snapshot = getPlaybackProgressSnapshot();
+  lastKnownPlaying = usePlayerStore.getState().isPlaying;
+  lastKnownPreviewing = usePreviewStore.getState().previewingId != null;
   anchor(snapshot.currentTime, isMoving(snapshot.buffering));
 
   const offProgress = subscribePlaybackProgress(next => {
@@ -92,17 +105,38 @@ function attachSources(): void {
   // Pausing stops the position without producing a progress event, so the
   // player state has to re-anchor as well — otherwise the estimate would keep
   // advancing through a pause.
-  const offPlayer = usePlayerStore.subscribe(state => {
-    const moving = state.isPlaying && !getPlaybackProgressSnapshot().buffering;
-    if (moving === extrapolating) return;
+  const reanchor = (): void => {
+    const moving = isMoving(getPlaybackProgressSnapshot().buffering);
     anchor(getSmoothPlaybackTime(), moving);
     emit();
     startFrameLoop();
+  };
+
+  const offPlayer = usePlayerStore.subscribe(state => {
+    if (state.isPlaying === lastKnownPlaying) return;
+    lastKnownPlaying = state.isPlaying;
+    reanchor();
+  });
+
+  const offPreview = usePreviewStore.subscribe(state => {
+    const previewing = state.previewingId != null;
+    if (previewing === lastKnownPreviewing) return;
+    lastKnownPreviewing = previewing;
+    reanchor();
+  });
+
+  // A rate change must re-anchor before it takes effect: the estimate is
+  // base + elapsed x rate, so applying a new rate to time already elapsed at
+  // the old one would retroactively rescale the whole window and jump.
+  const offRate = usePlaybackRateStore.subscribe(() => {
+    reanchor();
   });
 
   unsubscribeSources = () => {
     offProgress();
     offPlayer();
+    offPreview();
+    offRate();
   };
   startFrameLoop();
 }
@@ -134,4 +168,7 @@ export function _resetSmoothPlaybackTimeForTest(): void {
   baseSeconds = 0;
   baseAtMs = 0;
   extrapolating = false;
+  anchoredRate = 1;
+  lastKnownPlaying = false;
+  lastKnownPreviewing = false;
 }
