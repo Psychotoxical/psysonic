@@ -45,13 +45,22 @@ jobs:
 
           # An unreachable API leaves status empty or at curl's own 000; either way
           # it is a transport failure and says nothing about the token.
+          # An unreachable API leaves the status empty or at curl's own 000. The
+          # listed codes are the ones curl itself calls transient (man curl,
+          # --retry): reaching one of them means the retries were exhausted, not
+          # that the credential is bad. Neither case says anything about the token.
           case "${status}" in
-            ""|000)
-              echo "::error::Could not reach api.github.com at all — this is a transport failure, not a verdict on the token."
+            ""|000|408|429|500|502|503|504|522|524)
+              if [ "${status}" = "000" ] || [ -z "${status}" ]; then
+                detail="could not reach the API"
+              else
+                detail="the API answered HTTP ${status} on every attempt (a code curl treats as transient)"
+              fi
+              echo "::error::${detail} — this is an availability problem, not a verdict on the token."
               {
                 echo "### WinGet token diagnostics"
                 echo ""
-                echo "- **GET /user:** could not reach the API (transport failure)"
+                echo "- **GET /user:** ${detail} — no conclusion about the credential"
               } >> "$GITHUB_STEP_SUMMARY"
               exit 1
               ;;
@@ -77,7 +86,12 @@ jobs:
             exit 1
           fi
 
-          login=$(jq -r '.login' body.json)
+          login=$(jq -r '.login // empty' body.json)
+          if [ -z "${login}" ]; then
+            echo "::error::The response parsed as JSON but carries no login field — this is not the account payload the API should return."
+            echo "- **GET /user:** JSON without a login field" >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
           echo "login=${login}" >> "$GITHUB_OUTPUT"
 
           # Classic PATs report their scopes in this header; fine-grained tokens
@@ -143,9 +157,9 @@ jobs:
           # no .errors array, and feeding it to jq unguarded would abort the step
           # under `set -e` without printing anything at all.
           case "${repo_status}" in
-            ""|000)
-              echo "::error::Could not reach api.github.com — transport failure, nothing was asked of the token."
-              echo "- **Repository lookup:** could not reach the API (transport failure)" >> "$GITHUB_STEP_SUMMARY"
+            ""|000|408|429|500|502|503|504|522|524)
+              echo "::error::The lookup did not get a usable answer (HTTP ${repo_status:-none}) — an availability problem, not a verdict on the token."
+              echo "- **Repository lookup:** no usable answer (HTTP \`${repo_status:-none}\`) — no conclusion about the credential" >> "$GITHUB_STEP_SUMMARY"
               exit 1
               ;;
           esac
@@ -185,17 +199,17 @@ jobs:
             -d "$(jq -n --arg rid "${repo_id}" --arg name "refs/heads/${BRANCH}" --arg oid "${head_oid}" \
               '{query: "mutation($rid:ID!,$name:String!,$oid:GitObjectID!){createRef(input:{repositoryId:$rid,name:$name,oid:$oid}){ref{id name}}}", variables: {rid: $rid, name: $name, oid: $oid}}')" || true)
 
-          # Same guard as the lookup above: a transport-level failure returns an
-          # HTML page, and letting jq read it would kill the step under `set -e`
-          # before any of the messages below are ever written.
           case "${create_status}" in
-            ""|000)
-              echo "::error::Could not reach api.github.com — the request never left the runner, so no ref was created."
-              echo "- **createRef:** could not reach the API (transport failure)" >> "$GITHUB_STEP_SUMMARY"
+            ""|000|408|429|500|502|503|504|522|524)
+              echo "::error::createRef got no usable answer (HTTP ${create_status:-none}). A timeout can strike after the request was sent, so the ref may exist — check for refs/heads/${BRANCH} in ${OWNER}/winget-pkgs and remove it by hand."
+              echo "- **createRef:** no usable answer (HTTP \`${create_status:-none}\`) — check for a leftover \`refs/heads/${BRANCH}\`" >> "$GITHUB_STEP_SUMMARY"
               exit 1
               ;;
           esac
 
+          # Same guard as the lookup above: a transport-level failure returns an
+          # HTML page, and letting jq read it would kill the step under `set -e`
+          # before any of the messages below are ever written.
           if ! jq -e . create.json >/dev/null 2>&1; then
             echo "::error::createRef returned HTTP ${create_status} with a body that is not JSON. The ref may have been created server-side — check for refs/heads/${BRANCH} in ${OWNER}/winget-pkgs and remove it by hand."
             echo "- **createRef on \`${OWNER}/winget-pkgs\`:** HTTP \`${create_status}\`, body was not JSON — check for a leftover \`refs/heads/${BRANCH}\`" >> "$GITHUB_STEP_SUMMARY"
