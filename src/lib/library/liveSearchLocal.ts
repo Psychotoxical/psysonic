@@ -17,6 +17,7 @@ import { logLibrarySearch, timed } from './libraryDevLog';
 import { searchQueryIsFtsSafe } from './searchQueryFtsSafe';
 import { getLibraryBrowseScope, type LibraryBrowseScope } from './libraryBrowseScope';
 import { resolveReadyLibraryBrowseScope } from './libraryReady';
+import { resolveServerIdForIndexKey } from '@/lib/server/serverLookup';
 import { ownedEntityKey } from '@/lib/util/ownedEntityKey';
 
 export const LIVE_SEARCH_DEBOUNCE_LOCAL_MS = 200;
@@ -160,9 +161,15 @@ export async function runNetworkLiveSearch(
       albumCount: LIVE_SEARCH_LIMITS.albums,
       songCount: LIVE_SEARCH_LIMITS.songs,
     };
-    return serverId
-      ? await searchForServer(serverId, q, options)
-      : await search(q, { ...options, signal });
+    if (!serverId) return await search(q, { ...options, signal });
+
+    const result = await searchForServer(serverId, q, options);
+    const ownerServerId = resolveServerIdForIndexKey(serverId);
+    return {
+      artists: result.artists.map(artist => ({ ...artist, serverId: ownerServerId })),
+      albums: result.albums.map(album => ({ ...album, serverId: ownerServerId })),
+      songs: result.songs.map(song => ({ ...song, serverId: ownerServerId })),
+    };
   } catch (err) {
     const name = err instanceof Error ? err.name : '';
     if (name === 'CanceledError' || name === 'AbortError') return null;

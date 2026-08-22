@@ -1,14 +1,23 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { onInvoke } from '@/test/mocks/tauri';
 import type { SearchResults } from '@/lib/api/subsonicTypes';
 import { useAuthStore } from '@/store/authStore';
 import { useLibraryIndexStore } from '@/store/libraryIndexStore';
 import { resetAuthStore } from '@/test/helpers/storeReset';
+
+const searchForServerMock = vi.hoisted(() => vi.fn());
+
+vi.mock('@/lib/api/subsonicSearch', async importOriginal => {
+  const actual = await importOriginal<typeof import('@/lib/api/subsonicSearch')>();
+  return { ...actual, searchForServer: searchForServerMock };
+});
+
 import {
   liveSearchQueryRejected,
   liveSearchQueryTooShort,
   mergeLiveSearchResults,
   runLocalLiveSearch,
+  runNetworkLiveSearch,
 } from './liveSearchLocal';
 
 const neverStale = { epoch: 1, isStale: () => false };
@@ -206,6 +215,56 @@ describe('liveSearchQueryTooShort', () => {
   it('treats one grapheme as too short', () => {
     expect(liveSearchQueryTooShort('а')).toBe(true);
     expect(liveSearchQueryTooShort('ab')).toBe(false);
+  });
+});
+
+describe('runNetworkLiveSearch', () => {
+  beforeEach(() => {
+    resetAuthStore();
+    searchForServerMock.mockReset();
+    useAuthStore.setState({
+      activeServerId: 'profile-s1',
+      servers: [{
+        id: 'profile-s1',
+        name: 'S',
+        url: 'https://s.test',
+        username: 'u',
+        password: 'p',
+      }],
+    });
+  });
+
+  it('normalizes network ownership to the profile id before the local race merge', async () => {
+    const resultsFor = (serverId: string): SearchResults => ({
+      artists: [{ serverId, id: 'a1', name: 'Artist' }],
+      albums: [{
+        serverId,
+        id: 'al1',
+        name: 'Album',
+        artist: 'Artist',
+        artistId: 'a1',
+        songCount: 1,
+        duration: 100,
+      }],
+      songs: [{
+        serverId,
+        id: 's1',
+        title: 'Song',
+        artist: 'Artist',
+        album: 'Album',
+        albumId: 'al1',
+        duration: 100,
+      }],
+    });
+    searchForServerMock.mockResolvedValue(resultsFor('s.test'));
+
+    const network = await runNetworkLiveSearch('artist', undefined, 'profile-s1');
+    expect(network).toEqual(resultsFor('profile-s1'));
+
+    const merged = mergeLiveSearchResults(resultsFor('profile-s1'), network!);
+    expect(merged.artists).toHaveLength(1);
+    expect(merged.albums).toHaveLength(1);
+    expect(merged.songs).toHaveLength(1);
   });
 });
 
