@@ -69,6 +69,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Lines could light up close to a second after they were sung, and inconsistently so — some on time, others noticeably behind. The player only learned the playback position about once per second, which is imperceptible on a clock but not in lyrics, so the position is now followed continuously between those updates.
 * The fullscreen rail was worst affected, because it picked its line from an even coarser signal than its own word highlighting used. Every lyrics view now reads the same position, including after seeking to a line while paused.
 
+### Live Search no longer shows the same result twice
+
+**By [@cucadmuh](https://github.com/cucadmuh), reported by HiveMind on the Psysonic Discord, PR [#1448](https://github.com/Psysonic/psysonic/pull/1448)**
+
+* Artists, albums and songs could each appear twice when the local index and the server response used different forms of the same server identity. Live Search now aligns that identity before combining the results, while still keeping genuinely separate matches from different servers.
+
 ## [1.51.0] - 2026-08-17
 
 ## Added
