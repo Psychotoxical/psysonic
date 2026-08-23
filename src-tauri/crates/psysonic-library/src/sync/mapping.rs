@@ -204,28 +204,55 @@ pub fn subsonic_song_to_track_row(
     }
 }
 
-/// Normalize Navidrome native participant roles onto the OpenSubsonic keys the
-/// rest of Psysonic already consumes. Presence is authoritative here: an empty
-/// array or explicit null means the native payload observed that role and must
-/// be allowed to clear a stale value during sparse json_patch. Only a genuinely
-/// absent role falls back to the previously stored rich field.
+/// Normalize Navidrome native artist data onto the OpenSubsonic keys the rest
+/// of Psysonic consumes. Native flat artist strings are current display values,
+/// so when present they replace stale `displayArtist` / `displayAlbumArtist`.
+///
+/// `participants` has a stricter contract: an absent or null field means the
+/// native endpoint did not provide structured credits, so sparse merge may keep
+/// the previously stored OpenSubsonic arrays for compatibility. Once a
+/// participants object is present, however, it is authoritative as a whole.
+/// Present roles replace their arrays and missing roles become empty arrays so a
+/// later `json_patch` cannot retain stale structured credits.
 fn normalize_navidrome_participants(raw: &Value) -> Value {
     let mut normalized = raw.clone();
-    let Some(participants) = raw.get("participants").and_then(Value::as_object) else {
-        return normalized;
-    };
     let Some(obj) = normalized.as_object_mut() else {
         return normalized;
     };
 
-    if let Some(artists) = participants.get("artist") {
-        obj.insert("artists".to_string(), artists.clone());
+    if let Some(artist) = raw.get("artist") {
+        obj.insert("displayArtist".to_string(), artist.clone());
     }
-    if let Some(album_artists) = participants
-        .get("albumartist")
-        .or_else(|| participants.get("albumArtist"))
-    {
-        obj.insert("albumArtists".to_string(), album_artists.clone());
+    if let Some(album_artist) = raw.get("albumArtist") {
+        obj.insert("displayAlbumArtist".to_string(), album_artist.clone());
+    }
+
+    let Some(participants_value) = raw.get("participants") else {
+        return normalized;
+    };
+    if participants_value.is_null() {
+        return normalized;
+    }
+
+    let empty = Value::Array(Vec::new());
+    if let Some(participants) = participants_value.as_object() {
+        obj.insert(
+            "artists".to_string(),
+            participants.get("artist").cloned().unwrap_or_else(|| empty.clone()),
+        );
+        obj.insert(
+            "albumArtists".to_string(),
+            participants
+                .get("albumartist")
+                .or_else(|| participants.get("albumArtist"))
+                .cloned()
+                .unwrap_or(empty),
+        );
+    } else {
+        // A non-null malformed value still means the server supplied the field;
+        // do not fall back to stale structured credits.
+        obj.insert("artists".to_string(), empty.clone());
+        obj.insert("albumArtists".to_string(), empty);
     }
 
     normalized
