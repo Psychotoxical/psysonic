@@ -5679,8 +5679,6 @@ dependencies = [
 [[package]]
 name = "symphonia-format-isomp4"
 version = "0.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2d179a01305b3505940135a9f0180d6ef4b487912748fe97554756f120fbd05e"
 dependencies = [
  "log",
  "symphonia-common",

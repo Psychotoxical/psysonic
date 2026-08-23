@@ -106,10 +106,19 @@ windows = { version = "0.62", features = [
     "Win32_UI_WindowsAndMessaging",
 ] }
 
-# NOTE: The local `symphonia-format-isomp4` path patch (0.5-based) was removed for
-# the Symphonia 0.6 migration. Symphonia 0.6 upstream already covers the esds
-# missing-descriptor and SL predefined=null fixes. The malformed-trak skip and
-# moov-at-end tail scan are validated against the fixture corpus on stock 0.6; if a
-# case regresses, re-create the patch from the 0.6 isomp4 source and re-add the
-# [patch.crates-io] entry here. See workdocs task 2026-05-symphonia-0.6-migration.
+# The local `symphonia-format-isomp4` path patch (0.5-based) was removed for the
+# Symphonia 0.6 migration; Symphonia 0.6 upstream covers the esds missing-descriptor,
+# SL predefined=null, malformed-trak skip, and moov-at-end tail scan fixes that patch
+# used to carry. See workdocs task 2026-05-symphonia-0.6-migration.
+#
+# Re-added below (0.6.0-based) to backport an unmerged upstream fix for a stock 0.6
+# regression: seeking a seekable in-memory/ranged-HTTP source (e.g. our analysis
+# window seek, or the streaming decoder's post-EOF retry) after the AtomIterator's
+# `pending` atom has already been consumed hits `AtomError::NoPendingAtom` ("isomp4:
+# no atom pending read") in `read_raw_boxed_slice_exact`, even though a seekable
+# reader can just jump to the requested position directly. Fix cherry-picked from
+# https://github.com/pdeljanov/Symphonia/pull/536 (relax the pending-atom check when
+# `reader.is_seekable()`). Drop this patch once that PR lands upstream.
+[patch.crates-io]
+symphonia-format-isomp4 = { path = "patches/symphonia-format-isomp4" }
 

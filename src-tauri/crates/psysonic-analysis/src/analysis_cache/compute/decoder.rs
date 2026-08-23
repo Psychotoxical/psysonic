@@ -59,14 +59,18 @@ pub(super) fn open_decode_session(
     if let Some(ext) = format_hint.or(sniffed.as_deref()) {
         hint.with_extension(ext);
     }
-    let format = symphonia::default::get_probe()
-        .probe(
-            &hint,
-            mss,
-            FormatOptions::default(),
-            MetadataOptions::default(),
-        )
-        .ok()?;
+    let format = match symphonia::default::get_probe().probe(
+        &hint,
+        mss,
+        FormatOptions::default(),
+        MetadataOptions::default(),
+    ) {
+        Ok(v) => v,
+        Err(e) => {
+            crate::app_deprintln!("[analysis] format probe failed: {}", e);
+            return None;
+        }
+    };
     // Prefer an audio track that reports both sample rate and channels; fall back to
     // the first audio track with a known codec (skips e.g. MJPEG cover-art tracks).
     let track = format
@@ -118,15 +122,29 @@ pub(super) fn count_mono_frames_from_audio_bytes(
     let mut total: u64 = 0;
     let mut loop_i: u32 = 0;
     let mut samples_buf: Vec<f32> = Vec::new();
-    while let Ok(Some(packet)) = format.next_packet() {
+    loop {
+        let packet = match format.next_packet() {
+            Ok(Some(packet)) => packet,
+            Ok(None) => break,
+            Err(e) => {
+                if total == 0 {
+                    crate::app_deprintln!("[analysis] next_packet failed: {}", e);
+                }
+                break;
+            }
+        };
         if packet.track_id != track_id {
             continue;
         }
         let decoded = match decoder.decode(&packet) {
             Ok(buf) => buf,
             Err(SymphoniaError::DecodeError(_)) => continue,
-            Err(SymphoniaError::ResetRequired) => break,
-            Err(_) => break,
+            Err(e) => {
+                if total == 0 {
+                    crate::app_deprintln!("[analysis] decode failed: {}", e);
+                }
+                break;
+            }
         };
         let n_ch = decoded.spec().channels().count();
         if n_ch == 0 {
@@ -252,16 +270,27 @@ fn decode_mono_pcm_from_session(
     let mut max_frames: Option<u64> = None;
     let mut loop_i: u32 = 0;
     let mut samples_buf: Vec<f32> = Vec::new();
+    let mut last_error: Option<String> = None;
 
-    while let Ok(Some(packet)) = format.next_packet() {
+    loop {
+        let packet = match format.next_packet() {
+            Ok(Some(packet)) => packet,
+            Ok(None) => break,
+            Err(e) => {
+                last_error = Some(format!("next_packet: {e}"));
+                break;
+            }
+        };
         if packet.track_id != track_id {
             continue;
         }
         let decoded = match decoder.decode(&packet) {
             Ok(buf) => buf,
             Err(SymphoniaError::DecodeError(_)) => continue,
-            Err(SymphoniaError::ResetRequired) => break,
-            Err(_) => break,
+            Err(e) => {
+                last_error = Some(format!("decode: {e}"));
+                break;
+            }
         };
 
         let n_ch = decoded.spec().channels().count();
@@ -312,7 +341,10 @@ fn decode_mono_pcm_from_session(
     }
 
     if mono.is_empty() {
-        return Err("no PCM frames decoded".to_string());
+        return Err(match last_error {
+            Some(e) => format!("no PCM frames decoded ({e})"),
+            None => "no PCM frames decoded".to_string(),
+        });
     }
     Ok((mono, sample_rate))
 }
