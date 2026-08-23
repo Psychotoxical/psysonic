@@ -9,6 +9,7 @@ import { useMediaAndWindowBridge } from '@/app/tauriBridge/useMediaAndWindowBrid
 import { usePlayerSnapshotPublisher } from '@/app/tauriBridge/usePlayerSnapshotPublisher';
 import { useLibraryDevSyncLog } from '@/app/tauriBridge/useLibraryDevSyncLog';
 import { useCoverArtBridge } from '@/app/tauriBridge/useCoverArtBridge';
+import { useWebviewFocusRecovery } from '@/app/tauriBridge/useWebviewFocusRecovery';
 
 /**
  * Single mount point for everything that bridges Rust ↔ React in the main
@@ -32,6 +33,7 @@ export function TauriEventBridge() {
   useAudioDeviceBridge();
   useCliBridge(navigate);
   useTrayIconSync();
+  useWebviewFocusRecovery();
   useInAppKeybindings(navigate);
   useMediaAndWindowBridge(navigate);
   usePlayerSnapshotPublisher();
