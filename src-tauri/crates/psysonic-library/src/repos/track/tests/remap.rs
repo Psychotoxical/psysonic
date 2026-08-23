@@ -1,4 +1,5 @@
 use rusqlite::params;
+use serde_json::json;
 
 use super::super::remap::{REMAP_LOOKUP_BY_HASH_SQL, REMAP_LOOKUP_BY_PATH_SQL};
 use super::*;
@@ -118,6 +119,75 @@ fn remap_via_content_hash_replaces_old_row_and_records_history() {
     assert_eq!(
         hist.lookup_new_id("s1", "tr_old").unwrap().as_deref(),
         Some("tr_new")
+    );
+}
+
+#[test]
+fn sparse_remap_merges_from_resolved_old_row_before_deleting_it() {
+    let store = LibraryStore::open_in_memory();
+    let repo = TrackRepository::new(&store);
+
+    let mut old = row_with_id_hash("s1", "tr_old", "deadbeef", "/path/x.flac");
+    old.raw_json = json!({
+        "id": "tr_old",
+        "artist": "FOVOS, Max Cardona",
+        "artists": [
+            { "id": "fovos", "name": "FOVOS" },
+            { "id": "max-cardona", "name": "Max Cardona" }
+        ],
+        "albumArtists": [
+            { "id": "fovos", "name": "FOVOS" },
+            { "id": "max-cardona", "name": "Max Cardona" }
+        ],
+        "displayArtist": "FOVOS, Max Cardona"
+    })
+    .to_string();
+    repo.upsert_batch(&[old]).unwrap();
+
+    let mut incoming = row_with_id_hash("s1", "tr_new", "deadbeef", "/path/x.flac");
+    incoming.raw_json = json!({
+        "id": "tr_new",
+        "artist": "FOVOS, Someone Else",
+        "artists": [
+            { "id": "fovos", "name": "FOVOS" },
+            { "id": "someone-else", "name": "Someone Else" }
+        ],
+        "displayArtist": "FOVOS, Someone Else"
+    })
+    .to_string();
+
+    let stats = repo
+        .upsert_sparse_batch_with_remap(&[incoming], true)
+        .unwrap();
+    assert_eq!(stats.remapped.len(), 1);
+
+    let raw: String = store
+        .with_conn("misc", |c| {
+            c.query_row(
+                "SELECT raw_json FROM track WHERE server_id = 's1' AND id = 'tr_new'",
+                [],
+                |row| row.get(0),
+            )
+        })
+        .unwrap();
+    let raw: serde_json::Value = serde_json::from_str(&raw).unwrap();
+
+    // Present current credits replace the old array and display value.
+    assert_eq!(
+        raw["artists"],
+        json!([
+            { "id": "fovos", "name": "FOVOS" },
+            { "id": "someone-else", "name": "Someone Else" }
+        ])
+    );
+    assert_eq!(raw["displayArtist"], json!("FOVOS, Someone Else"));
+    // Truly absent rich fields survive from the old id across the remap.
+    assert_eq!(
+        raw["albumArtists"],
+        json!([
+            { "id": "fovos", "name": "FOVOS" },
+            { "id": "max-cardona", "name": "Max Cardona" }
+        ])
     );
 }
 

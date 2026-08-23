@@ -204,6 +204,60 @@ pub fn subsonic_song_to_track_row(
     }
 }
 
+/// Normalize Navidrome native artist data onto the OpenSubsonic keys the rest
+/// of Psysonic consumes. Native flat artist strings are current display values,
+/// so when present they replace stale `displayArtist` / `displayAlbumArtist`.
+///
+/// `participants` has a stricter contract: an absent or null field means the
+/// native endpoint did not provide structured credits, so sparse merge may keep
+/// the previously stored OpenSubsonic arrays for compatibility. Once a
+/// participants object is present, however, it is authoritative as a whole.
+/// Present roles replace their arrays and missing roles become empty arrays so a
+/// later `json_patch` cannot retain stale structured credits.
+fn normalize_navidrome_participants(raw: &Value) -> Value {
+    let mut normalized = raw.clone();
+    let Some(obj) = normalized.as_object_mut() else {
+        return normalized;
+    };
+
+    if let Some(artist) = raw.get("artist") {
+        obj.insert("displayArtist".to_string(), artist.clone());
+    }
+    if let Some(album_artist) = raw.get("albumArtist") {
+        obj.insert("displayAlbumArtist".to_string(), album_artist.clone());
+    }
+
+    let Some(participants_value) = raw.get("participants") else {
+        return normalized;
+    };
+    if participants_value.is_null() {
+        return normalized;
+    }
+
+    let empty = Value::Array(Vec::new());
+    if let Some(participants) = participants_value.as_object() {
+        obj.insert(
+            "artists".to_string(),
+            participants.get("artist").cloned().unwrap_or_else(|| empty.clone()),
+        );
+        obj.insert(
+            "albumArtists".to_string(),
+            participants
+                .get("albumartist")
+                .or_else(|| participants.get("albumArtist"))
+                .cloned()
+                .unwrap_or(empty),
+        );
+    } else {
+        // A non-null malformed value still means the server supplied the field;
+        // do not fall back to stale structured credits.
+        obj.insert("artists".to_string(), empty.clone());
+        obj.insert("albumArtists".to_string(), empty);
+    }
+
+    normalized
+}
+
 /// Project a Navidrome `/api/song` row (native REST shape) into a
 /// `TrackRow`. Field names mostly overlap with Subsonic but use
 /// snake_case JSON aliases — we read fields by `get(name)` rather
@@ -215,6 +269,8 @@ pub fn navidrome_song_to_track_row(
     synced_at: i64,
     library_id_fallback: Option<&str>,
 ) -> Option<TrackRow> {
+    let normalized = normalize_navidrome_participants(raw);
+    let raw = &normalized;
     let id = raw.get("id").and_then(|v| v.as_str())?.to_string();
     let title = raw
         .get("title")

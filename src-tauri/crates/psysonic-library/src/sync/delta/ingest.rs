@@ -5,7 +5,7 @@ use psysonic_integration::navidrome::queries::nd_list_songs_internal;
 use super::{
     retry_with_backoff, DeltaSyncReport, DeltaSyncRunner, SyncError, S2_DELTA_MAX_PAGES_PER_TYPE,
 };
-use crate::repos::TrackRow;
+use crate::repos::{TrackRepository, TrackRow};
 use crate::sync::ingest_parallel::next_album_list_offset;
 use crate::sync::mapping::navidrome_song_to_track_row;
 use crate::sync::now_unix_ms;
@@ -65,9 +65,19 @@ impl DeltaSyncRunner<'_> {
                 }
             }
             if !rows.is_empty() {
-                let (changed, remapped) = self.write_batch(&rows)?;
-                report.changed_count = report.changed_count.saturating_add(changed);
-                report.remapped_count = report.remapped_count.saturating_add(remapped);
+                // Navidrome native `/api/song` is a sparse representation compared
+                // with OpenSubsonic song payloads. Preserve richer fields already
+                // stored in raw_json (notably `artists` / `albumArtists`) when the
+                // native delta row omits them, while still retaining id-remap logic.
+                let stats = TrackRepository::new(self.store)
+                    .upsert_sparse_batch_with_remap(&rows, self.unstable_track_ids())
+                    .map_err(SyncError::Storage)?;
+                report.changed_count = report
+                    .changed_count
+                    .saturating_add(rows.len() as u32);
+                report.remapped_count = report
+                    .remapped_count
+                    .saturating_add(stats.remapped.len() as u32);
             }
             if crossed_watermark || (array.len() as u32) < self.batch_size {
                 break;
