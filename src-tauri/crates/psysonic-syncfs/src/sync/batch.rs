@@ -340,10 +340,9 @@ pub async fn sync_batch_to_device(
             let dest_path = std::path::Path::new(&dest).join(&file_name);
             let path_str = dest_path.to_string_lossy().to_string();
 
-            let status;
-            if dest_path.exists() {
+            let status = if dest_path.exists() {
                 s.fetch_add(1, Ordering::Relaxed);
-                status = "skipped";
+                "skipped"
             } else {
                 // Ensure parent directories exist.
                 if let Some(parent) = dest_path.parent() {
@@ -410,8 +409,8 @@ pub async fn sync_batch_to_device(
                 }
 
                 d.fetch_add(1, Ordering::Relaxed);
-                status = "done";
-            }
+                "done"
+            };
 
             // Throttled progress event — max once per 500ms.
             let should_emit = {
