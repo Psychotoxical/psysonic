@@ -73,6 +73,29 @@ impl TrackRepository<'_> {
                             None
                         };
 
+                    // Sparse upsert normally merges against the row at the incoming id.
+                    // During an unstable-id remap that row does not exist yet: the rich
+                    // JSON is still attached to `old_id`. Merge the native payload onto
+                    // that resolved source before inserting the new id, otherwise the
+                    // later old-row deletion would discard the very fields sparse ingest
+                    // is meant to preserve.
+                    let remap_merged_raw = if sparse_payload {
+                        detected_old
+                            .as_deref()
+                            .map(|old_id| {
+                                merge_sparse_raw_from_remap_source(
+                                    &tx,
+                                    &r.server_id,
+                                    old_id,
+                                    &r.raw_json,
+                                )
+                            })
+                            .transpose()?
+                    } else {
+                        None
+                    };
+                    let raw_json = remap_merged_raw.as_deref().unwrap_or(r.raw_json.as_str());
+
                     upsert.execute(params![
                         r.server_id,
                         r.id,
@@ -109,7 +132,7 @@ impl TrackRepository<'_> {
                         r.server_created_at,
                         if r.deleted { 1_i64 } else { 0 },
                         r.synced_at,
-                        r.raw_json,
+                        raw_json,
                         if sparse_payload { 1_i64 } else { 0_i64 },
                     ])?;
 
@@ -178,6 +201,37 @@ impl TrackRepository<'_> {
                 Ok(RemapStats { remapped })
             })
     }
+}
+
+/// Merge a sparse incoming row against the rich row that was selected as the
+/// unstable-id remap source. SQLite's `json_patch` gives this exactly the same
+/// semantics as the normal sparse UPSERT: present fields win (including explicit
+/// null clears), while genuinely absent fields survive from the prior row.
+fn merge_sparse_raw_from_remap_source(
+    tx: &rusqlite::Transaction<'_>,
+    server_id: &str,
+    old_id: &str,
+    incoming_raw: &str,
+) -> rusqlite::Result<String> {
+    let old_raw: Option<String> = tx
+        .query_row(
+            "SELECT raw_json FROM track WHERE server_id = ?1 AND id = ?2",
+            params![server_id, old_id],
+            |row| row.get(0),
+        )
+        .optional()?;
+    let Some(old_raw) = old_raw else {
+        return Ok(incoming_raw.to_string());
+    };
+
+    tx.query_row(
+        "SELECT CASE \
+           WHEN json_valid(?1) AND json_valid(?2) THEN json_patch(?1, ?2) \
+           ELSE ?2 \
+         END",
+        params![old_raw, incoming_raw],
+        |row| row.get(0),
+    )
 }
 
 // Two single-column lookups instead of one `OR` across `content_hash`
