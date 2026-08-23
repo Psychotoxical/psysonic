@@ -151,7 +151,8 @@ fn sparse_remap_merges_from_resolved_old_row_before_deleting_it() {
         "artists": [
             { "id": "fovos", "name": "FOVOS" },
             { "id": "someone-else", "name": "Someone Else" }
-        ]
+        ],
+        "displayArtist": "FOVOS, Someone Else"
     })
     .to_string();
 
@@ -171,7 +172,7 @@ fn sparse_remap_merges_from_resolved_old_row_before_deleting_it() {
         .unwrap();
     let raw: serde_json::Value = serde_json::from_str(&raw).unwrap();
 
-    // Present current credits replace the old array.
+    // Present current credits replace the old array and display value.
     assert_eq!(
         raw["artists"],
         json!([
@@ -179,6 +180,7 @@ fn sparse_remap_merges_from_resolved_old_row_before_deleting_it() {
             { "id": "someone-else", "name": "Someone Else" }
         ])
     );
+    assert_eq!(raw["displayArtist"], json!("FOVOS, Someone Else"));
     // Truly absent rich fields survive from the old id across the remap.
     assert_eq!(
         raw["albumArtists"],
@@ -187,7 +189,6 @@ fn sparse_remap_merges_from_resolved_old_row_before_deleting_it() {
             { "id": "max-cardona", "name": "Max Cardona" }
         ])
     );
-    assert_eq!(raw["displayArtist"], json!("FOVOS, Max Cardona"));
 }
 
 #[test]
