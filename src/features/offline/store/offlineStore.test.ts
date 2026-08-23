@@ -124,3 +124,46 @@ describe('offlineStore download producer', () => {
     ).toBe(true));
   });
 });
+
+describe('offlineStore downloadPlaylist classification', () => {
+  it('refuses native smart playlists even without a psy-smart- prefix', async () => {
+    await useOfflineStore.getState().downloadPlaylist(
+      'pl-1',
+      'Feishin mix',
+      undefined,
+      [SONG],
+      'srv-a',
+      true,
+    );
+
+    expect(invokeMock).not.toHaveBeenCalledWith('download_track_local', expect.anything());
+  });
+
+  it('allows a prefixed name when native metadata says it is regular', async () => {
+    await useOfflineStore.getState().downloadPlaylist(
+      'pl-1',
+      'psy-smart-Regular',
+      undefined,
+      [SONG],
+      'srv-a',
+      false,
+    );
+
+    await waitFor(() => expect(invokeMock).toHaveBeenCalledWith(
+      'download_track_local',
+      expect.any(Object),
+    ));
+  });
+
+  it('falls back to the legacy prefix when smart metadata is omitted', async () => {
+    await useOfflineStore.getState().downloadPlaylist(
+      'pl-1',
+      'psy-smart-Jazz',
+      undefined,
+      [SONG],
+      'srv-a',
+    );
+
+    expect(invokeMock).not.toHaveBeenCalledWith('download_track_local', expect.anything());
+  });
+});

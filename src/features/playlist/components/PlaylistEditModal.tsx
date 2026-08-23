@@ -2,6 +2,7 @@ import React, { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Camera, Loader2, X } from 'lucide-react';
 import type { SubsonicPlaylist } from '@/lib/api/subsonicTypes';
+import { playlistDisplayName } from '@/lib/format/playlistClassification';
 import type { CoverArtId } from '@/cover/types';
 import { AlbumCoverArtImage } from '@/cover/AlbumCoverArtImage';
 import { PLAYLIST_MAIN_COVER_CSS_PX } from '@/features/playlist/hooks/usePlaylistCovers';
@@ -19,7 +20,7 @@ export default function PlaylistEditModal({
   playlist, customCoverId, coverQuadIds, onClose, onSave,
 }: EditModalProps) {
   const { t } = useTranslation();
-  const [name, setName] = useState(playlist.name);
+  const [name, setName] = useState(playlistDisplayName(playlist));
   const [comment, setComment] = useState(playlist.comment ?? '');
   const [isPublic, setIsPublic] = useState(playlist.public ?? false);
   const [coverFile, setCoverFile] = useState<File | null>(null);

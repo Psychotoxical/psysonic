@@ -21,6 +21,7 @@ import {
   sanitizeLoudnessLufsPreset,
   sanitizeLoudnessPreAnalysisFromStorage,
   sanitizeSkipStarCounts,
+  sanitizeSmartPlaylistCustomFields,
 } from './authStoreHelpers';
 import type {
   AuthState,
@@ -344,6 +345,9 @@ export function computeAuthStoreRehydration(state: AuthState): Partial<AuthState
     })(),
     skipStarManualSkipCountsByKey: sanitizeSkipStarCounts(
       (state as { skipStarManualSkipCountsByKey?: unknown }).skipStarManualSkipCountsByKey,
+    ),
+    smartPlaylistCustomFields: sanitizeSmartPlaylistCustomFields(
+      (state as { smartPlaylistCustomFields?: unknown }).smartPlaylistCustomFields,
     ),
     loudnessTargetLufs: targetSan,
     loudnessPreAnalysisAttenuationDb: preSan,

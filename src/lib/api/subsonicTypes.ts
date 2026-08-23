@@ -135,6 +135,8 @@ export interface SubsonicPlaylist {
   id: string;
   /** Owning server profile when playlists are aggregated across a Library scope. */
   serverId?: string;
+  /** Native Navidrome classification; absent when native metadata was unavailable. */
+  smart?: boolean;
   name: string;
   songCount: number;
   duration: number;

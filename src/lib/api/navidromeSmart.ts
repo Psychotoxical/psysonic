@@ -30,6 +30,22 @@ export interface NdSmartPlaylist {
   rules?: Record<string, unknown>;
   sync?: boolean;
   updatedAt?: string;
+  comment?: string;
+  owner?: string;
+  public?: boolean;
+  evaluatedAt?: string;
+}
+
+export interface NdSmartPlaylistWriteOptions {
+  sync?: boolean;
+  serverId?: string;
+  comment?: string;
+  owner?: string;
+  public?: boolean;
+}
+
+function optionalString(value: unknown, fallback?: string): string | undefined {
+  return typeof value === 'string' ? value : fallback;
 }
 
 function parseNdSmartPlaylist(raw: unknown, fallback: Partial<NdSmartPlaylist> = {}): NdSmartPlaylist {
@@ -41,8 +57,35 @@ function parseNdSmartPlaylist(raw: unknown, fallback: Partial<NdSmartPlaylist> =
     duration: typeof o.duration === 'number' ? o.duration : fallback.duration,
     rules: typeof o.rules === 'object' && o.rules ? (o.rules as Record<string, unknown>) : fallback.rules,
     sync: typeof o.sync === 'boolean' ? o.sync : fallback.sync,
-    updatedAt: typeof o.updatedAt === 'string' ? o.updatedAt : fallback.updatedAt,
+    updatedAt: optionalString(o.updatedAt, fallback.updatedAt),
+    comment: optionalString(o.comment, fallback.comment),
+    owner: optionalString(o.owner ?? o.ownerName, fallback.owner),
+    public: typeof o.public === 'boolean' ? o.public : fallback.public,
+    evaluatedAt: optionalString(o.evaluatedAt ?? o.lastEvaluatedAt, fallback.evaluatedAt),
   };
+}
+
+function resolveWriteOptions(
+  syncOrOptions?: boolean | NdSmartPlaylistWriteOptions,
+  serverId?: string,
+): NdSmartPlaylistWriteOptions {
+  if (syncOrOptions && typeof syncOrOptions === 'object') {
+    return { ...syncOrOptions, serverId: syncOrOptions.serverId ?? serverId };
+  }
+  return { sync: syncOrOptions, serverId };
+}
+
+function playlistWriteBody(
+  name: string,
+  rules: Record<string, unknown>,
+  options: NdSmartPlaylistWriteOptions,
+): Record<string, unknown> {
+  const body: Record<string, unknown> = { name, rules };
+  if (options.sync === true) body.sync = true;
+  if (typeof options.comment === 'string') body.comment = options.comment;
+  if (typeof options.owner === 'string' && options.owner.trim()) body.owner = options.owner;
+  if (typeof options.public === 'boolean') body.public = options.public;
+  return body;
 }
 
 let authCache: {
@@ -87,9 +130,10 @@ export function buildSmartRules(conditions: SmartRuleCondition[], opts?: { limit
   return rules;
 }
 
-export async function ndListSmartPlaylists(serverId?: string): Promise<NdSmartPlaylist[]> {
+/** List every native playlist. Supplying Navidrome's `smart` query excludes smart playlists. */
+export async function ndListPlaylists(serverId?: string): Promise<NdSmartPlaylist[]> {
   const { serverUrl, token } = await getNavidromeAuth(serverId);
-  const raw = await invoke<unknown>('nd_list_playlists', { serverUrl, token, smart: true });
+  const raw = await invoke<unknown>('nd_list_playlists', { serverUrl, token });
   const list = Array.isArray(raw)
     ? raw
     : (raw && typeof raw === 'object' && Array.isArray((raw as { items?: unknown[] }).items))
@@ -101,33 +145,57 @@ export async function ndListSmartPlaylists(serverId?: string): Promise<NdSmartPl
 export async function ndCreateSmartPlaylist(
   name: string,
   rules: Record<string, unknown>,
-  sync = true,
+  syncOrOptions?: boolean | NdSmartPlaylistWriteOptions,
   serverId?: string,
 ): Promise<NdSmartPlaylist> {
-  const { serverUrl, token } = await getNavidromeAuth(serverId);
+  const options = resolveWriteOptions(syncOrOptions, serverId);
+  const body = playlistWriteBody(name, rules, options);
+  const { serverUrl, token } = await getNavidromeAuth(options.serverId);
   const raw = await invoke<unknown>('nd_create_playlist', {
     serverUrl,
     token,
-    body: { name, rules, sync },
+    body,
   });
-  return parseNdSmartPlaylist(raw, { name, rules, sync });
+  return parseNdSmartPlaylist(raw, { name, rules, ...options });
 }
 
 export async function ndUpdateSmartPlaylist(
   id: string,
   name: string,
   rules: Record<string, unknown>,
-  sync = true,
+  syncOrOptions?: boolean | NdSmartPlaylistWriteOptions,
   serverId?: string,
 ): Promise<NdSmartPlaylist> {
-  const { serverUrl, token } = await getNavidromeAuth(serverId);
+  const options = resolveWriteOptions(syncOrOptions, serverId);
+  const body = playlistWriteBody(name, rules, options);
+  const { serverUrl, token } = await getNavidromeAuth(options.serverId);
   const raw = await invoke<unknown>('nd_update_playlist', {
     serverUrl,
     token,
     id,
-    body: { name, rules, sync },
+    body,
   });
-  return parseNdSmartPlaylist(raw, { id, name, rules, sync });
+  return parseNdSmartPlaylist(raw, { id, name, rules, ...options });
+}
+
+/** Partial native update — omit `rules`/`sync` so existing smart criteria stay intact. */
+export async function ndUpdatePlaylistMeta(
+  id: string,
+  fields: { name?: string; comment?: string; public?: boolean },
+  serverId?: string,
+): Promise<NdSmartPlaylist> {
+  const { serverUrl, token } = await getNavidromeAuth(serverId);
+  const body: Record<string, unknown> = {};
+  if (fields.name !== undefined) body.name = fields.name;
+  if (fields.comment !== undefined) body.comment = fields.comment;
+  if (fields.public !== undefined) body.public = fields.public;
+  const raw = await invoke<unknown>('nd_update_playlist', {
+    serverUrl,
+    token,
+    id,
+    body,
+  });
+  return parseNdSmartPlaylist(raw, { id, name: fields.name, comment: fields.comment, public: fields.public });
 }
 
 export async function ndGetSmartPlaylist(id: string, serverId?: string): Promise<NdSmartPlaylist> {
@@ -140,4 +208,51 @@ export async function ndDeletePlaylist(id: string, serverId?: string): Promise<v
   const { serverUrl, token } = await getNavidromeAuth(serverId);
   const res = await commands.ndDeletePlaylist(serverUrl, token, id);
   if (res.status === 'error') throw new Error(res.error);
+}
+
+function asItemList(raw: unknown): unknown[] {
+  if (Array.isArray(raw)) return raw;
+  if (raw && typeof raw === 'object' && Array.isArray((raw as { items?: unknown[] }).items)) {
+    return (raw as { items: unknown[] }).items;
+  }
+  return [];
+}
+
+/** GET `/api/playlist/{id}/tracks` — first-page or ranged native track read. */
+export async function ndGetPlaylistTracks(
+  id: string,
+  serverId?: string,
+  range?: { start?: number; end?: number },
+): Promise<unknown[]> {
+  const { serverUrl, token } = await getNavidromeAuth(serverId);
+  const raw = await invoke<unknown>('nd_get_playlist_tracks', {
+    serverUrl,
+    token,
+    id,
+    start: range?.start ?? 0,
+    end: range?.end ?? 50,
+  });
+  return asItemList(raw);
+}
+
+/**
+ * Evaluate unsaved rules: create a temporary playlist, read the first page of
+ * tracks, then delete it. Used only for editor preview.
+ */
+export async function ndPreviewSmartPlaylist(
+  payload: { owner: string; rules: Record<string, unknown>; name?: string },
+  serverId?: string,
+): Promise<unknown[]> {
+  const { serverUrl, token } = await getNavidromeAuth(serverId);
+  const raw = await invoke<unknown>('nd_preview_playlist', {
+    serverUrl,
+    token,
+    body: {
+      owner: payload.owner,
+      rules: payload.rules,
+      name: payload.name || `.psysonic-preview-${Date.now()}`,
+      public: false,
+    },
+  });
+  return asItemList(raw);
 }

@@ -20,6 +20,8 @@ export interface RunPlaylistLoadDeps {
   setStarredSongs: React.Dispatch<React.SetStateAction<Set<string>>>;
   resetForOwnerChange?: () => void;
   isCurrent?: () => boolean;
+  /** Keep the current UI mounted; skip the full-page spinner and owner reset. */
+  soft?: boolean;
 }
 
 function applyLoadedPlaylist(
@@ -35,7 +37,15 @@ function applyLoadedPlaylist(
 ): void {
   if (deps.isCurrent && !deps.isCurrent()) return;
   const { setPlaylist, setSongs, setCustomCoverId, setRatings, setStarredSongs } = deps;
-  const ownedPlaylist = deps.serverId ? { ...playlist, serverId: deps.serverId } : playlist;
+  const cached = usePlaylistStore.getState().playlists.find(candidate =>
+    ownedEntityKey(candidate) === ownedEntityKey({ id: playlist.id, serverId: deps.serverId ?? playlist.serverId }),
+  );
+  const classifiedPlaylist = playlist.smart === undefined && cached?.smart !== undefined
+    ? { ...playlist, smart: cached.smart }
+    : playlist;
+  const ownedPlaylist = deps.serverId
+    ? { ...classifiedPlaylist, serverId: deps.serverId }
+    : classifiedPlaylist;
   const ownedSongs = deps.serverId ? songs.map(song => ({ ...song, serverId: deps.serverId })) : songs;
   setPlaylist(ownedPlaylist);
   setSongs(ownedSongs);
@@ -62,7 +72,7 @@ export async function runPlaylistLoad(deps: RunPlaylistLoadDeps): Promise<void> 
   const {
     id, setLoading, setPlaylist, setSongs, setCustomCoverId, setRatings, setStarredSongs,
   } = deps;
-  if (deps.resetForOwnerChange && (!deps.isCurrent || deps.isCurrent())) {
+  if (!deps.soft && deps.resetForOwnerChange && (!deps.isCurrent || deps.isCurrent())) {
     setPlaylist(null);
     setSongs([]);
     setCustomCoverId(null);
@@ -70,7 +80,7 @@ export async function runPlaylistLoad(deps: RunPlaylistLoadDeps): Promise<void> 
     setStarredSongs(new Set());
     deps.resetForOwnerChange();
   }
-  setLoading(true);
+  if (!deps.soft) setLoading(true);
   const membershipRevision = usePlaylistMembershipStore.getState().revision;
   try {
     const serverId = deps.serverId ?? useAuthStore.getState().activeServerId ?? '';
@@ -101,6 +111,6 @@ export async function runPlaylistLoad(deps: RunPlaylistLoadDeps): Promise<void> 
       setSongs([]);
     }
   } finally {
-    if (!deps.isCurrent || deps.isCurrent()) setLoading(false);
+    if (!deps.soft && (!deps.isCurrent || deps.isCurrent())) setLoading(false);
   }
 }

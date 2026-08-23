@@ -6,10 +6,9 @@ import { useNavigate } from 'react-router';
 import { Check, Clock3, ListMusic, Pencil, Play, Sparkles, Trash2 } from 'lucide-react';
 import type { SubsonicPlaylist } from '@/lib/api/subsonicTypes';
 import { usePlayerStore } from '@/features/playback/store/playerStore';
-import {
-  displayPlaylistName, isSmartPlaylistName, type PendingSmartPlaylist,
-} from '@/features/playlist/utils/playlistsSmart';
+import type { PendingSmartPlaylist } from '@/features/playlist/utils/playlistsSmart';
 import { formatHumanHoursMinutes } from '@/lib/format/formatHumanDuration';
+import { isSmartPlaylist, playlistDisplayName } from '@/lib/format/playlistClassification';
 import { useDragSource } from '@/lib/dnd/DragDropContext';
 import { PlaylistCardMainCover, PlaylistSmartCoverCell } from '@/features/playlist/components/PlaylistCoverImages';
 import { ownedEntityKey } from '@/lib/util/ownedEntityKey';
@@ -48,13 +47,13 @@ export default function PlaylistCard({
 }: Props) {
   const { t } = useTranslation();
   const showCardTooltips = useThemeStore(st => st.showCardTooltips);
-  const nameTooltip = useOverflowTooltip(displayPlaylistName(pl.name), showCardTooltips);
+  const nameTooltip = useOverflowTooltip(playlistDisplayName(pl), showCardTooltips);
   const navigate = useNavigate();
   const openContextMenu = usePlayerStore(s => s.openContextMenu);
   const playlistKey = ownedEntityKey(pl);
   const dragHandlers = useDragSource(() => ({
     data: JSON.stringify({ type: 'playlist', id: pl.id }),
-    label: displayPlaylistName(pl.name),
+    label: playlistDisplayName(pl),
   }));
   const dragEnabled = Boolean(draggable) && !selectionMode;
 
@@ -92,7 +91,7 @@ export default function PlaylistCard({
               className="playlist-card-action playlist-card-action--edit"
               onClick={(e) => {
                 e.stopPropagation();
-                if (isSmartPlaylistName(pl.name)) {
+                if (isSmartPlaylist(pl)) {
                   void handleOpenSmartEditor(pl);
                   return;
                 }
@@ -100,7 +99,7 @@ export default function PlaylistCard({
                   navigate(playlistDetailPath(pl), { state: { openEditMeta: true } });
                 });
               }}
-              data-tooltip={t('playlists.editMeta')}
+              data-tooltip={isSmartPlaylist(pl) ? t('playlists.editRules') : t('playlists.editMeta')}
             >
               <Pencil size={13} />
             </button>
@@ -123,7 +122,7 @@ export default function PlaylistCard({
       )}
       {/* Cover area — server collage or fallback icon */}
       <div className="album-card-cover">
-        {isSmartPlaylistName(pl.name) && (smartCoverIdsByPlaylist[playlistKey]?.length ?? 0) > 0 ? (
+        {isSmartPlaylist(pl) && (smartCoverIdsByPlaylist[playlistKey]?.length ?? 0) > 0 ? (
           <div className="playlist-cover-grid">
             {Array.from({ length: 4 }, (_, i) => {
               const id = smartCoverIdsByPlaylist[playlistKey][i % smartCoverIdsByPlaylist[playlistKey].length];
@@ -183,8 +182,8 @@ export default function PlaylistCard({
 
       <div className="album-card-info">
         <div className="album-card-title" style={{ display: 'flex', alignItems: 'center', gap: 6 }} {...nameTooltip}>
-          {isSmartPlaylistName(pl.name) && <Sparkles size={14} style={{ color: 'var(--text-muted)', flex: '0 0 auto' }} />}
-          <span>{displayPlaylistName(pl.name)}</span>
+          {isSmartPlaylist(pl) && <Sparkles size={14} style={{ color: 'var(--text-muted)', flex: '0 0 auto' }} />}
+          <span>{playlistDisplayName(pl)}</span>
         </div>
         <div className="album-card-artist">
           {t('playlists.songs', { count: filteredSongCountByPlaylist[playlistKey] ?? pl.songCount })}

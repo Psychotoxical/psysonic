@@ -1,7 +1,14 @@
 import { useTranslation } from 'react-i18next';
-import { Play, ChevronsRight, ChevronRight, FolderTree, ListMusic, ListPlus, Trash2 } from 'lucide-react';
+import { useNavigate } from 'react-router';
+import { Play, ChevronsRight, ChevronRight, FolderTree, ListMusic, ListPlus, Sparkles, Trash2 } from 'lucide-react';
 import type { SubsonicPlaylist } from '@/lib/api/subsonicTypes';
-import { usePlaylistStore, resolvePlaylistTracks } from '@/features/playlist';
+import {
+  deleteOwnedPlaylist,
+  playlistsOpenSmartEditorState,
+  resolvePlaylistTracks,
+  usePlaylistStore,
+} from '@/features/playlist';
+import { isSmartPlaylist } from '@/lib/format/playlistClassification';
 import { MultiPlaylistToPlaylistSubmenu, SinglePlaylistToPlaylistSubmenu } from '@/features/contextMenu/components/PlaylistToPlaylistSubmenus';
 import MoveToFolderSubmenu from '@/features/contextMenu/components/MoveToFolderSubmenu';
 import type { ContextMenuItemsProps } from '@/features/contextMenu/components/contextMenuItemTypes';
@@ -17,6 +24,7 @@ export default function PlaylistContextItems(props: ContextMenuItemsProps) {
     offlinePolicy,
   } = props;
   const { t } = useTranslation();
+  const navigate = useNavigate();
 
   return (
     <>
@@ -73,16 +81,23 @@ export default function PlaylistContextItems(props: ContextMenuItemsProps) {
                   <MoveToFolderSubmenu playlistId={playlist.id} serverId={playlist.serverId} triggerId={`folder:${playlist.id}`} onDone={() => { setPlaylistSubmenuOpen(false); closeContextMenu(); }} />
                 )}
               </div>}
+              {offlinePolicy.canEditPlaylist && isSmartPlaylist(playlist) && (
+                <div className="context-menu-item" onClick={() => handleAction(() => {
+                  const dest = playlistsOpenSmartEditorState(playlist);
+                  if (dest) navigate(dest.pathname, { state: dest.state });
+                })}>
+                  <Sparkles size={14} /> {t('playlists.editRules')}
+                </div>
+              )}
               {offlinePolicy.canEditPlaylist && (
                 <>
               <div className="context-menu-divider" />
               <div className="context-menu-item" style={{ color: 'var(--danger)' }} onClick={() => handleAction(async () => {
                 const { showToast } = await import('@/lib/dom/toast');
-                const { deletePlaylist } = await import('@/lib/api/subsonicPlaylists');
                 const { removeId } = usePlaylistStore.getState();
                 try {
                   if (!playlist.serverId) throw new Error('Playlist owner unavailable');
-                  await deletePlaylist(playlist.id, playlist.serverId);
+                  await deleteOwnedPlaylist(playlist);
                   removeId(playlist.id, playlist.serverId);
                   // Update local playlist state without page reload to preserve audio playback state
                   usePlaylistStore.setState((s) => ({
@@ -130,13 +145,12 @@ export default function PlaylistContextItems(props: ContextMenuItemsProps) {
               {offlinePolicy.canEditPlaylist && (
               <div className="context-menu-item" style={{ color: 'var(--danger)' }} onClick={() => handleAction(async () => {
                 const { showToast } = await import('@/lib/dom/toast');
-                const { deletePlaylist } = await import('@/lib/api/subsonicPlaylists');
                 const { removeId } = usePlaylistStore.getState();
                 const deletedKeys = new Set<string>();
                 for (const pl of selectedPlaylists) {
                   try {
                     if (!pl.serverId) throw new Error('Playlist owner unavailable');
-                    await deletePlaylist(pl.id, pl.serverId);
+                    await deleteOwnedPlaylist(pl);
                     removeId(pl.id, pl.serverId);
                     deletedKeys.add(ownedEntityKey(pl));
                   } catch {

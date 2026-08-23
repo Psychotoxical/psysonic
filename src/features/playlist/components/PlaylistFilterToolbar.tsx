@@ -5,6 +5,7 @@ import SortDropdown, { type SortOption } from '@/ui/SortDropdown';
 import type { PlaylistSortKey, PlaylistSortDir } from '@/features/playlist/utils/playlistDisplayedSongs';
 
 type PlaylistSortValue =
+  | 'default'
   | 'added-newest'
   | 'added-oldest'
   | 'title'
@@ -16,6 +17,7 @@ type PlaylistSortValue =
   | 'plays';
 
 const SORT_MAP: Record<PlaylistSortValue, { key: PlaylistSortKey; dir: PlaylistSortDir }> = {
+  default: { key: 'natural', dir: 'asc' },
   'added-newest': { key: 'position', dir: 'desc' },
   'added-oldest': { key: 'position', dir: 'asc' },
   title: { key: 'title', dir: 'asc' },
@@ -59,21 +61,23 @@ export default function PlaylistFilterToolbar({
   const { t } = useTranslation();
 
   // The dropdown and the column-header clicks drive the same (sortKey, sortDir)
-  // state. Map the current state back to a dropdown value so the two stay in
-  // sync; playlist load order (natural) shows as "date added (oldest)" since
-  // they are the same ordering.
+  // state. `natural` is the server/rule order (Feishin-style ID/default).
+  // Position sorts remain the date-added proxy and stay separate.
   const currentSortValue: PlaylistSortValue =
-    sortKey === 'position'
-      ? sortDir === 'desc'
-        ? 'added-newest'
-        : 'added-oldest'
-      : sortKey === 'playCount'
-        ? 'plays'
-        : DIRECT_COLUMN_SORTS.has(sortKey)
-          ? (sortKey as PlaylistSortValue)
-          : 'added-oldest';
+    sortKey === 'natural'
+      ? 'default'
+      : sortKey === 'position'
+        ? sortDir === 'desc'
+          ? 'added-newest'
+          : 'added-oldest'
+        : sortKey === 'playCount'
+          ? 'plays'
+          : DIRECT_COLUMN_SORTS.has(sortKey)
+            ? (sortKey as PlaylistSortValue)
+            : 'default';
 
   const sortOptions: SortOption<PlaylistSortValue>[] = [
+    { value: 'default', label: t('playlists.sortDefaultServerOrder') },
     { value: 'added-newest', label: t('playlists.sortDateAddedNewest') },
     { value: 'added-oldest', label: t('playlists.sortDateAddedOldest') },
     { value: 'title', label: t('albumDetail.trackTitle') },

@@ -1,7 +1,21 @@
 import { describe, expect, it } from 'vitest';
-import { buildSmartRulesPayload, defaultSmartFilters, parseSmartRulesToFilters } from '@/features/playlist/utils/playlistsSmart';
+import {
+  buildSmartRulesPayload,
+  defaultSmartFilters,
+  parseSmartRulesToFilters,
+  YEAR_MAX,
+  YEAR_MIN,
+} from '@/features/playlist/utils/playlistsSmart';
 
 describe('buildSmartRulesPayload', () => {
+  it('emits Psysonic new-playlist defaults', () => {
+    expect(buildSmartRulesPayload(defaultSmartFilters)).toEqual({
+      all: [{ inTheRange: { year: [YEAR_MIN, YEAR_MAX] } }],
+      limit: 50,
+      sort: '+random',
+    });
+  });
+
   it('collapses exclude-all-genres into an untagged-only rule', () => {
     const filters = {
       ...defaultSmartFilters,

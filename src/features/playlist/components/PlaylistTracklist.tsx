@@ -89,6 +89,7 @@ interface Props {
 
   // Empty state
   setSearchOpen: React.Dispatch<React.SetStateAction<boolean>>;
+  tracksReadOnly?: boolean;
 }
 
 export default function PlaylistTracklist({
@@ -101,7 +102,7 @@ export default function PlaylistTracklist({
   contextMenuSongId, setContextMenuSongId, dropTargetIdx,
   ratings, starredSongs, handleRate, handleToggleStar,
   handleRowMouseDown, handleRowMouseEnter, removeSong,
-  setSearchOpen,
+  setSearchOpen, tracksReadOnly = false,
 }: Props) {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -122,7 +123,7 @@ export default function PlaylistTracklist({
     selectedIds, orbitActive, displayedTracks, isFiltered, id, songs, serverId,
     toggleSelect, handleRowMouseDown, handleRowMouseEnter, handleToggleStar,
     handleRate, removeSong, playTrack, openContextMenu, setContextMenuSongId,
-    navigate, queueHint, addTrackToOrbit,
+    navigate, queueHint, addTrackToOrbit, tracksReadOnly,
   };
   const latest = useRef(latestVals);
   latest.current = latestVals;
@@ -156,10 +157,12 @@ export default function PlaylistTracklist({
         rIdx,
         undefined,
         undefined,
-        () => {
-          const sourceIndex = latest.current.songs.findIndex(candidate => candidate.id === song.id);
-          if (sourceIndex >= 0) latest.current.removeSong(sourceIndex);
-        },
+        L.tracksReadOnly
+          ? undefined
+          : () => {
+            const sourceIndex = latest.current.songs.findIndex(candidate => candidate.id === song.id);
+            if (sourceIndex >= 0) latest.current.removeSong(sourceIndex);
+          },
       );
     },
     mouseDownRow: (rIdx, e) => latest.current.handleRowMouseDown(e, rIdx),
@@ -266,7 +269,7 @@ export default function PlaylistTracklist({
   });
 
   let dropIndicatorY: number | null = null;
-  if (isDragging && !isFiltered && dropTargetIdx) {
+  if (isDragging && !isFiltered && !tracksReadOnly && dropTargetIdx) {
     const vi = virtualItems.find(v => v.index === dropTargetIdx.idx);
     const start = vi ? vi.start : dropTargetIdx.idx * 48 + scrollMargin;
     const size = vi ? vi.size : 48;
@@ -310,6 +313,7 @@ export default function PlaylistTracklist({
               />
             )}
           </div>
+          {!tracksReadOnly && (
           <button
             className="btn btn-surface btn-sm"
             style={{ color: 'var(--danger)' }}
@@ -318,6 +322,7 @@ export default function PlaylistTracklist({
             <Trash2 size={14} />
             {t('common.bulkRemoveFromPlaylist')}
           </button>
+          )}
           <button
             className="btn btn-ghost btn-sm"
             onClick={() => setSelectedIds(new Set())}
@@ -458,11 +463,13 @@ export default function PlaylistTracklist({
 
       {songs.length === 0 && (
         <div className="empty-state" style={{ padding: '2rem 0', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem' }}>
-          <span>{t('playlists.emptyPlaylist')}</span>
+          <span>{tracksReadOnly ? t('playlists.smartReadOnlyEmpty') : t('playlists.emptyPlaylist')}</span>
+          {!tracksReadOnly && (
           <button className="btn btn-primary" onClick={() => setSearchOpen(true)}>
             <Search size={15} />
             {t('playlists.addFirstSong')}
           </button>
+          )}
         </div>
       )}
 

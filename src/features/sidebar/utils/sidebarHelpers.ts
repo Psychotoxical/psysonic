@@ -1,6 +1,5 @@
 export const SIDEBAR_NAV_LONG_PRESS_MS = 1000;
 export const SIDEBAR_NAV_LONG_PRESS_MOVE_CANCEL_PX = 10;
-export const SMART_PREFIX = 'psy-smart-';
 export const NEW_RELEASES_UNREAD_STORAGE_PREFIX = 'psy_new_releases_unread_seen_v2';
 export const NEW_RELEASES_UNREAD_SAMPLE_SIZE = 80;
 export const NEW_RELEASES_UNREAD_POLL_MS = 2 * 60 * 1000;
@@ -28,16 +27,6 @@ export function mergeSeenNewReleaseIdsCap(prevSeen: string[], newestBatch: strin
     out.push(id);
   }
   return out;
-}
-
-export function isSmartPlaylistName(name: string): boolean {
-  return (name ?? '').toLowerCase().startsWith(SMART_PREFIX);
-}
-
-export function displayPlaylistName(name: string): string {
-  const n = name ?? '';
-  if (isSmartPlaylistName(n)) return n.slice(SMART_PREFIX.length);
-  return n;
 }
 
 export function isPointerOutsideAsideSidebar(clientX: number, clientY: number): boolean {

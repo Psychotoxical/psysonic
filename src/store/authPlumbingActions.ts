@@ -22,6 +22,7 @@ export function createPlumbingSettingsActions(set: SetState, get: GetState): Pic
   | 'setNowPlayingEnabled'
   | 'setExcludeAudiobooks'
   | 'setCustomGenreBlacklist'
+  | 'setSmartPlaylistCustomFields'
 > {
   return {
     setLoggingMode: (v) => {
@@ -55,5 +56,6 @@ export function createPlumbingSettingsActions(set: SetState, get: GetState): Pic
     setNowPlayingEnabled: (v) => set({ nowPlayingEnabled: v }),
     setExcludeAudiobooks: (v) => set({ excludeAudiobooks: v }),
     setCustomGenreBlacklist: (v) => set({ customGenreBlacklist: v }),
+    setSmartPlaylistCustomFields: (v) => set({ smartPlaylistCustomFields: v }),
   };
 }

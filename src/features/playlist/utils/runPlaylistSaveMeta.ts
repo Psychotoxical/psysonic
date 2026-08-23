@@ -1,7 +1,12 @@
 import type { TFunction } from 'i18next';
+import { ndUpdatePlaylistMeta } from '@/lib/api/navidromeSmart';
 import { getPlaylist, getPlaylistForServer, updatePlaylistMeta, uploadPlaylistCoverArt } from '@/lib/api/subsonicPlaylists';
 import type { SubsonicPlaylist } from '@/lib/api/subsonicTypes';
 import { showToast } from '@/lib/dom/toast';
+import {
+  resolvePlaylistPersistedName,
+  shouldUseNativePlaylistMutation,
+} from '@/features/playlist/utils/playlistOwnedMutation';
 
 export interface RunPlaylistSaveMetaDeps {
   id: string;
@@ -25,10 +30,19 @@ export async function runPlaylistSaveMeta(
   },
 ): Promise<void> {
   const { id, serverId, playlist, t, setPlaylist, setCustomCoverId, setEditingMeta } = deps;
-  await updatePlaylistMeta(id, opts.name.trim() || playlist.name, opts.comment, opts.isPublic, serverId);
+  const nextName = resolvePlaylistPersistedName(playlist, opts.name);
+  if (shouldUseNativePlaylistMutation(playlist)) {
+    await ndUpdatePlaylistMeta(id, {
+      name: nextName,
+      comment: opts.comment,
+      public: opts.isPublic,
+    }, serverId);
+  } else {
+    await updatePlaylistMeta(id, nextName, opts.comment, opts.isPublic, serverId);
+  }
   if (!deps.isCurrent || deps.isCurrent()) {
     setPlaylist(p => p
-      ? { ...p, name: opts.name.trim() || p.name, comment: opts.comment, public: opts.isPublic }
+      ? { ...p, name: nextName, comment: opts.comment, public: opts.isPublic }
       : p
     );
   }

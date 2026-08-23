@@ -17,6 +17,7 @@ interface Props {
   style?: React.CSSProperties;
   disabled?: boolean;
   ariaLabel?: string;
+  ariaInvalid?: boolean;
 }
 
 export default function CustomSelect({
@@ -27,6 +28,7 @@ export default function CustomSelect({
   style,
   disabled,
   ariaLabel,
+  ariaInvalid,
 }: Props) {
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -177,6 +179,7 @@ export default function CustomSelect({
         className={`custom-select-trigger ${className}`}
         style={style}
         disabled={disabled}
+        aria-invalid={ariaInvalid || undefined}
         onClick={() => { if (!disabled) { if (open) setOpen(false); else openList(); } }}
         onKeyDown={onTriggerKeyDown}
         aria-haspopup="listbox"

@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router';
 import {
   Camera, ChevronLeft, Download, FileUp, Globe, HardDriveDownload, ListPlus,
-  Loader2, Lock, Pencil, Play, Search, Shuffle, Sparkles, Trash2,
+  Loader2, Lock, Pencil, Play, RefreshCw, Search, Shuffle, Sparkles, Trash2,
 } from 'lucide-react';
 import type { SubsonicPlaylist, SubsonicSong } from '@/lib/api/subsonicTypes';
 import type { ZipDownload } from '@/features/offline';
@@ -11,9 +11,10 @@ import type { AlbumOfflineStatus } from '@/features/album';
 import { dequeueOfflinePin } from '@/features/offline';
 import { useThemeStore } from '@/store/themeStore';
 import { usePlaylistLayoutStore, type PlaylistLayoutItemId } from '@/features/playlist/store/playlistLayoutStore';
-import {
-  displayPlaylistName, formatSize, isSmartPlaylistName, totalDurationLabel,
-} from '@/lib/format/playlistDetailHelpers';
+import { formatSize, totalDurationLabel } from '@/lib/format/playlistDetailHelpers';
+import { isSmartPlaylist, playlistDisplayName } from '@/lib/format/playlistClassification';
+import { playlistDetailControls } from '@/features/playlist/utils/playlistSmartUx';
+import { playlistsOpenSmartEditorState } from '@/features/playlist/utils/playlistOwnedMutation';
 import type { CoverArtId } from '@/cover/types';
 import { AlbumCoverArtImage } from '@/cover/AlbumCoverArtImage';
 import { PLAYLIST_MAIN_COVER_CSS_PX } from '@/features/playlist/hooks/usePlaylistCovers';
@@ -29,6 +30,7 @@ interface Props {
   coverQuadIds: (CoverArtId | null)[];
   resolvedBgUrl: string | null;
   saving: boolean;
+  refreshingSmart: boolean;
   searchOpen: boolean;
   csvImporting: boolean;
   activeZip: ZipDownload | undefined;
@@ -47,18 +49,27 @@ interface Props {
   handleEnqueueAll: () => void;
   handleImportCsv: () => void;
   handleDownload: () => void;
+  handleRefreshSmart: () => void;
   deleteAlbum: (id: string, serverId: string) => void;
-  downloadPlaylist: (id: string, name: string, coverArt: string | undefined, songs: SubsonicSong[], serverId: string) => void;
+  downloadPlaylist: (
+    id: string,
+    name: string,
+    coverArt: string | undefined,
+    songs: SubsonicSong[],
+    serverId: string,
+    smart?: boolean,
+  ) => void;
 }
 
 export default function PlaylistHero({
   playlist, songs, id,
   customCoverId, coverQuadIds,
-  resolvedBgUrl, saving, searchOpen, csvImporting, activeZip,
+  resolvedBgUrl, saving, refreshingSmart, searchOpen, csvImporting, activeZip,
   offlineStatus, offlineProgress, activeServerId, actionPolicy,
   setEditingMeta, setSearchOpen, setSearchQuery, setSearchResults,
   setSelectedSearchIds, setSearchPlPickerOpen,
   handlePlayAll, handleShuffleAll, handleEnqueueAll, handleImportCsv, handleDownload,
+  handleRefreshSmart,
   deleteAlbum, downloadPlaylist,
 }: Props) {
   const { t } = useTranslation();
@@ -68,6 +79,7 @@ export default function PlaylistHero({
   const layoutItems = usePlaylistLayoutStore(s => s.items);
   const isLayoutVisible = (id: PlaylistLayoutItemId) =>
     layoutItems.find(i => i.id === id)?.visible !== false;
+  const controls = playlistDetailControls(playlist);
 
   return (
     <div className="album-detail-header">
@@ -121,8 +133,8 @@ export default function PlaylistHero({
             <>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <h1 className="album-detail-title" style={{ marginBottom: 0, marginTop: 6, display: 'flex', alignItems: 'center', gap: 8 }}>
-                  {isSmartPlaylistName(playlist.name) && <Sparkles size={16} style={{ color: 'var(--text-muted)' }} />}
-                  <span>{displayPlaylistName(playlist.name)}</span>
+                  {isSmartPlaylist(playlist) && <Sparkles size={16} style={{ color: 'var(--text-muted)' }} />}
+                  <span>{playlistDisplayName(playlist)}</span>
                 </h1>
                 {actionPolicy.canEditPlaylist && (
                   <button
@@ -179,7 +191,32 @@ export default function PlaylistHero({
                   <ListPlus size={16} />
                 </button>
               </div>
-              {actionPolicy.canEditPlaylist && isLayoutVisible('addSongs') && (
+              {actionPolicy.canEditPlaylist && controls.showRefreshTracks && isLayoutVisible('refreshSmart') && (
+                <button
+                  className="btn btn-ghost"
+                  onClick={handleRefreshSmart}
+                  disabled={refreshingSmart}
+                  data-tooltip={t('playlists.refreshSmart')}
+                  aria-label={t('playlists.refreshSmart')}
+                >
+                  <RefreshCw size={16} className={refreshingSmart ? 'is-spinning' : undefined} />
+                </button>
+              )}
+              {actionPolicy.canEditPlaylist && controls.showEditRules && isLayoutVisible('editRules') && (
+                <button
+                  className="btn btn-ghost"
+                  onClick={() => {
+                    const dest = playlistsOpenSmartEditorState(playlist);
+                    if (dest) navigate(dest.pathname, { state: dest.state });
+                  }}
+                  data-tooltip={t('playlists.editRules')}
+                  aria-label={t('playlists.editRules')}
+                >
+                  <Sparkles size={16} />
+                  <span className="compact-btn-label">{t('playlists.editRules')}</span>
+                </button>
+              )}
+              {actionPolicy.canEditPlaylist && controls.canAddTracks && isLayoutVisible('addSongs') && (
                 <button
                   className={`btn btn-ghost ${searchOpen ? 'active' : ''}`}
                   onClick={() => { setSearchOpen(v => !v); setSearchQuery(''); setSearchResults([]); setSelectedSearchIds(new Set()); setSearchPlPickerOpen(false); }}
@@ -189,7 +226,7 @@ export default function PlaylistHero({
                   <Search size={16} /> <span className="compact-btn-label">{t('playlists.addSongs')}</span>
                 </button>
               )}
-              {actionPolicy.canEditPlaylist && isLayoutVisible('importCsv') && (
+              {actionPolicy.canEditPlaylist && controls.canImportCsv && isLayoutVisible('importCsv') && (
                 <button
                   className="btn btn-ghost"
                   onClick={handleImportCsv}
@@ -217,7 +254,7 @@ export default function PlaylistHero({
                 )
               )}
               {actionPolicy.canPinOffline && isLayoutVisible('offlineCache') && songs.length > 0 && id
-                && (!isSmartPlaylistName(playlist.name) || offlineStatus !== 'none') && (
+                && (!isSmartPlaylist(playlist) || offlineStatus !== 'none') && (
                 <button
                   className={`btn btn-ghost${offlineStatus === 'cached' ? ' btn-danger' : ''}${offlineStatus === 'queued' ? ' offline-cache-btn--queued' : ''}`}
                   disabled={offlineStatus === 'downloading'}
@@ -227,7 +264,7 @@ export default function PlaylistHero({
                     } else if (offlineStatus === 'queued') {
                       dequeueOfflinePin(id, activeServerId);
                     } else if (playlist) {
-                      downloadPlaylist(id, playlist.name, playlist.coverArt, songs, activeServerId);
+                      downloadPlaylist(id, playlist.name, playlist.coverArt, songs, activeServerId, playlist.smart);
                     }
                   }}
                   data-tooltip={offlineStatus === 'downloading'

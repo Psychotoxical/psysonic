@@ -1,8 +1,10 @@
 import { useTranslation } from 'react-i18next';
-import { Download, FileUp, HardDrive, Lightbulb, Search } from 'lucide-react';
+import { Download, FileUp, HardDrive, Lightbulb, RefreshCw, Search, Sparkles } from 'lucide-react';
 import { usePlaylistLayoutStore, type PlaylistLayoutItemId } from '@/features/playlist';
 
 const PLAYLIST_LAYOUT_ICONS: Record<PlaylistLayoutItemId, typeof Search> = {
+  editRules:    Sparkles,
+  refreshSmart: RefreshCw,
   addSongs:     Search,
   importCsv:    FileUp,
   downloadZip:  Download,
@@ -11,6 +13,8 @@ const PLAYLIST_LAYOUT_ICONS: Record<PlaylistLayoutItemId, typeof Search> = {
 };
 
 const PLAYLIST_LAYOUT_LABEL_KEYS: Record<PlaylistLayoutItemId, string> = {
+  editRules:    'playlists.editRules',
+  refreshSmart: 'playlists.refreshSmart',
   addSongs:     'playlists.addSongs',
   importCsv:    'playlists.importCSV',
   downloadZip:  'playlists.downloadZip',

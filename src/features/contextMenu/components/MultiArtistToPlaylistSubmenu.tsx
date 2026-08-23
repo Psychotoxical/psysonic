@@ -7,8 +7,8 @@ import type { SubsonicPlaylist } from '@/lib/api/subsonicTypes';
 import { usePlaylistStore } from '@/features/playlist';
 import { addTracksToPlaylistWithDedup, showAddTracksDedupToast } from '@/features/playlist';
 import { showToast } from '@/lib/dom/toast';
-import { isSmartPlaylistName } from '@/features/contextMenu/utils/contextMenuHelpers';
 import { ownedEntityKey } from '@/lib/util/ownedEntityKey';
+import { isSmartPlaylist } from '@/lib/format/playlistClassification';
 
 interface Props {
   artists: Array<{ id: string; serverId?: string }>;
@@ -81,7 +81,7 @@ export function MultiArtistToPlaylistSubmenu({ artists, onDone, triggerId: _trig
       const request = resolvedServerId ? getPlaylistsForServer(resolvedServerId) : getPlaylists();
       request.then((all) => {
         setPlaylists(
-          all.filter(p => !isSmartPlaylistName(p.name)).sort((a, b) => a.name.localeCompare(b.name)),
+          all.filter(p => !isSmartPlaylist(p)).sort((a, b) => a.name.localeCompare(b.name)),
         );
       }).catch(() => {});
     }, []);

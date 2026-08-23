@@ -9,6 +9,7 @@ import { SettingsToggle } from '@/features/settings/components/SettingsToggle';
 import { SettingsSubCard, SettingsField } from '@/features/settings/components/SettingsSubCard';
 import StarRating from '@/ui/StarRating';
 import AnalyticsStrategySection from '@/features/settings/components/AnalyticsStrategySection';
+import { SmartPlaylistCustomFieldsSection } from '@/features/settings/components/SmartPlaylistCustomFieldsSection';
 const AUDIOBOOK_GENRES_DISPLAY = ['Hörbuch', 'Hoerbuch', 'Hörspiel', 'Hoerspiel', 'Audiobook', 'Audio Book', 'Spoken Word', 'Spokenword', 'Podcast', 'Kapitel', 'Thriller', 'Krimi', 'Speech', 'Fantasy', 'Comedy', 'Literature'];
 
 export function LibraryTab() {
@@ -101,6 +102,8 @@ export function LibraryTab() {
           </SettingsGroup>
         </div>
       </SettingsSubSection>
+
+      <SmartPlaylistCustomFieldsSection />
 
       {/* Ratings */}
       <SettingsSubSection

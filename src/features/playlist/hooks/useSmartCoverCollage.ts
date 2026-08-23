@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react';
 import { filterSongsToServerLibrary } from '@/lib/api/subsonicLibrary';
 import { getPlaylistForServer } from '@/lib/api/subsonicPlaylists';
 import type { SubsonicPlaylist } from '@/lib/api/subsonicTypes';
-import { isSmartPlaylistName } from '@/features/playlist';
 import { ownedEntityKey } from '@/lib/util/ownedEntityKey';
+import { isSmartPlaylist } from '@/lib/format/playlistClassification';
 
 /**
  * Build the 2×2 cover collage for each smart playlist. Pulls each smart
@@ -20,7 +20,7 @@ export function useSmartCoverCollage(
   useEffect(() => {
     let cancelled = false;
     const run = async () => {
-      const smart = playlists.filter(pl => isSmartPlaylistName(pl.name));
+      const smart = playlists.filter(isSmartPlaylist);
       if (smart.length === 0) {
         if (!cancelled) setSmartCoverIdsByPlaylist({});
         return;

@@ -162,6 +162,86 @@ pub async fn nd_get_playlist(
     Ok(serde_json::from_str(&text).unwrap_or(serde_json::Value::Null))
 }
 
+/// GET `/api/playlist/{id}/tracks` — paginated native track list.
+// NOT specta-collected: serde_json::Value in the command signature — specta rc.25 can't export it. Stays hand-written on generate_handler!.
+#[tauri::command]
+pub async fn nd_get_playlist_tracks(
+    http_registry: State<'_, Arc<ServerHttpRegistry>>,
+    server_url: String,
+    token: String,
+    id: String,
+    start: Option<u32>,
+    end: Option<u32>,
+) -> Result<serde_json::Value, String> {
+    let reg = http_registry.as_ref();
+    let url = format!("{}/api/playlist/{}/tracks", server_url, id);
+    let auth = format!("Bearer {}", token);
+    let start = start.unwrap_or(0);
+    let end = end.unwrap_or(50);
+    let resp = nd_retry(|| {
+        let url = url.clone();
+        let auth = auth.clone();
+        async move {
+            nd_apply_request(
+                Some(reg),
+                None,
+                &url,
+                nd_http_client()
+                    .get(&url)
+                    .header("X-ND-Authorization", auth)
+                    .query(&[("_start", start), ("_end", end)]),
+            )
+            .send()
+            .await
+        }
+    })
+    .await?;
+    let status = resp.status();
+    let text = resp.text().await.unwrap_or_default();
+    if !status.is_success() {
+        return Err(format!("HTTP {}: {}", status, text));
+    }
+    Ok(serde_json::from_str(&text).unwrap_or(serde_json::Value::Null))
+}
+
+/// Evaluate rules by creating a temporary playlist, reading its first page of
+/// tracks (`_start=0` refreshes smart playlists), then deleting it.
+// NOT specta-collected: serde_json::Value in the command signature — specta rc.25 can't export it. Stays hand-written on generate_handler!.
+#[tauri::command]
+pub async fn nd_preview_playlist(
+    http_registry: State<'_, Arc<ServerHttpRegistry>>,
+    server_url: String,
+    token: String,
+    body: serde_json::Value,
+) -> Result<serde_json::Value, String> {
+    let created = nd_create_playlist(
+        http_registry.clone(),
+        server_url.clone(),
+        token.clone(),
+        body,
+    )
+    .await?;
+    let id = created
+        .get("id")
+        .and_then(|value| value.as_str())
+        .unwrap_or("")
+        .to_string();
+    if id.is_empty() {
+        return Err("Preview playlist was created without an id".into());
+    }
+    let tracks = nd_get_playlist_tracks(
+        http_registry.clone(),
+        server_url.clone(),
+        token.clone(),
+        id.clone(),
+        Some(0),
+        Some(50),
+    )
+    .await;
+    let _ = nd_delete_playlist(http_registry, server_url, token, id).await;
+    tracks
+}
+
 /// DELETE `/api/playlist/{id}` — delete playlist.
 #[tauri::command]
 #[specta::specta]

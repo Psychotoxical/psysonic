@@ -28,4 +28,9 @@ describe('filterPlaylistsByNameQuery', () => {
     expect(filterPlaylistsByNameQuery(list, 'road').map(p => p.id)).toEqual(['1', '3']);
     expect(filterPlaylistsByNameQuery(list, 'FOCUS').map(p => p.id)).toEqual(['2']);
   });
+
+  it('matches the visible name of a legacy prefixed smart playlist', () => {
+    const prefixed = [pl('4', 'psy-smart-Jazz nights')];
+    expect(filterPlaylistsByNameQuery(prefixed, 'jazz').map(p => p.id)).toEqual(['4']);
+  });
 });

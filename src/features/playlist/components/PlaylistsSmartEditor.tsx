@@ -1,15 +1,43 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Plus } from 'lucide-react';
-import StarRating from '@/ui/StarRating';
-import CustomSelect from '@/ui/CustomSelect';
-import {
-  LIMIT_MAX, YEAR_MAX, YEAR_MIN, clampYear, defaultSmartFilters,
-  type SmartFilters,
-} from '@/features/playlist/utils/playlistsSmart';
+import { useAuthStore } from '@/store/authStore';
 import PlaylistCreateFields from '@/features/playlist/components/PlaylistCreateFields';
+import PlaylistsSmartEditorAdvanced from '@/features/playlist/components/PlaylistsSmartEditorAdvanced';
+import PlaylistsSmartEditorBasic from '@/features/playlist/components/PlaylistsSmartEditorBasic';
+import PlaylistsSmartEditorJson from '@/features/playlist/components/PlaylistsSmartEditorJson';
+import { defaultSmartFilters, type SmartFilters } from '@/features/playlist/utils/playlistsSmart';
+import {
+  applySmartEditorJson,
+  createSmartEditorSession,
+  requestSmartEditorMode,
+  type SmartEditorMode,
+  type SmartEditorSession,
+} from '@/features/playlist/utils/smartPlaylistEditor';
+import {
+  resolveCustomSmartRuleFields,
+  resolveSmartPlaylistCapabilities,
+} from '@/features/playlist/utils/smartPlaylistFields';
+import {
+  parseSmartRulesDocument,
+  validateSmartRulesDocument,
+} from '@/features/playlist/utils/smartPlaylistRules';
+import {
+  formatSmartPreviewTrackLabel,
+  type SmartPreviewTrack,
+} from '@/features/playlist/utils/formatSmartPreviewTrack';
+import type { SubsonicServerIdentity } from '@/lib/server/subsonicServerIdentity';
+
+interface PlaylistOption {
+  id: string;
+  name: string;
+}
+
+type PreviewTrack = SmartPreviewTrack;
 
 interface Props {
+  session: SmartEditorSession;
+  setSession: React.Dispatch<React.SetStateAction<SmartEditorSession>>;
   smartFilters: SmartFilters;
   setSmartFilters: React.Dispatch<React.SetStateAction<SmartFilters>>;
   availableGenres: string[];
@@ -25,189 +53,236 @@ interface Props {
   setEditingSmartId: React.Dispatch<React.SetStateAction<string | null>>;
   onSave: () => void;
   onCancel: () => void;
+  onSaveCopy?: () => void;
+  onResetToServer?: () => void;
+  onPreview: () => Promise<PreviewTrack[]>;
+  serverIdentity?: SubsonicServerIdentity;
+  playlistOptions?: PlaylistOption[];
+  ownerUsername?: string;
 }
 
 export default function PlaylistsSmartEditor({
-  smartFilters, setSmartFilters, availableGenres,
+  session, setSession, smartFilters, setSmartFilters, availableGenres,
   genreQuery, setGenreQuery, editingSmartId, creatingSmartBusy, genresReady,
   createServerId, setCreateServerId, createServerOptions,
-  setCreatingSmart, setEditingSmartId, onSave, onCancel,
+  setCreatingSmart, setEditingSmartId, onSave, onCancel, onSaveCopy, onResetToServer,
+  onPreview, serverIdentity, playlistOptions = [], ownerUsername,
 }: Props) {
   const { t } = useTranslation();
+  const capabilities = useMemo(
+    () => resolveSmartPlaylistCapabilities(serverIdentity),
+    [serverIdentity],
+  );
+  const customFieldSettings = useAuthStore(state => state.smartPlaylistCustomFields);
+  const customFields = useMemo(
+    () => resolveCustomSmartRuleFields(customFieldSettings),
+    [customFieldSettings],
+  );
+  const [previewTracks, setPreviewTracks] = useState<PreviewTrack[] | null>(null);
+  const [previewBusy, setPreviewBusy] = useState(false);
+  const [previewError, setPreviewError] = useState<string | null>(null);
+  const jsonDraftState = useMemo(() => {
+    if (session.mode !== 'json') return { document: session.document, error: null };
+    try {
+      return {
+        document: parseSmartRulesDocument(JSON.parse(session.jsonDraft) as unknown),
+        error: null,
+      };
+    } catch (error) {
+      return {
+        document: null,
+        error: error instanceof Error ? error.message : 'Invalid JSON',
+      };
+    }
+  }, [session.document, session.jsonDraft, session.mode]);
+  const validation = jsonDraftState.document
+    ? validateSmartRulesDocument(jsonDraftState.document, {
+    currentPlaylistId: editingSmartId ?? undefined,
+    capabilities,
+    customFields,
+    })
+    : [];
+  const blocking = validation.filter(issue => issue.severity === 'error');
+  const hasBlockingIssues = jsonDraftState.error !== null || blocking.length > 0;
 
-  const sortOptions = useMemo(() => ([
-    { value: '+random', label: t('smartPlaylists.sortRandom') },
-    { value: '+title', label: t('smartPlaylists.sortTitleAsc') },
-    { value: '-title', label: t('smartPlaylists.sortTitleDesc') },
-    { value: '-year', label: t('smartPlaylists.sortYearDesc') },
-    { value: '+year', label: t('smartPlaylists.sortYearAsc') },
-    { value: '-playcount', label: t('smartPlaylists.sortPlayCountDesc') },
-  ]), [t]);
-
-  const selectedGenreChipClass =
-    smartFilters.genreMode === 'include' ? 'btn btn-primary' : 'btn btn-danger';
-
-  const addGenre = (genre: string) => {
-    setSmartFilters(v => ({
-      ...v,
-      untaggedGenresOnly: false,
-      selectedGenres: [...v.selectedGenres, genre],
-    }));
+  const setMode = (mode: SmartEditorMode) => {
+    setSession(current => {
+      const next = requestSmartEditorMode(
+        current.mode === 'basic' ? { ...current, filters: smartFilters } : current,
+        mode,
+        { allGenres: availableGenres },
+      );
+      if (next.mode === 'basic') setSmartFilters(next.filters);
+      return next;
+    });
   };
 
-  const removeGenre = (genre: string) => {
-    setSmartFilters(v => ({
-      ...v,
-      untaggedGenresOnly: false,
-      selectedGenres: v.selectedGenres.filter(x => x !== genre),
-    }));
+  const closeEditor = () => {
+    onCancel();
+    setCreatingSmart(false);
+    setEditingSmartId(null);
+    setSmartFilters(defaultSmartFilters);
+    setSession(createSmartEditorSession());
+    setGenreQuery('');
   };
 
   return (
-    <div style={{ marginBottom: '1rem', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '0.9rem', background: 'var(--bg-card)' }}>
+    <div style={{ marginBottom: 'var(--space-4)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: 'var(--space-4)', background: 'var(--bg-card)' }}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-        <section style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '0.75rem' }}>
-          <div style={{ fontSize: 13, fontWeight: 600, marginBottom: '0.65rem' }}>{t('smartPlaylists.sectionBasic')}</div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
-            <PlaylistCreateFields
-              name={smartFilters.name}
-              nameLabel={t('queue.playlistName')}
-              namePlaceholder={t('smartPlaylists.name')}
-              onNameChange={name => setSmartFilters(value => ({ ...value, name }))}
-              serverId={createServerId}
-              onServerChange={setCreateServerId}
-              serverOptions={createServerOptions}
-              showServer={!editingSmartId}
+        <PlaylistCreateFields
+          name={smartFilters.name}
+          nameLabel={t('queue.playlistName')}
+          namePlaceholder={t('smartPlaylists.name')}
+          onNameChange={name => setSmartFilters(value => ({ ...value, name }))}
+          serverId={createServerId}
+          onServerChange={setCreateServerId}
+          serverOptions={createServerOptions}
+          showServer={!editingSmartId}
+        />
+        <label style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('smartPlaylists.comment')}</span>
+          <input
+            className="input"
+            placeholder={t('smartPlaylists.commentPlaceholder')}
+            value={session.comment}
+            onChange={event => setSession(current => ({ ...current, comment: event.target.value }))}
+          />
+        </label>
+        <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'center' }}>
+          <label style={{ display: 'inline-flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+            <input
+              type="checkbox"
+              checked={session.public}
+              onChange={event => setSession(current => ({ ...current, public: event.target.checked }))}
             />
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-              <input className="input" type="number" min={1} max={LIMIT_MAX} placeholder={t('smartPlaylists.limit')} value={smartFilters.limit} onChange={e => setSmartFilters(v => ({ ...v, limit: e.target.value }))} />
-              <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('smartPlaylists.limitHint', { max: LIMIT_MAX })}</span>
+            {t('smartPlaylists.public')}
+          </label>
+          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+            {t('smartPlaylists.owner')}: {session.owner || ownerUsername || '—'}
+          </span>
+          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+            {session.evaluatedAt || session.lastEvaluatedAt
+              ? t('smartPlaylists.lastEvaluated', { when: session.evaluatedAt || session.lastEvaluatedAt })
+              : t('smartPlaylists.neverEvaluated')}
+          </span>
+        </div>
+        <div role="tablist" aria-label="Smart playlist editor modes" className="smart-playlist-mode-toggle" style={{ display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap' }}>
+          <button type="button" role="tab" aria-selected={session.mode === 'basic'} className={`btn ${session.mode === 'basic' ? 'btn-primary' : 'btn-surface'}`} onClick={() => setMode('basic')}>
+            {t('smartPlaylists.modeBasic')}
+          </button>
+          <button type="button" role="tab" aria-selected={session.mode === 'advanced'} className={`btn ${session.mode === 'advanced' ? 'btn-primary' : 'btn-surface'}`} onClick={() => setMode('advanced')}>
+            {t('smartPlaylists.modeAdvanced')}
+          </button>
+          <button type="button" role="tab" aria-selected={session.mode === 'json'} className={`btn ${session.mode === 'json' ? 'btn-primary' : 'btn-surface'}`} onClick={() => setMode('json')}>
+            {t('smartPlaylists.modeJson')}
+          </button>
+        </div>
+        {session.basicBlockedPaths.length > 0 && (
+          <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+            {t('smartPlaylists.modeBasicUnavailable')}
+          </div>
+        )}
+        {session.mode === 'basic' && (
+          <PlaylistsSmartEditorBasic
+            smartFilters={smartFilters}
+            setSmartFilters={setSmartFilters}
+            availableGenres={availableGenres}
+            genreQuery={genreQuery}
+            setGenreQuery={setGenreQuery}
+          />
+        )}
+        {session.mode === 'advanced' && (
+          <PlaylistsSmartEditorAdvanced
+            document={session.document}
+            onDocumentChange={document => setSession(current => ({
+              ...current,
+              document,
+              jsonDraft: JSON.stringify(document.raw, null, 2),
+              jsonError: null,
+            }))}
+            capabilities={capabilities}
+            customFields={customFields}
+            playlistOptions={playlistOptions.filter(option => option.id !== editingSmartId)}
+            genreSuggestions={availableGenres}
+            issues={validation}
+          />
+        )}
+        {session.mode === 'json' && (
+          <PlaylistsSmartEditorJson
+            session={session}
+            onDraftChange={jsonDraft => setSession(current => ({ ...current, jsonDraft, jsonError: null }))}
+            onApply={() => setSession(current => applySmartEditorJson(current, current.jsonDraft, { allGenres: availableGenres }))}
+            jsonError={jsonDraftState.error ?? session.jsonError}
+            issues={validation}
+          />
+        )}
+        {previewTracks && (
+          <div style={{ fontSize: 13, border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: 'var(--space-3)' }}>
+            <div style={{ color: 'var(--text-muted)', marginBottom: 'var(--space-1)' }}>
+              {t('smartPlaylists.previewHint')}
             </div>
-            <CustomSelect
-              value={smartFilters.sort}
-              options={sortOptions}
-              onChange={sort => setSmartFilters(v => ({ ...v, sort }))}
-            />
+            <div style={{ fontWeight: 600 }}>{t('smartPlaylists.previewCount', { count: previewTracks.length })}</div>
+            {previewTracks.length === 0 && <div>{t('smartPlaylists.previewEmpty')}</div>}
+            <ul style={{ margin: 'var(--space-2) 0 0', paddingLeft: 'var(--space-5)' }}>
+              {previewTracks.slice(0, 12).map((track, index) => (
+                <li key={track.id ?? `${track.title ?? track.name ?? 'track'}-${index}`}>
+                  {formatSmartPreviewTrackLabel(track)}
+                </li>
+              ))}
+            </ul>
           </div>
-        </section>
-        <section style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '0.75rem' }}>
-          <div style={{ fontSize: 13, fontWeight: 600, marginBottom: '0.65rem' }}>{t('smartPlaylists.sectionGenres')}</div>
-          <div className="smart-playlist-mode-toggle" style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
-            <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>{t('smartPlaylists.genreMode')}</span>
-            <button
-              type="button"
-              className={`btn ${smartFilters.genreMode === 'include' ? 'btn-primary' : 'btn-surface'}`}
-              onClick={() => setSmartFilters(v => ({ ...v, genreMode: 'include', untaggedGenresOnly: false }))}
-            >
-              {t('smartPlaylists.genreModeInclude')}
+        )}
+        {previewError && (
+          <div style={{ fontSize: 12, color: 'var(--danger, #c0392b)' }}>{previewError}</div>
+        )}
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 'var(--space-2)', flexWrap: 'wrap' }}>
+          {onResetToServer && editingSmartId && (
+            <button type="button" className="btn btn-surface" onClick={onResetToServer}>
+              {t('smartPlaylists.resetToServer')}
             </button>
-            <button
-              type="button"
-              className={`btn ${smartFilters.genreMode === 'exclude' ? 'btn-primary' : 'btn-surface'}`}
-              onClick={() => setSmartFilters(v => ({ ...v, genreMode: 'exclude', untaggedGenresOnly: false }))}
-            >
-              {t('smartPlaylists.genreModeExclude')}
-            </button>
-          </div>
-          <input className="input" placeholder={t('smartPlaylists.genreSearchPlaceholder')} value={genreQuery} onChange={e => setGenreQuery(e.target.value)} style={{ marginBottom: '0.75rem' }} />
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-            <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '0.5rem', minHeight: 120 }}>
-              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: '0.5rem' }}>{t('smartPlaylists.availableGenres')}</div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
-                {availableGenres.map(g => (
-                  <button
-                    key={g}
-                    type="button"
-                    className="btn btn-surface"
-                    style={{ fontSize: 12, padding: '2px 8px' }}
-                    onClick={() => addGenre(g)}
-                  >
-                    {g}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '0.5rem', minHeight: 120 }}>
-              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: '0.5rem' }}>{t('smartPlaylists.selectedGenres')}</div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
-                {smartFilters.selectedGenres.map(g => (
-                  <button
-                    key={g}
-                    type="button"
-                    className={selectedGenreChipClass}
-                    style={{ fontSize: 12, padding: '2px 8px' }}
-                    onClick={() => removeGenre(g)}
-                  >
-                    × {g}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-        </section>
-        <section style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '0.75rem' }}>
-          <div style={{ fontSize: 13, fontWeight: 600, marginBottom: '0.65rem' }}>{t('smartPlaylists.sectionYearsAndFilters')}</div>
-          <div className="smart-playlist-mode-toggle" style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
-            <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>{t('smartPlaylists.yearMode')}</span>
-            <button
-              type="button"
-              className={`btn ${smartFilters.yearMode === 'include' ? 'btn-primary' : 'btn-surface'}`}
-              onClick={() => setSmartFilters(v => ({ ...v, yearMode: 'include' }))}
-            >
-              {t('smartPlaylists.yearModeInclude')}
-            </button>
-            <button
-              type="button"
-              className={`btn ${smartFilters.yearMode === 'exclude' ? 'btn-primary' : 'btn-surface'}`}
-              onClick={() => setSmartFilters(v => ({ ...v, yearMode: 'exclude' }))}
-            >
-              {t('smartPlaylists.yearModeExclude')}
-            </button>
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--text-muted)' }}>
-            <span>{t('smartPlaylists.fromYear')}: {smartFilters.yearFrom}</span>
-            <span>{t('smartPlaylists.toYear')}: {smartFilters.yearTo}</span>
-          </div>
-          <div className="dual-year-range">
-            <div className="dual-year-range__track" />
-            <div className="dual-year-range__selected" style={{ left: `${((smartFilters.yearFrom - YEAR_MIN) / (YEAR_MAX - YEAR_MIN)) * 100}%`, right: `${100 - ((smartFilters.yearTo - YEAR_MIN) / (YEAR_MAX - YEAR_MIN)) * 100}%` }} />
-            <input type="range" min={YEAR_MIN} max={YEAR_MAX} value={smartFilters.yearFrom} onChange={e => setSmartFilters(v => ({ ...v, yearFrom: Math.min(clampYear(Number(e.target.value)), v.yearTo) }))} />
-            <input type="range" min={YEAR_MIN} max={YEAR_MAX} value={smartFilters.yearTo} onChange={e => setSmartFilters(v => ({ ...v, yearTo: Math.max(clampYear(Number(e.target.value)), v.yearFrom) }))} />
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem', marginTop: '0.75rem' }}>
-            <input className="input" placeholder={t('smartPlaylists.artistContains')} value={smartFilters.artistContains} onChange={e => setSmartFilters(v => ({ ...v, artistContains: e.target.value }))} />
-            <input className="input" placeholder={t('smartPlaylists.albumContains')} value={smartFilters.albumContains} onChange={e => setSmartFilters(v => ({ ...v, albumContains: e.target.value }))} />
-            <input className="input" placeholder={t('smartPlaylists.titleContains')} value={smartFilters.titleContains} onChange={e => setSmartFilters(v => ({ ...v, titleContains: e.target.value }))} />
-            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('smartPlaylists.minRating')}: {smartFilters.minRating}★</div>
-            <StarRating value={smartFilters.minRating} onChange={rating => setSmartFilters(v => ({ ...v, minRating: rating }))} ariaLabel={t('smartPlaylists.minRatingAria')} />
-            <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('smartPlaylists.minRatingHint')}</span>
-          </div>
-          <div style={{ marginTop: '0.75rem', display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
-            <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}>
-              <input type="checkbox" checked={smartFilters.excludeUnrated} onChange={e => setSmartFilters(v => ({ ...v, excludeUnrated: e.target.checked }))} />
-              {t('smartPlaylists.excludeUnrated')}
-            </label>
-            <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}>
-              <input type="checkbox" checked={smartFilters.compilationOnly} onChange={e => setSmartFilters(v => ({ ...v, compilationOnly: e.target.checked }))} />
-              {t('smartPlaylists.compilationOnly')}
-            </label>
-          </div>
-        </section>
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
+          )}
           <button
             type="button"
             className="btn btn-surface"
             onClick={() => {
-              onCancel();
-              setCreatingSmart(false);
-              setEditingSmartId(null);
               setSmartFilters(defaultSmartFilters);
-              setGenreQuery('');
+              setSession(createSmartEditorSession({
+                name: smartFilters.name,
+                owner: session.owner || ownerUsername,
+              }));
             }}
           >
+            {t('smartPlaylists.clear')}
+          </button>
+          {session.mode !== 'json' && (
+            <button type="button" className="btn btn-surface" onClick={() => setMode('json')}>
+              {t('smartPlaylists.previewJson')}
+            </button>
+          )}
+          <button
+            type="button"
+            className="btn btn-surface"
+            disabled={previewBusy || hasBlockingIssues}
+            onClick={() => {
+              setPreviewBusy(true);
+              setPreviewError(null);
+              void onPreview()
+                .then(tracks => setPreviewTracks(tracks))
+                .catch(() => setPreviewError(t('smartPlaylists.previewFailed')))
+                .finally(() => setPreviewBusy(false));
+            }}
+          >
+            {t('smartPlaylists.preview')}
+          </button>
+          {onSaveCopy && editingSmartId && (
+            <button type="button" className="btn btn-surface" onClick={onSaveCopy} disabled={hasBlockingIssues}>
+              {t('smartPlaylists.saveCopy')}
+            </button>
+          )}
+          <button type="button" className="btn btn-surface" onClick={closeEditor}>
             {t('playlists.cancel')}
           </button>
-          <button type="button" className="btn btn-primary" onClick={onSave} disabled={creatingSmartBusy || !genresReady}>
+          <button type="button" className="btn btn-primary" onClick={onSave} disabled={creatingSmartBusy || !genresReady || hasBlockingIssues}>
             <Plus size={15} /> {editingSmartId ? t('smartPlaylists.save') : t('smartPlaylists.create')}
           </button>
         </div>

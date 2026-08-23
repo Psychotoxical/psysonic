@@ -8,7 +8,9 @@ import {
   MIX_MIN_RATING_FILTER_MAX_STARS,
   RANDOM_MIX_SIZE_OPTIONS,
 } from './authStoreDefaults';
-import type { LoudnessLufsPreset } from './authStoreTypes';
+import type { LoudnessLufsPreset, SmartPlaylistCustomFieldSetting } from './authStoreTypes';
+
+const SMART_PLAYLIST_CUSTOM_FIELD_TYPES = new Set(['string', 'number', 'boolean', 'date']);
 
 export function generateId(): string {
   return Date.now().toString(36) + Math.random().toString(36).slice(2);
@@ -58,6 +60,29 @@ export function clampSkipStarThreshold(v: number): number {
 
 export function skipStarCountStorageKey(serverId: string | null | undefined, trackId: string): string {
   return `${serverId ?? ''}\u001f${trackId}`;
+}
+
+export function sanitizeSmartPlaylistCustomFields(raw: unknown): SmartPlaylistCustomFieldSetting[] {
+  if (!Array.isArray(raw)) return [];
+  const next: SmartPlaylistCustomFieldSetting[] = [];
+  const seen = new Set<string>();
+  for (const value of raw) {
+    if (!value || typeof value !== 'object') continue;
+    const row = value as Record<string, unknown>;
+    if (typeof row.name !== 'string' || !row.name.trim()) continue;
+    if (!SMART_PLAYLIST_CUSTOM_FIELD_TYPES.has(String(row.type))) continue;
+    if (row.kind !== 'tag' && row.kind !== 'role') continue;
+    const name = row.name.trim();
+    const key = name.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    next.push({
+      name,
+      type: row.type as SmartPlaylistCustomFieldSetting['type'],
+      kind: row.kind,
+    });
+  }
+  return next;
 }
 
 export function sanitizeSkipStarCounts(raw: unknown): Record<string, number> {

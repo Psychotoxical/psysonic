@@ -2,6 +2,8 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
 export type PlaylistLayoutItemId =
+  | 'editRules'
+  | 'refreshSmart'
   | 'addSongs'
   | 'importCsv'
   | 'downloadZip'
@@ -14,6 +16,8 @@ export interface PlaylistLayoutItemConfig {
 }
 
 export const DEFAULT_PLAYLIST_LAYOUT_ITEMS: PlaylistLayoutItemConfig[] = [
+  { id: 'refreshSmart', visible: true },
+  { id: 'editRules',    visible: true },
   { id: 'addSongs',     visible: true },
   { id: 'importCsv',    visible: true },
   { id: 'downloadZip',  visible: true },

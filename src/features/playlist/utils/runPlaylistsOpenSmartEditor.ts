@@ -1,12 +1,18 @@
 import type React from 'react';
 import type { TFunction } from 'i18next';
-import { ndGetSmartPlaylist, ndListSmartPlaylists } from '@/lib/api/navidromeSmart';
+import { ndGetSmartPlaylist, ndListPlaylists } from '@/lib/api/navidromeSmart';
 import type { SubsonicGenre, SubsonicPlaylist } from '@/lib/api/subsonicTypes';
+import { type SmartFilters } from '@/features/playlist/utils/playlistsSmart';
 import {
-  defaultSmartFilters, displayPlaylistName, isSmartPlaylistName,
-  parseSmartRulesToFilters, type SmartFilters,
-} from '@/features/playlist/utils/playlistsSmart';
+  createSmartEditorSession,
+  type SmartEditorSession,
+} from '@/features/playlist/utils/smartPlaylistEditor';
 import { showToast } from '@/lib/dom/toast';
+import {
+  hasNavidromeSmartRules,
+  isSmartPlaylist,
+  playlistDisplayName,
+} from '@/lib/format/playlistClassification';
 
 export interface RunPlaylistsOpenSmartEditorDeps {
   pl: SubsonicPlaylist;
@@ -15,6 +21,7 @@ export interface RunPlaylistsOpenSmartEditorDeps {
   allGenres: SubsonicGenre[];
   t: TFunction;
   setSmartFilters: React.Dispatch<React.SetStateAction<SmartFilters>>;
+  setSmartSession: React.Dispatch<React.SetStateAction<SmartEditorSession>>;
   setEditingSmartId: React.Dispatch<React.SetStateAction<string | null>>;
   setGenreQuery: React.Dispatch<React.SetStateAction<string>>;
   setCreating: React.Dispatch<React.SetStateAction<boolean>>;
@@ -24,60 +31,122 @@ export interface RunPlaylistsOpenSmartEditorDeps {
   isCurrent?: () => boolean;
 }
 
+function sessionFromNative(
+  target: {
+    name: string;
+    rules?: Record<string, unknown>;
+    comment?: string;
+    public?: boolean;
+    owner?: string;
+    evaluatedAt?: string;
+    updatedAt?: string;
+  },
+  allGenres: SubsonicGenre[],
+): SmartEditorSession {
+  return createSmartEditorSession({
+    name: playlistDisplayName({ name: target.name }),
+    rules: target.rules,
+    comment: target.comment,
+    public: target.public,
+    owner: target.owner,
+    evaluatedAt: target.evaluatedAt,
+    updatedAt: target.updatedAt,
+    allGenres: allGenres.map(genre => genre.value),
+  });
+}
+
 export async function runPlaylistsOpenSmartEditor(deps: RunPlaylistsOpenSmartEditorDeps): Promise<void> {
   const {
     pl, serverId, isNavidromeServer, allGenres, t,
-    setSmartFilters, setEditingSmartId, setGenreQuery,
+    setSmartFilters, setSmartSession, setEditingSmartId, setGenreQuery,
     setCreating, setCreatingSmart, setCreatingSmartBusy, setEditingSmartServerId,
   } = deps;
 
-  if (!isNavidromeServer || !isSmartPlaylistName(pl.name)) return;
+  if (!isNavidromeServer || !isSmartPlaylist(pl)) return;
+
+  const placeholder = createSmartEditorSession({
+    name: playlistDisplayName(pl),
+    rules: { all: [] },
+    comment: pl.comment,
+    public: pl.public,
+    owner: pl.owner,
+  });
+  setCreating(false);
+  setCreatingSmart(true);
   setCreatingSmartBusy(true);
+  setEditingSmartId(pl.id);
+  setEditingSmartServerId(serverId);
+  setGenreQuery('');
+  setSmartSession(placeholder);
+  setSmartFilters(placeholder.filters);
+
+  const closeEditor = () => {
+    setCreatingSmart(false);
+    setEditingSmartId(null);
+    setEditingSmartServerId(null);
+  };
+
   try {
-    let target: { id: string; name: string; rules?: Record<string, unknown> } | null = null;
+    let target: {
+      id: string;
+      name: string;
+      rules?: Record<string, unknown>;
+      comment?: string;
+      public?: boolean;
+      owner?: string;
+      evaluatedAt?: string;
+      updatedAt?: string;
+    } | null = null;
     try {
-      // Prefer direct endpoint for this playlist: returns freshest rules.
       const direct = await ndGetSmartPlaylist(pl.id, serverId);
-      if (direct.id && (direct.rules || isSmartPlaylistName(direct.name))) target = direct;
+      if (direct.id) {
+        if (!hasNavidromeSmartRules(direct.rules)) {
+          if (deps.isCurrent && !deps.isCurrent()) return;
+          closeEditor();
+          return;
+        }
+        target = direct;
+      }
     } catch {
       // Fallback to list endpoint below.
     }
     if (!target) {
-      const smart = await ndListSmartPlaylists(serverId);
+      const smart = await ndListPlaylists(serverId);
       target = smart.find((v) =>
-        v.id === pl.id ||
-        v.name === pl.name ||
-        displayPlaylistName(v.name) === displayPlaylistName(pl.name),
+        hasNavidromeSmartRules(v.rules)
+        && (
+          v.id === pl.id
+          || v.name === pl.name
+          || playlistDisplayName(v) === playlistDisplayName(pl)
+        ),
       ) ?? null;
+      if (!target) {
+        if (deps.isCurrent && !deps.isCurrent()) return;
+        closeEditor();
+        return;
+      }
     }
     if (deps.isCurrent && !deps.isCurrent()) return;
-    if (target) {
-      const parsed = parseSmartRulesToFilters(target.rules, target.name);
-      if (parsed.untaggedGenresOnly) {
-        parsed.selectedGenres = allGenres.map(g => g.value);
-      }
-      setSmartFilters(parsed);
-      setEditingSmartId(target.id);
-    } else {
-      // Fallback: allow editing even if Navidrome smart list endpoint
-      // doesn't return this playlist (shared/migrated/legacy edge cases).
-      setSmartFilters({
-        ...defaultSmartFilters,
-        name: displayPlaylistName(pl.name),
-      });
-      setEditingSmartId(pl.id);
-    }
+    const session = sessionFromNative({
+      ...target,
+      comment: target.comment ?? pl.comment,
+      public: target.public ?? pl.public,
+      owner: target.owner ?? pl.owner,
+    }, allGenres);
+    setSmartSession(session);
+    setSmartFilters(session.filters);
+    setEditingSmartId(target.id);
     setEditingSmartServerId(serverId);
-    setGenreQuery('');
-    setCreating(false);
-    setCreatingSmart(true);
   } catch {
     if (deps.isCurrent && !deps.isCurrent()) return;
-    // Degrade gracefully instead of blocking the editor on transient/API errors.
-    setSmartFilters({
-      ...defaultSmartFilters,
-      name: displayPlaylistName(pl.name),
+    const session = createSmartEditorSession({
+      name: playlistDisplayName(pl),
+      comment: pl.comment,
+      public: pl.public,
+      owner: pl.owner,
     });
+    setSmartSession(session);
+    setSmartFilters(session.filters);
     setGenreQuery('');
     setEditingSmartId(pl.id);
     setEditingSmartServerId(serverId);

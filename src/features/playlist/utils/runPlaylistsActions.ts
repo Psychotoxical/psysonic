@@ -1,6 +1,7 @@
 import type React from 'react';
 import type { TFunction } from 'i18next';
-import { deletePlaylist, addSongsToPlaylist } from '@/lib/api/subsonicPlaylists';
+import { addSongsToPlaylist } from '@/lib/api/subsonicPlaylists';
+import { deleteOwnedPlaylist } from '@/features/playlist/utils/playlistOwnedMutation';
 import type { SubsonicPlaylist } from '@/lib/api/subsonicTypes';
 import { usePlaylistStore } from '@/features/playlist/store/playlistStore';
 import { usePlaylistMembershipStore } from '@/store/playlistMembershipStore';
@@ -31,7 +32,7 @@ export async function runPlaylistDelete(deps: RunPlaylistDeleteDeps): Promise<vo
   }
   try {
     if (!pl.serverId) throw new Error('Playlist owner unavailable');
-    await deletePlaylist(pl.id, pl.serverId);
+    await deleteOwnedPlaylist(pl);
     removeId(pl.id, pl.serverId);
     usePlaylistStore.setState((s) => ({
       playlists: s.playlists.filter((p) => ownedEntityKey(p) !== key),
@@ -59,7 +60,7 @@ export async function runPlaylistDeleteSelected(deps: RunPlaylistDeleteSelectedD
   for (const pl of deletable) {
     try {
       if (!pl.serverId) throw new Error('Playlist owner unavailable');
-      await deletePlaylist(pl.id, pl.serverId);
+      await deleteOwnedPlaylist(pl);
       removeId(pl.id, pl.serverId);
       removedKeys.add(ownedEntityKey(pl));
     } catch {

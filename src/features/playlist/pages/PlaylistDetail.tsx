@@ -28,6 +28,7 @@ import type { PlaylistSortKey, PlaylistSortDir } from '@/features/playlist/utils
 import { runPlaylistZipDownload } from '@/features/playlist/utils/runPlaylistZipDownload';
 import { runPlaylistSaveMeta } from '@/features/playlist/utils/runPlaylistSaveMeta';
 import { runPlaylistLoad } from '@/features/playlist/utils/runPlaylistLoad';
+import { runPlaylistRefreshSmart } from '@/features/playlist/utils/runPlaylistRefreshSmart';
 import { startPlaylistRowDrag } from '@/features/playlist/utils/startPlaylistRowDrag';
 import { usePlaylistCovers } from '@/features/playlist/hooks/usePlaylistCovers';
 import { usePlaylistSelection } from '@/features/playlist/hooks/usePlaylistSelection';
@@ -45,6 +46,9 @@ import { useOfflineBrowseContext } from '@/features/offline';
 import { offlineActionPolicy } from '@/features/offline';
 import { readDetailServerId } from '@/lib/navigation/detailServerScope';
 import { ownedEntityKey } from '@/lib/util/ownedEntityKey';
+import { isSmartPlaylist } from '@/lib/format/playlistClassification';
+import { playlistDetailControls } from '@/features/playlist/utils/playlistSmartUx';
+import { showToast } from '@/lib/dom/toast';
 
 // ── Column configuration ──────────────────────────────────────────────────────
 const PL_COLUMNS: readonly ColDef[] = [
@@ -91,6 +95,7 @@ export default function PlaylistDetail() {
   const { resolvedOfflineStatus, offlineProgress } = useAlbumOfflineState(id ?? '', serverId, offlineSongIds);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [refreshingSmart, setRefreshingSmart] = useState(false);
   const [ratings, setRatings] = useState<Record<string, number>>({});
   const [editingMeta, setEditingMeta] = useState(false);
   const [customCoverId, setCustomCoverId] = useState<string | null>(null);
@@ -122,6 +127,7 @@ export default function PlaylistDetail() {
   // ── Save ──────────────────────────────────────────────────────
   const savePlaylist = useCallback((updatedSongs: SubsonicSong[], prevCount = 0) => {
     if (!id || !serverId) return Promise.resolve();
+    if (playlist && isSmartPlaylist(playlist)) return Promise.resolve();
     const ownerGeneration = saveOwnerGenerationRef.current;
     const sequence = ++saveSequenceRef.current;
     setSaving(true);
@@ -146,9 +152,10 @@ export default function PlaylistDetail() {
         && saveSequenceRef.current === sequence
       ) {
         setSaving(false);
+        setRefreshingSmart(false);
       }
     });
-  }, [id, serverId, touchPlaylist]);
+  }, [id, serverId, touchPlaylist, playlist]);
 
   // ── Bulk select ───────────────────────────────────────────────────
   const [showBulkPlPicker, setShowBulkPlPicker] = useState(false);
@@ -172,11 +179,16 @@ export default function PlaylistDetail() {
     usePlaylistSuggestions(songs, playlist?.id, serverId || undefined);
 
   // ── Column resize/visibility ──────────────────────────────────────────────
+  const tracksReadOnly = playlist ? playlistDetailControls(playlist).tracksReadOnly : false;
+  const detailColumns = useMemo(
+    () => (tracksReadOnly ? PL_COLUMNS.filter(col => col.key !== 'delete') : PL_COLUMNS),
+    [tracksReadOnly],
+  );
   const {
     colVisible, visibleCols, gridStyle,
     startResize, startFlexColumnResize, toggleColumn, resetColumns,
     pickerOpen, setPickerOpen, pickerRef, tracklistRef,
-  } = useTracklistColumns(PL_COLUMNS, 'psysonic_playlist_columns');
+  } = useTracklistColumns(detailColumns, 'psysonic_playlist_columns');
 
   usePlaylistRouteEffects({ setContextMenuSongId, setEditingMeta, location, navigate });
 
@@ -253,6 +265,35 @@ export default function PlaylistDetail() {
     });
   };
 
+  const handleRefreshSmart = async () => {
+    if (!id || !serverId || refreshingSmart) return;
+    setRefreshingSmart(true);
+    try {
+      const ownerKey = ownedEntityKey({ id, serverId });
+      await runPlaylistRefreshSmart({
+        id,
+        serverId,
+        reload: () => runPlaylistLoad({
+          id,
+          serverId,
+          setLoading,
+          setPlaylist,
+          setSongs,
+          setCustomCoverId,
+          setRatings,
+          setStarredSongs,
+          soft: true,
+          isCurrent: () => loadedOwnerKeyRef.current === ownerKey,
+        }),
+      });
+      showToast(t('playlists.refreshSmartSuccess'), 2500, 'info');
+    } catch {
+      showToast(t('playlists.refreshSmartError'), 3500, 'error');
+    } finally {
+      setRefreshingSmart(false);
+    }
+  };
+
   // ── CSV Import ────────────────────────────────────────────────
   const handleImportCsv = async () => {
     if (!id || csvImporting) return;
@@ -280,11 +321,12 @@ export default function PlaylistDetail() {
 
   // ── DnD reorder listener + drag-over visual feedback ──────────
   const { dropTargetIdx, handleRowMouseEnter } = usePlaylistDnDReorder({
-    tracklistRef, songs, savePlaylist, setSongs,
+    tracklistRef, songs, savePlaylist, setSongs, enabled: !tracksReadOnly,
   });
 
   // ── Row mousedown: threshold drag for reorder (from anywhere on the row) ──
   const handleRowMouseDown = (e: React.MouseEvent, idx: number) => {
+    if (tracksReadOnly) return;
     startPlaylistRowDrag({ e, idx, songs, selectedIds, isFiltered, startDrag });
   };
 
@@ -323,6 +365,7 @@ export default function PlaylistDetail() {
         coverQuadIds={coverQuadIds}
         resolvedBgUrl={resolvedBgUrl}
         saving={saving}
+        refreshingSmart={refreshingSmart}
         searchOpen={searchOpen}
         csvImporting={csvImporting}
         activeZip={activeZip}
@@ -341,12 +384,13 @@ export default function PlaylistDetail() {
         handleEnqueueAll={handleEnqueueAll}
         handleImportCsv={handleImportCsv}
         handleDownload={handleDownload}
+        handleRefreshSmart={handleRefreshSmart}
         deleteAlbum={deleteAlbum}
         downloadPlaylist={downloadPlaylist}
       />
 
       {/* ── Song search panel ── */}
-      {searchOpen && (
+      {searchOpen && !tracksReadOnly && (
         <PlaylistSongSearchPanel
           query={searchQuery}
           setQuery={setSearchQuery}
@@ -420,13 +464,14 @@ export default function PlaylistDetail() {
         handleRate={handleRate}
         handleToggleStar={handleToggleStar}
         handleRowMouseDown={handleRowMouseDown}
-        handleRowMouseEnter={handleRowMouseEnter}
+        handleRowMouseEnter={tracksReadOnly ? () => undefined : handleRowMouseEnter}
         removeSong={removeSong}
         setSearchOpen={setSearchOpen}
+        tracksReadOnly={tracksReadOnly}
       />
 
       {/* ── Suggestions ── */}
-      <PlaylistSuggestions
+      {!tracksReadOnly && <PlaylistSuggestions
         songs={songs}
         suggestions={suggestions}
         existingIds={existingIds}
@@ -444,7 +489,7 @@ export default function PlaylistDetail() {
         starredSongs={starredSongs}
         handleRate={handleRate}
         handleToggleStar={handleToggleStar}
-      />
+      />}
 
       {editingMeta && playlist && (
         <PlaylistEditModal

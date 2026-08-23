@@ -12,6 +12,12 @@ import type { PersistedAccount } from '../music-network';
 /** Album-artist vs track-performer browse (#1209). Duplicated here — not `@/lib/api/library` — to avoid store ↔ library import cycles (dependency-cruiser). */
 export type ArtistBrowseCreditMode = 'album' | 'track';
 
+export type SmartPlaylistCustomFieldSetting = {
+  name: string;
+  type: 'string' | 'number' | 'boolean' | 'date';
+  kind: 'tag' | 'role';
+};
+
 export type CustomHeaderEntry = {
   name: string;
   value: string;
@@ -149,6 +155,8 @@ export interface AuthState {
   mediaDir: string;
   excludeAudiobooks: boolean;
   customGenreBlacklist: string[];
+  /** Server-specific smart-playlist tags/roles shown in the Advanced field picker. */
+  smartPlaylistCustomFields: SmartPlaylistCustomFieldSetting[];
   replayGainEnabled: boolean;
   normalizationEngine: NormalizationEngine;
   loudnessTargetLufs: LoudnessLufsPreset;
@@ -426,6 +434,7 @@ export interface AuthState {
   setOfflineDownloadDir: (v: string) => void;
   setExcludeAudiobooks: (v: boolean) => void;
   setCustomGenreBlacklist: (v: string[]) => void;
+  setSmartPlaylistCustomFields: (v: SmartPlaylistCustomFieldSetting[]) => void;
   setReplayGainEnabled: (v: boolean) => void;
   setNormalizationEngine: (v: NormalizationEngine) => void;
   setLoudnessTargetLufs: (v: LoudnessLufsPreset) => void;

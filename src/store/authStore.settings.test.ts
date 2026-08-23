@@ -305,6 +305,15 @@ describe('genre blacklist + audio output device', () => {
     expect(useAuthStore.getState().customGenreBlacklist).toEqual([]);
   });
 
+  it('setSmartPlaylistCustomFields replaces the list', () => {
+    const fields = [{ name: 'ndmood_energy', type: 'string' as const, kind: 'tag' as const }];
+    useAuthStore.getState().setSmartPlaylistCustomFields(fields);
+    expect(useAuthStore.getState().smartPlaylistCustomFields).toEqual(fields);
+
+    useAuthStore.getState().setSmartPlaylistCustomFields([]);
+    expect(useAuthStore.getState().smartPlaylistCustomFields).toEqual([]);
+  });
+
   it('setAudioOutputDevice stores the device id or null', () => {
     useAuthStore.getState().setAudioOutputDevice('hw:0,0');
     expect(useAuthStore.getState().audioOutputDevice).toBe('hw:0,0');

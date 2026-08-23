@@ -1,4 +1,5 @@
-export const SMART_PREFIX = 'psy-smart-';
+import { playlistDisplayName } from '@/lib/format/playlistClassification';
+
 export const LIMIT_MAX = 500;
 export const YEAR_MIN = 1950;
 export const YEAR_MAX = new Date().getFullYear() + 1;
@@ -21,6 +22,8 @@ export type SmartFilters = {
   yearFrom: number;
   yearTo: number;
   yearMode: YearMode;
+  /** When false, Basic does not emit a year clause. New playlists default to on. */
+  yearEnabled: boolean;
   /** Navidrome `{ is: { genre: '' } }` — tracks with no genre tag. */
   untaggedGenresOnly: boolean;
 };
@@ -55,21 +58,12 @@ export const defaultSmartFilters: SmartFilters = {
   yearFrom: YEAR_MIN,
   yearTo: YEAR_MAX,
   yearMode: 'include',
+  yearEnabled: true,
   untaggedGenresOnly: false,
 };
 
 export function clampYear(v: number): number {
   return Math.max(YEAR_MIN, Math.min(YEAR_MAX, v));
-}
-
-export function isSmartPlaylistName(name: string): boolean {
-  return (name ?? '').toLowerCase().startsWith(SMART_PREFIX);
-}
-
-export function displayPlaylistName(name: string): string {
-  const n = name ?? '';
-  if (isSmartPlaylistName(n)) return n.slice(SMART_PREFIX.length);
-  return n;
 }
 
 export function asRecord(v: unknown): Record<string, unknown> | null {
@@ -82,7 +76,7 @@ export function parseSmartRulesToFilters(
 ): SmartFilters {
   const next: SmartFilters = {
     ...defaultSmartFilters,
-    name: displayPlaylistName(playlistName),
+    name: playlistDisplayName({ name: playlistName }),
   };
   if (!rules) return next;
 
@@ -126,6 +120,7 @@ export function parseSmartRulesToFilters(
       const from = Number(inTheRange.year[0]);
       const to = Number(inTheRange.year[1]);
       if (Number.isFinite(from) && Number.isFinite(to)) {
+        next.yearEnabled = true;
         next.yearMode = 'include';
         next.yearFrom = clampYear(Math.min(from, to));
         next.yearTo = clampYear(Math.max(from, to));
@@ -142,6 +137,7 @@ export function parseSmartRulesToFilters(
       const ltYear = any.map((item) => asRecord(asRecord(item)?.lt)?.year).find((v) => typeof v === 'number');
       const gtYear = any.map((item) => asRecord(asRecord(item)?.gt)?.year).find((v) => typeof v === 'number');
       if (typeof ltYear === 'number' && typeof gtYear === 'number') {
+        next.yearEnabled = true;
         next.yearMode = 'exclude';
         next.yearFrom = clampYear(Math.min(ltYear, gtYear));
         next.yearTo = clampYear(Math.max(ltYear, gtYear));
@@ -192,14 +188,19 @@ export function buildSmartRulesPayload(
     }
   }
 
-  if (filters.yearMode === 'include') {
-    all.push({ inTheRange: { year: [filters.yearFrom, filters.yearTo] } });
-  } else {
-    all.push({ any: [{ lt: { year: filters.yearFrom } }, { gt: { year: filters.yearTo } }] });
+  if (filters.yearEnabled) {
+    if (filters.yearMode === 'include') {
+      all.push({ inTheRange: { year: [filters.yearFrom, filters.yearTo] } });
+    } else {
+      all.push({ any: [{ lt: { year: filters.yearFrom } }, { gt: { year: filters.yearTo } }] });
+    }
   }
 
   const rules: Record<string, unknown> = { all };
-  rules.limit = Math.max(1, Math.min(LIMIT_MAX, Number(filters.limit) || 50));
-  rules.sort = filters.sort;
+  const limit = Number(filters.limit);
+  if (Number.isFinite(limit) && limit > 0) {
+    rules.limit = Math.max(1, Math.min(LIMIT_MAX, limit));
+  }
+  if (filters.sort.trim()) rules.sort = filters.sort;
   return rules;
 }

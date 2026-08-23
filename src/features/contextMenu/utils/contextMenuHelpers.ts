@@ -1,9 +1,5 @@
-/** Psysonic smart playlists (Navidrome); not valid targets for manual add-to-playlist. */
-export const SMART_PLAYLIST_PREFIX = 'psy-smart-';
-
-export function isSmartPlaylistName(name: string | undefined | null): boolean {
-  return (name ?? '').toLowerCase().startsWith(SMART_PLAYLIST_PREFIX);
-}
+import type { SubsonicPlaylist } from '@/lib/api/subsonicTypes';
+import { isSmartPlaylist } from '@/lib/format/playlistClassification';
 
 export function manualPlaylistTargetsForServer(
   playlists: readonly SubsonicPlaylist[],
@@ -12,7 +8,7 @@ export function manualPlaylistTargetsForServer(
   if (!serverId) return [];
   return playlists.filter(playlist => (
     playlist.serverId === serverId
-    && !isSmartPlaylistName(playlist.name)
+    && !isSmartPlaylist(playlist)
   ));
 }
 
@@ -33,4 +29,3 @@ export function shuffleArray<T>(arr: T[]): T[] {
   }
   return result;
 }
-import type { SubsonicPlaylist } from '@/lib/api/subsonicTypes';

@@ -2,7 +2,6 @@ import React from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { ChevronRight, Folder, PlayCircle, Sparkles } from 'lucide-react';
-import { displayPlaylistName, isSmartPlaylistName } from '@/features/sidebar/utils/sidebarHelpers';
 import { usePlayerStore } from '@/features/playback/store/playerStore';
 import { usePlaylistStore } from '@/features/playlist';
 import { EMPTY_SERVER_FOLDERS, usePlaylistFolderStore } from '@/features/playlist';
@@ -10,6 +9,7 @@ import { groupPlaylistsByFolder } from '@/features/playlist';
 import type { SubsonicPlaylist } from '@/lib/api/subsonicTypes';
 import { playlistDetailPath, runLatestPlaylistServerIntent } from '@/features/playlist';
 import { ownedEntityKey } from '@/lib/util/ownedEntityKey';
+import { isSmartPlaylist, playlistDisplayName } from '@/lib/format/playlistClassification';
 
 interface Props {
   playlists: SubsonicPlaylist[];
@@ -72,8 +72,8 @@ export default function SidebarPlaylistsSection({
         void runLatestPlaylistServerIntent(full, () => openContextMenu(clientX, clientY, full, 'playlist'));
       }}
     >
-      {isSmartPlaylistName(pl.name) ? <Sparkles size={12} /> : <PlayCircle size={12} />}
-      <span>{displayPlaylistName(pl.name)}</span>
+      {isSmartPlaylist(pl) ? <Sparkles size={12} /> : <PlayCircle size={12} />}
+      <span>{playlistDisplayName(pl)}</span>
     </NavLink>
   };
 

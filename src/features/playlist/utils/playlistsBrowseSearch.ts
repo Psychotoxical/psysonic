@@ -1,4 +1,5 @@
 import type { SubsonicPlaylist } from '@/lib/api/subsonicTypes';
+import { playlistDisplayName } from '@/lib/format/playlistClassification';
 
 /** True when pathname is the Playlists browse route (`/playlists`). */
 export function isPlaylistsBrowsePath(pathname: string): boolean {
@@ -12,5 +13,8 @@ export function filterPlaylistsByNameQuery(
 ): SubsonicPlaylist[] {
   const needle = query.trim().toLowerCase();
   if (!needle) return playlists;
-  return playlists.filter(p => (p.name ?? '').toLowerCase().includes(needle));
+  return playlists.filter(p => (
+    (p.name ?? '').toLowerCase().includes(needle)
+    || playlistDisplayName(p).toLowerCase().includes(needle)
+  ));
 }

@@ -5,16 +5,20 @@ import {
   chunkIndicesForSubsonicGet,
   chunkRemovalIndicesForSubsonicGet,
   chunkSongIdsForSubsonicGet,
+  applyNativePlaylistSmartMetadata,
+  getPlaylistsForServer,
   getPlaylistsForServers,
   getPlaylistsForServersSettled,
   getPlaylistForServer,
   removePlaylistSongsAtIndices,
   updatePlaylist,
 } from '@/lib/api/subsonicPlaylists';
+import { useAuthStore } from '@/store/authStore';
+import { resetAuthStore } from '@/test/helpers/storeReset';
 
-const { apiMock, apiForServerMock } = vi.hoisted(() => {
+const { apiMock, apiForServerMock, ndListPlaylistsMock } = vi.hoisted(() => {
   const fn = vi.fn();
-  return { apiMock: fn, apiForServerMock: vi.fn() };
+  return { apiMock: fn, apiForServerMock: vi.fn(), ndListPlaylistsMock: vi.fn() };
 });
 
 vi.mock('@/lib/api/subsonicClient', () => ({
@@ -26,14 +30,20 @@ vi.mock('@/features/offline', () => ({
   schedulePinnedPlaylistSync: vi.fn(),
 }));
 
+vi.mock('@/lib/api/navidromeSmart', () => ({
+  ndListPlaylists: ndListPlaylistsMock,
+}));
+
 vi.mock('@/lib/network/subsonicNetworkGuard', () => ({
   shouldAttemptSubsonicForServer: () => true,
 }));
 
 describe('subsonicPlaylists batching', () => {
   beforeEach(() => {
+    resetAuthStore();
     apiMock.mockReset();
     apiForServerMock.mockReset();
+    ndListPlaylistsMock.mockReset();
     apiMock.mockImplementation(async (endpoint: string) => {
       if (endpoint === 'getPlaylist.view') {
         return {
@@ -70,6 +80,67 @@ describe('subsonicPlaylists batching', () => {
       playlists: [{ id: 'pl-a', name: 'a', serverId: 'a' }],
       failedServerIds: ['b'],
     });
+  });
+
+  it('joins native metadata by id and writes authoritative booleans', async () => {
+    const playlists = [
+      { id: 'native-smart', name: 'No prefix', songCount: 0, duration: 0, created: '', changed: '' },
+      { id: 'prefixed-regular', name: 'psy-smart-Regular', songCount: 0, duration: 0, created: '', changed: '' },
+      { id: 'missing', name: 'psy-smart-Missing', songCount: 0, duration: 0, created: '', changed: '' },
+    ];
+
+    expect(applyNativePlaylistSmartMetadata(playlists, [
+      { id: 'native-smart', rules: { all: [] } },
+      { id: 'prefixed-regular', rules: undefined },
+    ])).toEqual([
+      expect.objectContaining({ id: 'native-smart', smart: true }),
+      expect.objectContaining({ id: 'prefixed-regular', smart: false }),
+      expect.objectContaining({ id: 'missing', smart: false }),
+    ]);
+  });
+
+  it('loads unfiltered native metadata for each Navidrome owner', async () => {
+    useAuthStore.setState({
+      servers: [
+        { id: 'a', name: 'A', url: 'https://a.test', username: 'u', password: 'p' },
+        { id: 'b', name: 'B', url: 'https://b.test', username: 'u', password: 'p' },
+      ],
+      subsonicServerIdentityByServer: {
+        a: { type: 'navidrome' },
+        b: { type: 'navidrome' },
+      },
+    });
+    apiForServerMock.mockImplementation(async (serverId: string) => ({
+      playlists: { playlist: [{ id: 'shared', name: `From ${serverId}` }] },
+    }));
+    ndListPlaylistsMock.mockImplementation(async (serverId: string) => [
+      { id: 'shared', rules: serverId === 'a' ? { any: [] } : undefined },
+    ]);
+
+    await expect(getPlaylistsForServers(['a', 'b'])).resolves.toEqual([
+      expect.objectContaining({ id: 'shared', serverId: 'a', smart: true }),
+      expect.objectContaining({ id: 'shared', serverId: 'b', smart: false }),
+    ]);
+    expect(ndListPlaylistsMock.mock.calls.map(call => call[0])).toEqual(['a', 'b']);
+  });
+
+  it('leaves classification unknown when native metadata fails', async () => {
+    useAuthStore.setState({
+      servers: [{ id: 'a', name: 'A', url: 'https://a.test', username: 'u', password: 'p' }],
+      subsonicServerIdentityByServer: { a: { type: 'navidrome' } },
+    });
+    apiForServerMock.mockResolvedValue({
+      playlists: { playlist: [{ id: 'legacy', name: 'psy-smart-Legacy' }] },
+    });
+    ndListPlaylistsMock.mockRejectedValue(new Error('native API unavailable'));
+
+    const playlists = await getPlaylistsForServer('a');
+
+    expect(playlists[0]).toEqual(expect.objectContaining({
+      id: 'legacy',
+      serverId: 'a',
+    }));
+    expect(playlists[0]).not.toHaveProperty('smart');
   });
 
   it('stamps playlist details and songs with their owner server', async () => {
