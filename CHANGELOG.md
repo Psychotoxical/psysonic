@@ -75,6 +75,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * Artists, albums and songs could each appear twice when the local index and the server response used different forms of the same server identity. Live Search now aligns that identity before combining the results, while still keeping genuinely separate matches from different servers.
 
+### Linux shortcuts work immediately after returning to the app
+
+**By [@cucadmuh](https://github.com/cucadmuh), issue reported by HiveMind on the Psysonic Discord, PR [#1450](https://github.com/Psysonic/psysonic/pull/1450)**
+
+* **Linux/KDE Plasma:** Alt+Tab could return to Psysonic while leaving its webview without keyboard focus, so Space, F11 and other in-app shortcuts did nothing until the window was clicked. Psysonic now restores keyboard focus as soon as the native window is reactivated.
+
 ## [1.51.0] - 2026-08-17
 
 ## Added
