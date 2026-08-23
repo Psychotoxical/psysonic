@@ -63,6 +63,48 @@ fn navidrome_song_maps_native_field_shape() {
 }
 
 #[test]
+fn navidrome_song_normalizes_current_participants_into_structured_artist_refs() {
+    let raw = json!({
+        "id": "tr_1",
+        "title": "Adore You (Extended Mix)",
+        "artist": "FOVOS, Someone Else",
+        "artistId": "fovos",
+        "artists": [
+            { "id": "fovos", "name": "FOVOS" },
+            { "id": "max-cardona", "name": "Max Cardona" }
+        ],
+        "albumArtists": [
+            { "id": "fovos", "name": "FOVOS" },
+            { "id": "max-cardona", "name": "Max Cardona" }
+        ],
+        "participants": {
+            "artist": [
+                { "id": "fovos", "name": "FOVOS" },
+                { "id": "someone-else", "name": "Someone Else" }
+            ],
+            "albumartist": [
+                { "id": "fovos", "name": "FOVOS" }
+            ]
+        }
+    });
+
+    let row = navidrome_song_to_track_row("s1", &raw, 1, None).unwrap();
+    let normalized: serde_json::Value = serde_json::from_str(&row.raw_json).unwrap();
+
+    assert_eq!(
+        normalized["artists"],
+        json!([
+            { "id": "fovos", "name": "FOVOS" },
+            { "id": "someone-else", "name": "Someone Else" }
+        ])
+    );
+    assert_eq!(
+        normalized["albumArtists"],
+        json!([{ "id": "fovos", "name": "FOVOS" }])
+    );
+}
+
+#[test]
 fn navidrome_song_maps_numeric_library_id() {
     let raw = json!({ "id": "tr_1", "title": "Hello", "libraryId": 3 });
     let row = navidrome_song_to_track_row("s1", &raw, 1, None).unwrap();
