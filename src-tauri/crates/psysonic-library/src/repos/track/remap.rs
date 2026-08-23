@@ -18,6 +18,29 @@ impl TrackRepository<'_> {
         rows: &[TrackRow],
         unstable_track_ids: bool,
     ) -> Result<RemapStats, String> {
+        self.upsert_batch_with_remap_source(rows, unstable_track_ids, false)
+    }
+
+    /// Remap-aware upsert for payloads that are intentionally sparse.
+    ///
+    /// Missing JSON fields are preserved from the existing row via the
+    /// `UPSERT_SQL` json_patch branch instead of replacing `raw_json` wholesale.
+    /// This is used by Navidrome native delta ingest, whose `/api/song` shape can
+    /// omit richer OpenSubsonic fields such as `artists` and `albumArtists`.
+    pub(crate) fn upsert_sparse_batch_with_remap(
+        &self,
+        rows: &[TrackRow],
+        unstable_track_ids: bool,
+    ) -> Result<RemapStats, String> {
+        self.upsert_batch_with_remap_source(rows, unstable_track_ids, true)
+    }
+
+    fn upsert_batch_with_remap_source(
+        &self,
+        rows: &[TrackRow],
+        unstable_track_ids: bool,
+        sparse_payload: bool,
+    ) -> Result<RemapStats, String> {
         if rows.is_empty() {
             return Ok(RemapStats::default());
         }
@@ -87,7 +110,7 @@ impl TrackRepository<'_> {
                         if r.deleted { 1_i64 } else { 0 },
                         r.synced_at,
                         r.raw_json,
-                        0_i64,
+                        if sparse_payload { 1_i64 } else { 0_i64 },
                     ])?;
 
                     if let Some(old_id) = detected_old {
