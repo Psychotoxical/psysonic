@@ -69,6 +69,9 @@ fn navidrome_song_normalizes_current_participants_into_structured_artist_refs() 
         "title": "Adore You (Extended Mix)",
         "artist": "FOVOS, Someone Else",
         "artistId": "fovos",
+        "albumArtist": "FOVOS",
+        "displayArtist": "FOVOS, Max Cardona",
+        "displayAlbumArtist": "FOVOS, Max Cardona",
         "artists": [
             { "id": "fovos", "name": "FOVOS" },
             { "id": "max-cardona", "name": "Max Cardona" }
@@ -102,6 +105,76 @@ fn navidrome_song_normalizes_current_participants_into_structured_artist_refs() 
         normalized["albumArtists"],
         json!([{ "id": "fovos", "name": "FOVOS" }])
     );
+    assert_eq!(normalized["displayArtist"], json!("FOVOS, Someone Else"));
+    assert_eq!(normalized["displayAlbumArtist"], json!("FOVOS"));
+}
+
+#[test]
+fn navidrome_song_present_participants_clears_missing_roles() {
+    let raw = json!({
+        "id": "tr_1",
+        "title": "Current credits",
+        "artist": "FOVOS",
+        "albumArtist": "FOVOS",
+        "artists": [
+            { "id": "old-track", "name": "Old Track Artist" }
+        ],
+        "albumArtists": [
+            { "id": "old-album", "name": "Old Album Artist" }
+        ],
+        "participants": {
+            "artist": [
+                { "id": "fovos", "name": "FOVOS" }
+            ]
+        }
+    });
+
+    let row = navidrome_song_to_track_row("s1", &raw, 1, None).unwrap();
+    let normalized: serde_json::Value = serde_json::from_str(&row.raw_json).unwrap();
+
+    assert_eq!(
+        normalized["artists"],
+        json!([{ "id": "fovos", "name": "FOVOS" }])
+    );
+    assert_eq!(normalized["albumArtists"], json!([]));
+}
+
+#[test]
+fn navidrome_song_absent_or_null_participants_keeps_compatibility_arrays() {
+    let stale_artists = json!([
+        { "id": "fovos", "name": "FOVOS" },
+        { "id": "max-cardona", "name": "Max Cardona" }
+    ]);
+    let stale_album_artists = json!([
+        { "id": "fovos", "name": "FOVOS" }
+    ]);
+
+    let without_participants = json!({
+        "id": "tr_absent",
+        "title": "Compatibility",
+        "artist": "FOVOS, Max Cardona",
+        "albumArtist": "FOVOS",
+        "artists": stale_artists.clone(),
+        "albumArtists": stale_album_artists.clone()
+    });
+    let null_participants = json!({
+        "id": "tr_null",
+        "title": "Compatibility",
+        "artist": "FOVOS, Max Cardona",
+        "albumArtist": "FOVOS",
+        "artists": stale_artists.clone(),
+        "albumArtists": stale_album_artists.clone(),
+        "participants": null
+    });
+
+    for raw in [without_participants, null_participants] {
+        let row = navidrome_song_to_track_row("s1", &raw, 1, None).unwrap();
+        let normalized: serde_json::Value = serde_json::from_str(&row.raw_json).unwrap();
+        assert_eq!(normalized["artists"], stale_artists);
+        assert_eq!(normalized["albumArtists"], stale_album_artists);
+        assert_eq!(normalized["displayArtist"], json!("FOVOS, Max Cardona"));
+        assert_eq!(normalized["displayAlbumArtist"], json!("FOVOS"));
+    }
 }
 
 #[test]
