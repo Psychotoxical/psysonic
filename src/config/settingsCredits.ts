@@ -543,6 +543,13 @@ const CONTRIBUTOR_ENTRIES = [
       'Configurable scrobble threshold and force-scrobble action (PR #1425)',
     ],
   },
+  {
+    github: 'devyeah1978',
+    since: '1.52.0',
+    contributions: [
+      'Navidrome delta sync preserves structured multi-artist credits (PR #1449)',
+    ],
+  },
 ] as const;
 
 // PR number of a contributor's first listed contribution, used as the
