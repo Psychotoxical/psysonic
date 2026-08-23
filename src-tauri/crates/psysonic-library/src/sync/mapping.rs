@@ -204,6 +204,33 @@ pub fn subsonic_song_to_track_row(
     }
 }
 
+/// Normalize Navidrome native participant roles onto the OpenSubsonic keys the
+/// rest of Psysonic already consumes. Presence is authoritative here: an empty
+/// array or explicit null means the native payload observed that role and must
+/// be allowed to clear a stale value during sparse json_patch. Only a genuinely
+/// absent role falls back to the previously stored rich field.
+fn normalize_navidrome_participants(raw: &Value) -> Value {
+    let mut normalized = raw.clone();
+    let Some(participants) = raw.get("participants").and_then(Value::as_object) else {
+        return normalized;
+    };
+    let Some(obj) = normalized.as_object_mut() else {
+        return normalized;
+    };
+
+    if let Some(artists) = participants.get("artist") {
+        obj.insert("artists".to_string(), artists.clone());
+    }
+    if let Some(album_artists) = participants
+        .get("albumartist")
+        .or_else(|| participants.get("albumArtist"))
+    {
+        obj.insert("albumArtists".to_string(), album_artists.clone());
+    }
+
+    normalized
+}
+
 /// Project a Navidrome `/api/song` row (native REST shape) into a
 /// `TrackRow`. Field names mostly overlap with Subsonic but use
 /// snake_case JSON aliases — we read fields by `get(name)` rather
@@ -215,6 +242,8 @@ pub fn navidrome_song_to_track_row(
     synced_at: i64,
     library_id_fallback: Option<&str>,
 ) -> Option<TrackRow> {
+    let normalized = normalize_navidrome_participants(raw);
+    let raw = &normalized;
     let id = raw.get("id").and_then(|v| v.as_str())?.to_string();
     let title = raw
         .get("title")
