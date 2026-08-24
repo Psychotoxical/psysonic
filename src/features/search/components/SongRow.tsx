@@ -8,6 +8,7 @@ import { useTranslation } from 'react-i18next';
 import { usePlayerStore } from '@/features/playback/store/playerStore';
 import { enqueueAndPlay } from '@/features/playback/utils/playback/playSong';
 import { useDragDrop } from '@/lib/dnd/DragDropContext';
+import { useDragPress } from '@/lib/dnd/useDragPress';
 import { useOrbitSongRowBehavior } from '@/features/orbit';
 import { formatTrackTime } from '@/lib/format/formatDuration';
 import { resolveTrackArtistRefs } from '@/features/playback/utils/playback/trackArtistRefs';
@@ -51,6 +52,14 @@ function SongRow({ song, showBpm }: Props) {
     enqueue([songToTrack(song)]);
   };
 
+  const onRowMouseDown = useDragPress({
+    preventDefault: false,
+    onStart: (me) => psyDrag.startDrag(
+      { data: JSON.stringify({ type: 'song', track: songToTrack(song) }), label: song.title },
+      me.clientX, me.clientY,
+    ),
+  });
+
   const artistRefs = resolveTrackArtistRefs(song);
   const activeServerId = useAuthStore(s => s.activeServerId ?? '');
 
@@ -69,27 +78,7 @@ function SongRow({ song, showBpm }: Props) {
         e.preventDefault();
         openContextMenu(e.clientX, e.clientY, song, 'song');
       }}
-      onMouseDown={(e) => {
-        if (e.button !== 0) return;
-        const sx = e.clientX, sy = e.clientY;
-        const track = songToTrack(song);
-        const onMove = (me: MouseEvent) => {
-          if (Math.abs(me.clientX - sx) > 5 || Math.abs(me.clientY - sy) > 5) {
-            document.removeEventListener('mousemove', onMove);
-            document.removeEventListener('mouseup', onUp);
-            psyDrag.startDrag(
-              { data: JSON.stringify({ type: 'song', track }), label: song.title },
-              me.clientX, me.clientY,
-            );
-          }
-        };
-        const onUp = () => {
-          document.removeEventListener('mousemove', onMove);
-          document.removeEventListener('mouseup', onUp);
-        };
-        document.addEventListener('mousemove', onMove);
-        document.addEventListener('mouseup', onUp);
-      }}
+      onMouseDown={onRowMouseDown}
     >
       <div className="song-list-row-cell song-list-row-actions">
         <button

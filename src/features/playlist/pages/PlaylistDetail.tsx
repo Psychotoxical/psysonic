@@ -14,6 +14,7 @@ import { useAuthStore } from '@/store/authStore';
 import { useDownloadModalStore } from '@/features/offline';
 import { useZipDownloadStore } from '@/features/offline';
 import { useDragDrop } from '@/lib/dnd/DragDropContext';
+import { useDragPressHandle } from '@/lib/dnd/useDragPress';
 import { useTranslation } from 'react-i18next';
 import type { SpotifyCsvTrack } from '@/features/playlist/utils/spotifyCsvImport';
 import { runPlaylistCsvImport } from '@/features/playlist/utils/runPlaylistCsvImport';
@@ -77,6 +78,8 @@ export default function PlaylistDetail() {
   );
   const touchPlaylist = usePlaylistStore((s) => s.touchPlaylist);
   const { startDrag } = useDragDrop();
+  // Rows are virtualised, so one can be recycled out from under a held button.
+  const dragPress = useDragPressHandle();
   const downloadPlaylist = useOfflineStore(s => s.downloadPlaylist);
   const deleteAlbum = useOfflineStore(s => s.deleteAlbum);
   const activeServerId = useAuthStore(s => s.activeServerId);
@@ -285,7 +288,10 @@ export default function PlaylistDetail() {
 
   // ── Row mousedown: threshold drag for reorder (from anywhere on the row) ──
   const handleRowMouseDown = (e: React.MouseEvent, idx: number) => {
-    startPlaylistRowDrag({ e, idx, songs, selectedIds, isFiltered, startDrag });
+    dragPress.arm(e, {
+      canStart: (ev) => !(ev.target as HTMLElement).closest('button, input'),
+      onStart: (me) => startPlaylistRowDrag({ me, idx, songs, selectedIds, isFiltered, startDrag }),
+    });
   };
 
   // ── Memoized derivations ──────────────────────────────────────

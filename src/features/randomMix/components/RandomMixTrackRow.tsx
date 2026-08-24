@@ -5,6 +5,7 @@ import type { SubsonicSong } from '@/lib/api/subsonicTypes';
 import type { Track } from '@/lib/media/trackTypes';
 import { previewInputFromSong, usePreviewStore } from '@/features/playback/store/previewStore';
 import { useDragDrop } from '@/lib/dnd/DragDropContext';
+import { useDragPress } from '@/lib/dnd/useDragPress';
 import { formatRandomMixDuration } from '@/features/randomMix/utils/randomMixHelpers';
 import { OptionalBrowseTrackRowCoverThumb } from '@/cover/TrackRowCoverThumb';
 
@@ -47,6 +48,13 @@ export default function RandomMixTrackRow({
   const { t } = useTranslation();
   const psyDrag = useDragDrop();
 
+  const onRowMouseDown = useDragPress({
+    onStart: (me) => psyDrag.startDrag(
+      { data: JSON.stringify({ type: 'song', track }), label: song.title },
+      me.clientX, me.clientY,
+    ),
+  });
+
   const artist = song.artist;
   const genre = song.genre;
   const isArtistBlocked = !!artist && customGenreBlacklist.some(bg => artist.toLowerCase().includes(bg.toLowerCase()));
@@ -71,21 +79,7 @@ export default function RandomMixTrackRow({
       } : undefined}
       role="row"
       onContextMenu={onOpenContextMenu}
-      onMouseDown={e => {
-        if (e.button !== 0) return;
-        e.preventDefault();
-        const sx = e.clientX, sy = e.clientY;
-        const onMove = (me: MouseEvent) => {
-          if (Math.abs(me.clientX - sx) > 5 || Math.abs(me.clientY - sy) > 5) {
-            document.removeEventListener('mousemove', onMove);
-            document.removeEventListener('mouseup', onUp);
-            psyDrag.startDrag({ data: JSON.stringify({ type: 'song', track }), label: song.title }, me.clientX, me.clientY);
-          }
-        };
-        const onUp = () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
-        document.addEventListener('mousemove', onMove);
-        document.addEventListener('mouseup', onUp);
-      }}
+      onMouseDown={onRowMouseDown}
     >
       <div className={`track-num${isCurrentTrack ? ' track-num-active' : ''}`}>
         {isCurrentTrack && isPlaying ? (
