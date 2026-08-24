@@ -95,9 +95,19 @@ export function TracklistColumnPicker({
       <div className="tracklist-col-picker">
         <button
           ref={btnRef}
+          type="button"
           className="tracklist-col-picker-btn"
           onClick={e => { e.stopPropagation(); setPickerOpen(v => !v); }}
           data-tooltip={t('albumDetail.columns')}
+          // The tooltip is not an accessible name — without this the control is
+          // announced as an unlabelled button on every tracklist.
+          aria-label={t('albumDetail.columns')}
+          // Deliberately `true`, not `"menu"`: the popup is a list of plain
+          // toggle buttons with no menu roles or arrow-key navigation, and
+          // promising a menu would have screen-reader users press keys that do
+          // nothing here.
+          aria-haspopup="true"
+          aria-expanded={pickerOpen}
         >
           <ChevronDown size={14} />
         </button>
