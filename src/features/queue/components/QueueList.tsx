@@ -25,6 +25,7 @@ import {
 import { playTimelineHistoryTrack } from '@/features/playback/utils/playTimelineHistoryTrack';
 import { OptionalQueueTrackRowCoverThumb } from '@/cover/TrackRowCoverThumb';
 import { useTrackListCoverArtEnabled } from '@/cover/useTrackListCoverArtSettings';
+import { useDragPressHandle } from '@/lib/dnd/useDragPress';
 
 type StartDrag = (
   payload: { data: string; label: string },
@@ -66,6 +67,8 @@ export function QueueList({
 }: Props) {
   useSyncExternalStore(subscribeQueueResolver, getQueueResolverVersion);
   const showCovers = useTrackListCoverArtEnabled('queue');
+  // Rows are virtualised, so one can be recycled out from under a held button.
+  const dragPress = useDragPressHandle();
 
   const usingTimeline = queueDisplayMode === 'timeline' && timelineRows != null;
   const rowCount = usingTimeline ? timelineRows.length : queue.length;
@@ -217,24 +220,12 @@ export function QueueList({
         }}
         onMouseDown={(e) => {
           if (isHistory || absIdx == null) return;
-          if (e.button !== 0) return;
-          e.preventDefault();
-          const startX = e.clientX;
-          const startY = e.clientY;
-          const onMove = (me: MouseEvent) => {
-            if (Math.abs(me.clientX - startX) > 5 || Math.abs(me.clientY - startY) > 5) {
-              document.removeEventListener('mousemove', onMove);
-              document.removeEventListener('mouseup', onUp);
+          dragPress.arm(e, {
+            onStart: (me) => {
               psyDragFromIdxRef.current = absIdx;
               startDrag({ data: JSON.stringify({ type: 'queue_reorder', index: absIdx }), label: track.title }, me.clientX, me.clientY);
-            }
-          };
-          const onUp = () => {
-            document.removeEventListener('mousemove', onMove);
-            document.removeEventListener('mouseup', onUp);
-          };
-          document.addEventListener('mousemove', onMove);
-          document.addEventListener('mouseup', onUp);
+            },
+          });
         }}
         style={{ ...(isPast && !isPlaying ? { opacity: 0.5 } : null), ...dragStyle }}
       >

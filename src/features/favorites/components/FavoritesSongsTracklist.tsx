@@ -11,6 +11,7 @@ import { previewInputFromSong, usePreviewStore } from '@/features/playback/store
 import { useSelectionStore } from '@/store/selectionStore';
 import { useThemeStore } from '@/store/themeStore';
 import { useDragDrop } from '@/lib/dnd/DragDropContext';
+import { useDragPressHandle } from '@/lib/dnd/useDragPress';
 import { useOrbitSongRowBehavior } from '@/features/orbit';
 import { songToTrack } from '@/lib/media/songToTrack';
 import { appendServerQuery, buildArtistDetailPath } from '@/lib/navigation/detailServerScope';
@@ -68,6 +69,8 @@ export default function FavoritesSongsTracklist({
   const showBitrate = useThemeStore(s => s.showBitrate);
   const trackListCoversOn = useTrackListCoverArtEnabled('pages');
   const psyDrag = useDragDrop();
+  // Rows are virtualised, so one can be recycled out from under a held button.
+  const dragPress = useDragPressHandle();
   const { orbitActive, queueHint, addTrackToOrbit } = useOrbitSongRowBehavior();
 
   const visibleTracks = useMemo(() => visibleSongs.map(songToTrack), [visibleSongs]);
@@ -101,28 +104,19 @@ export default function FavoritesSongsTracklist({
       latest.current.openContextMenu(e.clientX, e.clientY, songToTrack(song), 'favorite-song');
     },
     mouseDownRow: (song, e) => {
-      if (e.button !== 0) return;
-      if ((e.target as HTMLElement).closest('button, a, input')) return;
-      e.preventDefault();
-      const sx = e.clientX, sy = e.clientY;
-      const track = songToTrack(song);
-      const onMove = (me: MouseEvent) => {
-        if (Math.abs(me.clientX - sx) > 5 || Math.abs(me.clientY - sy) > 5) {
-          document.removeEventListener('mousemove', onMove);
-          document.removeEventListener('mouseup', onUp);
+      dragPress.arm(e, {
+        canStart: (ev) => !(ev.target as HTMLElement).closest('button, a, input'),
+        onStart: (me) => {
           const L = latest.current;
           const { selectedIds: selIds } = useSelectionStore.getState();
-           if (selIds.has(ownedEntityKey(song)) && selIds.size > 1) {
-             const bulkTracks = L.visibleSongs.filter(s => selIds.has(ownedEntityKey(s))).map(songToTrack);
+          if (selIds.has(ownedEntityKey(song)) && selIds.size > 1) {
+            const bulkTracks = L.visibleSongs.filter(s => selIds.has(ownedEntityKey(s))).map(songToTrack);
             L.psyDrag.startDrag({ data: JSON.stringify({ type: 'songs', tracks: bulkTracks }), label: `${bulkTracks.length} Songs` }, me.clientX, me.clientY);
           } else {
-            L.psyDrag.startDrag({ data: JSON.stringify({ type: 'song', track }), label: song.title }, me.clientX, me.clientY);
+            L.psyDrag.startDrag({ data: JSON.stringify({ type: 'song', track: songToTrack(song) }), label: song.title }, me.clientX, me.clientY);
           }
-        }
-      };
-      const onUp = () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
-      document.addEventListener('mousemove', onMove);
-      document.addEventListener('mouseup', onUp);
+        },
+      });
     },
     toggleSelect: (songId, index, shift) => latest.current.toggleSelect(songId, index, shift),
     play: (index) => {
@@ -143,7 +137,7 @@ export default function FavoritesSongsTracklist({
       const query = appendServerQuery(undefined, serverId);
       latest.current.navigate(query ? `/album/${albumId}?${query}` : `/album/${albumId}`);
     },
-  }), []);
+  }), [dragPress]);
 
   const listWrapRef = useRef<HTMLDivElement | null>(null);
   const [scrollMargin, setScrollMargin] = useState(0);

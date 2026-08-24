@@ -21,6 +21,7 @@ import { buildArtistDetailPath } from '@/lib/navigation/detailServerScope';
 import { ResolvedArtistRefInline } from '@/ui/ResolvedArtistRefInline';
 import { ownedEntityKey } from '@/lib/util/ownedEntityKey';
 import { sameQueueTrack } from '@/features/playback';
+import { useDragPress } from '@/lib/dnd/useDragPress';
 
 type ContextMenuFn = (
   x: number,
@@ -115,6 +116,10 @@ export const TrackRow = React.memo(function TrackRow({
   const isActive = sameQueueTrack(currentTrack, song);
   const isPreviewing = usePreviewStore(s => sameQueueTrack(s.previewingTrack, song));
   const isPreviewAudioStarted = usePreviewStore(s => sameQueueTrack(s.previewingTrack, song) && s.audioStarted);
+
+  const onRowMouseDown = useDragPress({
+    onStart: (me) => onDragStart(song, me),
+  });
 
   const renderCell = (colDef: ColDef) => {
     const key = colDef.key as ColKey;
@@ -263,24 +268,7 @@ export const TrackRow = React.memo(function TrackRow({
         onContextMenu(e.clientX, e.clientY, songToTrack(song), 'album-song');
       }}
       role="row"
-      onMouseDown={e => {
-        if (e.button !== 0) return;
-        e.preventDefault();
-        const sx = e.clientX, sy = e.clientY;
-        const onMove = (me: MouseEvent) => {
-          if (Math.abs(me.clientX - sx) > 5 || Math.abs(me.clientY - sy) > 5) {
-            document.removeEventListener('mousemove', onMove);
-            document.removeEventListener('mouseup', onUp);
-            onDragStart(song, me);
-          }
-        };
-        const onUp = () => {
-          document.removeEventListener('mousemove', onMove);
-          document.removeEventListener('mouseup', onUp);
-        };
-        document.addEventListener('mousemove', onMove);
-        document.addEventListener('mouseup', onUp);
-      }}
+      onMouseDown={onRowMouseDown}
     >
       {visibleCols.map(colDef => renderCell(colDef))}
     </div>
