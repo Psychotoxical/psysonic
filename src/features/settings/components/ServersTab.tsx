@@ -28,6 +28,7 @@ import {
   verifySameServerEndpoints,
   type VerifySameServerResult,
 } from '@/lib/server/serverFingerprint';
+import { runOfflineServerMaintenanceBatch } from '@/features/offline';
 import {
   indexKeyRemapForUrlChange,
   runIndexKeyRemigration,
@@ -350,7 +351,13 @@ export function ServersTab({
       });
       if (!confirmed) return;
       setConnStatus(s => ({ ...s, [id]: 'testing' }));
-      const result = await runIndexKeyRemigration(remap);
+      const result = await runIndexKeyRemigration(
+        remap,
+        operation => runOfflineServerMaintenanceBatch(
+          [remap.oldKey, remap.newKey],
+          operation,
+        ),
+      );
       if (!result.ok) {
         const failureKey =
           result.failure.stage === 'inspect'

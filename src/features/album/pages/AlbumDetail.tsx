@@ -171,7 +171,12 @@ export default function AlbumDetail() {
       { kind: 'album', sourceId: albumId, displayName: album.album.name },
     ).then(() => {
       if (cancelled) return;
-      if (!isOfflinePinComplete(albumId, albumOwnerServerId, offlineSongIds)) return;
+      if (!isOfflinePinComplete(
+        albumId,
+        albumOwnerServerId,
+        offlineSongIds,
+        { kind: 'album', sourceId: albumId },
+      )) return;
       useOfflineJobStore.setState(s => ({
         jobs: s.jobs.filter(j => j.albumId !== albumId || j.serverId !== albumOwnerServerId),
       }));
@@ -389,7 +394,12 @@ const handleShuffleAll = () => {
         /* keep album.songs from the page */
       }
     }
-    if (isOfflinePinComplete(album.album.id, albumOwnerServerId, songs.map(s => s.id))) return;
+    if (isOfflinePinComplete(
+      album.album.id,
+      albumOwnerServerId,
+      songs.map(s => s.id),
+      { kind: 'album', sourceId: album.album.id },
+    )) return;
     downloadAlbum(
       album.album.id,
       album.album.name,
@@ -403,7 +413,10 @@ const handleShuffleAll = () => {
 
   const handleRemoveOffline = () => {
     if (!album || !albumOwnerServerId) return;
-    deleteAlbum(album.album.id, albumOwnerServerId);
+    deleteAlbum(album.album.id, albumOwnerServerId, {
+      kind: 'album',
+      sourceId: album.album.id,
+    });
   };
 
   // Must be before early returns — hooks must be called unconditionally.

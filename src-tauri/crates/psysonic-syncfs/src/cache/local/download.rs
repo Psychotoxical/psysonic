@@ -1,5 +1,4 @@
 use std::path::Path;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 use psysonic_analysis::analysis_runtime::enqueue_offline_library_analysis_from_file;
@@ -12,14 +11,15 @@ use tauri::{AppHandle, Manager, State};
 use tokio::io::AsyncReadExt;
 
 use crate::file_transfer::{
-    apply_server_http_get, finalize_streamed_download, reqwest_error_without_url,
+    acquire_download_destination_lock, acquire_download_permit,
+    finalize_resumable_download_cancellable, max_download_bytes,
+    prepare_resumable_download_cancellable, promote_completed_partial,
     subsonic_download_http_client, subsonic_http_client,
 };
-use crate::{offline_cancel_flags, DownloadSemaphore};
+use crate::{offline_download_cancellation, DownloadSemaphore};
 
 use super::paths::{
-    acquire_per_track_download_lock, per_track_download_lock_key, resolve_media_dir,
-    resolve_track_path_for_tier, track_row_to_path_input, unique_part_path,
+    resolve_media_dir, resolve_track_path_for_tier, track_row_to_path_input, unique_part_path,
     ResolveTrackPathForTier, ResolvedLibraryTrackPath,
 };
 use super::LocalTrackDownloadResult;
@@ -139,17 +139,24 @@ pub(super) async fn download_track_local(
             path_str: file_path.to_string_lossy().to_string(),
             file_path,
             layout_fingerprint: fingerprint,
+            expected_size_bytes: row.size_bytes.and_then(|size| u64::try_from(size).ok()),
         }
     };
     let ResolvedLibraryTrackPath {
         file_path,
         path_str,
         layout_fingerprint: fingerprint,
+        expected_size_bytes,
     } = resolved;
 
     let media_root = resolve_media_dir(media_dir.as_deref(), &app)?;
     ensure_track_path_within_tier(&media_root, local_tier, &file_path)
         .map_err(|e| e.to_string())?;
+    if let Some(parent) = file_path.parent() {
+        tokio::fs::create_dir_all(parent)
+            .await
+            .map_err(|error| error.to_string())?;
+    }
 
     let client = if local_tier == LocalTier::Ephemeral {
         subsonic_http_client(std::time::Duration::from_secs(120))?
@@ -177,18 +184,16 @@ pub(super) async fn download_track_local(
         registry: http_registry.as_deref(),
     };
 
-    if !verified_raw_request {
-        if let Some(hit) = local_track_hit_if_exists(&local_track_hit_args, false).await? {
-            return Ok(hit);
-        }
-    }
+    let mut cancellation = download_id.as_deref().map(offline_download_cancellation);
+    let _destination_guard =
+        acquire_download_destination_lock(&file_path, cancellation.as_mut()).await?;
 
-    let _track_guard = acquire_per_track_download_lock(&per_track_download_lock_key(
-        local_tier,
-        &server_index_key,
-        &track_id,
-    ))
-    .await;
+    if cancellation
+        .as_ref()
+        .is_some_and(|cancel| cancel.is_cancelled())
+    {
+        return Err("CANCELLED".to_string());
+    }
 
     if let Some(hit) =
         local_track_hit_if_exists(&local_track_hit_args, verified_raw_request).await?
@@ -196,20 +201,11 @@ pub(super) async fn download_track_local(
         return Ok(hit);
     }
 
-    let cancel_flag: Option<Arc<AtomicBool>> = download_id.as_deref().and_then(|id| {
-        offline_cancel_flags().lock().ok().map(|mut flags| {
-            flags
-                .entry(id.to_string())
-                .or_insert_with(|| Arc::new(AtomicBool::new(false)))
-                .clone()
-        })
-    });
+    let _permit = acquire_download_permit(&dl_sem, cancellation.as_mut()).await?;
 
-    let _permit = dl_sem.acquire().await.map_err(|e| e.to_string())?;
-
-    if cancel_flag
+    if cancellation
         .as_ref()
-        .is_some_and(|f| f.load(Ordering::Relaxed))
+        .is_some_and(|cancel| cancel.is_cancelled())
     {
         return Err("CANCELLED".to_string());
     }
@@ -220,81 +216,92 @@ pub(super) async fn download_track_local(
         }
     }
 
-    if let Some(parent) = file_path.parent() {
-        tokio::fs::create_dir_all(parent)
-            .await
-            .map_err(|e| e.to_string())?;
-    }
-
     let trusted_raw_hash = if verified_raw_request {
-        Some(
-            psysonic_analysis::raw_probe::fetch_trusted_original_md5(
-                &client,
-                http_registry.as_deref(),
-                Some(&server_index_key),
-                &url,
-            )
-            .await
-            .ok_or_else(|| {
-                crate::app_eprintln!(
-                    "[offline] raw probe failed server={} track={}",
-                    server_index_key,
-                    track_id,
-                );
-                "raw original identity unavailable for local download".to_string()
-            })?,
-        )
+        let fetch = psysonic_analysis::raw_probe::fetch_trusted_original_md5(
+            &client,
+            http_registry.as_deref(),
+            Some(&server_index_key),
+            &url,
+        );
+        tokio::pin!(fetch);
+        let trusted = if let Some(cancel) = cancellation.as_mut() {
+            tokio::select! {
+                trusted = &mut fetch => trusted,
+                _ = cancel.cancelled() => return Err("CANCELLED".to_string()),
+            }
+        } else {
+            fetch.await
+        };
+        Some(trusted.ok_or_else(|| {
+            crate::app_eprintln!(
+                "[offline] raw probe failed server={} track={}",
+                server_index_key,
+                track_id,
+            );
+            "raw original identity unavailable for local download".to_string()
+        })?)
     } else {
         None
     };
 
-    let response = apply_server_http_get(
-        &client,
-        http_registry.as_deref(),
-        Some(&server_index_key),
-        &url,
-    )
-    .send()
-    .await
-    .map_err(|e| {
-        let error = reqwest_error_without_url(e);
-        crate::app_eprintln!(
-            "[offline] request failed server={} track={}: {}",
-            server_index_key,
-            track_id,
-            error,
-        );
-        error
-    })?;
-    if !response.status().is_success() {
-        crate::app_eprintln!(
-            "[offline] HTTP failure server={} track={} status={}",
-            server_index_key,
-            track_id,
-            response.status().as_u16(),
-        );
-        return Err(format!("HTTP {}", response.status().as_u16()));
-    }
-    if verified_raw_request && response.status() != reqwest::StatusCode::OK {
-        return Err(format!(
-            "raw original download returned HTTP {}",
-            response.status().as_u16()
-        ));
-    }
-
-    let part_path = unique_part_path(&file_path, &suffix, &track_id);
-    if let Err(error) =
-        finalize_streamed_download(response, &file_path, &part_path, cancel_flag.as_deref()).await
-    {
-        if error != "CANCELLED" {
+    let part_path = unique_part_path(&file_path, &track_id);
+    let max_bytes = max_download_bytes(expected_size_bytes);
+    if !promote_completed_partial(&part_path, &file_path, &url, max_bytes).await? {
+        let prepared = prepare_resumable_download_cancellable(
+            &client,
+            http_registry.as_deref(),
+            Some(&server_index_key),
+            &url,
+            &part_path,
+            max_bytes,
+            cancellation.as_mut(),
+        )
+        .await
+        .map_err(|error| {
             crate::app_eprintln!(
-                "[offline] transfer failed server={} track={}: {}",
+                "[offline] request failed server={} track={}: {}",
                 server_index_key,
                 track_id,
                 error,
             );
+            error
+        })?;
+        if let Err(error) = prepared.validate_status() {
+            crate::app_eprintln!(
+                "[offline] HTTP failure server={} track={} status={}",
+                server_index_key,
+                track_id,
+                prepared.response.status().as_u16(),
+            );
+            return Err(error);
         }
-        return Err(error);
+        if let Err(error) = finalize_resumable_download_cancellable(
+            prepared,
+            &file_path,
+            &part_path,
+            max_bytes,
+            cancellation.as_mut(),
+        )
+        .await
+        {
+            if error != "CANCELLED" {
+                crate::app_eprintln!(
+                    "[offline] transfer failed server={} track={}: {}",
+                    server_index_key,
+                    track_id,
+                    error,
+                );
+            }
+            return Err(error);
+        }
+    }
+
+    if cancellation
+        .as_ref()
+        .is_some_and(|cancel| cancel.is_cancelled())
+    {
+        let _ = tokio::fs::remove_file(&file_path).await;
+        return Err("CANCELLED".to_string());
     }
 
     if let Some(trusted) = trusted_raw_hash.as_deref() {
@@ -326,6 +333,14 @@ pub(super) async fn download_track_local(
         );
         error
     })?;
+
+    if cancellation
+        .as_ref()
+        .is_some_and(|cancel| cancel.is_cancelled())
+    {
+        let _ = tokio::fs::remove_file(&file_path).await;
+        return Err("CANCELLED".to_string());
+    }
 
     let size = tokio::fs::metadata(&file_path)
         .await

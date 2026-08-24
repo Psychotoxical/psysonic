@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { usePlayerStore } from '@/features/playback/store/playerStore';
 import { useOfflineJobStore } from '@/features/offline';
-import { clearOfflinePinTasks } from '@/features/offline';
+import { cancelAllOfflinePins } from '@/features/offline';
 import { useDeviceSyncJobStore } from '@/features/deviceSync';
 import { useAuthStore } from '@/store/authStore';
 import { useSidebarStore } from '@/features/sidebar/store/sidebarStore';
@@ -57,16 +57,30 @@ export default function Sidebar({
   const location = useLocation();
   const isPlaying   = usePlayerStore(s => s.isPlaying);
   const currentTrack = usePlayerStore(s => s.currentTrack);
-  const offlineJobs = useOfflineJobStore(s => s.jobs);
-  const pinQueue = useOfflineJobStore(s => s.pinQueue);
-  const cancelAllDownloadsStore = useOfflineJobStore(s => s.cancelAllDownloads);
-  const activeJobs = offlineJobs.filter(j => j.status === 'queued' || j.status === 'downloading');
-  const activePin = pinQueue.find(p => p.status === 'downloading')
-    ?? pinQueue.find(p => p.status === 'queued');
-  const queuedPinCount = pinQueue.filter(p => p.status === 'queued').length;
+  const activeJobsCount = useOfflineJobStore(s => s.jobs.filter(
+    job => job.status === 'queued' || job.status === 'downloading',
+  ).length);
+  const activePinName = useOfflineJobStore(s => {
+    const activePin = s.pinQueue.find(pin => pin.status === 'downloading')
+      ?? s.pinQueue.find(pin => pin.status === 'queued');
+    if (!activePin) return null;
+    const additionalActivePins = Math.max(
+      0,
+      s.pinQueue.filter(pin => pin.status === 'downloading').length - 1,
+    );
+    return `${activePin.albumName}${additionalActivePins > 0 ? ` +${additionalActivePins}` : ''}`;
+  });
+  const queuedPinCount = useOfflineJobStore(s => {
+    const activePin = s.pinQueue.find(pin => pin.status === 'downloading')
+      ?? s.pinQueue.find(pin => pin.status === 'queued');
+    return Math.max(
+      0,
+      s.pinQueue.filter(pin => pin.status === 'queued').length
+        - (activePin?.status === 'queued' ? 1 : 0),
+    );
+  });
   const cancelAllDownloads = () => {
-    clearOfflinePinTasks();
-    cancelAllDownloadsStore();
+    cancelAllOfflinePins();
   };
   const syncJobStatus = useDeviceSyncJobStore(s => s.status);
   const syncJobDone   = useDeviceSyncJobStore(s => s.done);
@@ -362,7 +376,7 @@ export default function Sidebar({
             selectedLibraryIds.length,
             libraryBrowseScopeVersion,
             hasOfflineContent,
-            activeJobs.length,
+            activeJobsCount,
             isSyncing,
             syncJobTotal,
             sidebarItems.length,
@@ -395,8 +409,8 @@ export default function Sidebar({
           hasNowPlayingTrack={!!currentTrack}
           nowPlayingAtTop={nowPlayingAtTop}
           hasOfflineContent={hasOfflineContent}
-          activeJobsCount={activeJobs.length}
-          activePinName={activePin?.albumName ?? null}
+          activeJobsCount={activeJobsCount}
+          activePinName={activePinName}
           queuedPinCount={queuedPinCount}
           cancelAllDownloads={cancelAllDownloads}
           isSyncing={isSyncing}

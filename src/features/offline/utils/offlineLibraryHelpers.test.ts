@@ -172,6 +172,18 @@ describe('offlineLibraryHelpers', () => {
       },
     });
     expect(isOfflinePinComplete('al1', 'a')).toBe(true);
+    expect(isOfflinePinComplete(
+      'al1',
+      'a',
+      undefined,
+      { kind: 'album', sourceId: 'al1' },
+    )).toBe(true);
+    expect(isOfflinePinComplete(
+      'al1',
+      'a',
+      undefined,
+      { kind: 'artist', sourceId: 'al1' },
+    )).toBe(false);
   });
 
   it('hasAnyOfflineAlbums is true when pinned groups exist', () => {

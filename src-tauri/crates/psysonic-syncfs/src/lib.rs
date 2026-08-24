@@ -6,7 +6,7 @@
 //! devices (`sync_*`).
 
 use std::collections::HashMap;
-use std::sync::atomic::AtomicBool;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 
 // Re-export logging facade so submodules can keep `crate::app_eprintln!()`.
@@ -35,4 +35,59 @@ pub fn sync_cancel_flags() -> &'static Mutex<HashMap<String, Arc<AtomicBool>>> {
 pub fn offline_cancel_flags() -> &'static Mutex<HashMap<String, Arc<AtomicBool>>> {
     static FLAGS: OnceLock<Mutex<HashMap<String, Arc<AtomicBool>>>> = OnceLock::new();
     FLAGS.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+fn offline_cancel_senders() -> &'static Mutex<HashMap<String, tokio::sync::watch::Sender<bool>>> {
+    static SENDERS: OnceLock<Mutex<HashMap<String, tokio::sync::watch::Sender<bool>>>> =
+        OnceLock::new();
+    SENDERS.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+pub(crate) fn offline_download_cancellation(
+    download_id: &str,
+) -> file_transfer::DownloadCancellation {
+    let flag = offline_cancel_flags()
+        .lock()
+        .unwrap_or_else(|error| error.into_inner())
+        .entry(download_id.to_string())
+        .or_insert_with(|| Arc::new(AtomicBool::new(false)))
+        .clone();
+    let sender = offline_cancel_senders()
+        .lock()
+        .unwrap_or_else(|error| error.into_inner())
+        .entry(download_id.to_string())
+        .or_insert_with(|| tokio::sync::watch::channel(flag.load(Ordering::Relaxed)).0)
+        .clone();
+    if flag.load(Ordering::Relaxed) {
+        sender.send_replace(true);
+    }
+    file_transfer::DownloadCancellation::new(flag, sender.subscribe())
+}
+
+pub(crate) fn cancel_offline_download(download_id: String) {
+    let flag = offline_cancel_flags()
+        .lock()
+        .unwrap_or_else(|error| error.into_inner())
+        .entry(download_id.clone())
+        .or_insert_with(|| Arc::new(AtomicBool::new(false)))
+        .clone();
+    flag.store(true, Ordering::Relaxed);
+    let sender = offline_cancel_senders()
+        .lock()
+        .unwrap_or_else(|error| error.into_inner())
+        .entry(download_id)
+        .or_insert_with(|| tokio::sync::watch::channel(true).0)
+        .clone();
+    sender.send_replace(true);
+}
+
+pub(crate) fn clear_offline_download_cancellation(download_id: &str) {
+    offline_cancel_flags()
+        .lock()
+        .unwrap_or_else(|error| error.into_inner())
+        .remove(download_id);
+    offline_cancel_senders()
+        .lock()
+        .unwrap_or_else(|error| error.into_inner())
+        .remove(download_id);
 }

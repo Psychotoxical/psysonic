@@ -2,12 +2,18 @@ import type { ServerProfile } from '../../store/authStoreTypes';
 import { useAnalysisStrategyStore } from '../../store/analysisStrategyStore';
 import { useCoverStrategyStore } from '../../store/coverStrategyStore';
 import {
+  localPlaybackPinSources,
   useLocalPlaybackStore,
   type LocalPlaybackEntry,
   type LocalPlaybackTier,
 } from '../../store/localPlaybackStore';
 import { useLibraryIndexStore } from '../../store/libraryIndexStore';
-import { useOfflineStore, type OfflineAlbumMeta } from '@/features/offline';
+import {
+  registerOfflineServerKeyRemaps,
+  runOfflineServerMaintenanceBatch,
+  useOfflineStore,
+  type OfflineAlbumMeta,
+} from '@/features/offline';
 import { usePlayerStore } from '@/features/playback/store/playerStore';
 import { useDeviceSyncStore } from '@/features/deviceSync';
 import { serverIndexKeyFromUrl } from '@/lib/server/serverIndexKey';
@@ -71,11 +77,25 @@ function mergeLocalPlaybackEntry(
     LOCAL_PLAYBACK_TIER_PRIORITY[incoming.tier] > LOCAL_PLAYBACK_TIER_PRIORITY[existing.tier];
   const winner = incomingWins ? incoming : existing;
   const other = incomingWins ? existing : incoming;
+  const pinSource = winner.pinSource ?? other.pinSource;
+  const sources = new Map<string, NonNullable<LocalPlaybackEntry['pinSource']>>();
+  for (const source of [...localPlaybackPinSources(other), ...localPlaybackPinSources(winner)]) {
+    const key = `${source.kind}:${source.sourceId}`;
+    sources.delete(key);
+    sources.set(key, source);
+  }
+  if (pinSource) {
+    const key = `${pinSource.kind}:${pinSource.sourceId}`;
+    sources.delete(key);
+    sources.set(key, pinSource);
+  }
+  const pinSources = [...sources.values()];
   return {
     ...winner,
     serverIndexKey,
     lastPlayedAt: Math.max(winner.lastPlayedAt ?? 0, other.lastPlayedAt ?? 0) || undefined,
-    pinSource: winner.pinSource ?? other.pinSource,
+    pinSource,
+    pinSources: pinSources.length > 1 ? pinSources : undefined,
   };
 }
 
@@ -164,14 +184,23 @@ function rewriteDeviceSyncStoreKeys(mappings: Mapping[]): void {
 export async function rewriteFrontendStoreKeys(servers: ServerProfile[]): Promise<void> {
   const mappings = buildMappings(servers);
   if (mappings.length === 0) return;
-  rewriteOfflineStoreKeys(mappings);
-  rewriteLocalPlaybackStoreKeys(mappings);
-  rewriteAnalysisStrategyStoreKeys(mappings);
-  rewriteDeviceSyncStoreKeys(mappings);
-  // Keep migration explicit: Zustand persist writes the current state snapshot.
-  useAnalysisStrategyStore.getState().migrateServerOverrides(servers);
-  useCoverStrategyStore.getState().migrateServerOverrides(servers);
-  useLibraryIndexStore.setState(state => ({ masterEnabled: state.masterEnabled }));
+  await runOfflineServerMaintenanceBatch(
+    mappings.flatMap(mapping => [mapping.legacyId, mapping.indexKey]),
+    async () => {
+      registerOfflineServerKeyRemaps(mappings.map(mapping => ({
+        oldKey: mapping.legacyId,
+        newKey: mapping.indexKey,
+      })));
+      rewriteOfflineStoreKeys(mappings);
+      rewriteLocalPlaybackStoreKeys(mappings);
+      rewriteAnalysisStrategyStoreKeys(mappings);
+      rewriteDeviceSyncStoreKeys(mappings);
+      // Keep migration explicit: Zustand persist writes the current state snapshot.
+      useAnalysisStrategyStore.getState().migrateServerOverrides(servers);
+      useCoverStrategyStore.getState().migrateServerOverrides(servers);
+      useLibraryIndexStore.setState(state => ({ masterEnabled: state.masterEnabled }));
+    },
+  );
 }
 
 /**
@@ -192,6 +221,10 @@ export async function rewriteFrontendStoreKeysForRemap(
     .filter(m => m.legacyId.length > 0 && m.indexKey.length > 0 && m.legacyId !== m.indexKey);
   if (mappings.length === 0) return;
 
+  registerOfflineServerKeyRemaps(mappings.map(mapping => ({
+    oldKey: mapping.legacyId,
+    newKey: mapping.indexKey,
+  })));
   rewriteOfflineStoreKeys(mappings);
   rewriteLocalPlaybackStoreKeys(mappings);
   rewriteAnalysisStrategyStoreKeys(mappings);

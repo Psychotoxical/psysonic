@@ -37,6 +37,8 @@ export interface LocalPlaybackEntry {
   cachedAt: number;
   lastPlayedAt?: number;
   pinSource?: PinSource;
+  /** Additional owners when the same local bytes are pinned by multiple sources. */
+  pinSources?: PinSource[];
   suffix: string;
   /**
    * Streaming bitrate cap (kbps) the cached bytes were fetched at; 0/undefined
@@ -71,6 +73,13 @@ interface LocalPlaybackState {
   upsertEntry: (entry: Omit<LocalPlaybackEntry, 'cachedAt'> & { cachedAt?: number }) => void;
   touchPlayed: (trackId: string, serverIndexKey: string) => void;
   removeEntry: (trackId: string, serverIndexKey: string, reason?: string) => void;
+  removePinSource: (
+    trackId: string,
+    serverIndexKey: string,
+    pinSource: PinSource,
+    mediaDir: string | null,
+    reason?: string,
+  ) => Promise<void>;
   removeEntriesByPinSource: (
     serverIndexKey: string,
     pinSource: PinSource,
@@ -115,6 +124,29 @@ function pinGroupKey(serverIndexKey: string, pinSource: PinSource): string {
   return `${serverIndexKey}:${pinSource.kind}:${pinSource.sourceId}`;
 }
 
+function samePinSource(left: PinSource, right: PinSource): boolean {
+  return left.kind === right.kind && left.sourceId === right.sourceId;
+}
+
+export function localPlaybackPinSources(entry: LocalPlaybackEntry): PinSource[] {
+  const sources = entry.pinSources?.length ? entry.pinSources : (entry.pinSource ? [entry.pinSource] : []);
+  const unique = new Map<string, PinSource>();
+  for (const source of sources) unique.set(`${source.kind}:${source.sourceId}`, source);
+  if (entry.pinSource) {
+    const key = `${entry.pinSource.kind}:${entry.pinSource.sourceId}`;
+    unique.delete(key);
+    unique.set(key, entry.pinSource);
+  }
+  return [...unique.values()];
+}
+
+export function localPlaybackEntryHasPinSource(
+  entry: LocalPlaybackEntry,
+  pinSource: PinSource,
+): boolean {
+  return localPlaybackPinSources(entry).some(source => samePinSource(source, pinSource));
+}
+
 export const useLocalPlaybackStore = create<LocalPlaybackState>()(
   persist(
     (set, get) => ({
@@ -139,16 +171,37 @@ export const useLocalPlaybackStore = create<LocalPlaybackState>()(
       upsertEntry: (entry) => {
         const now = Date.now();
         const key = localPlaybackEntryKey(entry.serverIndexKey, entry.trackId);
-        set(s => ({
-          entries: {
-            ...s.entries,
-            [key]: {
-              ...entry,
-              cachedAt: entry.cachedAt ?? now,
-              lastPlayedAt: entry.lastPlayedAt ?? (entry.tier === 'ephemeral' ? now : entry.lastPlayedAt),
+        set(s => {
+          const previous = s.entries[key];
+          const next = {
+            ...entry,
+            cachedAt: entry.cachedAt ?? now,
+            lastPlayedAt: entry.lastPlayedAt ?? (entry.tier === 'ephemeral' ? now : entry.lastPlayedAt),
+          };
+          if (entry.tier === 'library' && entry.pinSource) {
+            const sources = new Map<string, PinSource>();
+            for (const source of previous ? localPlaybackPinSources(previous) : []) {
+              sources.set(`${source.kind}:${source.sourceId}`, source);
+            }
+            for (const source of entry.pinSources ?? []) {
+              const sourceKey = `${source.kind}:${source.sourceId}`;
+              sources.delete(sourceKey);
+              sources.set(sourceKey, source);
+            }
+            const sourceKey = `${entry.pinSource.kind}:${entry.pinSource.sourceId}`;
+            sources.delete(sourceKey);
+            sources.set(sourceKey, entry.pinSource);
+            const pinSources = [...sources.values()];
+            next.pinSource = entry.pinSource;
+            next.pinSources = pinSources.length > 1 ? pinSources : undefined;
+          }
+          return {
+            entries: {
+              ...s.entries,
+              [key]: next,
             },
-          },
-        }));
+          };
+        });
       },
 
       touchPlayed: (trackId, serverIndexKey) => {
@@ -176,37 +229,84 @@ export const useLocalPlaybackStore = create<LocalPlaybackState>()(
         emitAnalysisStorageChanged({ trackId, serverIndexKey, reason: 'local-playback-delete' });
       },
 
+      removePinSource: async (
+        trackId,
+        serverIndexKey,
+        pinSource,
+        mediaDir,
+        reason = 'pin-group-delete',
+      ) => {
+        const key = localPlaybackEntryKey(serverIndexKey, trackId);
+        const entry = get().entries[key];
+        if (!entry || !localPlaybackEntryHasPinSource(entry, pinSource)) return;
+        const remaining = localPlaybackPinSources(entry)
+          .filter(source => !samePinSource(source, pinSource));
+        if (remaining.length > 0) {
+          set(state => {
+            const current = state.entries[key];
+            if (!current || !localPlaybackEntryHasPinSource(current, pinSource)) return state;
+            const currentRemaining = localPlaybackPinSources(current)
+              .filter(source => !samePinSource(source, pinSource));
+            if (currentRemaining.length === 0) return state;
+            const nextPrimary = currentRemaining[currentRemaining.length - 1];
+            return {
+              entries: {
+                ...state.entries,
+                [key]: {
+                  ...current,
+                  pinSource: nextPrimary,
+                  pinSources: currentRemaining.length > 1 ? currentRemaining : undefined,
+                },
+              },
+            };
+          });
+          return;
+        }
+        await deleteMediaFile({ localPath: entry.localPath, mediaDir }).catch(() => {});
+        const current = get().entries[key];
+        if (
+          current?.localPath === entry.localPath
+          && localPlaybackEntryHasPinSource(current, pinSource)
+          && localPlaybackPinSources(current).length === 1
+        ) {
+          get().removeEntry(trackId, serverIndexKey, reason);
+        }
+      },
+
       removeEntriesByPinSource: async (serverIndexKey, pinSource, mediaDir) => {
         const targets = Object.values(get().entries).filter(
           e =>
             e.serverIndexKey === serverIndexKey
             && e.tier === 'library'
-            && e.pinSource?.kind === pinSource.kind
-            && e.pinSource?.sourceId === pinSource.sourceId,
+            && localPlaybackEntryHasPinSource(e, pinSource),
         );
         await Promise.all(
-          targets.map(async e => {
-            await deleteMediaFile({ localPath: e.localPath, mediaDir }).catch(() => {});
-            get().removeEntry(e.trackId, e.serverIndexKey, 'pin-group-delete');
-          }),
+          targets.map(e => get().removePinSource(
+            e.trackId,
+            e.serverIndexKey,
+            pinSource,
+            mediaDir,
+          )),
         );
       },
 
       listPinnedGroups: (serverIndexKey) => {
         const groups = new Map<string, PinnedGroup>();
         for (const e of Object.values(get().entries)) {
-          if (e.tier !== 'library' || !e.pinSource) continue;
+          if (e.tier !== 'library') continue;
           if (serverIndexKey && e.serverIndexKey !== serverIndexKey) continue;
-          const gk = pinGroupKey(e.serverIndexKey, e.pinSource);
-          const existing = groups.get(gk);
-          if (existing) {
-            if (!existing.trackIds.includes(e.trackId)) existing.trackIds.push(e.trackId);
-          } else {
-            groups.set(gk, {
-              serverIndexKey: e.serverIndexKey,
-              pinSource: e.pinSource,
-              trackIds: [e.trackId],
-            });
+          for (const pinSource of localPlaybackPinSources(e)) {
+            const gk = pinGroupKey(e.serverIndexKey, pinSource);
+            const existing = groups.get(gk);
+            if (existing) {
+              if (!existing.trackIds.includes(e.trackId)) existing.trackIds.push(e.trackId);
+            } else {
+              groups.set(gk, {
+                serverIndexKey: e.serverIndexKey,
+                pinSource,
+                trackIds: [e.trackId],
+              });
+            }
           }
         }
         return [...groups.values()];

@@ -31,13 +31,16 @@ export function useAlbumOfflineState(
   serverId: string,
   songIds?: string[],
 ): UseAlbumOfflineStateResult {
-  useLocalPlaybackStore(s => s.entries);
-  const pinComplete = !!albumId && isOfflinePinComplete(albumId, serverId, songIds);
+  const albumPinSource = { kind: 'album' as const, sourceId: albumId };
+  const pinComplete = useLocalPlaybackStore(() => (
+    !!albumId && isOfflinePinComplete(albumId, serverId, songIds, albumPinSource)
+  ));
   const isPinQueued = useOfflineJobStore(s =>
     !pinComplete
     && !!albumId
     && s.pinQueue.some(p => p.albumId === albumId
       && p.serverId === serverId
+      && p.pinKind === 'album'
       && p.status === 'queued'),
   );
   const isOfflineDownloading = useOfflineJobStore(s =>
@@ -46,21 +49,26 @@ export function useAlbumOfflineState(
     && (
       s.pinQueue.some(p => p.albumId === albumId
         && p.serverId === serverId
+        && p.pinKind === 'album'
         && p.status === 'downloading')
       || s.jobs.some(j => j.albumId === albumId
         && j.serverId === serverId
-        && (j.status === 'queued' || j.status === 'downloading'))
+        && j.pinKind === 'album'
+        && j.status === 'downloading')
     ),
   );
   const offlineProgressDone = useOfflineJobStore(s => {
     if (!albumId || pinComplete) return 0;
     return s.jobs.filter(j => j.albumId === albumId
       && j.serverId === serverId
+      && j.pinKind === 'album'
       && j.status === 'done').length;
   });
   const offlineProgressTotal = useOfflineJobStore(s => {
     if (!albumId || pinComplete) return 0;
-    return s.jobs.filter(j => j.albumId === albumId && j.serverId === serverId).length;
+    return s.jobs.filter(j => j.albumId === albumId
+      && j.serverId === serverId
+      && j.pinKind === 'album').length;
   });
   const resolvedOfflineStatus = pinComplete
     ? 'cached'

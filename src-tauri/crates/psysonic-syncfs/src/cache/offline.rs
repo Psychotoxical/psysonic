@@ -1,20 +1,132 @@
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 use tauri::Manager;
 
-use psysonic_analysis::analysis_runtime::{
-    analysis_backfill_resolve_priority, enqueue_track_analysis_from_file,
-    AnalysisBackfillPriority,
+use crate::{
+    cancel_offline_download, clear_offline_download_cancellation, offline_download_cancellation,
+    DownloadSemaphore,
 };
-use crate::{offline_cancel_flags, DownloadSemaphore};
+use psysonic_analysis::analysis_runtime::{
+    analysis_backfill_resolve_priority, enqueue_track_analysis_from_file, AnalysisBackfillPriority,
+};
+use psysonic_core::cover_cache_layout::sanitize_path_segment;
 
 use crate::file_transfer::{
-    apply_server_http_get, finalize_streamed_download, reqwest_error_without_url,
-    subsonic_download_http_client,
+    acquire_download_destination_lock, acquire_download_permit, finalize_resumable_download,
+    finalize_resumable_download_cancellable, max_download_bytes, prepare_resumable_download,
+    prepare_resumable_download_cancellable, promote_completed_partial, reborrow_cancellation,
+    sibling_part_path, subsonic_download_http_client, DownloadCancellation,
+    DownloadDestinationGuard,
 };
 
 // ─── Offline Track Cache ──────────────────────────────────────────────────────
+
+fn legacy_safe_segment(segment: &str) -> String {
+    let sanitized = sanitize_path_segment(segment);
+    if sanitized == segment && sanitized.len() <= 120 {
+        return sanitized;
+    }
+    let prefix: String = sanitized.chars().take(80).collect();
+    format!("{prefix}-{:x}", md5::compute(segment.as_bytes()))
+}
+
+struct LegacyDownloadOutcome {
+    path: PathBuf,
+    created: bool,
+    _guard: DownloadDestinationGuard,
+}
+
+fn cancellation_requested(
+    cancellation: Option<&&mut DownloadCancellation>,
+    cancel: Option<&AtomicBool>,
+) -> bool {
+    cancellation.is_some_and(|value| value.is_cancelled())
+        || cancel.is_some_and(|flag| flag.load(Ordering::Relaxed))
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn download_track_to_cache_dir_inner(
+    cache_dir: &Path,
+    track_id: &str,
+    suffix: &str,
+    url: &str,
+    client: &reqwest::Client,
+    registry: Option<&psysonic_core::server_http::ServerHttpRegistry>,
+    server_ref: Option<&str>,
+    mut cancellation: Option<&mut DownloadCancellation>,
+    cancel: Option<&AtomicBool>,
+) -> Result<LegacyDownloadOutcome, String> {
+    tokio::fs::create_dir_all(cache_dir)
+        .await
+        .map_err(|error| error.to_string())?;
+
+    let file_path = legacy_track_file_path(cache_dir, track_id, suffix);
+    let download_guard =
+        acquire_download_destination_lock(&file_path, reborrow_cancellation(&mut cancellation))
+            .await?;
+    if cancellation_requested(cancellation.as_ref(), cancel) {
+        return Err("CANCELLED".to_string());
+    }
+    if file_path.exists() {
+        return Ok(LegacyDownloadOutcome {
+            path: file_path,
+            created: false,
+            _guard: download_guard,
+        });
+    }
+
+    let part_path = sibling_part_path(&file_path, track_id);
+    let max_bytes = max_download_bytes(None);
+    if promote_completed_partial(&part_path, &file_path, url, max_bytes).await? {
+        return Ok(LegacyDownloadOutcome {
+            path: file_path,
+            created: true,
+            _guard: download_guard,
+        });
+    }
+    let prepared = if let Some(cancellation) = reborrow_cancellation(&mut cancellation) {
+        prepare_resumable_download_cancellable(
+            client,
+            registry,
+            server_ref,
+            url,
+            &part_path,
+            max_bytes,
+            Some(cancellation),
+        )
+        .await?
+    } else {
+        prepare_resumable_download(client, registry, server_ref, url, &part_path, max_bytes).await?
+    };
+    prepared.validate_status()?;
+    if let Some(cancellation) = reborrow_cancellation(&mut cancellation) {
+        finalize_resumable_download_cancellable(
+            prepared,
+            &file_path,
+            &part_path,
+            max_bytes,
+            Some(cancellation),
+        )
+        .await?;
+    } else {
+        finalize_resumable_download(prepared, &file_path, &part_path, max_bytes, cancel).await?;
+    }
+    Ok(LegacyDownloadOutcome {
+        path: file_path,
+        created: true,
+        _guard: download_guard,
+    })
+}
+
+fn legacy_track_file_path(cache_dir: &Path, track_id: &str, suffix: &str) -> PathBuf {
+    cache_dir.join(format!(
+        "{}.{}",
+        legacy_safe_segment(track_id),
+        legacy_safe_segment(suffix),
+    ))
+}
 
 pub async fn enqueue_analysis_seed_from_file(
     app: &tauri::AppHandle,
@@ -35,6 +147,7 @@ pub async fn enqueue_analysis_seed_from_file(
 /// `cancel`, when supplied, aborts the in-flight stream with `Err("CANCELLED")`
 /// (the `.part` file is cleaned up); `None` means the download is not cancellable.
 #[allow(clippy::too_many_arguments)]
+#[cfg(test)]
 pub(crate) async fn download_track_to_cache_dir(
     cache_dir: &std::path::Path,
     track_id: &str,
@@ -45,26 +158,11 @@ pub(crate) async fn download_track_to_cache_dir(
     server_ref: Option<&str>,
     cancel: Option<&AtomicBool>,
 ) -> Result<std::path::PathBuf, String> {
-    tokio::fs::create_dir_all(cache_dir)
-        .await
-        .map_err(|e| e.to_string())?;
-
-    let file_path = cache_dir.join(format!("{track_id}.{suffix}"));
-    if file_path.exists() {
-        return Ok(file_path);
-    }
-
-    let response = apply_server_http_get(client, registry, server_ref, url)
-        .send()
-        .await
-        .map_err(reqwest_error_without_url)?;
-    if !response.status().is_success() {
-        return Err(format!("HTTP {}", response.status().as_u16()));
-    }
-
-    let part_path = file_path.with_extension(format!("{suffix}.part"));
-    finalize_streamed_download(response, &file_path, &part_path, cancel).await?;
-    Ok(file_path)
+    download_track_to_cache_dir_inner(
+        cache_dir, track_id, suffix, url, client, registry, server_ref, None, cancel,
+    )
+    .await
+    .map(|outcome| outcome.path)
 }
 
 /// AppHandle-free resolver for the offline-cache directory: checks the
@@ -81,9 +179,9 @@ pub(crate) fn resolve_offline_cache_dir(
         if !base.exists() {
             return Err("VOLUME_NOT_FOUND".to_string());
         }
-        Ok(base.join(server_id))
+        Ok(base.join(legacy_safe_segment(server_id)))
     } else {
-        Ok(default_root.join(server_id))
+        Ok(default_root.join(legacy_safe_segment(server_id)))
     }
 }
 
@@ -110,31 +208,20 @@ pub async fn download_track_offline(
         .join("psysonic-offline");
     let cache_dir = resolve_offline_cache_dir(custom_dir.as_deref(), &server_id, &default_root)?;
 
-    let file_path = cache_dir.join(format!("{}.{}", track_id, suffix));
-    let path_str = file_path.to_string_lossy().to_string();
-
-    // Already cached — skip re-download (no semaphore needed).
-    if file_path.exists() {
-        return Ok(path_str);
+    let mut cancellation = download_id.as_deref().map(offline_download_cancellation);
+    if cancellation
+        .as_ref()
+        .is_some_and(|cancel| cancel.is_cancelled())
+    {
+        return Err("CANCELLED".to_string());
     }
 
-    // Resolve this download's cancellation flag. A missing `download_id` (e.g.
-    // an older caller) simply means the download cannot be cancelled.
-    let cancel_flag: Option<Arc<AtomicBool>> = download_id.as_deref().and_then(|id| {
-        offline_cancel_flags().lock().ok().map(|mut flags| {
-            flags
-                .entry(id.to_string())
-                .or_insert_with(|| Arc::new(AtomicBool::new(false)))
-                .clone()
-        })
-    });
+    let _permit = acquire_download_permit(&dl_sem, cancellation.as_mut()).await?;
 
-    // Acquire a download slot. The permit is held for the duration of the HTTP transfer
-    // and released automatically when this function returns (success or error).
-    let _permit = dl_sem.acquire().await.map_err(|e| e.to_string())?;
-
-    // Cancelled while parked on the semaphore — bail before opening a connection.
-    if cancel_flag.as_ref().is_some_and(|f| f.load(Ordering::Relaxed)) {
+    if cancellation
+        .as_ref()
+        .is_some_and(|cancel| cancel.is_cancelled())
+    {
         return Err("CANCELLED".to_string());
     }
 
@@ -142,7 +229,7 @@ pub async fn download_track_offline(
     let http_registry = app
         .try_state::<Arc<psysonic_core::server_http::ServerHttpRegistry>>()
         .map(|s| Arc::clone(&*s));
-    let final_path = download_track_to_cache_dir(
+    let outcome = download_track_to_cache_dir_inner(
         &cache_dir,
         &track_id,
         &suffix,
@@ -150,13 +237,34 @@ pub async fn download_track_offline(
         &client,
         http_registry.as_deref(),
         Some(&server_id),
-        cancel_flag.as_deref(),
+        cancellation.as_mut(),
+        None,
     )
     .await?;
 
-    enqueue_analysis_seed_from_file(&app, &server_id, &track_id, &final_path, None).await;
+    if cancellation
+        .as_ref()
+        .is_some_and(|cancel| cancel.is_cancelled())
+    {
+        if outcome.created {
+            let _ = tokio::fs::remove_file(&outcome.path).await;
+        }
+        return Err("CANCELLED".to_string());
+    }
 
-    Ok(path_str)
+    enqueue_analysis_seed_from_file(&app, &server_id, &track_id, &outcome.path, None).await;
+
+    if cancellation
+        .as_ref()
+        .is_some_and(|cancel| cancel.is_cancelled())
+    {
+        if outcome.created {
+            let _ = tokio::fs::remove_file(&outcome.path).await;
+        }
+        return Err("CANCELLED".to_string());
+    }
+
+    Ok(outcome.path.to_string_lossy().to_string())
 }
 
 /// Marks the given offline-download ids as cancelled. In-flight
@@ -166,13 +274,8 @@ pub async fn download_track_offline(
 #[tauri::command]
 #[specta::specta]
 pub fn cancel_offline_downloads(download_ids: Vec<String>) {
-    if let Ok(mut flags) = offline_cancel_flags().lock() {
-        for id in download_ids {
-            flags
-                .entry(id)
-                .or_insert_with(|| Arc::new(AtomicBool::new(false)))
-                .store(true, Ordering::Relaxed);
-        }
+    for id in download_ids {
+        cancel_offline_download(id);
     }
 }
 
@@ -182,9 +285,7 @@ pub fn cancel_offline_downloads(download_ids: Vec<String>) {
 #[tauri::command]
 #[specta::specta]
 pub fn clear_offline_cancel(download_id: String) {
-    if let Ok(mut flags) = offline_cancel_flags().lock() {
-        flags.remove(&download_id);
-    }
+    clear_offline_download_cancellation(&download_id);
 }
 
 #[cfg(test)]
@@ -209,9 +310,11 @@ mod tests {
         let client = subsonic_http_client(std::time::Duration::from_secs(5)).unwrap();
         let url = format!("{}/stream/track-1", server.uri());
 
-        let path = download_track_to_cache_dir(&cache_dir, "track-1", "flac", &url, &client, None, None, None)
-            .await
-            .unwrap();
+        let path = download_track_to_cache_dir(
+            &cache_dir, "track-1", "flac", &url, &client, None, None, None,
+        )
+        .await
+        .unwrap();
         assert!(path.exists());
         assert_eq!(path.file_name().unwrap(), "track-1.flac");
         assert_eq!(std::fs::read(&path).unwrap(), body);
@@ -229,11 +332,64 @@ mod tests {
         let client = subsonic_http_client(std::time::Duration::from_secs(5)).unwrap();
         let url = format!("{}/should-not-be-hit", server.uri());
 
-        let path = download_track_to_cache_dir(&cache_dir, "track-1", "flac", &url, &client, None, None, None)
-            .await
-            .unwrap();
+        let path = download_track_to_cache_dir(
+            &cache_dir, "track-1", "flac", &url, &client, None, None, None,
+        )
+        .await
+        .unwrap();
         assert_eq!(path, pre_existing);
         assert_eq!(std::fs::read(&path).unwrap(), b"already here");
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn cancelled_waiter_does_not_return_an_existing_legacy_file() {
+        let server = MockServer::start().await;
+        let dir = tempfile::tempdir().unwrap();
+        let pre_existing = dir.path().join("track-1.flac");
+        std::fs::write(&pre_existing, b"already here").unwrap();
+        let client = subsonic_http_client(std::time::Duration::from_secs(5)).unwrap();
+        let cancel = AtomicBool::new(true);
+
+        let error = download_track_to_cache_dir(
+            dir.path(),
+            "track-1",
+            "flac",
+            &format!("{}/should-not-be-hit", server.uri()),
+            &client,
+            None,
+            None,
+            Some(&cancel),
+        )
+        .await
+        .unwrap_err();
+
+        assert_eq!(error, "CANCELLED");
+        assert_eq!(std::fs::read(pre_existing).unwrap(), b"already here");
+    }
+
+    #[test]
+    fn legacy_cache_paths_sanitize_untrusted_segments() {
+        let dir = tempfile::tempdir().unwrap();
+        let cache_dir = resolve_offline_cache_dir(None, "../../outside", dir.path()).unwrap();
+        let track_path = legacy_track_file_path(&cache_dir, "../track", "../flac");
+
+        assert_eq!(cache_dir.parent(), Some(dir.path()));
+        assert_eq!(track_path.parent(), Some(cache_dir.as_path()));
+        assert!(!track_path
+            .file_name()
+            .unwrap()
+            .to_string_lossy()
+            .contains('/'));
+        assert!(!track_path
+            .file_name()
+            .unwrap()
+            .to_string_lossy()
+            .contains('\\'));
+        assert_ne!(legacy_safe_segment("a/b"), legacy_safe_segment("a\\b"));
+        assert_ne!(
+            legacy_safe_segment("host:443"),
+            legacy_safe_segment("host_443")
+        );
     }
 
     #[tokio::test(flavor = "multi_thread")]
@@ -250,11 +406,44 @@ mod tests {
         let client = subsonic_http_client(std::time::Duration::from_secs(5)).unwrap();
         let url = format!("{}/stream/missing", server.uri());
 
-        let err = download_track_to_cache_dir(&cache_dir, "missing", "flac", &url, &client, None, None, None)
-            .await
-            .unwrap_err();
+        let err = download_track_to_cache_dir(
+            &cache_dir, "missing", "flac", &url, &client, None, None, None,
+        )
+        .await
+        .unwrap_err();
         assert!(err.contains("HTTP 404"), "got {err}");
-        assert!(!cache_dir.join("missing.flac").exists(), "no track file created on error");
+        assert!(
+            !cache_dir.join("missing.flac").exists(),
+            "no track file created on error"
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn download_to_cache_dir_rejects_empty_success_status() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(wm_path("/stream/empty"))
+            .respond_with(ResponseTemplate::new(204))
+            .mount(&server)
+            .await;
+        let dir = tempfile::tempdir().unwrap();
+        let client = subsonic_http_client(std::time::Duration::from_secs(5)).unwrap();
+
+        let error = download_track_to_cache_dir(
+            dir.path(),
+            "empty",
+            "flac",
+            &format!("{}/stream/empty", server.uri()),
+            &client,
+            None,
+            None,
+            None,
+        )
+        .await
+        .unwrap_err();
+
+        assert!(error.contains("HTTP 204"), "got {error}");
+        assert!(!dir.path().join("empty.flac").exists());
     }
 
     #[tokio::test(flavor = "multi_thread")]
@@ -281,6 +470,133 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread")]
+    async fn concurrent_downloads_to_the_same_legacy_path_share_one_transfer() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(wm_path("/track"))
+            .respond_with(ResponseTemplate::new(200).set_body_bytes(b"same bytes".to_vec()))
+            .mount(&server)
+            .await;
+        let dir = tempfile::tempdir().unwrap();
+        let client = subsonic_http_client(std::time::Duration::from_secs(5)).unwrap();
+        let url = format!("{}/track", server.uri());
+
+        let first = download_track_to_cache_dir(
+            dir.path(),
+            "same",
+            "flac",
+            &url,
+            &client,
+            None,
+            None,
+            None,
+        );
+        let second = download_track_to_cache_dir(
+            dir.path(),
+            "same",
+            "flac",
+            &url,
+            &client,
+            None,
+            None,
+            None,
+        );
+        let (first, second) = tokio::join!(first, second);
+
+        assert_eq!(first.unwrap(), second.unwrap());
+        assert_eq!(server.received_requests().await.unwrap().len(), 1);
+        assert_eq!(
+            tokio::fs::read(dir.path().join("same.flac")).await.unwrap(),
+            b"same bytes"
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn legacy_download_outcome_keeps_destination_lock_until_dropped() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(wm_path("/track"))
+            .respond_with(ResponseTemplate::new(200).set_body_bytes(b"same bytes".to_vec()))
+            .mount(&server)
+            .await;
+        let dir = tempfile::tempdir().unwrap();
+        let client = subsonic_http_client(std::time::Duration::from_secs(5)).unwrap();
+        let outcome = download_track_to_cache_dir_inner(
+            dir.path(),
+            "same",
+            "flac",
+            &format!("{}/track", server.uri()),
+            &client,
+            None,
+            None,
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+        let path = outcome.path.clone();
+
+        assert!(tokio::time::timeout(
+            std::time::Duration::from_millis(100),
+            acquire_download_destination_lock(&path, None),
+        )
+        .await
+        .is_err());
+
+        drop(outcome);
+        tokio::time::timeout(
+            std::time::Duration::from_secs(1),
+            acquire_download_destination_lock(&path, None),
+        )
+        .await
+        .unwrap()
+        .unwrap();
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn promoted_legacy_partial_is_owned_by_the_current_download() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(wm_path("/track"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .insert_header("ETag", "\"track-v1\"")
+                    .set_body_bytes(b"abcdef".to_vec()),
+            )
+            .mount(&server)
+            .await;
+        let dir = tempfile::tempdir().unwrap();
+        let client = subsonic_http_client(std::time::Duration::from_secs(5)).unwrap();
+        let url = format!("{}/track", server.uri());
+        let destination = legacy_track_file_path(dir.path(), "track-1", "flac");
+        let part = sibling_part_path(&destination, "track-1");
+        let prepared =
+            prepare_resumable_download(&client, None, None, &url, &part, max_download_bytes(None))
+                .await
+                .unwrap();
+        drop(prepared);
+        tokio::fs::write(&part, b"abcdef").await.unwrap();
+
+        let outcome = download_track_to_cache_dir_inner(
+            dir.path(),
+            "track-1",
+            "flac",
+            &url,
+            &client,
+            None,
+            None,
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+
+        assert!(outcome.created);
+        assert_eq!(tokio::fs::read(&outcome.path).await.unwrap(), b"abcdef");
+        assert_eq!(server.received_requests().await.unwrap().len(), 1);
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
     async fn download_to_cache_dir_aborts_and_cleans_up_when_cancelled() {
         let server = MockServer::start().await;
         Mock::given(method("GET"))
@@ -295,13 +611,27 @@ mod tests {
         let url = format!("{}/stream/track-1", server.uri());
 
         let cancel = AtomicBool::new(true);
-        let err =
-            download_track_to_cache_dir(&cache_dir, "track-1", "flac", &url, &client, None, None, Some(&cancel))
-                .await
-                .unwrap_err();
+        let err = download_track_to_cache_dir(
+            &cache_dir,
+            "track-1",
+            "flac",
+            &url,
+            &client,
+            None,
+            None,
+            Some(&cancel),
+        )
+        .await
+        .unwrap_err();
         assert_eq!(err, "CANCELLED");
-        assert!(!cache_dir.join("track-1.flac").exists(), "no final file on cancel");
-        assert!(!cache_dir.join("track-1.flac.part").exists(), "no .part orphan on cancel");
+        assert!(
+            !cache_dir.join("track-1.flac").exists(),
+            "no final file on cancel"
+        );
+        assert!(
+            !sibling_part_path(&cache_dir.join("track-1.flac"), "track-1").exists(),
+            "no .part orphan on cancel"
+        );
     }
 
     // ── delete_offline_track_with_boundary (AppHandle-free) ─────────────────
@@ -333,8 +663,8 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let boundary = dir.path().to_path_buf();
         let phantom = boundary.join("never-existed.flac");
-        let result = delete_offline_track_with_boundary(&phantom.to_string_lossy(), &boundary)
-            .await;
+        let result =
+            delete_offline_track_with_boundary(&phantom.to_string_lossy(), &boundary).await;
         assert!(result.is_ok());
     }
 

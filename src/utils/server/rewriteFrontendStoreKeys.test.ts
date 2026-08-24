@@ -10,6 +10,10 @@ import {
   rewriteFrontendStoreKeysForRemap,
 } from './rewriteFrontendStoreKeys';
 import { makeServer } from '@/test/helpers/factories';
+import {
+  beginOfflineTrackTransfer,
+  runOfflineServerMaintenanceBatch,
+} from '@/features/offline/utils/offlineOperationCoordinator';
 
 describe('rewriteFrontendStoreKeysForRemap', () => {
   beforeEach(() => {
@@ -60,6 +64,38 @@ describe('rewriteFrontendStoreKeysForRemap', () => {
     });
     await rewriteFrontendStoreKeysForRemap([{ oldKey: 'same', newKey: 'same' }]);
     expect(useLocalPlaybackStore.getState().entries).toHaveProperty('same:t1');
+  });
+
+  it('waits for active offline operations before remapping keys', async () => {
+    useLocalPlaybackStore.setState({
+      entries: {
+        'old:t1': {
+          serverIndexKey: 'old',
+          trackId: 't1',
+          localPath: '/x',
+          layoutFingerprint: '',
+          sizeBytes: 1,
+          tier: 'library',
+          cachedAt: 1,
+          suffix: 'mp3',
+        },
+      },
+    });
+    const finishTransfer = await beginOfflineTrackTransfer('old', 't1');
+    let rewriteFinished = false;
+    const rewrite = runOfflineServerMaintenanceBatch(
+      ['old', 'new'],
+      () => rewriteFrontendStoreKeysForRemap([{ oldKey: 'old', newKey: 'new' }]),
+    ).then(() => {
+      rewriteFinished = true;
+    });
+    await Promise.resolve();
+    expect(rewriteFinished).toBe(false);
+
+    finishTransfer();
+    await rewrite;
+    expect(useLocalPlaybackStore.getState().entries).not.toHaveProperty('old:t1');
+    expect(useLocalPlaybackStore.getState().entries).toHaveProperty('new:t1');
   });
 
   it('rewrites offline albums under the new key', async () => {

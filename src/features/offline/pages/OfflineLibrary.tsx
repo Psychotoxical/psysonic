@@ -155,7 +155,7 @@ export default function OfflineLibrary() {
     cardsRefreshGenerationRef.current += 1;
     const key = offlineLibraryCardKey(card);
     setCards(prev => prev.filter(c => offlineLibraryCardKey(c) !== key));
-    void deleteAlbum(card.pinSource.sourceId, card.serverIndexKey).then(() => {
+    void deleteAlbum(card.pinSource.sourceId, card.serverIndexKey, card.pinSource).then(() => {
       void refreshOfflineDiskSizes();
     });
   }, [deleteAlbum, refreshOfflineDiskSizes]);

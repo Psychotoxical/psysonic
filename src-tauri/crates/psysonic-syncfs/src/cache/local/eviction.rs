@@ -23,6 +23,9 @@ pub(super) async fn prune_orphan_files_under_root(
         if keep.contains(&normalize_path_key(&file)) {
             continue;
         }
+        if crate::file_transfer::is_protected_download_artifact(&file).await {
+            continue;
+        }
         if tokio::fs::remove_file(&file).await.is_err() {
             continue;
         }
@@ -62,6 +65,9 @@ pub(super) async fn evict_orphan_files_under_root_to_fit(
     let mut orphans: Vec<OrphanCacheFile> = Vec::new();
     for file in super::super::fs_utils::collect_regular_files_under(root) {
         if keep.contains(&normalize_path_key(&file)) {
+            continue;
+        }
+        if crate::file_transfer::is_protected_download_artifact(&file).await {
             continue;
         }
         let meta = match std::fs::metadata(&file) {
@@ -312,5 +318,85 @@ mod tests {
         assert!(!orphan_part.exists());
         assert!(!base.join("cache/srv/Other").exists());
         let _ = std::fs::remove_dir_all(&base);
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn prune_preserves_active_part_and_destination_lock() {
+        let base = tempfile::tempdir().unwrap();
+        let cache = base.path().join("cache").join("srv");
+        std::fs::create_dir_all(&cache).unwrap();
+        let destination = cache.join("track.flac");
+        let part = crate::file_transfer::sibling_part_path(&destination, "track-1");
+        std::fs::write(&part, b"partial").unwrap();
+        let _guard = crate::file_transfer::acquire_download_destination_lock(&destination, None)
+            .await
+            .unwrap();
+
+        let removed = prune_orphan_files_under_root(base.path(), &[]).await;
+
+        assert!(removed.is_empty());
+        assert!(part.is_file());
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn prune_preserves_locked_final_destination_until_guard_drops() {
+        let base = tempfile::tempdir().unwrap();
+        let cache = base.path().join("cache").join("srv");
+        std::fs::create_dir_all(&cache).unwrap();
+        let destination = cache.join("track.flac");
+        std::fs::write(&destination, b"complete").unwrap();
+        let guard = crate::file_transfer::acquire_download_destination_lock(&destination, None)
+            .await
+            .unwrap();
+
+        let removed_while_locked = prune_orphan_files_under_root(base.path(), &[]).await;
+
+        assert!(removed_while_locked.is_empty());
+        assert!(destination.is_file());
+
+        drop(guard);
+        let removed_after_unlock = prune_orphan_files_under_root(base.path(), &[]).await;
+
+        assert_eq!(removed_after_unlock.len(), 1);
+        assert!(!destination.exists());
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn prune_preserves_valid_resumable_pair_after_restart() {
+        use wiremock::matchers::{method, path as wm_path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(wm_path("/track"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .insert_header("ETag", "\"track-v1\"")
+                    .set_body_bytes(b"abcdef".to_vec()),
+            )
+            .mount(&server)
+            .await;
+        let base = tempfile::tempdir().unwrap();
+        let cache = base.path().join("cache").join("srv");
+        std::fs::create_dir_all(&cache).unwrap();
+        let destination = cache.join("track.flac");
+        let part = crate::file_transfer::sibling_part_path(&destination, "track-1");
+        let response = crate::file_transfer::prepare_resumable_download(
+            &reqwest::Client::new(),
+            None,
+            None,
+            &format!("{}/track", server.uri()),
+            &part,
+            1024,
+        )
+        .await
+        .unwrap();
+        drop(response);
+        std::fs::write(&part, b"abc").unwrap();
+
+        let removed = prune_orphan_files_under_root(base.path(), &[]).await;
+
+        assert!(removed.is_empty());
+        assert!(part.is_file());
     }
 }

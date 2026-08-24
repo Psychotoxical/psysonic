@@ -1,8 +1,5 @@
-use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, OnceLock};
 
-use psysonic_core::cover_cache_layout::sanitize_path_segment;
 use psysonic_core::media_layout::{
     absolute_track_path, layout_fingerprint, LocalTier, TrackPathInput,
 };
@@ -33,6 +30,7 @@ pub(super) struct ResolvedLibraryTrackPath {
     pub(super) file_path: PathBuf,
     pub(super) path_str: String,
     pub(super) layout_fingerprint: String,
+    pub(super) expected_size_bytes: Option<u64>,
 }
 
 pub(super) fn resolve_library_track_path(
@@ -88,6 +86,7 @@ pub(super) fn resolve_track_path_for_tier(
         path_str: file_path.to_string_lossy().to_string(),
         file_path,
         layout_fingerprint: fingerprint,
+        expected_size_bytes: row.size_bytes.and_then(|size| u64::try_from(size).ok()),
     })
 }
 
@@ -98,37 +97,8 @@ pub(super) fn normalize_path_key(path: &Path) -> String {
         .to_string()
 }
 
-/// Per-track download mutex for the same `(tier, server, track)`.
-fn track_download_locks(
-) -> &'static tokio::sync::Mutex<HashMap<String, Arc<tokio::sync::Mutex<()>>>> {
-    static LOCKS: OnceLock<tokio::sync::Mutex<HashMap<String, Arc<tokio::sync::Mutex<()>>>>> =
-        OnceLock::new();
-    LOCKS.get_or_init(|| tokio::sync::Mutex::new(HashMap::new()))
-}
-
-pub(super) async fn acquire_per_track_download_lock(key: &str) -> tokio::sync::OwnedMutexGuard<()> {
-    let lock_arc = {
-        let mut map = track_download_locks().lock().await;
-        map.entry(key.to_string())
-            .or_insert_with(|| Arc::new(tokio::sync::Mutex::new(())))
-            .clone()
-    };
-    lock_arc.lock_owned().await
-}
-
-pub(super) fn per_track_download_lock_key(
-    tier: LocalTier,
-    server_index_key: &str,
-    track_id: &str,
-) -> String {
-    format!("{}:{}:{}", tier.subdir(), server_index_key, track_id)
-}
-
-/// Part file beside the final track, keyed by sanitized `track_id`.
-pub(super) fn unique_part_path(file_path: &Path, suffix: &str, track_id: &str) -> PathBuf {
-    let parent = file_path.parent().unwrap_or_else(|| Path::new("."));
-    let safe_id = sanitize_path_segment(track_id);
-    parent.join(format!("{safe_id}.{suffix}.part"))
+pub(super) fn unique_part_path(file_path: &Path, track_id: &str) -> PathBuf {
+    crate::file_transfer::sibling_part_path(file_path, track_id)
 }
 
 pub(super) fn track_row_to_path_input(row: &TrackRow) -> TrackPathInput {
