@@ -537,7 +537,7 @@ export const settings = {
   artistLayoutDesc: 'Trascina per riordinare, attiva/disattiva per nascondere singole sezioni della pagina artista. Le sezioni senza dati vengono saltate automaticamente.',
   artistLayoutReset: 'Ripristina predefinita',
   artistLayoutBio: 'Biografia artista',
-  artistLayoutTopTracks: 'Brani più ascoltati',
+  artistLayoutTopTracks: 'Brani',
   artistLayoutSimilar: 'Artisti simili',
   artistLayoutAlbums: 'Album',
   artistLayoutFeatured: 'Presente anche in',

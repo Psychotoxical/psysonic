@@ -4,6 +4,8 @@
  * Kept intentionally small — extend as other features need a symbol.
  */
 export { usePlayerStore } from './store/playerStore';
+export { previewInputFromSong, usePreviewStore } from './store/previewStore';
+export { resolveTrackArtistRefs } from './utils/playback/trackArtistRefs';
 export { seedQueueResolver } from './store/queueTrackResolver';
 export { queueSongStar } from './store/pendingStarSync';
 export { getPlaybackProgressSnapshot, subscribePlaybackProgress } from './store/playbackProgress';

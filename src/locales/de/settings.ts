@@ -493,7 +493,7 @@ export const settings = {
   artistLayoutDesc: 'Per Drag & Drop neu anordnen, einzelne Abschnitte der Künstlerseite ein- oder ausblenden. Abschnitte ohne Daten werden automatisch übersprungen.',
   artistLayoutReset: 'Zurücksetzen',
   artistLayoutBio: 'Künstler-Biografie',
-  artistLayoutTopTracks: 'Top-Tracks',
+  artistLayoutTopTracks: 'Titel',
   artistLayoutSimilar: 'Ähnliche Künstler*innen',
   artistLayoutAlbums: 'Alben',
   artistLayoutFeatured: 'Auch enthalten auf',

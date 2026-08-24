@@ -39,6 +39,7 @@ export const albumDetail = {
   trackLastPlayed: '上次播放',
   trackBpm: 'BPM',
   trackFormat: '格式',
+  trackYear: '年份',
   trackFavorite: '收藏',
   trackRating: '评分',
   trackDuration: '时长',

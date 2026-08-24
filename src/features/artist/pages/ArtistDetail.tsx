@@ -28,7 +28,9 @@ import {
   runArtistEntityRating, runArtistToggleStar, runArtistShare, runArtistImageUpload,
 } from '@/features/artist/utils/runArtistDetailActions';
 import ArtistDetailHero from '@/features/artist/components/ArtistDetailHero';
-import ArtistDetailTopTracks from '@/features/artist/components/ArtistDetailTopTracks';
+import ArtistDetailTracksSection from '@/features/artist/components/ArtistDetailTracksSection';
+import { songToTrack } from '@/lib/media/songToTrack';
+import type { SubsonicSong } from '@/lib/api/subsonicTypes';
 import ArtistDetailSimilarArtists from '@/features/artist/components/ArtistDetailSimilarArtists';
 import { ArtistCard } from '@/features/nowPlaying';
 import LosslessModeBanner from '@/ui/LosslessModeBanner';
@@ -169,6 +171,15 @@ export default function ArtistDetail() {
     playTrack,
   });
 
+  // The full list needs no continuation the way the top five do: it already holds
+  // everything, so it becomes the queue as it stands on screen — in whatever order
+  // the user sorted it into.
+  const playFromAllTracks = (songs: SubsonicSong[], index: number) => {
+    if (index < 0 || index >= songs.length) return;
+    const queue = songs.map(songToTrack);
+    playTrack(queue[index], queue, true, false, index);
+  };
+
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => runArtistImageUpload({
     e, artist, serverId: artistOwnerServerId, t, setUploading, setCoverRevision,
   });
@@ -279,7 +290,11 @@ export default function ArtistDetail() {
   const sectionHasData = (id: ArtistSectionId): boolean => {
     switch (id) {
       case 'bio':       return !!info?.biography;
-      case 'topTracks': return topSongsLoading || topSongs.length > 0;
+      // The section holds both track tabs, so a missing ranking no longer means
+      // there is nothing to show: the offline and local-index branches clear
+      // `topSongs` while the full list still reads fine from the index. A
+      // discography is the signal that tracks exist at all.
+      case 'topTracks': return topSongsLoading || topSongs.length > 0 || albums.length > 0;
       case 'similar':   return showSimilarSection;
       case 'albums':    return true; // always renders (empty state included)
       case 'featured':  return featuredLoading || featuredAlbums.length > 0;
@@ -353,14 +368,24 @@ export default function ArtistDetail() {
           );
 
           case 'topTracks': return (
-            <ArtistDetailTopTracks
-              key="topTracks"
+            <ArtistDetailTracksSection
+              // Keyed by artist so the tab selection resets on navigation instead
+              // of carrying over to a different artist's lists.
+              key={`topTracks:${id ?? ''}`}
               topSongs={topSongs}
-              loading={topSongsLoading}
+              topSongsLoading={topSongsLoading}
               albums={albums}
               marginTop={sectionMt('topTracks')}
               playTopSongWithContinuation={playTopSongWithContinuation}
               losslessOnly={losslessOnly}
+              scopes={entitySourceScopes}
+              // Same anchor pair the page loader uses: the route's server plus the
+              // route's artist id. `artist.serverId` is the scope-priority winner
+              // and can belong to a different server than `id` came from, which
+              // would make the backend look up an id the server does not have.
+              serverId={activeServerId}
+              artistId={id ?? ''}
+              onPlayAllTracks={playFromAllTracks}
             />
           );
 

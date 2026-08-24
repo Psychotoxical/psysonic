@@ -1,4 +1,4 @@
-import React, { Fragment } from 'react';
+import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { AudioLines, ChevronRight, Play, Square } from 'lucide-react';
 import type { SubsonicAlbum, SubsonicSong } from '@/lib/api/subsonicTypes';
@@ -14,13 +14,15 @@ interface Props {
   topSongs: SubsonicSong[];
   loading?: boolean;
   albums: SubsonicAlbum[];
-  marginTop: string;
   playTopSongWithContinuation: (startIndex: number) => Promise<void>;
-  losslessOnly?: boolean;
 }
 
+/**
+ * The server's popularity ranking for an artist. Named and spaced by the tab
+ * strip above it, so it renders the table alone.
+ */
 export default function ArtistDetailTopTracks({
-  topSongs, loading = false, albums, marginTop, playTopSongWithContinuation, losslessOnly = false,
+  topSongs, loading = false, albums, playTopSongWithContinuation,
 }: Props) {
   const { t } = useTranslation();
   const currentTrack = usePlayerStore(s => s.currentTrack);
@@ -30,16 +32,24 @@ export default function ArtistDetailTopTracks({
   const previewAudioStarted = usePreviewStore(s => s.audioStarted);
   const { orbitActive, queueHint, addTrackToOrbit } = useOrbitSongRowBehavior();
 
+  // The offline and local-index branches leave the ranking empty while the full
+  // list still has tracks. Without this the tab would show a bare header row —
+  // and it must not claim the artist has no tracks, because the neighbouring tab
+  // may well be listing hundreds. Only the ranking is missing.
+  if (!loading && topSongs.length === 0) {
+    return (
+      <div className="empty-state" style={{ padding: '2rem 0' }}>
+        {t('artistDetail.topTracksEmpty')}
+      </div>
+    );
+  }
+
   return (
-    <Fragment>
-      <h2 className="section-title" style={{ marginTop, marginBottom: '1rem' }}>
-        {t(losslessOnly ? 'artistDetail.topTracksLossless' : 'artistDetail.topTracks')}
-      </h2>
   <div
     className="tracklist"
     data-preview-loc="artist"
     aria-busy={loading}
-    style={{ padding: 0, marginBottom: '2rem' }}
+    style={{ padding: 0 }}
   >
     <div className="tracklist-header" style={{ gridTemplateColumns: '60px minmax(150px, 1fr) minmax(100px, 1fr) 65px' }}>
       <div style={{ textAlign: 'center' }}>#</div>
@@ -133,6 +143,5 @@ export default function ArtistDetailTopTracks({
        );
       })}
    </div>
-    </Fragment>
   );
 }

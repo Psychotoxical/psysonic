@@ -495,7 +495,7 @@ export const settings = {
   artistLayoutDesc: 'Trage pentru a reordona, comutați pentru a ascunde secțiuni individuale ale paginii de artist. Secțiunile fără date sunt ignorate automat.',
   artistLayoutReset: 'Resetează la implicit',
   artistLayoutBio: 'Biografie artist',
-  artistLayoutTopTracks: 'Top piese',
+  artistLayoutTopTracks: 'Piese',
   artistLayoutSimilar: 'Artiști similari',
   artistLayoutAlbums: 'Albume',
   artistLayoutFeatured: 'Prezentat și pe',

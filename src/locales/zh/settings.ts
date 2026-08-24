@@ -479,7 +479,7 @@ export const settings = {
   artistLayoutDesc: '拖动以重新排序，切换以隐藏艺术家页面的各个板块。没有数据的板块会自动跳过。',
   artistLayoutReset: '重置为默认',
   artistLayoutBio: '艺术家简介',
-  artistLayoutTopTracks: '热门曲目',
+  artistLayoutTopTracks: '曲目',
   artistLayoutSimilar: '相似艺术家',
   artistLayoutAlbums: '专辑',
   artistLayoutFeatured: '也参与了',

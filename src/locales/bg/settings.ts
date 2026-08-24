@@ -537,7 +537,7 @@ export const settings = {
   artistLayoutDesc: 'Плъзни, за да пренаредиш, превключи, за да скриеш отделни раздели от страницата на изпълнителя. Разделите без данни се пропускат автоматично.',
   artistLayoutReset: 'Върни към стойността по подразбиране',
   artistLayoutBio: 'Биография на изпълнителя',
-  artistLayoutTopTracks: 'Най-слушани песни',
+  artistLayoutTopTracks: 'Песни',
   artistLayoutSimilar: 'Подобни изпълнители',
   artistLayoutAlbums: 'Албуми',
   artistLayoutFeatured: 'Участва и в',

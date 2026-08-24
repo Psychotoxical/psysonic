@@ -552,7 +552,7 @@ export const settings = {
   artistLayoutDesc: 'Перетаскивайте, чтобы изменить порядок, переключайте, чтобы скрыть отдельные разделы страницы исполнителя. Разделы без данных пропускаются автоматически.',
   artistLayoutReset: 'Сбросить',
   artistLayoutBio: 'Биография исполнителя',
-  artistLayoutTopTracks: 'Топ-треки',
+  artistLayoutTopTracks: 'Треки',
   artistLayoutSimilar: 'Похожие исполнители',
   artistLayoutAlbums: 'Альбомы',
   artistLayoutFeatured: 'Также участвует в',

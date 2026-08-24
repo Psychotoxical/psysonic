@@ -537,7 +537,7 @@ export const settings = {
   artistLayoutDesc: 'Húzd az átrendezéshez, kapcsold az előadói oldal egyes szakaszainak elrejtéséhez. Az adat nélküli szakaszok automatikusan kimaradnak.',
   artistLayoutReset: 'Visszaállítás alapértelmezettre',
   artistLayoutBio: 'Előadó életrajza',
-  artistLayoutTopTracks: 'Legjobb számok',
+  artistLayoutTopTracks: 'Számok',
   artistLayoutSimilar: 'Hasonló előadók',
   artistLayoutAlbums: 'Albumok',
   artistLayoutFeatured: 'Közreműködőként is szerepel',
