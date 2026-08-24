@@ -47,4 +47,6 @@ export const sidebar = {
   themeUpdatesTitle: 'Актуализации на темата',
   themeUpdatesTooltip: 'Налични актуализации на темата',
   themeUpdatesDismiss: 'Отхвърли',
+  playlistSongCount_one: '{{count}} песен',
+  playlistSongCount_other: '{{count}} песни',
 };

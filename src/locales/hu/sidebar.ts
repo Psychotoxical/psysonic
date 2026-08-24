@@ -47,4 +47,6 @@ export const sidebar = {
   themeUpdatesTitle: 'Témafrissítések',
   themeUpdatesTooltip: 'Elérhető témafrissítések',
   themeUpdatesDismiss: 'Elvetés',
+  playlistSongCount_one: '{{count}} szám',
+  playlistSongCount_other: '{{count}} szám',
 };

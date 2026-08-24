@@ -47,4 +47,6 @@ export const sidebar = {
   themeUpdatesTitle: 'Aggiorna Temi',
   themeUpdatesTooltip: 'Aggiornamento tema disponibile',
   themeUpdatesDismiss: 'Ignora',
+  playlistSongCount_one: '{{count}} brano',
+  playlistSongCount_other: '{{count}} brani',
 };

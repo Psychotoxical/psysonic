@@ -138,3 +138,43 @@
   font-style: italic;
 }
 
+
+/* ─ Row thumbnail + song count ─ */
+.sidebar-playlist-cover {
+  width: 20px;
+  height: 20px;
+  flex: 0 0 auto;
+  border-radius: var(--radius-sm);
+  object-fit: cover;
+}
+
+/*
+ * The rule above these (`.sidebar-playlist-item span`) gives every span
+ * `flex: 1` so the name eats the row. The count must opt out of that, and it
+ * needs the same class+element weight to win — hence the compound selector.
+ */
+.sidebar-playlist-item .sidebar-playlist-count {
+  flex: 0 0 auto;
+  min-width: 0;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  overflow: visible;
+}
+
+/* Sort control sits between the section link and the collapse chevron. */
+.sidebar-playlists-sort {
+  display: inline-flex;
+  flex: 0 0 auto;
+}
+
+.sidebar-playlists-sort .btn {
+  padding: 2px 6px;
+  min-height: 0;
+}
+
+/* Smart-playlist marker shown alongside a cover, where it cannot replace the icon. */
+.sidebar-playlist-smart-marker {
+  flex: 0 0 auto;
+  color: var(--text-muted);
+}

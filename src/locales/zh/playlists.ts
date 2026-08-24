@@ -130,4 +130,11 @@ export const playlists = {
     sharedWithMe: '分享给我的',
     emptyBucket: '此分组中没有播放列表。',
   },
+  // Ordering of the playlist list itself (sidebar section + Playlists page)
+  listSort: {
+    label: '播放列表排序',
+    name: '名称（A–Z）',
+    created: '最近创建',
+    songCount: '歌曲数量',
+  },
 };

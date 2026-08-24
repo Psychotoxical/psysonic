@@ -447,6 +447,7 @@ const CONTRIBUTOR_ENTRIES = [
       'Visualizer — separate switches for Now Playing and the fullscreen player (PR #1378)',
       'Cards: full name on hover when the text is cut off, optional in Appearance (PR #1433)',
       'Playlists — a header switch separating your own playlists from the ones shared with you (PR #1454)',
+      'Sidebar — playlist covers and song counts, plus sorting by name, creation date or size (PR #1455)',
     ],
   },
   {

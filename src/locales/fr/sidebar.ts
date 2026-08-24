@@ -43,4 +43,6 @@ export const sidebar = {
   themeUpdatesTitle: 'Mises à jour de thèmes',
   themeUpdatesTooltip: 'Mises à jour de thèmes disponibles',
   themeUpdatesDismiss: 'Masquer',
+  playlistSongCount_one: '{{count}} titre',
+  playlistSongCount_other: '{{count}} titres',
 };

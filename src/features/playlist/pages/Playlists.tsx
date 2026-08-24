@@ -14,6 +14,7 @@ import {
   filterPlaylistsByOwnership,
   isOwnPlaylist,
 } from '@/features/playlist/utils/playlistOwnership';
+import { sortPlaylistList } from '@/features/playlist/utils/playlistListSort';
 import { usePlaylistLayoutStore } from '@/features/playlist/store/playlistLayoutStore';
 
 import {
@@ -60,12 +61,16 @@ export default function Playlists() {
     () => countPlaylistsByOwnership(playlists, servers),
     [playlists, servers],
   );
+  const listSortKey = usePlaylistLayoutStore(s => s.listSortKey);
   const visiblePlaylists = useMemo(
-    () => filterPlaylistsByNameQuery(
-      [...filterPlaylistsByOwnership(playlists, ownershipFilter, servers)],
-      playlistsSearchQuery,
+    () => sortPlaylistList(
+      filterPlaylistsByNameQuery(
+        [...filterPlaylistsByOwnership(playlists, ownershipFilter, servers)],
+        playlistsSearchQuery,
+      ),
+      listSortKey,
     ),
-    [playlists, ownershipFilter, servers, playlistsSearchQuery],
+    [playlists, ownershipFilter, servers, playlistsSearchQuery, listSortKey],
   );
   const textSearchActive = playlistsSearchQuery.trim().length > 0;
   const ownershipFilterActive = ownershipFilter !== 'all';

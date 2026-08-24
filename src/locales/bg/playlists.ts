@@ -132,4 +132,11 @@ export const playlists = {
     sharedWithMe: 'Споделени с мен',
     emptyBucket: 'Няма плейлисти в тази група.',
   },
+  // Ordering of the playlist list itself (sidebar section + Playlists page)
+  listSort: {
+    label: 'Сортиране на плейлисти',
+    name: 'Име (А–Я)',
+    created: 'Наскоро създадени',
+    songCount: 'Брой песни',
+  },
 };
