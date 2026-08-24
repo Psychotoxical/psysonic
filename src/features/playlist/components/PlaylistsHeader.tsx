@@ -8,7 +8,12 @@ import {
 import { offlineActionPolicy, type OfflineActionPolicy } from '@/features/offline';
 import PlaylistsNewFolderButton from '@/features/playlist/components/PlaylistsNewFolderButton';
 import PlaylistsFolderViewToggle from '@/features/playlist/components/PlaylistsFolderViewToggle';
+import PlaylistsOwnershipFilter from '@/features/playlist/components/PlaylistsOwnershipFilter';
 import PlaylistCreateFields from '@/features/playlist/components/PlaylistCreateFields';
+import SortDropdown from '@/ui/SortDropdown';
+import { usePlaylistLayoutStore } from '@/features/playlist/store/playlistLayoutStore';
+import { usePlaylistListSortOptions } from '@/features/playlist/hooks/usePlaylistListSortOptions';
+import type { PlaylistOwnershipBucket } from '@/features/playlist/utils/playlistOwnership';
 
 interface Props {
   selectionMode: boolean;
@@ -34,6 +39,8 @@ interface Props {
   onEditorIntent: () => void;
   actionPolicy?: OfflineActionPolicy;
   foldersEnabled?: boolean;
+  /** Bucket sizes across the whole list — the filter hides itself when nothing is shared. */
+  ownershipCounts: Record<PlaylistOwnershipBucket, number>;
 }
 
 export default function PlaylistsHeader({
@@ -45,8 +52,12 @@ export default function PlaylistsHeader({
   smartCreateServerOptions, setEditingSmartId, setSmartFilters, setGenreQuery, onEditorIntent,
   actionPolicy,
   foldersEnabled = true,
+  ownershipCounts,
 }: Props) {
   const { t } = useTranslation();
+  const listSortKey = usePlaylistLayoutStore(s => s.listSortKey);
+  const setListSortKey = usePlaylistLayoutStore(s => s.setListSortKey);
+  const sortOptions = usePlaylistListSortOptions();
   const policy = actionPolicy ?? offlineActionPolicy('playlistsHeader', false);
   const cancelCreate = () => {
     setCreating(false);
@@ -85,6 +96,15 @@ export default function PlaylistsHeader({
             )}
           </>
           )}
+          {!(selectionMode && selectedIds.size > 0) && (
+            <SortDropdown
+              value={listSortKey}
+              options={sortOptions}
+              onChange={setListSortKey}
+              ariaLabel={t('playlists.listSort.label')}
+              tooltip={t('playlists.listSort.label')}
+            />
+          )}
           {foldersEnabled && !(selectionMode && selectedIds.size > 0) && <PlaylistsFolderViewToggle />}
           {foldersEnabled && !(selectionMode && selectedIds.size > 0) && <PlaylistsNewFolderButton />}
           {selectionMode && selectedIds.size > 0 && (() => {
@@ -118,6 +138,9 @@ export default function PlaylistsHeader({
           </button>
         </div>
       </div>
+      {!(selectionMode && selectedIds.size > 0) && (
+        <PlaylistsOwnershipFilter counts={ownershipCounts} />
+      )}
       {creating && (
         <form
           className="playlist-create-panel"

@@ -123,4 +123,20 @@ export const playlists = {
     localOnlyNotice:
       'Las carpetas se guardan solo en Psysonic en este dispositivo. Navidrome y la API de Subsonic no admiten carpetas de listas, por lo que la estructura no se guarda en tu servidor ni se sincroniza con tus otros dispositivos y aplicaciones.',
   },
+  // Ownership split (personal / shared by me / shared with me)
+  ownership: {
+    groupLabel: 'Listas por propietario',
+    all: 'Todas',
+    personal: 'Personales',
+    sharedByMe: 'Compartidas por mí',
+    sharedWithMe: 'Compartidas conmigo',
+    emptyBucket: 'No hay listas en este grupo.',
+  },
+  // Ordering of the playlist list itself (sidebar section + Playlists page)
+  listSort: {
+    label: 'Ordenar listas',
+    name: 'Nombre (A–Z)',
+    created: 'Creadas recientemente',
+    songCount: 'Número de canciones',
+  },
 };

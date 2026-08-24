@@ -123,4 +123,20 @@ export const playlists = {
     localOnlyNotice:
       'Mapper lagres bare i Psysonic på denne enheten. Navidrome og Subsonic-API-et støtter ikke spillelistemapper, så strukturen lagres ikke på serveren din og synkroniseres ikke med dine andre enheter og apper.',
   },
+  // Ownership split (personal / shared by me / shared with me)
+  ownership: {
+    groupLabel: 'Spillelister etter eier',
+    all: 'Alle',
+    personal: 'Personlige',
+    sharedByMe: 'Delt av meg',
+    sharedWithMe: 'Delt med meg',
+    emptyBucket: 'Ingen spillelister i denne gruppen.',
+  },
+  // Ordering of the playlist list itself (sidebar section + Playlists page)
+  listSort: {
+    label: 'Sorter spillelister',
+    name: 'Navn (A–Z)',
+    created: 'Nylig opprettet',
+    songCount: 'Antall sanger',
+  },
 };

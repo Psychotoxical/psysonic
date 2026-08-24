@@ -38,6 +38,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Song count, duration and the added date now reach every album browse surface, including filtered views and the lossless catalogue, where one or the other used to be blank.
 * Albums added in the last two days show the new-release ribbon on the All Albums grid as well, not only under New Releases.
 
+### Telling your own playlists apart from shared ones
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1454](https://github.com/Psysonic/psysonic/pull/1454)**
+
+* A server hands over your own playlists together with every public playlist of everyone else on it, all in one undivided list. The Playlists page can now separate them into your own, the ones you share, and the ones other people share with you.
+* The switch only appears once something on the server is actually shared, and it works alongside the folder view and the search box instead of replacing either.
+* Your playlists are now recognised as yours no matter how the username was capitalised when the server profile was created. A mismatch there previously also left the delete button greyed out on your own playlists.
+
+### Playlist covers in the sidebar, and a sortable playlist list
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1455](https://github.com/Psysonic/psysonic/pull/1455)**
+
+* The sidebar playlist list shows each playlist's cover and how many songs it holds. Playlists without their own cover keep the plain list icon.
+* The list can be ordered by name, by when a playlist was created, or by how many songs it has. The setting is remembered and applies to the sidebar and the Playlists page alike — the page had no ordering of its own until now.
+* The personal / shared split from the previous entry now applies to the sidebar list as well.
+
 ## Changed
 
 ### Rust internals — smaller focused modules with the same behaviour

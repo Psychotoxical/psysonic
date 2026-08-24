@@ -43,4 +43,6 @@ export const sidebar = {
   themeUpdatesTitle: 'Thema-updates',
   themeUpdatesTooltip: 'Thema-updates beschikbaar',
   themeUpdatesDismiss: 'Sluiten',
+  playlistSongCount_one: '{{count}} nummer',
+  playlistSongCount_other: '{{count}} nummers',
 };

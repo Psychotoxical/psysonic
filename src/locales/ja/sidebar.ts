@@ -47,4 +47,6 @@ export const sidebar = {
   themeUpdatesTitle: 'テーマアップデート',
   themeUpdatesTooltip: 'テーマアップデートがあります',
   themeUpdatesDismiss: '閉じる',
+  playlistSongCount_one: '{{count}} 曲',
+  playlistSongCount_other: '{{count}} 曲',
 };

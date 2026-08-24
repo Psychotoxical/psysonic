@@ -123,4 +123,20 @@ export const playlists = {
     localOnlyNotice:
       'Папки сохраняются только в Psysonic на этом устройстве. Navidrome и API Subsonic не поддерживают папки плейлистов, поэтому структура не хранится на твоём сервере и не синхронизируется с другими твоими устройствами и приложениями.',
   },
+  // Ownership split (personal / shared by me / shared with me)
+  ownership: {
+    groupLabel: 'Плейлисты по владельцу',
+    all: 'Все',
+    personal: 'Личные',
+    sharedByMe: 'Мои общие',
+    sharedWithMe: 'Доступные мне',
+    emptyBucket: 'В этой группе нет плейлистов.',
+  },
+  // Ordering of the playlist list itself (sidebar section + Playlists page)
+  listSort: {
+    label: 'Сортировка плейлистов',
+    name: 'Название (А–Я)',
+    created: 'Недавно созданные',
+    songCount: 'Количество треков',
+  },
 };

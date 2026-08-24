@@ -123,4 +123,20 @@ export const playlists = {
     localOnlyNotice:
       'Folderele sunt salvate doar în Psysonic pe acest dispozitiv. Navidrome și API-ul Subsonic nu acceptă foldere de playlisturi, așa că structura nu este stocată pe serverul tău și nu se sincronizează cu celelalte dispozitive și aplicații ale tale.',
   },
+  // Ownership split (personal / shared by me / shared with me)
+  ownership: {
+    groupLabel: 'Playlisturi după proprietar',
+    all: 'Toate',
+    personal: 'Personale',
+    sharedByMe: 'Partajate de mine',
+    sharedWithMe: 'Partajate cu mine',
+    emptyBucket: 'Niciun playlist în acest grup.',
+  },
+  // Ordering of the playlist list itself (sidebar section + Playlists page)
+  listSort: {
+    label: 'Sortează playlisturile',
+    name: 'Nume (A–Z)',
+    created: 'Create recent',
+    songCount: 'Număr de melodii',
+  },
 };

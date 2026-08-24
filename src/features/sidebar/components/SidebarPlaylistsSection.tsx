@@ -2,6 +2,8 @@ import React from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { ChevronRight, Folder, PlayCircle, Sparkles } from 'lucide-react';
+import { AlbumCoverArtImage } from '@/cover/AlbumCoverArtImage';
+import { coverServerScopeForServerId } from '@/cover/serverScope';
 import { displayPlaylistName, isSmartPlaylistName } from '@/features/sidebar/utils/sidebarHelpers';
 import { usePlayerStore } from '@/features/playback/store/playerStore';
 import { usePlaylistStore } from '@/features/playlist';
@@ -16,6 +18,34 @@ interface Props {
   playlistsLoading: boolean;
   multiServerScope: boolean;
   folderServerId: string | null;
+}
+
+/** Row thumbnail — sits where the 12px list icon otherwise is. */
+const SIDEBAR_COVER_CSS_PX = 20;
+
+/**
+ * Playlist thumbnail for a sidebar row.
+ *
+ * Reads `coverArt` straight from the playlist listing — the same field the card
+ * in the grid uses — so a permanently mounted sidebar costs no extra request
+ * beyond the image itself. Deliberately defined here rather than exported from
+ * the playlist barrel: the sidebar imports that barrel on the boot path, and
+ * routing UI through it is what produced the minified init-order failures in
+ * #1277 / #1290.
+ */
+function SidebarPlaylistCover({ coverArt, serverId }: { coverArt: string; serverId?: string }) {
+  return (
+    <AlbumCoverArtImage
+      albumId={coverArt}
+      coverArt={coverArt}
+      serverScope={coverServerScopeForServerId(serverId)}
+      displayCssPx={SIDEBAR_COVER_CSS_PX}
+      surface="dense"
+      libraryResolve={false}
+      alt=""
+      className="sidebar-playlist-cover"
+    />
+  );
 }
 
 /**
@@ -72,8 +102,22 @@ export default function SidebarPlaylistsSection({
         void runLatestPlaylistServerIntent(full, () => openContextMenu(clientX, clientY, full, 'playlist'));
       }}
     >
-      {isSmartPlaylistName(pl.name) ? <Sparkles size={12} /> : <PlayCircle size={12} />}
+      {pl.coverArt
+        ? <SidebarPlaylistCover coverArt={pl.coverArt} serverId={pl.serverId} />
+        : isSmartPlaylistName(pl.name) ? <Sparkles size={12} /> : <PlayCircle size={12} />}
+      {/* A cover replaces the icon, so a smart playlist that has one would lose
+          its only marker. The card keeps both for the same reason. */}
+      {pl.coverArt && isSmartPlaylistName(pl.name) && (
+        <Sparkles size={12} className="sidebar-playlist-smart-marker" />
+      )}
       <span>{displayPlaylistName(pl.name)}</span>
+      {/* `aria-label` on a bare span is dropped — the element has no ARIA role
+          to name. The digits are hidden from AT and the spoken form supplied
+          separately, so the link reads "<name>, 5 songs". */}
+      <span className="sidebar-playlist-count" aria-hidden="true">{pl.songCount}</span>
+      <span className="visually-hidden">
+        {t('sidebar.playlistSongCount', { count: pl.songCount })}
+      </span>
     </NavLink>
   };
 

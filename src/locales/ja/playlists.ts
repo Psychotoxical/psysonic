@@ -123,4 +123,20 @@ export const playlists = {
     localOnlyNotice:
       'フォルダーはこのデバイス上の Psysonic にのみ保存されます。Navidrome と Subsonic API にはプレイリストフォルダーのネイティブ対応がないため、この構造はサーバーには保存されず、他のデバイスやアプリとも同期されません。',
   },
+  // Ownership split (personal / shared by me / shared with me)
+  ownership: {
+    groupLabel: '所有者別のプレイリスト',
+    all: 'すべて',
+    personal: '個人',
+    sharedByMe: '自分が共有',
+    sharedWithMe: '自分に共有',
+    emptyBucket: 'このグループにプレイリストはありません。',
+  },
+  // Ordering of the playlist list itself (sidebar section + Playlists page)
+  listSort: {
+    label: 'プレイリストの並び替え',
+    name: '名前（A–Z）',
+    created: '作成日が新しい順',
+    songCount: '曲数',
+  },
 };

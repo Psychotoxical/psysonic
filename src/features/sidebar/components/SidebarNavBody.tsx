@@ -11,6 +11,8 @@ import SidebarLibraryPicker from '@/features/sidebar/components/SidebarLibraryPi
 import type { SidebarLibraryGroup } from '@/features/sidebar/components/SidebarLibraryPicker';
 import SidebarPlaylistsSection from '@/features/sidebar/components/SidebarPlaylistsSection';
 import SidebarActiveJobs from '@/features/sidebar/components/SidebarActiveJobs';
+import SortDropdown from '@/ui/SortDropdown';
+import { usePlaylistLayoutStore, usePlaylistListSortOptions } from '@/features/playlist';
 import type { SubsonicPlaylist } from '@/lib/api/subsonicTypes';
 
 interface NavDndState {
@@ -69,6 +71,9 @@ export default function SidebarNavBody(props: Props) {
     isSyncing, syncJobDone, syncJobSkip, syncJobFail, syncJobTotal,
   } = props;
   const { t } = useTranslation();
+  const playlistListSortKey = usePlaylistLayoutStore(s => s.listSortKey);
+  const setPlaylistListSortKey = usePlaylistLayoutStore(s => s.setListSortKey);
+  const playlistSortOptions = usePlaylistListSortOptions();
 
   // Now Playing — fixed entry (not hideable). Rendered either pinned at the
   // very top of the sidebar or after the bottom spacer, per the user setting.
@@ -132,6 +137,18 @@ export default function SidebarNavBody(props: Props) {
                   <item.icon size={18} />
                   <span>{t(item.labelKey)}</span>
                 </NavLink>
+                {playlistsExpanded && (
+                  <span className="sidebar-playlists-sort">
+                    <SortDropdown
+                      value={playlistListSortKey}
+                      options={playlistSortOptions}
+                      onChange={setPlaylistListSortKey}
+                      ariaLabel={t('playlists.listSort.label')}
+                      tooltip={t('playlists.listSort.label')}
+                      iconOnly
+                    />
+                  </span>
+                )}
                 <button
                   className={`sidebar-playlists-toggle ${playlistsExpanded ? 'expanded' : ''}`}
                   onClick={() => setPlaylistsExpanded(!playlistsExpanded)}

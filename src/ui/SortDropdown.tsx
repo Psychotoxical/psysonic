@@ -21,9 +21,15 @@ interface Props<V extends string> {
    * e.g. next to an open side panel, so the popover never opens off-screen.
    */
   align?: 'left' | 'right';
+  /**
+   * Drop the current-value label from the trigger, leaving just the icon. For
+   * narrow hosts such as the sidebar, where the label would crowd out the list
+   * it sorts. The popover itself is unchanged, so the selection stays readable.
+   */
+  iconOnly?: boolean;
 }
 
-export default function SortDropdown<V extends string>({ value, options, onChange, ariaLabel, tooltip, align = 'left' }: Props<V>) {
+export default function SortDropdown<V extends string>({ value, options, onChange, ariaLabel, tooltip, align = 'left', iconOnly = false }: Props<V>) {
   const [open, setOpen] = useState(false);
   const [popStyle, setPopStyle] = useState<React.CSSProperties>({});
 
@@ -105,7 +111,7 @@ export default function SortDropdown<V extends string>({ value, options, onChang
         style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}
       >
         <ArrowDownUp size={14} />
-        <span className="toolbar-btn-label">{current?.label ?? value}</span>
+        {!iconOnly && <span className="toolbar-btn-label">{current?.label ?? value}</span>}
       </button>
 
       {open && createPortal(

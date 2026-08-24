@@ -1,5 +1,14 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import {
+  isPlaylistOwnershipFilter,
+  type PlaylistOwnershipFilter,
+} from '@/features/playlist/utils/playlistOwnership';
+import {
+  DEFAULT_PLAYLIST_LIST_SORT,
+  isPlaylistListSortKey,
+  type PlaylistListSortKey,
+} from '@/features/playlist/utils/playlistListSort';
 
 export type PlaylistLayoutItemId =
   | 'addSongs'
@@ -23,8 +32,14 @@ export const DEFAULT_PLAYLIST_LAYOUT_ITEMS: PlaylistLayoutItemConfig[] = [
 
 interface PlaylistLayoutStore {
   items: PlaylistLayoutItemConfig[];
+  /** Which ownership bucket the Playlists page shows; `all` disables the split. */
+  ownershipFilter: PlaylistOwnershipFilter;
+  /** Order of the playlist list, shared by the sidebar section and the page. */
+  listSortKey: PlaylistListSortKey;
   setItems: (items: PlaylistLayoutItemConfig[]) => void;
   toggleItem: (id: PlaylistLayoutItemId) => void;
+  setOwnershipFilter: (filter: PlaylistOwnershipFilter) => void;
+  setListSortKey: (key: PlaylistListSortKey) => void;
   reset: () => void;
 }
 
@@ -32,6 +47,8 @@ export const usePlaylistLayoutStore = create<PlaylistLayoutStore>()(
   persist(
     (set) => ({
       items: DEFAULT_PLAYLIST_LAYOUT_ITEMS,
+      ownershipFilter: 'all',
+      listSortKey: DEFAULT_PLAYLIST_LIST_SORT,
 
       setItems: (items) => set({ items }),
 
@@ -39,6 +56,12 @@ export const usePlaylistLayoutStore = create<PlaylistLayoutStore>()(
         items: s.items.map(it => it.id === id ? { ...it, visible: !it.visible } : it),
       })),
 
+      setOwnershipFilter: (ownershipFilter) => set({ ownershipFilter }),
+
+      setListSortKey: (listSortKey) => set({ listSortKey }),
+
+      // Toolbar buttons only. The ownership filter is browse state, not a layout
+      // item, so "reset layout" must not silently change which playlists show.
       reset: () => set({ items: DEFAULT_PLAYLIST_LAYOUT_ITEMS }),
     }),
     {
@@ -52,6 +75,10 @@ export const usePlaylistLayoutStore = create<PlaylistLayoutStore>()(
         const seen = new Set(safe.map(i => i.id));
         const missing = DEFAULT_PLAYLIST_LAYOUT_ITEMS.filter(i => !seen.has(i.id));
         state.items = missing.length > 0 ? [...safe, ...missing] : safe;
+        // A value persisted by an older build (or a hand-edited store) must not
+        // leave the page stuck on a bucket the control can no longer clear.
+        if (!isPlaylistOwnershipFilter(state.ownershipFilter)) state.ownershipFilter = 'all';
+        if (!isPlaylistListSortKey(state.listSortKey)) state.listSortKey = DEFAULT_PLAYLIST_LIST_SORT;
       },
     }
   )

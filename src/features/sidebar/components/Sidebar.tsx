@@ -11,7 +11,12 @@ import { useTranslation } from 'react-i18next';
 import { PanelLeft, PanelLeftClose, Trash2 } from 'lucide-react';
 import PsysonicLogo from '@/ui/PsysonicLogo';
 import PSmallLogo from '@/ui/PSmallLogo';
-import { usePlaylistStore } from '@/features/playlist';
+import {
+  filterPlaylistsByOwnership,
+  sortPlaylistList,
+  usePlaylistLayoutStore,
+  usePlaylistStore,
+} from '@/features/playlist';
 import OverlayScrollArea from '@/ui/OverlayScrollArea';
 import {
   getLibraryItemsForReorder,
@@ -123,10 +128,17 @@ export default function Sidebar({
   const playlistsRaw = usePlaylistStore(s => s.playlists);
   const playlistsLoading = usePlaylistStore(s => s.playlistsLoading);
   const fetchPlaylists = usePlaylistStore(s => s.fetchPlaylists);
-  // Sort playlists alphabetically by name
-  const playlists = useMemo(() => {
-    return [...playlistsRaw].sort((a, b) => a.name.localeCompare(b.name));
-  }, [playlistsRaw]);
+  const playlistListSortKey = usePlaylistLayoutStore(s => s.listSortKey);
+  const playlistOwnershipFilter = usePlaylistLayoutStore(s => s.ownershipFilter);
+  // Ownership filter first, then order — both come from the shared playlist
+  // layout store, so the sidebar and the Playlists page always agree.
+  const playlists = useMemo(
+    () => sortPlaylistList(
+      filterPlaylistsByOwnership(playlistsRaw, playlistOwnershipFilter, servers),
+      playlistListSortKey,
+    ),
+    [playlistsRaw, playlistOwnershipFilter, servers, playlistListSortKey],
+  );
   const [sidebarViewportEl, setSidebarViewportEl] = useState<HTMLDivElement | null>(null);
   const isSidebarScrolling = useSidebarScrollVisible(sidebarViewportEl);
   const unavailableServerIds = useUnavailableServerIds();
