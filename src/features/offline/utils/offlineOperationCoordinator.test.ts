@@ -1,6 +1,7 @@
 import { expect, it, vi } from 'vitest';
 import {
   beginOfflineTrackTransfer,
+  beginOfflineServerOperation,
   registerOfflineServerKeyRemaps,
   resolveOfflineServerOperationKey,
   runOfflineServerMaintenance,
@@ -8,6 +9,24 @@ import {
   runOfflineTrackCleanup,
   runOfflineTrackDeletionBatch,
 } from '@/features/offline/utils/offlineOperationCoordinator';
+
+it('lets nested track work reuse an outer server lease while maintenance waits', async () => {
+  const serverLease = await beginOfflineServerOperation('leased.test');
+  let maintenanceStarted = false;
+  const maintenance = runOfflineServerMaintenance('leased.test', async () => {
+    maintenanceStarted = true;
+  });
+  await Promise.resolve();
+  expect(maintenanceStarted).toBe(false);
+
+  const finishTrack = await beginOfflineTrackTransfer('leased.test', 'track-1', serverLease);
+  finishTrack();
+  expect(maintenanceStarted).toBe(false);
+
+  serverLease();
+  await maintenance;
+  expect(maintenanceStarted).toBe(true);
+});
 
 it('keeps server maintenance exclusive with track operations in both directions', async () => {
   const finishTransfer = await beginOfflineTrackTransfer('a.test', 'track-1');

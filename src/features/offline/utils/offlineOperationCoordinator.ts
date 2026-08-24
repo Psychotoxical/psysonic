@@ -8,6 +8,12 @@ interface OfflineServerMaintenanceBarrier {
   keys: Set<string>;
 }
 
+export interface OfflineServerOperationLease {
+  (): void;
+  readonly serverIndexKey: string;
+  isActive: () => boolean;
+}
+
 const trackDeletionBarriers = new Map<string, Promise<void>>();
 const trackCleanupBarriers = new Map<string, Promise<void>>();
 const trackDeletionEpochs = new Map<string, number>();
@@ -77,7 +83,9 @@ export function getOfflineTrackDeletionEpoch(
   return trackDeletionEpochs.get(trackKey(serverIndexKey, trackId)) ?? 0;
 }
 
-async function beginOfflineServerOperation(serverIndexKey: string): Promise<() => void> {
+export async function beginOfflineServerOperation(
+  serverIndexKey: string,
+): Promise<OfflineServerOperationLease> {
   const resolvedServerIndexKey = resolveOfflineServerOperationKey(serverIndexKey);
   const maintenance = serverMaintenanceBarriers.get(resolvedServerIndexKey);
   if (maintenance) {
@@ -89,7 +97,7 @@ async function beginOfflineServerOperation(serverIndexKey: string): Promise<() =
     (activeServerTransfers.get(resolvedServerIndexKey) ?? 0) + 1,
   );
   let released = false;
-  return () => {
+  const release = () => {
     if (released) return;
     released = true;
     const serverRemaining = (activeServerTransfers.get(resolvedServerIndexKey) ?? 1) - 1;
@@ -101,19 +109,39 @@ async function beginOfflineServerOperation(serverIndexKey: string): Promise<() =
       for (const resolve of waiters ?? []) resolve();
     }
   };
+  return Object.assign(release, {
+    serverIndexKey: resolvedServerIndexKey,
+    isActive: () => !released,
+  });
+}
+
+async function acquireOfflineServerOperation(
+  serverIndexKey: string,
+  lease?: OfflineServerOperationLease,
+): Promise<() => void> {
+  if (!lease) return beginOfflineServerOperation(serverIndexKey);
+  if (
+    !lease.isActive()
+    || resolveOfflineServerOperationKey(lease.serverIndexKey)
+      !== resolveOfflineServerOperationKey(serverIndexKey)
+  ) {
+    throw new Error('offline server operation lease does not match the requested server');
+  }
+  return () => {};
 }
 
 export async function beginOfflineTrackTransfer(
   serverIndexKey: string,
   trackId: string,
+  serverLease?: OfflineServerOperationLease,
 ): Promise<() => void> {
-  const finishServerOperation = await beginOfflineServerOperation(serverIndexKey);
+  const finishServerOperation = await acquireOfflineServerOperation(serverIndexKey, serverLease);
   const key = trackKey(serverIndexKey, trackId);
   const blocker = trackDeletionBarriers.get(key) ?? trackCleanupBarriers.get(key);
   if (blocker) {
     finishServerOperation();
     await blocker;
-    return beginOfflineTrackTransfer(serverIndexKey, trackId);
+    return beginOfflineTrackTransfer(serverIndexKey, trackId, serverLease);
   }
   activeTrackTransfers.set(key, (activeTrackTransfers.get(key) ?? 0) + 1);
   let released = false;
@@ -203,6 +231,7 @@ export async function runOfflineServerMaintenanceBatch<T>(
 export async function runOfflineTrackDeletionBatch(
   targets: OfflineTrackOperation[],
   operation: () => Promise<void>,
+  serverLeases: OfflineServerOperationLease[] = [],
 ): Promise<void> {
   const keys = [...new Set(targets.map(target => trackKey(
     target.serverIndexKey,
@@ -214,12 +243,17 @@ export async function runOfflineTrackDeletionBatch(
   ]).filter(Boolean))];
   if (active.length > 0) {
     await Promise.all(active);
-    return runOfflineTrackDeletionBatch(targets, operation);
+    return runOfflineTrackDeletionBatch(targets, operation, serverLeases);
   }
 
   const finishServerOperations = await Promise.all(
-    [...new Set(targets.map(target => target.serverIndexKey))]
-      .map(beginOfflineServerOperation),
+    [...new Set(targets.map(target => resolveOfflineServerOperationKey(target.serverIndexKey)))]
+      .map(serverIndexKey => acquireOfflineServerOperation(
+        serverIndexKey,
+        serverLeases.find(lease => (
+          resolveOfflineServerOperationKey(lease.serverIndexKey) === serverIndexKey
+        )),
+      )),
   );
   const newlyActive = [...new Set(keys.flatMap(key => [
     trackDeletionBarriers.get(key),
@@ -228,7 +262,7 @@ export async function runOfflineTrackDeletionBatch(
   if (newlyActive.length > 0) {
     for (const finish of finishServerOperations) finish();
     await Promise.all(newlyActive);
-    return runOfflineTrackDeletionBatch(targets, operation);
+    return runOfflineTrackDeletionBatch(targets, operation, serverLeases);
   }
 
   let begin!: () => void;
@@ -258,20 +292,21 @@ export async function runOfflineTrackCleanup(
   serverIndexKey: string,
   trackId: string,
   operation: () => Promise<void>,
+  serverLease?: OfflineServerOperationLease,
 ): Promise<void> {
   const key = trackKey(serverIndexKey, trackId);
   const activeOperation = trackDeletionBarriers.get(key) ?? trackCleanupBarriers.get(key);
   if (activeOperation) {
     await activeOperation;
-    return runOfflineTrackCleanup(serverIndexKey, trackId, operation);
+    return runOfflineTrackCleanup(serverIndexKey, trackId, operation, serverLease);
   }
 
-  const finishServerOperation = await beginOfflineServerOperation(serverIndexKey);
+  const finishServerOperation = await acquireOfflineServerOperation(serverIndexKey, serverLease);
   const newlyActiveOperation = trackDeletionBarriers.get(key) ?? trackCleanupBarriers.get(key);
   if (newlyActiveOperation) {
     finishServerOperation();
     await newlyActiveOperation;
-    return runOfflineTrackCleanup(serverIndexKey, trackId, operation);
+    return runOfflineTrackCleanup(serverIndexKey, trackId, operation, serverLease);
   }
 
   let finishCleanup!: () => void;

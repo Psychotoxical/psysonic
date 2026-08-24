@@ -25,10 +25,20 @@ use crate::file_transfer::{
 
 fn legacy_safe_segment(segment: &str) -> String {
     let sanitized = sanitize_path_segment(segment);
-    if sanitized == segment && sanitized.len() <= 120 {
+    if sanitized == segment
+        && sanitized.len() <= 120
+        && segment.is_ascii()
+        && !segment.bytes().any(|byte| byte.is_ascii_uppercase())
+    {
         return sanitized;
     }
-    let prefix: String = sanitized.chars().take(80).collect();
+    let mut prefix = String::new();
+    for ch in sanitized.chars() {
+        if prefix.len() + ch.len_utf8() > 80 {
+            break;
+        }
+        prefix.push(ch);
+    }
     format!("{prefix}-{:x}", md5::compute(segment.as_bytes()))
 }
 
@@ -390,6 +400,8 @@ mod tests {
             legacy_safe_segment("host:443"),
             legacy_safe_segment("host_443")
         );
+        assert_ne!(legacy_safe_segment("TrackA"), legacy_safe_segment("tracka"));
+        assert!(legacy_safe_segment(&"😀".repeat(80)).len() <= 113);
     }
 
     #[tokio::test(flavor = "multi_thread")]
@@ -705,7 +717,7 @@ mod tests {
     fn resolve_cache_dir_uses_default_root_when_no_custom_dir() {
         let dir = tempfile::tempdir().unwrap();
         let resolved = resolve_offline_cache_dir(None, "server-A", dir.path()).unwrap();
-        assert_eq!(resolved, dir.path().join("server-A"));
+        assert_eq!(resolved, dir.path().join(legacy_safe_segment("server-A")));
     }
 
     #[test]
@@ -713,7 +725,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         // Empty custom_dir is treated as None — Frank's frontend may pass "".
         let resolved = resolve_offline_cache_dir(Some(""), "server-A", dir.path()).unwrap();
-        assert_eq!(resolved, dir.path().join("server-A"));
+        assert_eq!(resolved, dir.path().join(legacy_safe_segment("server-A")));
     }
 
     #[test]
@@ -725,7 +737,7 @@ mod tests {
             std::path::Path::new("/should/not/be/used"),
         )
         .unwrap();
-        assert_eq!(resolved, dir.path().join("server-B"));
+        assert_eq!(resolved, dir.path().join(legacy_safe_segment("server-B")));
     }
 
     #[test]

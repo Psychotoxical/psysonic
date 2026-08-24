@@ -34,7 +34,10 @@ import {
   hasLocalLibraryBytes,
 } from '@/store/localPlaybackResolve';
 import {
+  beginOfflineServerOperation,
   beginOfflineTrackTransfer,
+  type OfflineServerOperationLease,
+  resolveOfflineServerOperationKey,
   runOfflineTrackDeletionBatch,
   runOfflineTrackCleanup,
   waitForOfflineTrackDeletion,
@@ -106,12 +109,14 @@ function cancelInFlightFavoritesDownloads(): void {
 
 function serverIndexKeyForSync(serverId: string): string {
   const server = useAuthStore.getState().servers.find(s => s.id === serverId);
-  if (server) return serverIndexKeyForProfile(server) || resolveIndexKey(serverId) || serverId;
-  return resolveIndexKey(serverId) || serverId;
+  const indexKey = server
+    ? serverIndexKeyForProfile(server) || resolveIndexKey(serverId) || serverId
+    : resolveIndexKey(serverId) || serverId;
+  return resolveOfflineServerOperationKey(indexKey);
 }
 
 function librarySqlScope(serverId: string): string {
-  return librarySqlServerId(serverId);
+  return resolveOfflineServerOperationKey(librarySqlServerId(serverId));
 }
 
 /**
@@ -192,6 +197,7 @@ async function pruneOrphanFavoriteAuto(
   targetIds: Set<string>,
   mediaDir: string | null,
   token: number,
+  serverLease?: OfflineServerOperationLease,
 ): Promise<void> {
   const entries = Object.values(useLocalPlaybackStore.getState().entries);
   for (const entry of entries) {
@@ -226,6 +232,7 @@ async function pruneOrphanFavoriteAuto(
           );
         }
       },
+      serverLease ? [serverLease] : [],
     );
   }
   if (token === runToken) {
@@ -305,6 +312,19 @@ async function runFavoritesOfflineSyncBatch(serverIds: string[]): Promise<void> 
 }
 
 async function runFavoritesOfflineSyncOneServer(serverId: string, token: number): Promise<void> {
+  const serverLease = await beginOfflineServerOperation(serverIndexKeyForSync(serverId));
+  try {
+    await runFavoritesOfflineSyncOneServerWithLease(serverId, token, serverLease);
+  } finally {
+    serverLease();
+  }
+}
+
+async function runFavoritesOfflineSyncOneServerWithLease(
+  serverId: string,
+  token: number,
+  serverLease: OfflineServerOperationLease,
+): Promise<void> {
   const auth = useAuthStore.getState();
   if (!auth.favoritesOfflineEnabled) return;
   const syncStore = useFavoritesOfflineSyncStore.getState();
@@ -322,7 +342,7 @@ async function runFavoritesOfflineSyncOneServer(serverId: string, token: number)
     const targetIds = new Set(allSongs.map(s => s.id));
     syncStore.setTargetTrackIds([...targetIds]);
 
-    await pruneOrphanFavoriteAuto(serverId, targetIds, mediaDir, token);
+    await pruneOrphanFavoriteAuto(serverId, targetIds, mediaDir, token, serverLease);
     if (token !== runToken) return;
 
     await libraryUpsertSongsFromApi(libraryServerId, allSongs).catch(() => {});
@@ -403,7 +423,11 @@ async function runFavoritesOfflineSyncOneServer(serverId: string, token: number)
           ) {
             return { song, error: null };
           }
-          const finishTrackTransfer = await beginOfflineTrackTransfer(serverIndexKey, song.id);
+          const finishTrackTransfer = await beginOfflineTrackTransfer(
+            serverIndexKey,
+            song.id,
+            serverLease,
+          );
           try {
             const res = await invoke<{
               path: string;
@@ -432,7 +456,7 @@ async function runFavoritesOfflineSyncOneServer(serverId: string, token: number)
               await runOfflineTrackCleanup(serverIndexKey, song.id, async () => {
                 if (findLocalPlaybackEntry(song.id, serverId)?.localPath === res.path) return;
                 await deleteMediaFile({ localPath: res.path, mediaDir }).catch(() => {});
-              });
+              }, serverLease);
               return { song, error: 'CANCELLED' };
             }
             useLocalPlaybackStore.getState().upsertEntry({

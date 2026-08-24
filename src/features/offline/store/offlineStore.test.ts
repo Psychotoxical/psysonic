@@ -523,6 +523,69 @@ describe('offlineStore download producer', () => {
     );
   });
 
+  it('clears native cancellation only after the request and native invoke settle', async () => {
+    let resolveDownload!: (value: ReturnType<typeof downloadResult>) => void;
+    let resolveCancellation!: () => void;
+    let cancellationCleared = false;
+    onInvoke('download_track_local', () => new Promise(resolve => {
+      resolveDownload = resolve;
+    }));
+    onInvoke('cancel_offline_downloads', () => new Promise<void>(resolve => {
+      resolveCancellation = resolve;
+    }));
+    onInvoke('clear_offline_cancel', () => {
+      cancellationCleared = true;
+    });
+
+    await useOfflineStore.getState().downloadAlbum(
+      'album-1', 'Album', 'Artist', undefined, undefined, [SONG], 'srv-a',
+    );
+    await waitFor(() => expect(resolveDownload).toBeTypeOf('function'));
+
+    clearOfflinePinTasks();
+    useOfflineJobStore.getState().cancelAllDownloads();
+    resolveDownload(downloadResult('track-1'));
+    await Promise.resolve();
+    expect(cancellationCleared).toBe(false);
+
+    resolveCancellation();
+    await waitFor(() => expect(cancellationCleared).toBe(true));
+  });
+
+  it('does not let a draining album clear its replacement cancellation', async () => {
+    let resolveDownload!: (value: ReturnType<typeof downloadResult>) => void;
+    let releaseReplacementPreflight!: () => void;
+    const clearedDownloadIds: string[] = [];
+    onInvoke('download_track_local', () => new Promise(resolve => {
+      resolveDownload = resolve;
+    }));
+    onInvoke('clear_offline_cancel', args => {
+      clearedDownloadIds.push((args as { downloadId: string }).downloadId);
+    });
+
+    await useOfflineStore.getState().downloadAlbum(
+      'album-1', 'Album', 'Artist', undefined, undefined, [SONG], 'srv-a',
+    );
+    await waitFor(() => expect(resolveDownload).toBeTypeOf('function'));
+    cancelAllOfflinePins();
+
+    mocks.libraryUpsertSongsFromApi.mockImplementationOnce(() => new Promise(resolve => {
+      releaseReplacementPreflight = () => resolve(undefined);
+    }));
+    await useOfflineStore.getState().downloadAlbum(
+      'album-1', 'Album', 'Artist', undefined, undefined, [SONG], 'srv-a',
+    );
+    await waitFor(() => expect(releaseReplacementPreflight).toBeTypeOf('function'));
+    cancelAllOfflinePins();
+
+    resolveDownload(downloadResult('track-1'));
+    await waitFor(() => expect(clearedDownloadIds).toHaveLength(1));
+    expect(cancelledDownloads.has('srv-a:album-1')).toBe(true);
+
+    releaseReplacementPreflight();
+    await waitFor(() => expect(cancelledDownloads.has('srv-a:album-1')).toBe(false));
+  });
+
   it('retains partial playlist metadata so cancelled downloads can be removed later', async () => {
     const resolvers = new Map<string, (value: ReturnType<typeof downloadResult>) => void>();
     onInvoke('download_track_local', args => new Promise(resolve => {

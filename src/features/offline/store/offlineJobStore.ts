@@ -45,13 +45,20 @@ interface OfflineJobState {
 // Module-level cancellation set — checked by downloadAlbum before each track.
 export const cancelledDownloads = new Set<string>();
 const cancellationListeners = new Map<string, Set<() => void>>();
+const cancellationVersions = new Map<string, number>();
 const bulkCleanupTimers = new Map<string, ReturnType<typeof setTimeout>>();
+const pendingRustCancellationRequests = new Map<string, Promise<void>>();
 
 export function markOfflineDownloadCancelled(cancelKey: string): void {
+  cancellationVersions.set(cancelKey, (cancellationVersions.get(cancelKey) ?? 0) + 1);
   cancelledDownloads.add(cancelKey);
   const listeners = cancellationListeners.get(cancelKey);
   cancellationListeners.delete(cancelKey);
   for (const listener of listeners ?? []) listener();
+}
+
+export function getOfflineDownloadCancellationVersion(cancelKey: string): number {
+  return cancellationVersions.get(cancelKey) ?? 0;
 }
 
 export function subscribeOfflineDownloadCancellation(
@@ -81,7 +88,25 @@ function clearBulkCleanupTimer(groupId: string) {
 function abortDownloadsInRust(jobs: DownloadJob[]) {
   const downloadIds = [...new Set(jobs.map(j => j.downloadId).filter(Boolean))];
   if (downloadIds.length > 0) {
-    Promise.resolve(cancelOfflineDownloads({ downloadIds })).catch(() => {});
+    const request = Promise.resolve(cancelOfflineDownloads({ downloadIds })).catch(() => {});
+    for (const downloadId of downloadIds) {
+      const previous = pendingRustCancellationRequests.get(downloadId);
+      pendingRustCancellationRequests.set(
+        downloadId,
+        previous ? Promise.all([previous, request]).then(() => {}) : request,
+      );
+    }
+  }
+}
+
+export async function waitForOfflineRustCancellation(downloadId: string): Promise<void> {
+  while (true) {
+    const pending = pendingRustCancellationRequests.get(downloadId);
+    if (!pending) return;
+    await pending;
+    if (pendingRustCancellationRequests.get(downloadId) !== pending) continue;
+    pendingRustCancellationRequests.delete(downloadId);
+    return;
   }
 }
 

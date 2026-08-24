@@ -40,28 +40,32 @@ struct LocalTrackHitArgs<'a> {
 async fn local_track_hit_if_exists(
     args: &LocalTrackHitArgs<'_>,
     verified_raw_request: bool,
+    mut cancellation: Option<&mut crate::file_transfer::DownloadCancellation>,
 ) -> Result<Option<LocalTrackDownloadResult>, String> {
+    if cancellation
+        .as_ref()
+        .is_some_and(|cancel| cancel.is_cancelled())
+    {
+        return Err("CANCELLED".to_string());
+    }
     if !args.file_path.is_file() {
         return Ok(None);
     }
-    if verified_raw_request {
-        let trusted = psysonic_analysis::raw_probe::fetch_trusted_original_md5(
+    if verified_raw_request
+        && !existing_raw_file_matches_trusted(
+            args.file_path,
             args.client,
             args.registry,
-            Some(args.server_index_key),
+            args.server_index_key,
             args.url,
+            cancellation.as_deref_mut(),
         )
-        .await
-        .ok_or_else(|| "raw original identity unavailable for existing local file".to_string())?;
-        let prefix = read_raw_probe_prefix(args.file_path)
+        .await?
+    {
+        tokio::fs::remove_file(args.file_path)
             .await
-            .map_err(|e| e.to_string())?;
-        if !psysonic_analysis::raw_probe::bytes_match_trusted(&prefix, &trusted) {
-            tokio::fs::remove_file(args.file_path)
-                .await
-                .map_err(|e| format!("remove stale unverified local file: {e}"))?;
-            return Ok(None);
-        }
+            .map_err(|e| format!("remove stale unverified local file: {e}"))?;
+        return Ok(None);
     }
     let size = tokio::fs::metadata(args.file_path)
         .await
@@ -84,12 +88,91 @@ async fn local_track_hit_if_exists(
         )
         .await;
     });
+    if cancellation
+        .as_ref()
+        .is_some_and(|cancel| cancel.is_cancelled())
+    {
+        return Err("CANCELLED".to_string());
+    }
     Ok(Some(LocalTrackDownloadResult {
         path: args.path_str.to_string(),
         size,
         layout_fingerprint: args.fingerprint.to_string(),
         original_bytes_verified: verified_raw_request,
     }))
+}
+
+async fn existing_raw_file_matches_trusted(
+    file_path: &Path,
+    client: &reqwest::Client,
+    registry: Option<&psysonic_core::server_http::ServerHttpRegistry>,
+    server_index_key: &str,
+    url: &str,
+    mut cancellation: Option<&mut crate::file_transfer::DownloadCancellation>,
+) -> Result<bool, String> {
+    let trusted = fetch_trusted_original_md5_cancellable(
+        client,
+        registry,
+        server_index_key,
+        url,
+        cancellation.as_deref_mut(),
+    )
+    .await?
+    .ok_or_else(|| "raw original identity unavailable for existing local file".to_string())?;
+
+    let read = read_raw_probe_prefix(file_path);
+    tokio::pin!(read);
+    let prefix = if let Some(cancel) = cancellation.as_deref_mut() {
+        tokio::select! {
+            biased;
+            _ = cancel.cancelled() => return Err("CANCELLED".to_string()),
+            prefix = &mut read => prefix,
+        }
+    } else {
+        read.await
+    };
+    if cancellation
+        .as_ref()
+        .is_some_and(|cancel| cancel.is_cancelled())
+    {
+        return Err("CANCELLED".to_string());
+    }
+    let prefix = prefix.map_err(|error| error.to_string())?;
+    Ok(psysonic_analysis::raw_probe::bytes_match_trusted(
+        &prefix, &trusted,
+    ))
+}
+
+async fn fetch_trusted_original_md5_cancellable(
+    client: &reqwest::Client,
+    registry: Option<&psysonic_core::server_http::ServerHttpRegistry>,
+    server_index_key: &str,
+    url: &str,
+    mut cancellation: Option<&mut crate::file_transfer::DownloadCancellation>,
+) -> Result<Option<String>, String> {
+    let fetch = psysonic_analysis::raw_probe::fetch_trusted_original_md5(
+        client,
+        registry,
+        Some(server_index_key),
+        url,
+    );
+    tokio::pin!(fetch);
+    let trusted = if let Some(cancel) = cancellation.as_deref_mut() {
+        tokio::select! {
+            biased;
+            _ = cancel.cancelled() => return Err("CANCELLED".to_string()),
+            trusted = &mut fetch => trusted,
+        }
+    } else {
+        fetch.await
+    };
+    if cancellation
+        .as_ref()
+        .is_some_and(|cancel| cancel.is_cancelled())
+    {
+        return Err("CANCELLED".to_string());
+    }
+    Ok(trusted)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -195,8 +278,12 @@ pub(super) async fn download_track_local(
         return Err("CANCELLED".to_string());
     }
 
-    if let Some(hit) =
-        local_track_hit_if_exists(&local_track_hit_args, verified_raw_request).await?
+    if let Some(hit) = local_track_hit_if_exists(
+        &local_track_hit_args,
+        verified_raw_request,
+        cancellation.as_mut(),
+    )
+    .await?
     {
         return Ok(hit);
     }
@@ -211,27 +298,22 @@ pub(super) async fn download_track_local(
     }
 
     if !verified_raw_request {
-        if let Some(hit) = local_track_hit_if_exists(&local_track_hit_args, false).await? {
+        if let Some(hit) =
+            local_track_hit_if_exists(&local_track_hit_args, false, cancellation.as_mut()).await?
+        {
             return Ok(hit);
         }
     }
 
     let trusted_raw_hash = if verified_raw_request {
-        let fetch = psysonic_analysis::raw_probe::fetch_trusted_original_md5(
+        let trusted = fetch_trusted_original_md5_cancellable(
             &client,
             http_registry.as_deref(),
-            Some(&server_index_key),
+            &server_index_key,
             &url,
-        );
-        tokio::pin!(fetch);
-        let trusted = if let Some(cancel) = cancellation.as_mut() {
-            tokio::select! {
-                trusted = &mut fetch => trusted,
-                _ = cancel.cancelled() => return Err("CANCELLED".to_string()),
-            }
-        } else {
-            fetch.await
-        };
+            cancellation.as_mut(),
+        )
+        .await?;
         Some(trusted.ok_or_else(|| {
             crate::app_eprintln!(
                 "[offline] raw probe failed server={} track={}",
@@ -361,4 +443,77 @@ pub(super) async fn read_raw_probe_prefix(path: &Path) -> std::io::Result<Vec<u8
     let mut prefix = Vec::with_capacity(limit as usize);
     file.take(limit).read_to_end(&mut prefix).await?;
     Ok(prefix)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use psysonic_core::server_http::{
+        EndpointKind, ServerHttpContextSyncWire, ServerHttpEndpointWire, ServerHttpRegistry,
+    };
+    use std::io::Read;
+    use std::net::TcpListener;
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::Arc;
+    use std::thread;
+    use std::time::Duration;
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn cancellation_interrupts_existing_file_identity_probe() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let (request_started, mut request_started_rx) = tokio::sync::oneshot::channel();
+        let server = thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            let mut request = [0u8; 1024];
+            let _ = stream.read(&mut request);
+            let _ = request_started.send(());
+            thread::sleep(Duration::from_secs(2));
+        });
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("track.flac");
+        tokio::fs::write(&file, b"existing bytes").await.unwrap();
+        let flag = Arc::new(AtomicBool::new(false));
+        let (sender, receiver) = tokio::sync::watch::channel(false);
+        let mut cancellation = crate::file_transfer::DownloadCancellation::new(
+            Arc::clone(&flag),
+            receiver,
+        );
+        let client = reqwest::Client::new();
+        let url = format!("http://{address}/rest/stream.view?id=track");
+        let registry = ServerHttpRegistry::new();
+        registry.sync(ServerHttpContextSyncWire {
+            server_id: "server.test".to_string(),
+            app_server_id: "server.test".to_string(),
+            endpoints: vec![ServerHttpEndpointWire {
+                url: format!("http://{address}"),
+                kind: EndpointKind::Local,
+            }],
+            custom_headers: Vec::new(),
+            custom_headers_apply_to: None,
+            supports_raw_stream: true,
+        });
+        let probe = existing_raw_file_matches_trusted(
+            &file,
+            &client,
+            Some(&registry),
+            "server.test",
+            &url,
+            Some(&mut cancellation),
+        );
+        tokio::pin!(probe);
+
+        tokio::select! {
+            _ = &mut probe => panic!("probe completed before issuing its HTTP request"),
+            started = &mut request_started_rx => started.unwrap(),
+        }
+        flag.store(true, Ordering::Relaxed);
+        sender.send_replace(true);
+        let result = tokio::time::timeout(Duration::from_secs(1), probe)
+            .await
+            .unwrap();
+
+        assert!(matches!(result, Err(ref error) if error == "CANCELLED"));
+        drop(server);
+    }
 }

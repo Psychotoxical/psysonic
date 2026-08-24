@@ -491,7 +491,7 @@ describe('offlinePinQueue', () => {
     resolvers[0]?.();
 
     await vi.waitFor(() => expect(resolvers).toHaveLength(2));
-    expect(useOfflineJobStore.getState().bulkProgress).toEqual({});
+    await vi.waitFor(() => expect(useOfflineJobStore.getState().bulkProgress).toEqual({}));
     resolvers[1]?.();
     await vi.waitFor(() => expect(useOfflineJobStore.getState().pinQueue).toEqual([]));
   });
@@ -523,6 +523,8 @@ describe('offlinePinQueue', () => {
 
     expect(enqueueOfflinePin({ ...base, albumId: 'queued', type: 'album' })).toBe(true);
     expect(useOfflineJobStore.getState().bulkProgress.artist).toBeUndefined();
+    expect(useOfflineJobStore.getState().pinQueue.find(entry => entry.albumId === 'queued')?.pinKind)
+      .toBe('album');
 
     resolvers.forEach(resolve => resolve());
     await vi.waitFor(() => expect(resolvers).toHaveLength(3));
@@ -568,5 +570,39 @@ describe('offlinePinQueue', () => {
       { type: 'album', cancelledAtFinish: false },
     ]));
     await vi.waitFor(() => expect(useOfflineJobStore.getState().pinQueue).toEqual([]));
+  });
+
+  it('does not let a draining generation clear its replacement cancellation', async () => {
+    const resolvers: Array<() => void> = [];
+    registerOfflinePinExecutor(async (_task, markStarted) => {
+      markStarted();
+      await new Promise<void>(resolve => resolvers.push(resolve));
+      return cancelledDownloads.has('srv:album') ? 'cancelled' : 'completed';
+    });
+    const task = {
+      albumId: 'album',
+      albumName: 'Album',
+      albumArtist: 'A',
+      coverArt: undefined,
+      year: undefined,
+      songs: [],
+      serverId: 'srv',
+      type: 'album' as const,
+    };
+
+    enqueueOfflinePin(task);
+    await vi.waitFor(() => expect(resolvers).toHaveLength(1));
+    useOfflineJobStore.getState().cancelDownload('album', 'srv');
+    removeOfflinePinTask('album', 'srv');
+    enqueueOfflinePin(task);
+    await vi.waitFor(() => expect(resolvers).toHaveLength(2));
+
+    cancelAllOfflinePins();
+    resolvers[0]?.();
+    await Promise.resolve();
+    expect(cancelledDownloads.has('srv:album')).toBe(true);
+
+    resolvers[1]?.();
+    await vi.waitFor(() => expect(cancelledDownloads.has('srv:album')).toBe(false));
   });
 });

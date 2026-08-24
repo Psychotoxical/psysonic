@@ -2,6 +2,7 @@ import type { SubsonicSong } from '@/lib/api/subsonicTypes';
 import type { PinSource } from '@/store/localPlaybackStore';
 import {
   cancelledDownloads,
+  getOfflineDownloadCancellationVersion,
   markOfflineDownloadCancelled,
   useOfflineJobStore,
   type OfflinePinQueueEntry,
@@ -27,15 +28,18 @@ export type OfflinePinResult = 'completed' | 'cancelled';
 type OfflinePinExecutor = (
   task: OfflinePinTask,
   markStarted: () => void,
+  cancellationVersion: number,
 ) => Promise<OfflinePinResult | void>;
 
 interface QueuedPinTask {
   task: OfflinePinTask;
   generation: number;
+  cancellationVersion: number;
 }
 
 const pinTasks = new Map<string, QueuedPinTask>();
 const activePinGenerations = new Map<string, number>();
+const retiringCancellationVersions = new Map<string, number>();
 const MAX_ACTIVE_PIN_EXECUTORS = 2;
 let nextPinGeneration = 1;
 let pinCancellationEpoch = 0;
@@ -66,6 +70,10 @@ export function getOfflinePinCancellationEpoch(): number {
 
 function pinKey(albumId: string, serverId?: string): string {
   return serverId ? `${serverId}:${albumId}` : albumId;
+}
+
+function pinGenerationKey(taskKey: string, generation: number): string {
+  return `${taskKey}:${generation}`;
 }
 
 export function removeOfflinePinTask(
@@ -128,6 +136,17 @@ function isPinAlreadyScheduled(albumId: string, serverId: string): boolean {
  */
 export function enqueueOfflinePin(task: OfflinePinTask): boolean {
   const taskKey = pinKey(task.albumId, task.serverId);
+  const activeGeneration = activePinGenerations.get(taskKey);
+  if (activeGeneration !== undefined && cancelledDownloads.has(taskKey)) {
+    // The cancelled generation may still be draining its native command. It no
+    // longer owns queue admission; its generation guard keeps its finalizer
+    // from removing this replacement.
+    retiringCancellationVersions.set(
+      pinGenerationKey(taskKey, activeGeneration),
+      getOfflineDownloadCancellationVersion(taskKey),
+    );
+    activePinGenerations.delete(taskKey);
+  }
   if (!activePinGenerations.has(taskKey)) {
     cancelledDownloads.delete(taskKey);
     cancelledDownloads.delete(task.albumId);
@@ -158,13 +177,36 @@ export function enqueueOfflinePin(task: OfflinePinTask): boolean {
     store.dropBulkProgressPending(previousTask.artistProgressGroupId);
     previousTask.artistProgressGroupId = undefined;
     const activeGeneration = activePinGenerations.get(taskKey);
-    if (activeGeneration === pinTasks.get(taskKey)?.generation) {
+    if (
+      activeGeneration !== undefined
+      && activeGeneration === pinTasks.get(taskKey)?.generation
+    ) {
       markOfflineDownloadCancelled(taskKey);
+      retiringCancellationVersions.set(
+        pinGenerationKey(taskKey, activeGeneration),
+        getOfflineDownloadCancellationVersion(taskKey),
+      );
     }
   }
-  pinTasks.set(taskKey, { task: { ...task }, generation: nextPinGeneration++ });
+  pinTasks.set(taskKey, {
+    task: { ...task },
+    generation: nextPinGeneration++,
+    cancellationVersion: getOfflineDownloadCancellationVersion(taskKey),
+  });
 
   if (existing?.status === 'queued') {
+    useOfflineJobStore.setState(state => ({
+      pinQueue: state.pinQueue.map(entry => (
+        entry === existing
+          ? {
+            ...entry,
+            albumName: task.albumName,
+            pinKind: task.type,
+            serverId: task.serverId,
+          }
+          : entry
+      )),
+    }));
     scheduleOfflinePinQueue();
     return true;
   }
@@ -197,17 +239,21 @@ async function executeOfflinePin(
   activeExecutor: OfflinePinExecutor,
 ): Promise<void> {
   const nextKey = pinKey(next.albumId, next.serverId);
-  const { task, generation } = queuedTask;
+  const { task, generation, cancellationVersion } = queuedTask;
   const store = useOfflineJobStore.getState();
   let result: OfflinePinResult = 'completed';
   try {
     result = (await activeExecutor(
       task,
       () => store.setPinQueueStatus(next.albumId, 'downloading', next.serverId),
+      cancellationVersion,
     )) ?? 'completed';
   } catch {
     /* per-track errors are recorded on jobs; continue queue */
   } finally {
+    const retiringGenerationKey = pinGenerationKey(nextKey, generation);
+    const retiringCancellationVersion = retiringCancellationVersions.get(retiringGenerationKey);
+    retiringCancellationVersions.delete(retiringGenerationKey);
     if (activePinGenerations.get(nextKey) === generation) {
       activePinGenerations.delete(nextKey);
     }
@@ -222,6 +268,7 @@ async function executeOfflinePin(
       }
       store.removePinFromQueue(next.albumId, next.serverId);
       pinTasks.delete(nextKey);
+      cancelledDownloads.delete(nextKey);
     } else {
       // A delete/retry replaced this generation while its native call settled.
       if (
@@ -230,7 +277,14 @@ async function executeOfflinePin(
       ) {
         store.dropBulkProgressPending(task.artistProgressGroupId);
       }
-      cancelledDownloads.delete(nextKey);
+      if (
+        retiringCancellationVersion !== undefined
+        && getOfflineDownloadCancellationVersion(nextKey) === retiringCancellationVersion
+      ) {
+        cancelledDownloads.delete(nextKey);
+      } else if (!replacement && !activePinGenerations.has(nextKey)) {
+        cancelledDownloads.delete(nextKey);
+      }
     }
     dispatchOfflinePinQueue();
   }
@@ -248,6 +302,7 @@ function dispatchOfflinePinQueue(): void {
     if (cancelledDownloads.has(nextKey)) {
       removeOfflinePinTask(next.albumId, next.serverId);
       store.removePinFromQueue(next.albumId, next.serverId);
+      if (!activePinGenerations.has(nextKey)) cancelledDownloads.delete(nextKey);
       continue;
     }
 

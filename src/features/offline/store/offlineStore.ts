@@ -10,9 +10,11 @@ import { useAuthStore } from '@/store/authStore';
 import { showToast } from '@/lib/dom/toast';
 import {
   cancelledDownloads,
+  getOfflineDownloadCancellationVersion,
   markOfflineDownloadCancelled,
   subscribeOfflineDownloadCancellation,
   useOfflineJobStore,
+  waitForOfflineRustCancellation,
 } from '@/features/offline/store/offlineJobStore';
 import {
   localPlaybackEntryHasPinSource,
@@ -41,6 +43,7 @@ import {
 import { ownedEntityKey } from '@/lib/util/ownedEntityKey';
 import i18n from '@/lib/i18n';
 import {
+  beginOfflineServerOperation,
   beginOfflineTrackTransfer,
   getOfflineSourceGeneration,
   getOfflineTrackDeletionEpoch,
@@ -115,7 +118,7 @@ function offlineServerAliases(...serverRefs: string[]): string[] {
 
 /** Library SQLite scope (host index key) — not the auth profile UUID. */
 function librarySqlScopeForOffline(serverId: string): string {
-  return librarySqlServerId(serverId);
+  return resolveOfflineServerOperationKey(librarySqlServerId(serverId));
 }
 
 function activeOfflineServerId(
@@ -196,6 +199,28 @@ async function waitForOfflineDeletion(
 async function runOfflinePinDownload(
   task: OfflinePinTask,
   markStarted: () => void,
+  cancellationVersion: number,
+): Promise<OfflinePinResult> {
+  const serverLease = await beginOfflineServerOperation(
+    serverIndexKeyForOffline(task.serverId),
+  );
+  try {
+    return await runOfflinePinDownloadWithServerLease(
+      task,
+      markStarted,
+      cancellationVersion,
+      serverLease,
+    );
+  } finally {
+    serverLease();
+  }
+}
+
+async function runOfflinePinDownloadWithServerLease(
+  task: OfflinePinTask,
+  markStarted: () => void,
+  cancellationVersion: number,
+  serverLease: Awaited<ReturnType<typeof beginOfflineServerOperation>>,
 ): Promise<OfflinePinResult> {
   const {
     albumId,
@@ -208,8 +233,11 @@ async function runOfflinePinDownload(
     type = 'album',
   } = task;
   const cancelKey = `${serverId}:${albumId}`;
+  const isCancelled = () => (
+    getOfflineDownloadCancellationVersion(cancelKey) > cancellationVersion
+  );
   await waitForOfflineDeletion(albumId, serverId, type);
-  if (cancelledDownloads.has(cancelKey)) return 'cancelled';
+  if (isCancelled()) return 'cancelled';
   cancelledDownloads.delete(cancelKey);
 
   const trackIds = songs.map(s => s.id);
@@ -229,6 +257,7 @@ async function runOfflinePinDownload(
         if (latest?.localPath === localPath) return;
         await deleteMediaFile({ localPath, mediaDir }).catch(() => {});
       },
+      serverLease,
     );
   };
 
@@ -267,8 +296,7 @@ async function runOfflinePinDownload(
     return false;
   };
 
-  const finishCancelledDownload = () => {
-    cancelledDownloads.delete(cancelKey);
+  const finishCancelledDownload = async () => {
     jobStore.setState(state => ({
       jobs: state.jobs.filter(j => j.downloadId !== downloadId),
     }));
@@ -292,20 +320,21 @@ async function runOfflinePinDownload(
         });
       }
     }
-    clearOfflineCancel({ downloadId }).catch(() => {});
+    await waitForOfflineRustCancellation(downloadId);
+    await clearOfflineCancel({ downloadId }).catch(() => {});
   };
 
   await libraryUpsertSongsFromApi(libraryServerId, songs).catch(() => {});
-  if (cancelledDownloads.has(cancelKey)) {
-    finishCancelledDownload();
+  if (isCancelled()) {
+    await finishCancelledDownload();
     return 'cancelled';
   }
   await Promise.all(songs.map(song => waitForOfflineTrackDeletion(
     serverIndexKeyForOffline(serverId),
     song.id,
   )));
-  if (cancelledDownloads.has(cancelKey)) {
-    finishCancelledDownload();
+  if (isCancelled()) {
+    await finishCancelledDownload();
     return 'cancelled';
   }
 
@@ -316,10 +345,11 @@ async function runOfflinePinDownload(
       const finishTrackTransfer = await beginOfflineTrackTransfer(
         serverIndexKeyForOffline(serverId),
         song.id,
+        serverLease,
       );
       try {
-        if (cancelledDownloads.has(cancelKey)) {
-          finishCancelledDownload();
+        if (isCancelled()) {
+          await finishCancelledDownload();
           return 'cancelled';
         }
         const trackServerIndexKey = serverIndexKeyForOffline(serverId);
@@ -370,12 +400,12 @@ async function runOfflinePinDownload(
   let cancelled = false;
 
   const downloadNext = async () => {
-    while (!cancelled && !cancelledDownloads.has(cancelKey)) {
+    while (!cancelled && !isCancelled()) {
       const song = pendingSongs[nextSongIndex++];
       if (!song) return;
 
       const releaseTrackPermit = await acquireOfflineTrackPermit();
-      if (cancelled || cancelledDownloads.has(cancelKey)) {
+      if (cancelled || isCancelled()) {
         releaseTrackPermit();
         cancelled = true;
         return;
@@ -385,15 +415,16 @@ async function runOfflinePinDownload(
       let finishTransferOnReturn = true;
       try {
         await waitForOfflineTrackDeletion(serverIndexKeyForOffline(serverId), song.id);
-        if (cancelled || cancelledDownloads.has(cancelKey)) {
+        if (cancelled || isCancelled()) {
           cancelled = true;
           return;
         }
         finishTrackTransfer = await beginOfflineTrackTransfer(
           serverIndexKeyForOffline(serverId),
           song.id,
+          serverLease,
         );
-        if (cancelled || cancelledDownloads.has(cancelKey)) {
+        if (cancelled || isCancelled()) {
           cancelled = true;
           return;
         }
@@ -472,15 +503,15 @@ async function runOfflinePinDownload(
               cancellation.then(() => ({ kind: 'cancelled' as const })),
             ]);
             if (outcome.kind === 'cancelled') {
-              finishTransferOnReturn = false;
-              void nativeResult
-                .then(async res => {
-                  finishTrackTransfer?.();
-                  await cleanupUnclaimedNativeResult(song.id, res.path);
-                })
-                .catch(() => finishTrackTransfer?.());
+              try {
+                const res = await nativeResult;
+                finishTransferBeforeCleanup();
+                await cleanupUnclaimedNativeResult(song.id, res.path);
+              } catch {
+                finishTransferBeforeCleanup();
+              }
               error = 'CANCELLED';
-            } else if (cancelledDownloads.has(cancelKey)) {
+            } else if (isCancelled()) {
               const { res } = outcome;
               finishTransferBeforeCleanup();
               await cleanupUnclaimedNativeResult(song.id, res.path);
@@ -488,7 +519,7 @@ async function runOfflinePinDownload(
             } else {
               const { res } = outcome;
               await waitForOfflineTrackDeletion(trackServerIndexKey, song.id);
-              if (cancelledDownloads.has(cancelKey)) {
+              if (isCancelled()) {
                 finishTransferBeforeCleanup();
                 await cleanupUnclaimedNativeResult(song.id, res.path);
                 error = 'CANCELLED';
@@ -514,7 +545,7 @@ async function runOfflinePinDownload(
             }
           } catch (err) {
             error = typeof err === 'string' ? err : (err instanceof Error ? err.message : 'error');
-            if (error === 'VOLUME_NOT_FOUND' && !cancelledDownloads.has(cancelKey)) {
+            if (error === 'VOLUME_NOT_FOUND' && !isCancelled()) {
               markOfflineDownloadCancelled(cancelKey);
               showToast('Speichermedium nicht gefunden. Bitte Verzeichnis in den Einstellungen prüfen.', 6000, 'error');
             } else if (error !== 'CANCELLED') {
@@ -550,7 +581,7 @@ async function runOfflinePinDownload(
         releaseTrackPermit();
       }
     }
-    if (cancelledDownloads.has(cancelKey)) cancelled = true;
+    if (isCancelled()) cancelled = true;
   };
 
   await Promise.all(
@@ -560,12 +591,12 @@ async function runOfflinePinDownload(
     ),
   );
 
-  if (cancelled || cancelledDownloads.has(cancelKey)) {
-    finishCancelledDownload();
+  if (cancelled || isCancelled()) {
+    await finishCancelledDownload();
     return 'cancelled';
   }
 
-  clearOfflineCancel({ downloadId }).catch(() => {});
+  await clearOfflineCancel({ downloadId }).catch(() => {});
   if (failedTracks > 0) {
     showToast(i18n.t('albums.offlineFailed', { name: albumName }), 6000, 'error');
   }

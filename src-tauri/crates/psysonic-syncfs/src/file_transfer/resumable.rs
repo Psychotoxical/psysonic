@@ -159,6 +159,17 @@ async fn remove_partial_download(part_path: &Path) {
     let _ = tokio::fs::remove_file(resume_metadata_path(part_path)).await;
 }
 
+async fn reset_partial_for_full_download(part_path: &Path) -> Result<(), String> {
+    tokio::fs::OpenOptions::new()
+        .write(true)
+        .truncate(true)
+        .open(part_path)
+        .await
+        .map_err(|error| error.to_string())?;
+    let _ = tokio::fs::remove_file(resume_metadata_path(part_path)).await;
+    Ok(())
+}
+
 async fn send_download_get(
     client: &reqwest::Client,
     registry: Option<&psysonic_core::server_http::ServerHttpRegistry>,
@@ -334,20 +345,11 @@ pub async fn prepare_resumable_download_cancellable(
     )
     .await?;
 
-    if existing > 0 && response.status() == reqwest::StatusCode::PRECONDITION_FAILED {
-        remove_partial_download(part_path).await;
-        existing = 0;
-        metadata = None;
-        response = send_download_get(
-            client,
-            registry,
-            server_ref,
-            url,
-            None,
-            reborrow_cancellation(&mut cancellation),
-        )
-        .await?;
-    }
+    let mut retry_without_range = existing > 0
+        && matches!(
+            response.status(),
+            reqwest::StatusCode::BAD_REQUEST | reqwest::StatusCode::PRECONDITION_FAILED
+        );
 
     if existing > 0 && response.status() == reqwest::StatusCode::RANGE_NOT_SATISFIABLE {
         let saved = metadata
@@ -367,18 +369,7 @@ pub async fn prepare_resumable_download_cancellable(
                 completed_partial: true,
             });
         }
-        remove_partial_download(part_path).await;
-        existing = 0;
-        metadata = None;
-        response = send_download_get(
-            client,
-            registry,
-            server_ref,
-            url,
-            None,
-            reborrow_cancellation(&mut cancellation),
-        )
-        .await?;
+        retry_without_range = true;
     }
 
     if existing > 0 && response.status() == reqwest::StatusCode::PARTIAL_CONTENT {
@@ -404,9 +395,10 @@ pub async fn prepare_resumable_download_cancellable(
                 completed_partial: false,
             });
         }
-        remove_partial_download(part_path).await;
-        existing = 0;
-        metadata = None;
+        retry_without_range = true;
+    }
+
+    if retry_without_range {
         response = send_download_get(
             client,
             registry,
@@ -416,6 +408,11 @@ pub async fn prepare_resumable_download_cancellable(
             reborrow_cancellation(&mut cancellation),
         )
         .await?;
+        if response.status() == reqwest::StatusCode::OK {
+            reset_partial_for_full_download(part_path).await?;
+            existing = 0;
+            metadata = None;
+        }
     }
 
     if existing == 0 && response.status() == reqwest::StatusCode::PARTIAL_CONTENT {
@@ -423,7 +420,7 @@ pub async fn prepare_resumable_download_cancellable(
     }
 
     if existing > 0 && response.status() == reqwest::StatusCode::OK {
-        remove_partial_download(part_path).await;
+        reset_partial_for_full_download(part_path).await?;
         existing = 0;
         metadata = None;
     }
@@ -578,6 +575,138 @@ mod tests {
 
         server.join().unwrap();
         assert_eq!(tokio::fs::read(destination).await.unwrap(), b"abcdef");
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn accepted_full_fallback_replaces_stale_bytes_before_metadata() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = thread::spawn(move || {
+            let (mut ranged, _) = listener.accept().unwrap();
+            let mut request = [0u8; 1024];
+            let _ = ranged.read(&mut request).unwrap();
+            ranged
+                .write_all(
+                    b"HTTP/1.1 412 Precondition Failed\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+                )
+                .unwrap();
+
+            let (mut full, _) = listener.accept().unwrap();
+            let _ = full.read(&mut request).unwrap();
+            full.write_all(
+                b"HTTP/1.1 200 OK\r\nContent-Length: 6\r\nETag: \"track-v2\"\r\nConnection: close\r\n\r\nabcdef",
+            )
+            .unwrap();
+        });
+        let dir = tempfile::tempdir().unwrap();
+        let destination = dir.path().join("track.flac");
+        let part = dir.path().join("track.flac.part");
+        let url = format!("http://{address}/track.flac");
+        seed_partial(&part, &url, b"old", 6).await;
+
+        let prepared =
+            prepare_resumable_download(&reqwest::Client::new(), None, None, &url, &part, 1024)
+                .await
+                .unwrap();
+
+        server.join().unwrap();
+        assert!(tokio::fs::read(&part).await.unwrap().is_empty());
+        let metadata = read_resume_metadata(&part).await.unwrap();
+        assert_eq!(metadata.etag, "\"track-v2\"");
+        assert!(!promote_completed_partial(&part, &destination, &url, 1024)
+            .await
+            .unwrap());
+        drop(prepared);
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn bad_range_request_restarts_without_range() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = thread::spawn(move || {
+            let (mut ranged, _) = listener.accept().unwrap();
+            let mut request = [0u8; 1024];
+            let size = ranged.read(&mut request).unwrap();
+            assert!(String::from_utf8_lossy(&request[..size])
+                .to_ascii_lowercase()
+                .contains("range: bytes=3-"));
+            ranged
+                .write_all(
+                    b"HTTP/1.1 400 Bad Request\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+                )
+                .unwrap();
+
+            let (mut full, _) = listener.accept().unwrap();
+            let size = full.read(&mut request).unwrap();
+            assert!(!String::from_utf8_lossy(&request[..size])
+                .to_ascii_lowercase()
+                .contains("range:"));
+            full.write_all(
+                b"HTTP/1.1 200 OK\r\nContent-Length: 6\r\nConnection: close\r\n\r\nabcdef",
+            )
+            .unwrap();
+        });
+        let dir = tempfile::tempdir().unwrap();
+        let destination = dir.path().join("track.flac");
+        let part = dir.path().join("track.flac.part");
+        let url = format!("http://{address}/track.flac");
+        seed_partial(&part, &url, b"abc", 6).await;
+
+        let prepared =
+            prepare_resumable_download(&reqwest::Client::new(), None, None, &url, &part, 1024)
+                .await
+                .unwrap();
+        finalize_resumable_download(prepared, &destination, &part, 1024, None)
+            .await
+            .unwrap();
+
+        server.join().unwrap();
+        assert_eq!(tokio::fs::read(destination).await.unwrap(), b"abcdef");
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn failed_full_fallback_preserves_the_original_partial() {
+        for ranged_response in [
+            "HTTP/1.1 412 Precondition Failed\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+            "HTTP/1.1 416 Range Not Satisfiable\r\nContent-Range: bytes */5\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+            "HTTP/1.1 206 Partial Content\r\nContent-Range: bytes 2-5/6\r\nETag: \"track-v1\"\r\nContent-Length: 4\r\nConnection: close\r\n\r\ncdef",
+        ] {
+            let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+            let address = listener.local_addr().unwrap();
+            let server = thread::spawn(move || {
+                let (mut ranged, _) = listener.accept().unwrap();
+                let mut request = [0u8; 1024];
+                let size = ranged.read(&mut request).unwrap();
+                assert!(String::from_utf8_lossy(&request[..size])
+                    .to_ascii_lowercase()
+                    .contains("range: bytes=3-"));
+                ranged.write_all(ranged_response.as_bytes()).unwrap();
+
+                let (mut full, _) = listener.accept().unwrap();
+                let size = full.read(&mut request).unwrap();
+                assert!(!String::from_utf8_lossy(&request[..size])
+                    .to_ascii_lowercase()
+                    .contains("range:"));
+                full.write_all(
+                    b"HTTP/1.1 503 Service Unavailable\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+                )
+                .unwrap();
+            });
+            let dir = tempfile::tempdir().unwrap();
+            let part = dir.path().join("track.flac.part");
+            let url = format!("http://{address}/track.flac");
+            seed_partial(&part, &url, b"abc", 6).await;
+
+            let prepared =
+                prepare_resumable_download(&reqwest::Client::new(), None, None, &url, &part, 1024)
+                    .await
+                    .unwrap();
+
+            server.join().unwrap();
+            assert_eq!(prepared.response.status(), reqwest::StatusCode::SERVICE_UNAVAILABLE);
+            assert_eq!(tokio::fs::read(&part).await.unwrap(), b"abc");
+            assert!(resume_metadata_path(&part).exists());
+        }
     }
 
     #[tokio::test(flavor = "multi_thread")]
