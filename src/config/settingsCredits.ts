@@ -218,6 +218,7 @@ const CONTRIBUTOR_ENTRIES = [
       'Random Mix — combine several selected genres into one balanced mix (request: Gypsy on Psysonic Discord, PR #1421)',
       'Audio controls — configurable pause/resume fade for native playback and internet radio (PR #1422)',
       'Timeline — replay listening history from any selected point (PR #1423)',
+      'Offline downloads — slow-server tolerance, resumable transfers, owner-safe pins, and coordinated cancellation and maintenance (report: jsongerber, PR #1457)',
     ],
   },
   {
