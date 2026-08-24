@@ -123,4 +123,13 @@ export const playlists = {
     localOnlyNotice:
       'Папките се запазват само в Psysonic на това устройство. Navidrome и Subsonic API нямат вградена поддръжка на папки за плейлисти, така че структурата не се съхранява на вашия сървър и не се синхронизира с другите ви устройства и приложения.',
   },
+  // Ownership split (personal / shared by me / shared with me)
+  ownership: {
+    groupLabel: 'Плейлисти по собственик',
+    all: 'Всички',
+    personal: 'Лични',
+    sharedByMe: 'Споделени от мен',
+    sharedWithMe: 'Споделени с мен',
+    emptyBucket: 'Няма плейлисти в тази група.',
+  },
 };

@@ -123,4 +123,13 @@ export const playlists = {
     localOnlyNotice:
       'Ordner werden nur in Psysonic auf diesem Gerät gespeichert. Navidrome und die Subsonic-API unterstützen keine Playlist-Ordner, daher wird die Ordnerstruktur nicht auf deinem Server gespeichert und nicht mit deinen anderen Geräten und Apps synchronisiert.',
   },
+  // Ownership split (personal / shared by me / shared with me)
+  ownership: {
+    groupLabel: 'Playlists nach Besitzer',
+    all: 'Alle',
+    personal: 'Persönlich',
+    sharedByMe: 'Von mir geteilt',
+    sharedWithMe: 'Mit mir geteilt',
+    emptyBucket: 'Keine Playlists in dieser Gruppe.',
+  },
 };
