@@ -105,12 +105,18 @@ export default function SidebarPlaylistsSection({
       {pl.coverArt
         ? <SidebarPlaylistCover coverArt={pl.coverArt} serverId={pl.serverId} />
         : isSmartPlaylistName(pl.name) ? <Sparkles size={12} /> : <PlayCircle size={12} />}
+      {/* A cover replaces the icon, so a smart playlist that has one would lose
+          its only marker. The card keeps both for the same reason. */}
+      {pl.coverArt && isSmartPlaylistName(pl.name) && (
+        <Sparkles size={12} className="sidebar-playlist-smart-marker" />
+      )}
       <span>{displayPlaylistName(pl.name)}</span>
-      <span
-        className="sidebar-playlist-count"
-        aria-label={t('sidebar.playlistSongCount', { count: pl.songCount })}
-      >
-        {pl.songCount}
+      {/* `aria-label` on a bare span is dropped — the element has no ARIA role
+          to name. The digits are hidden from AT and the spoken form supplied
+          separately, so the link reads "<name>, 5 songs". */}
+      <span className="sidebar-playlist-count" aria-hidden="true">{pl.songCount}</span>
+      <span className="visually-hidden">
+        {t('sidebar.playlistSongCount', { count: pl.songCount })}
       </span>
     </NavLink>
   };
