@@ -12,7 +12,8 @@ use tauri::{AppHandle, Manager, State};
 use tokio::io::AsyncReadExt;
 
 use crate::file_transfer::{
-    apply_server_http_get, finalize_streamed_download, subsonic_http_client,
+    apply_server_http_get, finalize_streamed_download, reqwest_error_without_url,
+    subsonic_download_http_client, subsonic_http_client,
 };
 use crate::{offline_cancel_flags, DownloadSemaphore};
 
@@ -150,7 +151,11 @@ pub(super) async fn download_track_local(
     ensure_track_path_within_tier(&media_root, local_tier, &file_path)
         .map_err(|e| e.to_string())?;
 
-    let client = subsonic_http_client(std::time::Duration::from_secs(120))?;
+    let client = if local_tier == LocalTier::Ephemeral {
+        subsonic_http_client(std::time::Duration::from_secs(120))?
+    } else {
+        subsonic_download_http_client()?
+    };
     let http_registry = app
         .try_state::<Arc<psysonic_core::server_http::ServerHttpRegistry>>()
         .map(|s| Arc::clone(&*s));
@@ -230,7 +235,14 @@ pub(super) async fn download_track_local(
                 &url,
             )
             .await
-            .ok_or_else(|| "raw original identity unavailable for local download".to_string())?,
+            .ok_or_else(|| {
+                crate::app_eprintln!(
+                    "[offline] raw probe failed server={} track={}",
+                    server_index_key,
+                    track_id,
+                );
+                "raw original identity unavailable for local download".to_string()
+            })?,
         )
     } else {
         None
@@ -244,8 +256,23 @@ pub(super) async fn download_track_local(
     )
     .send()
     .await
-    .map_err(|e| e.to_string())?;
+    .map_err(|e| {
+        let error = reqwest_error_without_url(e);
+        crate::app_eprintln!(
+            "[offline] request failed server={} track={}: {}",
+            server_index_key,
+            track_id,
+            error,
+        );
+        error
+    })?;
     if !response.status().is_success() {
+        crate::app_eprintln!(
+            "[offline] HTTP failure server={} track={} status={}",
+            server_index_key,
+            track_id,
+            response.status().as_u16(),
+        );
         return Err(format!("HTTP {}", response.status().as_u16()));
     }
     if verified_raw_request && response.status() != reqwest::StatusCode::OK {
@@ -256,7 +283,19 @@ pub(super) async fn download_track_local(
     }
 
     let part_path = unique_part_path(&file_path, &suffix, &track_id);
-    finalize_streamed_download(response, &file_path, &part_path, cancel_flag.as_deref()).await?;
+    if let Err(error) =
+        finalize_streamed_download(response, &file_path, &part_path, cancel_flag.as_deref()).await
+    {
+        if error != "CANCELLED" {
+            crate::app_eprintln!(
+                "[offline] transfer failed server={} track={}: {}",
+                server_index_key,
+                track_id,
+                error,
+            );
+        }
+        return Err(error);
+    }
 
     if let Some(trusted) = trusted_raw_hash.as_deref() {
         let prefix = read_raw_probe_prefix(&file_path)
@@ -277,7 +316,16 @@ pub(super) async fn download_track_local(
         None,
         verified_raw_request,
     )
-    .await?;
+    .await
+    .map_err(|error| {
+        crate::app_eprintln!(
+            "[offline] post-download analysis enqueue failed server={} track={}: {}",
+            server_index_key,
+            track_id,
+            error,
+        );
+        error
+    })?;
 
     let size = tokio::fs::metadata(&file_path)
         .await

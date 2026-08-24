@@ -6,6 +6,7 @@ import {
   enqueueOfflinePin,
   isAlbumPinQueued,
   registerOfflinePinExecutor,
+  removeOfflinePinTask,
 } from '@/features/offline/utils/offlinePinQueue';
 
 describe('offlinePinQueue', () => {
@@ -75,7 +76,7 @@ describe('offlinePinQueue', () => {
     await vi.waitFor(() => expect(ran).toEqual(['alb-1']));
 
     useOfflineJobStore.getState().cancelDownload('alb-1');
-    expect(cancelledDownloads.has('alb-1')).toBe(true);
+    expect(cancelledDownloads.has('alb-1')).toBe(false);
 
     enqueueOfflinePin(task);
     await vi.waitFor(() => expect(ran).toEqual(['alb-1', 'alb-1']));
@@ -146,6 +147,7 @@ describe('offlinePinQueue', () => {
     ]);
 
     gate.unblock?.();
+    await vi.waitFor(() => expect(useOfflineJobStore.getState().pinQueue).toEqual([]));
   });
 
   it('does not replace the in-flight task when a download is active', async () => {
@@ -183,6 +185,7 @@ describe('offlinePinQueue', () => {
 
     gate.unblock?.();
     await vi.waitFor(() => expect(capturedTrackIds).toEqual(['t1']));
+    await vi.waitFor(() => expect(useOfflineJobStore.getState().pinQueue).toEqual([]));
   });
 
   it('processes albums one after another', async () => {
@@ -221,5 +224,40 @@ describe('offlinePinQueue', () => {
 
     gate.unblock?.();
     await vi.waitFor(() => expect(order).toEqual(['alb-1', 'alb-2']));
+    gate.unblock?.();
+    await vi.waitFor(() => expect(useOfflineJobStore.getState().pinQueue).toEqual([]));
+  });
+
+  it('counts artist bulk progress only for the current task generation', async () => {
+    const resolvers: Array<() => void> = [];
+    registerOfflinePinExecutor(async () => {
+      await new Promise<void>(resolve => resolvers.push(resolve));
+    });
+    const task = {
+      albumId: 'alb-1',
+      albumName: 'One',
+      albumArtist: 'A',
+      coverArt: undefined,
+      year: undefined,
+      songs: [],
+      serverId: 'srv',
+      type: 'artist' as const,
+      artistProgressGroupId: 'artist-1',
+    };
+    useOfflineJobStore.setState({ bulkProgress: { 'artist-1': { done: 0, total: 1 } } });
+
+    enqueueOfflinePin(task);
+    await vi.waitFor(() => expect(resolvers).toHaveLength(1));
+    useOfflineJobStore.getState().cancelDownload('alb-1', 'srv');
+    removeOfflinePinTask('alb-1', 'srv');
+    enqueueOfflinePin(task);
+
+    resolvers[0]?.();
+    await vi.waitFor(() => expect(resolvers).toHaveLength(2));
+    expect(useOfflineJobStore.getState().bulkProgress['artist-1']?.done).toBe(0);
+
+    resolvers[1]?.();
+    await vi.waitFor(() => expect(useOfflineJobStore.getState().pinQueue).toEqual([]));
+    expect(useOfflineJobStore.getState().bulkProgress['artist-1']?.done).toBe(1);
   });
 });

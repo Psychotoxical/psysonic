@@ -9,7 +9,10 @@ use psysonic_analysis::analysis_runtime::{
 };
 use crate::{offline_cancel_flags, DownloadSemaphore};
 
-use crate::file_transfer::{apply_server_http_get, finalize_streamed_download, subsonic_http_client};
+use crate::file_transfer::{
+    apply_server_http_get, finalize_streamed_download, reqwest_error_without_url,
+    subsonic_download_http_client,
+};
 
 // ─── Offline Track Cache ──────────────────────────────────────────────────────
 
@@ -54,7 +57,7 @@ pub(crate) async fn download_track_to_cache_dir(
     let response = apply_server_http_get(client, registry, server_ref, url)
         .send()
         .await
-        .map_err(|e| e.to_string())?;
+        .map_err(reqwest_error_without_url)?;
     if !response.status().is_success() {
         return Err(format!("HTTP {}", response.status().as_u16()));
     }
@@ -135,7 +138,7 @@ pub async fn download_track_offline(
         return Err("CANCELLED".to_string());
     }
 
-    let client = subsonic_http_client(std::time::Duration::from_secs(120))?;
+    let client = subsonic_download_http_client()?;
     let http_registry = app
         .try_state::<Arc<psysonic_core::server_http::ServerHttpRegistry>>()
         .map(|s| Arc::clone(&*s));
@@ -187,6 +190,7 @@ pub fn clear_offline_cancel(download_id: String) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::file_transfer::subsonic_http_client;
     use wiremock::matchers::{method, path as wm_path};
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
@@ -495,4 +499,3 @@ pub async fn delete_offline_track(
     };
     delete_offline_track_with_boundary(&local_path, &boundary).await
 }
-

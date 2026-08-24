@@ -23,7 +23,14 @@ export interface OfflinePinTask {
 
 type OfflinePinExecutor = (task: OfflinePinTask) => Promise<void>;
 
-const pinTasks = new Map<string, OfflinePinTask>();
+interface QueuedPinTask {
+  task: OfflinePinTask;
+  generation: number;
+}
+
+const pinTasks = new Map<string, QueuedPinTask>();
+const activePinGenerations = new Map<string, number>();
+let nextPinGeneration = 1;
 let executor: OfflinePinExecutor | null = null;
 let queueDraining = false;
 
@@ -76,8 +83,10 @@ function isPinAlreadyScheduled(albumId: string, serverId: string): boolean {
  */
 export function enqueueOfflinePin(task: OfflinePinTask): boolean {
   const taskKey = pinKey(task.albumId, task.serverId);
-  cancelledDownloads.delete(taskKey);
-  cancelledDownloads.delete(task.albumId);
+  if (!activePinGenerations.has(taskKey)) {
+    cancelledDownloads.delete(taskKey);
+    cancelledDownloads.delete(task.albumId);
+  }
 
   const store = useOfflineJobStore.getState();
   const existing = store.pinQueue.find(
@@ -87,7 +96,7 @@ export function enqueueOfflinePin(task: OfflinePinTask): boolean {
     return false;
   }
 
-  pinTasks.set(taskKey, task);
+  pinTasks.set(taskKey, { task, generation: nextPinGeneration++ });
 
   if (existing?.status === 'queued') {
     scheduleOfflinePinQueue();
@@ -132,23 +141,33 @@ async function drainOfflinePinQueue(): Promise<void> {
         continue;
       }
 
-      const task = pinTasks.get(nextKey);
-      if (!task) {
+      const queuedTask = pinTasks.get(nextKey);
+      if (!queuedTask) {
         store.removePinFromQueue(next.albumId, next.serverId);
         continue;
       }
+      const { task, generation } = queuedTask;
 
       store.setPinQueueStatus(next.albumId, 'downloading', next.serverId);
+      activePinGenerations.set(nextKey, generation);
       try {
         await executor(task);
       } catch {
         /* per-track errors are recorded on jobs; continue queue */
       } finally {
-        if (task.artistProgressGroupId) {
-          store.bumpBulkProgressDone(task.artistProgressGroupId);
+        if (activePinGenerations.get(nextKey) === generation) {
+          activePinGenerations.delete(nextKey);
         }
-        store.removePinFromQueue(next.albumId, next.serverId);
-        pinTasks.delete(nextKey);
+        if (pinTasks.get(nextKey)?.generation === generation) {
+          if (task.artistProgressGroupId) {
+            store.bumpBulkProgressDone(task.artistProgressGroupId);
+          }
+          store.removePinFromQueue(next.albumId, next.serverId);
+          pinTasks.delete(nextKey);
+        } else {
+          // A delete/retry replaced this generation while its native call settled.
+          cancelledDownloads.delete(nextKey);
+        }
       }
     }
   } finally {

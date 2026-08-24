@@ -56,7 +56,7 @@ export function useAlbumOfflineState(
     if (!albumId || pinComplete) return 0;
     return s.jobs.filter(j => j.albumId === albumId
       && j.serverId === serverId
-      && (j.status === 'done' || j.status === 'error')).length;
+      && j.status === 'done').length;
   });
   const offlineProgressTotal = useOfflineJobStore(s => {
     if (!albumId || pinComplete) return 0;

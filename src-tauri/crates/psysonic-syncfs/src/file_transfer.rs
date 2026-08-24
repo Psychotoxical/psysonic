@@ -2,6 +2,9 @@ use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
+const DOWNLOAD_CONNECT_TIMEOUT: Duration = Duration::from_secs(30);
+const DOWNLOAD_READ_TIMEOUT: Duration = Duration::from_secs(120);
+
 /// Build a reqwest client with the standard Subsonic UA and a single overall timeout.
 /// For flows that need separate connect + read timeouts (long-running update/zip
 /// downloads with progress events), build the client inline.
@@ -11,6 +14,34 @@ pub fn subsonic_http_client(timeout: Duration) -> Result<reqwest::Client, String
         .timeout(timeout)
         .build()
         .map_err(|e| e.to_string())
+}
+
+fn build_subsonic_download_http_client(
+    connect_timeout: Duration,
+    read_timeout: Duration,
+) -> Result<reqwest::Client, String> {
+    reqwest::Client::builder()
+        .user_agent(psysonic_core::user_agent::subsonic_wire_user_agent())
+        .connect_timeout(connect_timeout)
+        .read_timeout(read_timeout)
+        .build()
+        .map_err(|e| e.to_string())
+}
+
+/// File downloads may legitimately run for hours on a slow server. Bound the
+/// connection and each stalled read, but do not impose a deadline on the full body.
+pub fn subsonic_download_http_client() -> Result<reqwest::Client, String> {
+    build_subsonic_download_http_client(DOWNLOAD_CONNECT_TIMEOUT, DOWNLOAD_READ_TIMEOUT)
+}
+
+pub fn reqwest_error_without_url(error: reqwest::Error) -> String {
+    let timed_out = error.is_timeout();
+    let message = error.without_url().to_string();
+    if timed_out && !message.to_ascii_lowercase().contains("timed out") {
+        format!("{message}: timed out")
+    } else {
+        message
+    }
 }
 
 pub fn apply_server_http_get(
@@ -50,7 +81,7 @@ pub async fn stream_to_file(
         if cancel.is_some_and(|c| c.load(Ordering::Relaxed)) {
             return Err("CANCELLED".to_string());
         }
-        let chunk = chunk.map_err(|e| e.to_string())?;
+        let chunk = chunk.map_err(reqwest_error_without_url)?;
         file.write_all(&chunk).await.map_err(|e| e.to_string())?;
     }
     file.flush().await.map_err(|e| e.to_string())?;
@@ -85,6 +116,9 @@ pub async fn finalize_streamed_download(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::io::{Read, Write};
+    use std::net::TcpListener;
+    use std::thread;
     use wiremock::matchers::{method, path as wm_path};
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
@@ -104,6 +138,78 @@ mod tests {
         // zero is a valid Duration — reqwest treats it as "no timeout effectively".
         // The constructor must not reject it.
         assert!(subsonic_http_client(Duration::from_secs(0)).is_ok());
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn download_client_allows_active_transfer_past_one_read_timeout_window() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            let mut request = [0u8; 1024];
+            let _ = stream.read(&mut request).unwrap();
+            stream
+                .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 6\r\n\r\n")
+                .unwrap();
+            for byte in b"abcdef" {
+                thread::sleep(Duration::from_millis(100));
+                stream.write_all(&[*byte]).unwrap();
+                stream.flush().unwrap();
+            }
+        });
+
+        let client =
+            build_subsonic_download_http_client(Duration::from_secs(1), Duration::from_millis(400))
+                .unwrap();
+        let body = client
+            .get(format!("http://{address}/track"))
+            .send()
+            .await
+            .unwrap()
+            .bytes()
+            .await
+            .unwrap();
+
+        server.join().unwrap();
+        assert_eq!(body.as_ref(), b"abcdef");
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn download_client_times_out_and_redacts_url_after_stalled_read() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            let mut request = [0u8; 1024];
+            let _ = stream.read(&mut request).unwrap();
+            stream
+                .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\na")
+                .unwrap();
+            stream.flush().unwrap();
+            thread::sleep(Duration::from_millis(500));
+        });
+
+        let client =
+            build_subsonic_download_http_client(Duration::from_secs(1), Duration::from_millis(100))
+                .unwrap();
+        let response = client
+            .get(format!("http://{address}/track?token=secret"))
+            .send()
+            .await
+            .unwrap();
+        let dir = tempfile::tempdir().unwrap();
+        let dest = dir.path().join("track.flac");
+        let part = dir.path().join("track.flac.part");
+        let error = finalize_streamed_download(response, &dest, &part, None)
+            .await
+            .unwrap_err();
+
+        server.join().unwrap();
+        assert!(error.contains("timed out"), "got {error}");
+        assert!(!error.contains("secret"), "got {error}");
+        assert!(!error.contains(&address.to_string()), "got {error}");
+        assert!(!part.exists());
+        assert!(!dest.exists());
     }
 
     // ── stream_to_file ────────────────────────────────────────────────────────

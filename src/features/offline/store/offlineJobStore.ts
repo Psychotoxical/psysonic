@@ -85,12 +85,20 @@ export const useOfflineJobStore = create<OfflineJobState>()((set, get) => ({
 
   cancelDownload: (albumId, serverId) => {
     const cancelKey = serverId ? `${serverId}:${albumId}` : albumId;
-    cancelledDownloads.add(cancelKey);
+    const activeJobs = get().jobs.filter(j => (
+      j.albumId === albumId
+        && (!serverId || !j.serverId || j.serverId === serverId)
+        && (j.status === 'queued' || j.status === 'downloading')
+    ));
+    const hasActiveProducer = get().pinQueue.some(p => (
+      p.albumId === albumId
+        && (!serverId || !p.serverId || p.serverId === serverId)
+        && p.status === 'downloading'
+    )) || activeJobs.some(j => j.status === 'downloading');
+    if (hasActiveProducer) cancelledDownloads.add(cancelKey);
     // Abort the in-flight Rust transfers, then drop every job for this album
     // (queued AND downloading) so the sidebar toast clears right away.
-    abortDownloadsInRust(get().jobs.filter(j => (
-      j.albumId === albumId && (!serverId || !j.serverId || j.serverId === serverId)
-    )));
+    abortDownloadsInRust(activeJobs);
     set(state => ({
       jobs: state.jobs.filter(j => (
         j.albumId !== albumId || (serverId && j.serverId && j.serverId !== serverId)
@@ -106,7 +114,9 @@ export const useOfflineJobStore = create<OfflineJobState>()((set, get) => ({
       j => j.status === 'queued' || j.status === 'downloading',
     );
     active.forEach(j => cancelledDownloads.add(j.serverId ? `${j.serverId}:${j.albumId}` : j.albumId));
-    get().pinQueue.forEach(p => cancelledDownloads.add(p.serverId ? `${p.serverId}:${p.albumId}` : p.albumId));
+    get().pinQueue
+      .filter(p => p.status === 'downloading')
+      .forEach(p => cancelledDownloads.add(p.serverId ? `${p.serverId}:${p.albumId}` : p.albumId));
     abortDownloadsInRust(active);
     // Keep only already-settled jobs (done/error) — the active ones are gone,
     // so the toast disappears instead of lingering on stuck "downloading" rows.
