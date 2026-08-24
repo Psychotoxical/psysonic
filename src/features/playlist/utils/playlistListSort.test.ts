@@ -28,6 +28,18 @@ describe('sortPlaylistList', () => {
     expect(names(sortPlaylistList(sample, 'songCount'))).toEqual(['Gamma', 'Beta', 'alpha']);
   });
 
+  it('sorts a smart playlist by the name that is actually shown', () => {
+    // Stored as `psy-smart-…`, rendered without the prefix. Sorting the raw
+    // value would file this one under P, between Beta and Gamma.
+    const withSmart = [...sample, pl('psy-smart-90s Rock', '2026-01-01T00:00:00Z', 1)];
+    expect(names(sortPlaylistList(withSmart, 'name'))).toEqual([
+      'psy-smart-90s Rock',
+      'alpha',
+      'Beta',
+      'Gamma',
+    ]);
+  });
+
   it('never mutates the input', () => {
     const input = [...sample];
     sortPlaylistList(input, 'songCount');
