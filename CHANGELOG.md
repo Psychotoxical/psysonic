@@ -54,6 +54,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * The list can be ordered by name, by when a playlist was created, or by how many songs it has. The setting is remembered and applies to the sidebar and the Playlists page alike — the page had no ordering of its own until now.
 * The personal / shared split from the previous entry now applies to the sidebar list as well.
 
+### Every track an artist performs on
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), suggested by MrMiniblock, PR [#1458](https://github.com/Psysonic/psysonic/pull/1458)**
+
+* An artist page showed five popular tracks and offered no way to reach the rest. It now has two tabs: the familiar ranking, and the complete list of everything that artist performs on — their own records as well as the compilations and guest appearances they turn up on.
+* The full list is ordered by album, disc and track number, and can be sorted by any column. Which columns are shown is up to you: title, album and duration to begin with, and artist, genre, year, format, plays, last played and BPM available from the column menu.
+* It is loaded the moment you open the tab, straight from the local index, so the artist page itself stays as quick to open as before.
+
 ## Changed
 
 ### Rust internals — smaller focused modules with the same behaviour
