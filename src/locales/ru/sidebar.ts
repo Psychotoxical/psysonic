@@ -46,4 +46,6 @@ export const sidebar = {
   themeUpdatesTitle: 'Обновления тем',
   themeUpdatesTooltip: 'Доступны обновления тем',
   themeUpdatesDismiss: 'Скрыть',
+  playlistSongCount_one: '{{count}} трек',
+  playlistSongCount_other: '{{count}} треков',
 };

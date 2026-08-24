@@ -43,4 +43,6 @@ export const sidebar = {
   themeUpdatesTitle: '主题更新',
   themeUpdatesTooltip: '有可用的主题更新',
   themeUpdatesDismiss: '忽略',
+  playlistSongCount_one: '{{count}} 首歌曲',
+  playlistSongCount_other: '{{count}} 首歌曲',
 };

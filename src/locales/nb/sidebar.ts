@@ -43,4 +43,6 @@ export const sidebar = {
   themeUpdatesTitle: 'Temaoppdateringer',
   themeUpdatesTooltip: 'Temaoppdateringer tilgjengelig',
   themeUpdatesDismiss: 'Lukk',
+  playlistSongCount_one: '{{count}} sang',
+  playlistSongCount_other: '{{count}} sanger',
 };

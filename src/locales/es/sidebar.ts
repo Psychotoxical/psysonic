@@ -44,4 +44,6 @@ export const sidebar = {
   themeUpdatesTitle: 'Actualizaciones de temas',
   themeUpdatesTooltip: 'Hay actualizaciones de temas',
   themeUpdatesDismiss: 'Descartar',
+  playlistSongCount_one: '{{count}} canción',
+  playlistSongCount_other: '{{count}} canciones',
 };

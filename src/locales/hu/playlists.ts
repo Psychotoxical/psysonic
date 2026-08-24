@@ -132,4 +132,11 @@ export const playlists = {
     sharedWithMe: 'Velem megosztott',
     emptyBucket: 'Nincs lejátszási lista ebben a csoportban.',
   },
+  // Ordering of the playlist list itself (sidebar section + Playlists page)
+  listSort: {
+    label: 'Lejátszási listák rendezése',
+    name: 'Név (A–Z)',
+    created: 'Nemrég létrehozott',
+    songCount: 'Számok száma',
+  },
 };

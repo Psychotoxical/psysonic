@@ -132,4 +132,11 @@ export const playlists = {
     sharedWithMe: 'Partajate cu mine',
     emptyBucket: 'Niciun playlist în acest grup.',
   },
+  // Ordering of the playlist list itself (sidebar section + Playlists page)
+  listSort: {
+    label: 'Sortează playlisturile',
+    name: 'Nume (A–Z)',
+    created: 'Create recent',
+    songCount: 'Număr de melodii',
+  },
 };

@@ -132,4 +132,11 @@ export const playlists = {
     sharedWithMe: 'Delt med meg',
     emptyBucket: 'Ingen spillelister i denne gruppen.',
   },
+  // Ordering of the playlist list itself (sidebar section + Playlists page)
+  listSort: {
+    label: 'Sorter spillelister',
+    name: 'Navn (A–Z)',
+    created: 'Nylig opprettet',
+    songCount: 'Antall sanger',
+  },
 };

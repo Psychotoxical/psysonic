@@ -132,4 +132,11 @@ export const playlists = {
     sharedWithMe: '自分に共有',
     emptyBucket: 'このグループにプレイリストはありません。',
   },
+  // Ordering of the playlist list itself (sidebar section + Playlists page)
+  listSort: {
+    label: 'プレイリストの並び替え',
+    name: '名前（A–Z）',
+    created: '作成日が新しい順',
+    songCount: '曲数',
+  },
 };

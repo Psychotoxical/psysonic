@@ -132,4 +132,11 @@ export const playlists = {
     sharedWithMe: 'Mit mir geteilt',
     emptyBucket: 'Keine Playlists in dieser Gruppe.',
   },
+  // Ordering of the playlist list itself (sidebar section + Playlists page)
+  listSort: {
+    label: 'Playlists sortieren',
+    name: 'Name (A–Z)',
+    created: 'Zuletzt erstellt',
+    songCount: 'Anzahl Songs',
+  },
 };

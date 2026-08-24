@@ -132,4 +132,11 @@ export const playlists = {
     sharedWithMe: 'Met mij gedeeld',
     emptyBucket: 'Geen afspeellijsten in deze groep.',
   },
+  // Ordering of the playlist list itself (sidebar section + Playlists page)
+  listSort: {
+    label: 'Afspeellijsten sorteren',
+    name: 'Naam (A–Z)',
+    created: 'Recent gemaakt',
+    songCount: 'Aantal nummers',
+  },
 };

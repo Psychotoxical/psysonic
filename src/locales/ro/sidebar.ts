@@ -45,4 +45,6 @@ export const sidebar = {
   themeUpdatesTitle: 'Actualizări de teme',
   themeUpdatesTooltip: 'Actualizări de teme disponibile',
   themeUpdatesDismiss: 'Închide',
+  playlistSongCount_one: '{{count}} melodie',
+  playlistSongCount_other: '{{count}} melodii',
 };
