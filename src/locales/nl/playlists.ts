@@ -123,4 +123,13 @@ export const playlists = {
     localOnlyNotice:
       'Mappen worden alleen in Psysonic op dit apparaat opgeslagen. Navidrome en de Subsonic-API ondersteunen geen playlistmappen, dus de structuur wordt niet op je server opgeslagen of met je andere apparaten en apps gesynchroniseerd.',
   },
+  // Ownership split (personal / shared by me / shared with me)
+  ownership: {
+    groupLabel: 'Afspeellijsten op eigenaar',
+    all: 'Alle',
+    personal: 'Persoonlijk',
+    sharedByMe: 'Door mij gedeeld',
+    sharedWithMe: 'Met mij gedeeld',
+    emptyBucket: 'Geen afspeellijsten in deze groep.',
+  },
 };

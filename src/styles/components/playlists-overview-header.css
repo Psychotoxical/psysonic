@@ -78,3 +78,21 @@
     flex: 1;
   }
 }
+
+/* ─ Ownership filter (personal / shared by me / shared with me) ─ */
+.playlists-ownership-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+/*
+ * Content width, never an equal share. These labels differ a lot in length once
+ * translated ("All" against "Shared with me"), and an equal-share flex basis
+ * combined with the button's own nowrap clips the longer ones at both ends —
+ * a failure that only shows up in some locales.
+ */
+.playlists-ownership-filter > .btn {
+  flex: 0 0 auto;
+}

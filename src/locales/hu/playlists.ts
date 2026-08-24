@@ -123,4 +123,13 @@ export const playlists = {
     localOnlyNotice:
       'A mappák csak ezen az eszközön, a Psysonicban vannak elmentve. A Navidrome és a Subsonic API nem támogatja natívan a lejátszásilista-mappákat, így a struktúra nem tárolódik a szervereden, és nem szinkronizálódik a többi eszközödre és alkalmazásodba.',
   },
+  // Ownership split (personal / shared by me / shared with me)
+  ownership: {
+    groupLabel: 'Lejátszási listák tulajdonos szerint',
+    all: 'Összes',
+    personal: 'Személyes',
+    sharedByMe: 'Általam megosztott',
+    sharedWithMe: 'Velem megosztott',
+    emptyBucket: 'Nincs lejátszási lista ebben a csoportban.',
+  },
 };

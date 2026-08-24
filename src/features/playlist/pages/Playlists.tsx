@@ -9,6 +9,12 @@ import { useTranslation } from 'react-i18next';
 import { useRangeSelection } from '@/lib/hooks/useRangeSelection';
 import { useScopedBrowseSearchQuery } from '@/store/liveSearchScopeStore';
 import { filterPlaylistsByNameQuery } from '@/features/playlist/utils/playlistsBrowseSearch';
+import {
+  countPlaylistsByOwnership,
+  filterPlaylistsByOwnership,
+  isOwnPlaylist,
+} from '@/features/playlist/utils/playlistOwnership';
+import { usePlaylistLayoutStore } from '@/features/playlist/store/playlistLayoutStore';
 
 import {
   defaultSmartFilters,
@@ -45,13 +51,24 @@ export default function Playlists() {
   const removeId = usePlaylistStore((s) => s.removeId);
   const playlists = usePlaylistStore((s) => s.playlists);
   const playlistsSearchQuery = useScopedBrowseSearchQuery('playlists');
-  const visiblePlaylists = useMemo(
-    () => filterPlaylistsByNameQuery(playlists, playlistsSearchQuery),
-    [playlists, playlistsSearchQuery],
-  );
-  const textSearchActive = playlistsSearchQuery.trim().length > 0;
   const fetchPlaylists = usePlaylistStore((s) => s.fetchPlaylists);
   const servers = useAuthStore(s => s.servers);
+  const ownershipFilter = usePlaylistLayoutStore(s => s.ownershipFilter);
+  // Counted over the full list, not the visible one: whether the control appears
+  // must not flip while someone types in the search box.
+  const ownershipCounts = useMemo(
+    () => countPlaylistsByOwnership(playlists, servers),
+    [playlists, servers],
+  );
+  const visiblePlaylists = useMemo(
+    () => filterPlaylistsByNameQuery(
+      [...filterPlaylistsByOwnership(playlists, ownershipFilter, servers)],
+      playlistsSearchQuery,
+    ),
+    [playlists, ownershipFilter, servers, playlistsSearchQuery],
+  );
+  const textSearchActive = playlistsSearchQuery.trim().length > 0;
+  const ownershipFilterActive = ownershipFilter !== 'all';
   const activeServerId = useAuthStore(s => s.activeServerId);
   const subsonicIdentityByServer = useAuthStore(s => s.subsonicServerIdentityByServer);
   const libraryBrowseServerIds = useAuthStore(s => s.libraryBrowseServerIds);
@@ -157,12 +174,12 @@ export default function Playlists() {
   };
 
   const selectedPlaylists = visiblePlaylists.filter(p => visibleSelectedIds.has(ownedEntityKey(p)));
-  const isPlaylistDeletable = useCallback((pl: SubsonicPlaylist) => {
-    if (!pl.serverId) return false;
-    if (!pl.owner) return true;
-    const username = servers.find(server => server.id === pl.serverId)?.username;
-    return Boolean(username) && pl.owner === username;
-  }, [servers]);
+  // Deletable = ours *and* addressable. The "is this mine" half is shared with
+  // the ownership filter so both surfaces can never drift apart on the answer.
+  const isPlaylistDeletable = useCallback(
+    (pl: SubsonicPlaylist) => Boolean(pl.serverId) && isOwnPlaylist(pl, servers),
+    [servers],
+  );
 
   useEffect(() => {
     fetchPlaylists().finally(() => setLoading(false));
@@ -386,6 +403,7 @@ export default function Playlists() {
         }}
         actionPolicy={playlistsActionPolicy}
         foldersEnabled={effectiveServerIds.length === 1 && effectiveServerIds[0] === activeServerId}
+        ownershipCounts={ownershipCounts}
       />
 
       {creatingSmart && (
@@ -422,6 +440,8 @@ export default function Playlists() {
         <div className="empty-state">{t('playlists.empty')}</div>
       ) : visiblePlaylists.length === 0 && textSearchActive ? (
         <div className="empty-state">{t('playlists.noMatchingSearch')}</div>
+      ) : visiblePlaylists.length === 0 && ownershipFilterActive ? (
+        <div className="empty-state">{t('playlists.ownership.emptyBucket')}</div>
       ) : (
         <>
           {showFolderView && (
@@ -435,7 +455,7 @@ export default function Playlists() {
               playlists={visiblePlaylists}
               renderCard={renderCard}
               disableVirtualization={perfFlags.disableMainstageVirtualLists}
-              hideEmptyFolders={textSearchActive}
+              hideEmptyFolders={textSearchActive || ownershipFilterActive}
             />
           ) : (
             <VirtualCardGrid

@@ -121,4 +121,13 @@ export const playlists = {
     localOnlyNotice:
       '文件夹仅保存在此设备上的 Psysonic 中。Navidrome 和 Subsonic API 不支持播放列表文件夹，因此该结构不会存储在你的服务器上，也不会同步到你的其他设备和应用。',
   },
+  // Ownership split (personal / shared by me / shared with me)
+  ownership: {
+    groupLabel: '按所有者分类的播放列表',
+    all: '全部',
+    personal: '个人',
+    sharedByMe: '我分享的',
+    sharedWithMe: '分享给我的',
+    emptyBucket: '此分组中没有播放列表。',
+  },
 };
