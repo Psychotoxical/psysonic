@@ -19,28 +19,40 @@ export function useArtistOfflineState(
   serverId: string,
   albumIds: string[],
 ): UseArtistOfflineStateResult {
-  useLocalPlaybackStore(s => s.entries);
   const progressKey = ownedEntityKey({ id: artistId, serverId });
 
-  const allPinned = albumIds.length > 0
-    && albumIds.every(id => isOfflinePinComplete(id, serverId));
+  const allPinned = useLocalPlaybackStore(() => (
+    albumIds.length > 0 && albumIds.every(id => isOfflinePinComplete(
+      id,
+      serverId,
+      undefined,
+      { kind: 'artist', sourceId: id },
+    ))
+  ));
 
   const bulkDone = useOfflineJobStore(s => (artistId ? s.bulkProgress[progressKey]?.done : undefined));
   const bulkTotal = useOfflineJobStore(s => (artistId ? s.bulkProgress[progressKey]?.total : undefined));
   const hasQueuedAlbums = useOfflineJobStore(s =>
     albumIds.length > 0
     && albumIds.some(id => s.pinQueue.some(
-      p => p.albumId === id && p.serverId === serverId && p.status === 'queued',
+      p => p.albumId === id
+        && p.serverId === serverId
+        && p.pinKind === 'artist'
+        && p.status === 'queued',
     )),
   );
   const hasDownloadingAlbums = useOfflineJobStore(s =>
     albumIds.length > 0
     && albumIds.some(id =>
-      s.pinQueue.some(p => p.albumId === id && p.serverId === serverId && p.status === 'downloading')
+      s.pinQueue.some(p => p.albumId === id
+        && p.serverId === serverId
+        && p.pinKind === 'artist'
+        && p.status === 'downloading')
       || s.jobs.some(j => (
         j.albumId === id
         && j.serverId === serverId
-        && (j.status === 'queued' || j.status === 'downloading')
+        && j.pinKind === 'artist'
+        && j.status === 'downloading'
       )),
     ),
   );

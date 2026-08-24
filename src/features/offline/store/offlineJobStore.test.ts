@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { onInvoke } from '@/test/mocks/tauri';
 import { useOfflineJobStore, cancelledDownloads, type DownloadJob } from '@/features/offline/store/offlineJobStore';
 
@@ -41,7 +41,7 @@ describe('offlineJobStore cancellation', () => {
         status: 'queued',
         queuedAt: 1,
       }],
-      bulkProgress: {},
+      bulkProgress: { artist: { done: 0, total: 2 } },
     });
 
     useOfflineJobStore.getState().cancelAllDownloads();
@@ -49,6 +49,7 @@ describe('offlineJobStore cancellation', () => {
     // Only settled jobs survive → the sidebar toast clears.
     expect(useOfflineJobStore.getState().jobs.map(j => j.status).sort()).toEqual(['done', 'error']);
     expect(useOfflineJobStore.getState().pinQueue).toEqual([]);
+    expect(useOfflineJobStore.getState().bulkProgress).toEqual({});
     expect(cancelledDownloads.has('a')).toBe(true);
     // Rust is told to abort the in-flight transfers for this download id.
     expect(calls).toEqual([['a-1']]);
@@ -90,6 +91,37 @@ describe('offlineJobStore cancellation', () => {
     expect(calls).toEqual([['a-1']]);
   });
 
+  it('exact-owner cancellation leaves another pin kind running', () => {
+    const calls: string[][] = [];
+    onInvoke('cancel_offline_downloads', (a: unknown) => {
+      calls.push((a as { downloadIds: string[] }).downloadIds);
+    });
+    useOfflineJobStore.setState({
+      jobs: [job({
+        status: 'downloading',
+        downloadId: 'artist-1',
+        serverId: 'srv',
+        pinKind: 'artist',
+      })],
+      pinQueue: [{
+        albumId: 'a',
+        albumName: 'A',
+        pinKind: 'artist',
+        status: 'downloading',
+        queuedAt: 1,
+        serverId: 'srv',
+      }],
+      bulkProgress: {},
+    });
+
+    useOfflineJobStore.getState().cancelDownload('a', 'srv', 'album');
+
+    expect(useOfflineJobStore.getState().jobs).toHaveLength(1);
+    expect(useOfflineJobStore.getState().pinQueue).toHaveLength(1);
+    expect(cancelledDownloads.has('srv:a')).toBe(false);
+    expect(calls).toEqual([]);
+  });
+
   it('cancelAllDownloads with nothing active does not call into Rust', () => {
     let called = false;
     onInvoke('cancel_offline_downloads', () => {
@@ -104,5 +136,24 @@ describe('offlineJobStore cancellation', () => {
 
     expect(called).toBe(false);
     expect(useOfflineJobStore.getState().jobs).toHaveLength(2);
+  });
+
+  it('cleans completed bulk progress without deleting a newer generation', async () => {
+    vi.useFakeTimers();
+    try {
+      useOfflineJobStore.getState().setBulkProgress('artist', { done: 0, total: 1 });
+      useOfflineJobStore.getState().bumpBulkProgressDone('artist');
+      useOfflineJobStore.getState().setBulkProgress('artist', { done: 0, total: 2 });
+
+      await vi.advanceTimersByTimeAsync(5000);
+      expect(useOfflineJobStore.getState().bulkProgress.artist).toEqual({ done: 0, total: 2 });
+
+      useOfflineJobStore.getState().bumpBulkProgressDone('artist');
+      useOfflineJobStore.getState().bumpBulkProgressDone('artist');
+      await vi.advanceTimersByTimeAsync(5000);
+      expect(useOfflineJobStore.getState().bulkProgress.artist).toBeUndefined();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

@@ -10,11 +10,10 @@ use psysonic_library::repos::TrackRepository;
 use psysonic_library::LibraryRuntime;
 use tauri::{AppHandle, Manager, State};
 
+use crate::file_transfer::acquire_download_destination_lock;
+
 use super::download::read_raw_probe_prefix;
-use super::paths::{
-    acquire_per_track_download_lock, per_track_download_lock_key, resolve_media_dir,
-    track_row_to_path_input, unique_part_path,
-};
+use super::paths::{resolve_media_dir, track_row_to_path_input, unique_part_path};
 use super::LocalTrackDownloadResult;
 
 async fn retain_consumed_spill_if_trusted(
@@ -83,12 +82,12 @@ pub(super) async fn promote_stream_cache_to_local(
         }));
     }
 
-    let _track_guard = acquire_per_track_download_lock(&per_track_download_lock_key(
-        LocalTier::Ephemeral,
-        &server_index_key,
-        &track_id,
-    ))
-    .await;
+    if let Some(parent) = file_path.parent() {
+        tokio::fs::create_dir_all(parent)
+            .await
+            .map_err(|error| error.to_string())?;
+    }
+    let _destination_guard = acquire_download_destination_lock(&file_path, None).await?;
 
     if file_path.is_file() {
         let size = tokio::fs::metadata(&file_path)
@@ -103,13 +102,7 @@ pub(super) async fn promote_stream_cache_to_local(
         }));
     }
 
-    if let Some(parent) = file_path.parent() {
-        tokio::fs::create_dir_all(parent)
-            .await
-            .map_err(|e| e.to_string())?;
-    }
-
-    let part_path = unique_part_path(&file_path, &suffix, &track_id);
+    let part_path = unique_part_path(&file_path, &track_id);
 
     // Provenance gate: only promote bytes that match the verified original.
     let registry = app

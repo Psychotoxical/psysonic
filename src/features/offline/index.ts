@@ -41,6 +41,7 @@ export * from './utils/offlineLibraryIndexLoad';
 export * from './utils/offlineLocalBrowse';
 export * from './utils/offlineMediaResolve';
 export * from './utils/offlineNavPolicy';
+export * from './utils/offlineOperationCoordinator';
 export * from './utils/offlinePinQueue';
 export * from './utils/offlinePlaylistBrowse';
 export * from './utils/offlineStarredLoad';

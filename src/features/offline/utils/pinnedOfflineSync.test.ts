@@ -8,13 +8,16 @@ import {
   isManualOfflinePlaylist,
   isPlaylistPinnedOffline,
   isSourcePinnedOffline,
+  initPinnedOfflineSync,
   schedulePinnedAlbumSync,
   schedulePinnedPlaylistSync,
   scheduleSyncPinnedAlbumsAndArtists,
   syncAllPinnedPlaylists,
   syncPinnedArtistIfNeeded,
+  syncPinnedPlaylistIfNeeded,
 } from '@/features/offline/utils/pinnedOfflineSync';
 import { SMART_PREFIX } from '@/lib/format/playlistDetailHelpers';
+import { cancelAllOfflinePins } from '@/features/offline/utils/offlinePinQueue';
 
 const getPlaylistMock = vi.fn();
 const getAlbumForServerMock = vi.fn();
@@ -23,6 +26,11 @@ const filterSongsMock = vi.fn(async (songs: SubsonicSong[]) => songs);
 const isReachableMock = vi.fn(() => true);
 const enqueueMock = vi.fn((_task: unknown) => true);
 const invokeMock = vi.fn(async (_cmd: string, _args?: unknown) => ({}));
+
+afterEach(() => {
+  invokeMock.mockReset();
+  invokeMock.mockResolvedValue({});
+});
 
 vi.mock('@/lib/network/activeServerReachability', () => ({
   isActiveServerReachable: () => isReachableMock(),
@@ -205,6 +213,109 @@ describe('schedulePinnedPlaylistSync', () => {
       }),
     );
     expect(useOfflineStore.getState().albums['a.test:pl-1']?.trackIds).toEqual(['t2']);
+  });
+
+  it('does not resurrect a pin deleted while reconciliation is fetching', async () => {
+    let resolvePlaylist!: (value: {
+      playlist: { id: string; name: string; songCount: number };
+      songs: SubsonicSong[];
+    }) => void;
+    getPlaylistMock.mockImplementation(() => new Promise(resolve => {
+      resolvePlaylist = resolve;
+    }));
+
+    const sync = syncPinnedPlaylistIfNeeded('pl-1', 'srv-a');
+    await vi.waitFor(() => expect(resolvePlaylist).toBeTypeOf('function'));
+    await useOfflineStore.getState().deleteAlbum('pl-1', 'srv-a');
+    resolvePlaylist({
+      playlist: { id: 'pl-1', name: 'Road mix', songCount: 1 },
+      songs: [song('t2')],
+    });
+    await sync;
+
+    expect(useOfflineStore.getState().albums['a.test:pl-1']).toBeUndefined();
+    expect(enqueueMock).not.toHaveBeenCalled();
+  });
+
+  it('ignores an older reconciliation response that completes last', async () => {
+    const resolvers: Array<(value: {
+      playlist: { id: string; name: string; songCount: number };
+      songs: SubsonicSong[];
+    }) => void> = [];
+    getPlaylistMock.mockImplementation(() => new Promise(resolve => {
+      resolvers.push(resolve);
+    }));
+
+    const older = syncPinnedPlaylistIfNeeded('pl-1', 'srv-a');
+    await vi.waitFor(() => expect(resolvers).toHaveLength(1));
+    const newer = syncPinnedPlaylistIfNeeded('pl-1', 'srv-a');
+    await vi.waitFor(() => expect(resolvers).toHaveLength(2));
+    resolvers[1]?.({
+      playlist: { id: 'pl-1', name: 'Newest', songCount: 1 },
+      songs: [song('t2')],
+    });
+    await newer;
+    resolvers[0]?.({
+      playlist: { id: 'pl-1', name: 'Stale', songCount: 1 },
+      songs: [song('t3')],
+    });
+    await older;
+
+    expect(useOfflineStore.getState().albums['a.test:pl-1']?.name).toBe('Newest');
+    expect(useOfflineStore.getState().albums['a.test:pl-1']?.trackIds).toEqual(['t2']);
+    expect(enqueueMock).toHaveBeenCalledTimes(1);
+    expect(enqueueMock).toHaveBeenCalledWith(
+      expect.objectContaining({ songs: [expect.objectContaining({ id: 't2' })] }),
+    );
+  });
+
+  it('does not resurrect a pin when reconciliation starts during deletion', async () => {
+    let releaseDeletion!: () => void;
+    invokeMock.mockImplementation((command: string) => {
+      if (command !== 'delete_media_file') return Promise.resolve({});
+      return new Promise<object>(resolve => {
+        releaseDeletion = () => resolve({});
+      });
+    });
+
+    const deletion = useOfflineStore.getState().deleteAlbum('pl-1', 'srv-a');
+    await vi.waitFor(() => expect(releaseDeletion).toBeTypeOf('function'));
+    const sync = syncPinnedPlaylistIfNeeded('pl-1', 'srv-a');
+    releaseDeletion();
+    await Promise.all([deletion, sync]);
+
+    expect(useOfflineStore.getState().albums['a.test:pl-1']).toBeUndefined();
+    expect(enqueueMock).not.toHaveBeenCalled();
+  });
+
+  it('does not remove a track entry reassigned while prune deletion is pending', async () => {
+    let releaseDeletion!: () => void;
+    invokeMock.mockImplementation((command: string) => {
+      if (command !== 'delete_media_file') return Promise.resolve({});
+      return new Promise<object>(resolve => {
+        releaseDeletion = () => resolve({});
+      });
+    });
+
+    const sync = syncPinnedPlaylistIfNeeded('pl-1', 'srv-a');
+    await vi.waitFor(() => expect(releaseDeletion).toBeTypeOf('function'));
+    useLocalPlaybackStore.getState().upsertEntry({
+      serverIndexKey: 'a.test',
+      trackId: 't1',
+      localPath: '/media/library/a.test/new/t1.mp3',
+      layoutFingerprint: 'new',
+      sizeBytes: 1000,
+      tier: 'library',
+      suffix: 'mp3',
+      pinSource: { kind: 'album', sourceId: 'al-2' },
+    });
+    releaseDeletion();
+    await sync;
+
+    expect(useLocalPlaybackStore.getState().getEntry('t1', 'a.test')?.pinSource?.sourceId)
+      .toBe('al-2');
+    expect(useLocalPlaybackStore.getState().getEntry('t1', 'a.test')?.localPath)
+      .toContain('/new/t1.mp3');
   });
 });
 
@@ -402,6 +513,78 @@ describe('syncPinnedArtistIfNeeded', () => {
       }),
     );
   });
+
+  it('does not enqueue artist reconciliation that was awaiting cancel-all', async () => {
+    seedArtistAlbumPin('al-1', 't1');
+    let resolveArtist!: (value: {
+      artist: { id: string; name: string };
+      albums: Array<{ id: string; name: string; artist: string }>;
+    }) => void;
+    getArtistForServerMock.mockImplementation(() => new Promise(resolve => {
+      resolveArtist = resolve;
+    }));
+
+    const sync = syncPinnedArtistIfNeeded('art-1', 'srv-a');
+    await vi.waitFor(() => expect(resolveArtist).toBeTypeOf('function'));
+    cancelAllOfflinePins();
+    resolveArtist({
+      artist: { id: 'art-1', name: 'Artist' },
+      albums: [{ id: 'al-1', name: 'One', artist: 'Artist' }],
+    });
+    await sync;
+
+    expect(getAlbumForServerMock).not.toHaveBeenCalled();
+    expect(enqueueMock).not.toHaveBeenCalled();
+  });
+
+  it('stops pruning remaining artist tracks after cancel-all', async () => {
+    seedArtistAlbumPin('al-1', 't1');
+    useOfflineStore.setState(state => ({
+      albums: {
+        ...state.albums,
+        'a.test:al-1': {
+          ...state.albums['a.test:al-1'],
+          trackIds: ['t1', 't2'],
+        },
+      },
+    }));
+    useLocalPlaybackStore.getState().upsertEntry({
+      serverIndexKey: 'a.test',
+      trackId: 't2',
+      localPath: '/media/library/a.test/a/al-1/t2.mp3',
+      layoutFingerprint: 'fp',
+      sizeBytes: 1000,
+      tier: 'library',
+      suffix: 'mp3',
+      pinSource: { kind: 'artist', sourceId: 'al-1' },
+    });
+    getArtistForServerMock.mockResolvedValue({
+      artist: { id: 'art-1', name: 'Artist' },
+      albums: [],
+    });
+    let releaseFirstDelete!: () => void;
+    let deleteCalls = 0;
+    invokeMock.mockImplementation(async (command: string) => {
+      if (command !== 'delete_media_file') return {};
+      deleteCalls += 1;
+      if (deleteCalls === 1) {
+        await new Promise<void>(resolve => {
+          releaseFirstDelete = resolve;
+        });
+      }
+      return {};
+    });
+
+    const sync = syncPinnedArtistIfNeeded('art-1', 'srv-a');
+    await vi.waitFor(() => expect(releaseFirstDelete).toBeTypeOf('function'));
+    cancelAllOfflinePins();
+    releaseFirstDelete();
+    await sync;
+
+    expect(deleteCalls).toBe(1);
+    expect(useLocalPlaybackStore.getState().getEntry('t2', 'a.test')).not.toBeNull();
+    expect(useOfflineStore.getState().albums['a.test:al-1']).toBeDefined();
+  });
 });
 
 describe('syncAllPinnedPlaylists', () => {
@@ -440,6 +623,42 @@ describe('syncAllPinnedPlaylists', () => {
     expect(getPlaylistMock).toHaveBeenCalledWith('srv-b', 'pl-b');
     expect(useOfflineStore.getState().albums['b.test:pl-b']?.trackIds).toEqual(['tb2']);
   });
+
+  it('does not start the next playlist after the sync lifecycle is disposed', async () => {
+    useOfflineStore.setState(state => ({
+      albums: {
+        ...state.albums,
+        'b.test:pl-c': {
+          id: 'pl-c',
+          serverId: 'b.test',
+          name: 'Second mix',
+          artist: '',
+          trackIds: ['tc1'],
+          type: 'playlist',
+        },
+      },
+    }));
+    let resolveFirst!: (value: {
+      playlist: { id: string; name: string; songCount: number };
+      songs: SubsonicSong[];
+    }) => void;
+    getPlaylistMock.mockImplementationOnce(() => new Promise(resolve => {
+      resolveFirst = resolve;
+    }));
+    const dispose = initPinnedOfflineSync();
+    const sync = syncAllPinnedPlaylists();
+    await vi.waitFor(() => expect(resolveFirst).toBeTypeOf('function'));
+
+    dispose();
+    resolveFirst({
+      playlist: { id: 'pl-b', name: 'Remote mix', songCount: 1 },
+      songs: [song('tb2')],
+    });
+    await sync;
+
+    expect(getPlaylistMock).toHaveBeenCalledTimes(1);
+    expect(enqueueMock).not.toHaveBeenCalled();
+  });
 });
 
 describe('schedulePinnedPlaylistSync dedupe', () => {
@@ -477,6 +696,16 @@ describe('schedulePinnedPlaylistSync dedupe', () => {
     schedulePinnedPlaylistSync('pl-1');
     await vi.advanceTimersByTimeAsync(700);
     expect(getPlaylistMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('discards scheduled reconciliation from before cancel-all', async () => {
+    schedulePinnedPlaylistSync('pl-1');
+    cancelAllOfflinePins();
+
+    await vi.advanceTimersByTimeAsync(700);
+
+    expect(getPlaylistMock).not.toHaveBeenCalled();
+    expect(enqueueMock).not.toHaveBeenCalled();
   });
 });
 

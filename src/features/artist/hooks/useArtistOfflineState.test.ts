@@ -44,6 +44,24 @@ describe('useArtistOfflineState', () => {
     expect(result.current.status).toBe('cached');
   });
 
+  it('does not report album-owned bytes as an artist cache', () => {
+    useLocalPlaybackStore.getState().upsertEntry({
+      serverIndexKey: 'srv',
+      trackId: 't1',
+      localPath: '/x',
+      layoutFingerprint: 'fp',
+      sizeBytes: 1,
+      tier: 'library',
+      pinSource: { kind: 'album', sourceId: 'al-1' },
+      suffix: 'mp3',
+    });
+
+    const { result } = renderHook(() =>
+      useArtistOfflineState('artist-1', 'srv', ['al-1']),
+    );
+    expect(result.current.status).toBe('none');
+  });
+
   it('reports queued when bulk progress is active but albums only wait in pin queue', () => {
     useOfflineJobStore.setState({
       bulkProgress: { 'srv:artist-1': { done: 0, total: 2 } },

@@ -4,12 +4,14 @@ import { getPlaylistForServer } from '@/lib/api/subsonicPlaylists';
 import { getArtistForServer } from '@/lib/api/subsonicArtists';
 import type { SubsonicSong } from '@/lib/api/subsonicTypes';
 import { useAuthStore } from '@/store/authStore';
-import type { PinSource } from '@/store/localPlaybackStore';
-import { useLocalPlaybackStore } from '@/store/localPlaybackStore';
+import {
+  localPlaybackEntryHasPinSource,
+  useLocalPlaybackStore,
+  type PinSource,
+} from '@/store/localPlaybackStore';
 import { useOfflineStore } from '@/features/offline/store/offlineStore';
 import { isSmartPlaylistName } from '@/lib/format/playlistDetailHelpers';
 import { getMediaDir } from '@/lib/media/mediaDir';
-import { deleteMediaFile } from '@/lib/api/syncfs';
 import {
   isActiveServerReachable,
   onActiveServerBecameReachable,
@@ -17,7 +19,15 @@ import {
 import { resolveIndexKey, serverIndexKeyForProfile } from '@/lib/server/serverIndexKey';
 import { resolveServerIdForIndexKey } from '@/lib/server/serverLookup';
 import { findLocalPlaybackEntry } from '@/store/localPlaybackResolve';
-import { enqueueOfflinePin } from '@/features/offline/utils/offlinePinQueue';
+import {
+  enqueueOfflinePin,
+  getOfflinePinCancellationEpoch,
+} from '@/features/offline/utils/offlinePinQueue';
+import {
+  beginOfflineSourceOperation,
+  getOfflineSourceGeneration,
+  runOfflineTrackDeletionBatch,
+} from '@/features/offline/utils/offlineOperationCoordinator';
 
 export type OfflinePinKind = PinSource['kind'];
 
@@ -28,14 +38,18 @@ const PLAYLIST_SYNC_INTERVAL_MS = 60 * 60 * 1000;
 
 let playlistDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 let albumArtistDebounceTimer: ReturnType<typeof setTimeout> | null = null;
-const pendingPlaylistJobs: { sourceId: string; serverId: string }[] = [];
-const pendingAlbumJobs: { sourceId: string; serverId: string }[] = [];
-const pendingArtistJobs: { artistId: string; serverId: string; albumIds?: string[] }[] = [];
+const pendingPlaylistJobs: { sourceId: string; serverId: string; epoch: number }[] = [];
+const pendingAlbumJobs: { sourceId: string; serverId: string; epoch: number }[] = [];
+const pendingArtistJobs: {
+  artistId: string;
+  serverId: string;
+  albumIds?: string[];
+  epoch: number;
+}[] = [];
 /** Empty set entry means all servers; otherwise profile ids from library idle. */
-const pendingAlbumArtistServers = new Set<string | null>();
+const pendingAlbumArtistServers = new Map<string | null, number>();
 const retryTimers = new Map<string, ReturnType<typeof setTimeout>>();
-let playlistSyncInterval: ReturnType<typeof setInterval> | null = null;
-let stopLibraryIdle: (() => void) | null = null;
+let offlineSyncLifecycleGeneration = 0;
 
 function serverIndexKeyForOffline(serverId: string): string {
   const server = useAuthStore.getState().servers.find(s => s.id === serverId);
@@ -91,42 +105,48 @@ export function isPlaylistPinnedOffline(playlistId: string, serverId: string): b
   return isSourcePinnedOffline(playlistId, serverId, 'playlist');
 }
 
-function trackStillNeededByOtherPin(
-  trackId: string,
-  serverIndexKey: string,
-  exceptKind: OfflinePinKind,
-  exceptSourceId: string,
-): boolean {
-  for (const group of useLocalPlaybackStore.getState().listPinnedGroups(serverIndexKey)) {
-    if (group.pinSource.kind === exceptKind && group.pinSource.sourceId === exceptSourceId) continue;
-    if (group.trackIds.includes(trackId)) return true;
-  }
-  return false;
-}
-
 async function pruneRemovedPinTracks(
   sourceId: string,
   serverId: string,
   kind: OfflinePinKind,
   keepIds: Set<string>,
+  shouldContinue: () => boolean = () => true,
 ): Promise<void> {
   const indexKey = serverIndexKeyForOffline(serverId);
   const lp = useLocalPlaybackStore.getState();
   const mediaDir = getMediaDir();
+  const pinSource: PinSource = { kind, sourceId };
   const group = lp.listPinnedGroups(indexKey)
     .find(g => g.pinSource.kind === kind && g.pinSource.sourceId === sourceId);
   const previousIds = group?.trackIds ?? offlineMeta(sourceId, serverId)?.trackIds ?? [];
 
   for (const trackId of previousIds) {
+    if (!shouldContinue()) return;
     if (keepIds.has(trackId)) continue;
-    if (trackStillNeededByOtherPin(trackId, indexKey, kind, sourceId)) continue;
 
     const entry = findLocalPlaybackEntry(trackId, serverId);
     if (!entry?.localPath || entry.tier !== 'library') continue;
-    if (entry.pinSource?.kind !== kind || entry.pinSource.sourceId !== sourceId) continue;
+    if (!localPlaybackEntryHasPinSource(entry, pinSource)) continue;
 
-    await deleteMediaFile({ localPath: entry.localPath, mediaDir }).catch(() => {});
-    lp.removeEntry(trackId, entry.serverIndexKey, `${kind}-sync-prune`);
+    await runOfflineTrackDeletionBatch(
+      [{ serverIndexKey: indexKey, trackId }],
+      async () => {
+        if (!shouldContinue()) return;
+        const current = findLocalPlaybackEntry(trackId, serverId);
+        if (
+          current?.serverIndexKey !== entry.serverIndexKey
+          || current.localPath !== entry.localPath
+          || !localPlaybackEntryHasPinSource(current, pinSource)
+        ) return;
+        await lp.removePinSource(
+          trackId,
+          entry.serverIndexKey,
+          pinSource,
+          mediaDir,
+          `${kind}-sync-prune`,
+        );
+      },
+    );
   }
 }
 
@@ -181,13 +201,14 @@ function scheduleRetryWhileDownloading(
   sourceId: string,
   serverId: string,
   kind: OfflinePinKind,
+  cancellationEpoch: number,
 ): void {
   const key = `${serverId}:${kind}:${sourceId}`;
   const prev = retryTimers.get(key);
   if (prev) clearTimeout(prev);
   retryTimers.set(key, setTimeout(() => {
     retryTimers.delete(key);
-    void syncPinnedSourceIfNeeded(sourceId, serverId, kind);
+    void syncPinnedSourceIfNeeded(sourceId, serverId, kind, { cancellationEpoch });
   }, RETRY_WHILE_DOWNLOADING_MS));
 }
 
@@ -200,6 +221,7 @@ interface SyncPinOptions {
   artistProgressGroupId?: string;
   /** Download even when the source is not pinned yet (new album in a fully cached discography). */
   allowUnpinned?: boolean;
+  cancellationEpoch?: number;
 }
 
 /**
@@ -212,10 +234,18 @@ export async function syncPinnedSourceIfNeeded(
   kind: OfflinePinKind,
   options: SyncPinOptions = {},
 ): Promise<void> {
+  const lifecycleGeneration = offlineSyncLifecycleGeneration;
+  const cancellationEpoch = options.cancellationEpoch ?? getOfflinePinCancellationEpoch();
+  const indexKey = serverIndexKeyForOffline(serverId);
+  if (getOfflinePinCancellationEpoch() !== cancellationEpoch) return;
   if (!isActiveServerReachable()) return;
   const alreadyPinned = isSourcePinnedOffline(sourceId, serverId, kind);
   if (!alreadyPinned && !options.allowUnpinned) return;
   if (kind === 'playlist' && !isManualOfflinePlaylist(sourceId, serverId, options.name)) return;
+  const sourceGeneration = beginOfflineSourceOperation(indexKey, kind, sourceId);
+  const isCurrent = () => offlineSyncLifecycleGeneration === lifecycleGeneration
+    && getOfflinePinCancellationEpoch() === cancellationEpoch
+    && getOfflineSourceGeneration(indexKey, kind, sourceId) === sourceGeneration;
 
   let songs = options.prefetchedSongs;
   let displayName = options.name ?? offlineMeta(sourceId, serverId)?.name ?? sourceId;
@@ -244,11 +274,13 @@ export async function syncPinnedSourceIfNeeded(
   } else {
     songs = await filterSongsToServerLibrary(songs, serverId);
   }
+  if (!isCurrent()) return;
 
   const unique = dedupeSongs(songs);
   const keepIds = new Set(unique.map(s => s.id));
 
-  await pruneRemovedPinTracks(sourceId, serverId, kind, keepIds);
+  await pruneRemovedPinTracks(sourceId, serverId, kind, keepIds, isCurrent);
+  if (!isCurrent()) return;
   updateOfflineMeta(sourceId, serverId, kind, {
     name: displayName,
     albumArtist,
@@ -259,9 +291,11 @@ export async function syncPinnedSourceIfNeeded(
 
   const offline = useOfflineStore.getState();
   if (offline.isAlbumDownloading(sourceId, serverId)) {
-    scheduleRetryWhileDownloading(sourceId, serverId, kind);
+    scheduleRetryWhileDownloading(sourceId, serverId, kind, cancellationEpoch);
     return;
   }
+
+  if (!isCurrent()) return;
 
   const enqueued = enqueueOfflinePin({
     albumId: sourceId,
@@ -275,7 +309,7 @@ export async function syncPinnedSourceIfNeeded(
     artistProgressGroupId: options.artistProgressGroupId,
   });
   if (!enqueued && offline.isAlbumDownloading(sourceId, serverId)) {
-    scheduleRetryWhileDownloading(sourceId, serverId, kind);
+    scheduleRetryWhileDownloading(sourceId, serverId, kind, cancellationEpoch);
   }
 }
 
@@ -333,7 +367,10 @@ export async function syncPinnedArtistIfNeeded(
   artistId: string,
   serverId?: string,
   knownAlbumIds?: string[],
+  cancellationEpoch = getOfflinePinCancellationEpoch(),
 ): Promise<void> {
+  const lifecycleGeneration = offlineSyncLifecycleGeneration;
+  if (getOfflinePinCancellationEpoch() !== cancellationEpoch) return;
   if (!isActiveServerReachable()) return;
   const sid = serverId ?? useAuthStore.getState().activeServerId;
   if (!sid || !artistId) return;
@@ -341,6 +378,11 @@ export async function syncPinnedArtistIfNeeded(
   const pinnedBefore = listPinnedArtistAlbumIds(sid);
   const scopeIds = knownAlbumIds ?? pinnedBefore;
   if (!isArtistDiscographyPinnedOffline(sid, scopeIds) && pinnedBefore.length === 0) return;
+  const indexKey = serverIndexKeyForOffline(sid);
+  const artistGeneration = beginOfflineSourceOperation(indexKey, 'artist-reconcile', artistId);
+  const isArtistCurrent = () => offlineSyncLifecycleGeneration === lifecycleGeneration
+    && getOfflinePinCancellationEpoch() === cancellationEpoch
+    && getOfflineSourceGeneration(indexKey, 'artist-reconcile', artistId) === artistGeneration;
 
   let liveAlbumIds: string[];
   try {
@@ -349,15 +391,21 @@ export async function syncPinnedArtistIfNeeded(
   } catch {
     return;
   }
+  if (!isArtistCurrent()) return;
 
   const scopeFullyPinned = scopeIds.length > 0
     && scopeIds.every(id => isSourcePinnedOffline(id, sid, 'artist'));
   const liveSet = new Set(liveAlbumIds);
 
   for (const oldAlbumId of pinnedBefore) {
+    if (!isArtistCurrent()) return;
     if (liveSet.has(oldAlbumId)) continue;
-    await pruneRemovedPinTracks(oldAlbumId, sid, 'artist', new Set());
-    const indexKey = serverIndexKeyForOffline(sid);
+    const sourceGeneration = getOfflineSourceGeneration(indexKey, 'artist', oldAlbumId);
+    const isCurrent = () => isArtistCurrent()
+      && getOfflineSourceGeneration(indexKey, 'artist', oldAlbumId) === sourceGeneration;
+    await pruneRemovedPinTracks(oldAlbumId, sid, 'artist', new Set(), isCurrent);
+    if (!isArtistCurrent()) return;
+    if (!isCurrent()) continue;
     useOfflineStore.setState(state => {
       const albums = { ...state.albums };
       delete albums[`${indexKey}:${oldAlbumId}`];
@@ -367,29 +415,47 @@ export async function syncPinnedArtistIfNeeded(
   }
 
   for (const albumId of liveAlbumIds) {
+    if (!isArtistCurrent()) return;
     const shouldSync = isSourcePinnedOffline(albumId, sid, 'artist')
       || (scopeFullyPinned && pinnedBefore.length > 0);
     if (!shouldSync) continue;
     await syncPinnedSourceIfNeeded(albumId, sid, 'artist', {
       artistProgressGroupId: artistId,
       allowUnpinned: !isSourcePinnedOffline(albumId, sid, 'artist'),
+      cancellationEpoch,
     });
   }
 }
 
 function pushUniquePlaylistJob(sourceId: string, serverId: string): void {
-  if (pendingPlaylistJobs.some(j => j.sourceId === sourceId && j.serverId === serverId)) return;
-  pendingPlaylistJobs.push({ sourceId, serverId });
+  const epoch = getOfflinePinCancellationEpoch();
+  const existing = pendingPlaylistJobs.find(j => j.sourceId === sourceId && j.serverId === serverId);
+  if (existing) {
+    existing.epoch = epoch;
+    return;
+  }
+  pendingPlaylistJobs.push({ sourceId, serverId, epoch });
 }
 
 function pushUniqueAlbumJob(sourceId: string, serverId: string): void {
-  if (pendingAlbumJobs.some(j => j.sourceId === sourceId && j.serverId === serverId)) return;
-  pendingAlbumJobs.push({ sourceId, serverId });
+  const epoch = getOfflinePinCancellationEpoch();
+  const existing = pendingAlbumJobs.find(j => j.sourceId === sourceId && j.serverId === serverId);
+  if (existing) {
+    existing.epoch = epoch;
+    return;
+  }
+  pendingAlbumJobs.push({ sourceId, serverId, epoch });
 }
 
 function pushUniqueArtistJob(artistId: string, serverId: string, albumIds?: string[]): void {
-  if (pendingArtistJobs.some(j => j.artistId === artistId && j.serverId === serverId)) return;
-  pendingArtistJobs.push({ artistId, serverId, albumIds });
+  const epoch = getOfflinePinCancellationEpoch();
+  const existing = pendingArtistJobs.find(j => j.artistId === artistId && j.serverId === serverId);
+  if (existing) {
+    existing.albumIds = albumIds;
+    existing.epoch = epoch;
+    return;
+  }
+  pendingArtistJobs.push({ artistId, serverId, albumIds, epoch });
 }
 
 function flushPendingPlaylistJobs(): void {
@@ -398,7 +464,10 @@ function flushPendingPlaylistJobs(): void {
   pendingPlaylistJobs.length = 0;
 
   for (const job of jobs) {
-    void syncPinnedSourceIfNeeded(job.sourceId, job.serverId, 'playlist');
+    if (job.epoch !== getOfflinePinCancellationEpoch()) continue;
+    void syncPinnedSourceIfNeeded(job.sourceId, job.serverId, 'playlist', {
+      cancellationEpoch: job.epoch,
+    });
   }
 }
 
@@ -406,20 +475,25 @@ function flushPendingAlbumArtistJobs(): void {
   albumArtistDebounceTimer = null;
   const albums = [...pendingAlbumJobs];
   const artists = [...pendingArtistJobs];
-  const servers = [...pendingAlbumArtistServers];
+  const servers = [...pendingAlbumArtistServers.entries()];
   pendingAlbumJobs.length = 0;
   pendingArtistJobs.length = 0;
   pendingAlbumArtistServers.clear();
 
   for (const job of albums) {
-    void syncPinnedSourceIfNeeded(job.sourceId, job.serverId, 'album');
+    if (job.epoch !== getOfflinePinCancellationEpoch()) continue;
+    void syncPinnedSourceIfNeeded(job.sourceId, job.serverId, 'album', {
+      cancellationEpoch: job.epoch,
+    });
   }
   for (const job of artists) {
-    void syncPinnedArtistIfNeeded(job.artistId, job.serverId, job.albumIds);
+    if (job.epoch !== getOfflinePinCancellationEpoch()) continue;
+    void syncPinnedArtistIfNeeded(job.artistId, job.serverId, job.albumIds, job.epoch);
   }
   if (servers.length > 0) {
-    for (const serverId of servers) {
-      void syncAllPinnedAlbumsAndArtists(serverId ?? undefined);
+    for (const [serverId, epoch] of servers) {
+      if (epoch !== getOfflinePinCancellationEpoch()) continue;
+      void syncAllPinnedAlbumsAndArtists(serverId ?? undefined, epoch);
     }
   }
 }
@@ -492,7 +566,14 @@ export function schedulePinnedArtistSync(
 }
 
 /** Reconcile every cached album pin and artist discography (optionally one server). */
-export async function syncAllPinnedAlbumsAndArtists(serverId?: string): Promise<void> {
+export async function syncAllPinnedAlbumsAndArtists(
+  serverId?: string,
+  cancellationEpoch = getOfflinePinCancellationEpoch(),
+  lifecycleGeneration = offlineSyncLifecycleGeneration,
+): Promise<void> {
+  const isCurrent = () => offlineSyncLifecycleGeneration === lifecycleGeneration
+    && getOfflinePinCancellationEpoch() === cancellationEpoch;
+  if (!isCurrent()) return;
   if (!isActiveServerReachable()) return;
 
   const seenAlbums = new Set<string>();
@@ -527,25 +608,39 @@ export async function syncAllPinnedAlbumsAndArtists(serverId?: string): Promise<
   }
 
   for (const job of albumJobs) {
-    await syncPinnedSourceIfNeeded(job.sourceId, job.serverId, 'album');
+    if (!isCurrent()) return;
+    await syncPinnedSourceIfNeeded(job.sourceId, job.serverId, 'album', {
+      cancellationEpoch,
+    });
   }
 
   for (const [sid, albumIds] of artistAlbumIdsByServer) {
+    if (!isCurrent()) return;
     const byArtist = await groupPinnedArtistAlbumsByArtistId(sid, albumIds);
+    if (!isCurrent()) return;
     const assignedAlbums = new Set<string>();
     for (const [artistId, ids] of byArtist) {
+      if (!isCurrent()) return;
       ids.forEach(id => assignedAlbums.add(id));
-      await syncPinnedArtistIfNeeded(artistId, sid, ids);
+      await syncPinnedArtistIfNeeded(artistId, sid, ids, cancellationEpoch);
     }
     for (const albumId of albumIds) {
+      if (!isCurrent()) return;
       if (assignedAlbums.has(albumId)) continue;
-      await syncPinnedSourceIfNeeded(albumId, sid, 'artist');
+      await syncPinnedSourceIfNeeded(albumId, sid, 'artist', { cancellationEpoch });
     }
   }
 }
 
 /** Reconcile every manually cached regular playlist (optionally one server). */
-export async function syncAllPinnedPlaylists(serverId?: string): Promise<void> {
+export async function syncAllPinnedPlaylists(
+  serverId?: string,
+  cancellationEpoch = getOfflinePinCancellationEpoch(),
+  lifecycleGeneration = offlineSyncLifecycleGeneration,
+): Promise<void> {
+  const isCurrent = () => offlineSyncLifecycleGeneration === lifecycleGeneration
+    && getOfflinePinCancellationEpoch() === cancellationEpoch;
+  if (!isCurrent()) return;
   if (!isActiveServerReachable()) return;
 
   const seen = new Set<string>();
@@ -574,20 +669,25 @@ export async function syncAllPinnedPlaylists(serverId?: string): Promise<void> {
   }
 
   for (const job of jobs) {
+    if (!isCurrent()) return;
     if (!isManualOfflinePlaylist(job.sourceId, job.serverId)) continue;
-    await syncPinnedSourceIfNeeded(job.sourceId, job.serverId, 'playlist');
+    await syncPinnedSourceIfNeeded(job.sourceId, job.serverId, 'playlist', {
+      cancellationEpoch,
+    });
   }
 }
 
 /** @deprecated Use {@link syncAllPinnedAlbumsAndArtists} + {@link syncAllPinnedPlaylists}. */
 export async function syncAllPinnedOffline(): Promise<void> {
-  await syncAllPinnedAlbumsAndArtists();
-  await syncAllPinnedPlaylists();
+  const cancellationEpoch = getOfflinePinCancellationEpoch();
+  const lifecycleGeneration = offlineSyncLifecycleGeneration;
+  await syncAllPinnedAlbumsAndArtists(undefined, cancellationEpoch, lifecycleGeneration);
+  await syncAllPinnedPlaylists(undefined, cancellationEpoch, lifecycleGeneration);
 }
 
 export function scheduleSyncPinnedAlbumsAndArtists(serverId?: string): void {
   if (!isActiveServerReachable()) return;
-  pendingAlbumArtistServers.add(serverId ?? null);
+  pendingAlbumArtistServers.set(serverId ?? null, getOfflinePinCancellationEpoch());
   scheduleDebouncedAlbumArtistSync();
 }
 
@@ -612,24 +712,47 @@ function onLibraryBecameIdle(serverIndexKey: string, kind: string, ok: boolean):
 }
 
 export function initPinnedOfflineSync(): () => void {
+  const lifecycleGeneration = ++offlineSyncLifecycleGeneration;
+  let disposed = false;
+  let stopLibraryIdle: (() => void) | null = null;
   void subscribeLibrarySyncIdle(payload => {
+    if (disposed) return;
     onLibraryBecameIdle(payload.serverId, payload.kind, payload.ok);
   }).then(unlisten => {
-    stopLibraryIdle = unlisten;
+    if (disposed) unlisten();
+    else stopLibraryIdle = unlisten;
   });
 
-  playlistSyncInterval = setInterval(() => {
-    if (isActiveServerReachable()) void syncAllPinnedPlaylists();
+  const playlistSyncInterval = setInterval(() => {
+    if (disposed) return;
+    if (isActiveServerReachable()) {
+      void syncAllPinnedPlaylists(
+        undefined,
+        getOfflinePinCancellationEpoch(),
+        lifecycleGeneration,
+      );
+    }
   }, PLAYLIST_SYNC_INTERVAL_MS);
 
   const stopReachable = onActiveServerBecameReachable(() => {
+    if (disposed) return;
     scheduleSyncPinnedAlbumsAndArtists();
   });
 
   return () => {
+    disposed = true;
+    if (offlineSyncLifecycleGeneration === lifecycleGeneration) {
+      offlineSyncLifecycleGeneration += 1;
+    }
     if (playlistDebounceTimer) clearTimeout(playlistDebounceTimer);
     if (albumArtistDebounceTimer) clearTimeout(albumArtistDebounceTimer);
-    if (playlistSyncInterval) clearInterval(playlistSyncInterval);
+    playlistDebounceTimer = null;
+    albumArtistDebounceTimer = null;
+    pendingPlaylistJobs.length = 0;
+    pendingAlbumJobs.length = 0;
+    pendingArtistJobs.length = 0;
+    pendingAlbumArtistServers.clear();
+    clearInterval(playlistSyncInterval);
     stopLibraryIdle?.();
     stopLibraryIdle = null;
     for (const t of retryTimers.values()) clearTimeout(t);

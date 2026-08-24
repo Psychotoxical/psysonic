@@ -54,6 +54,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * The list can be ordered by name, by when a playlist was created, or by how many songs it has. The setting is remembered and applies to the sidebar and the Playlists page alike — the page had no ordering of its own until now.
 * The personal / shared split from the previous entry now applies to the sidebar list as well.
 
+### Offline downloads — resume interruptions and survive slow servers
+
+**By [@cucadmuh](https://github.com/cucadmuh), issue reported by [@jsongerber](https://github.com/jsongerber), PR [#1457](https://github.com/Psysonic/psysonic/pull/1457)**
+
+* Original-quality offline downloads no longer fail just because the whole transfer takes more than two minutes. The timeout now measures stalled reads, so a slow server can keep sending for as long as data continues to arrive.
+* Interrupted downloads can resume from a verified partial file instead of starting over. Changed or unsafe server responses discard the partial cleanly, while cancellation, disk-space reservations and concurrent download attempts no longer race the final file.
+* Album, artist, playlist and favourites pins now keep every owner, survive restarts and server-address migrations, and do not return after the user cancels them.
+
 ### Every track an artist performs on
 
 **By [@Psychotoxical](https://github.com/Psychotoxical), suggested by MrMiniblock, PR [#1458](https://github.com/Psysonic/psysonic/pull/1458)**

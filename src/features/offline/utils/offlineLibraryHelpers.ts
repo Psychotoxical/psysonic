@@ -4,7 +4,10 @@ import type { SubsonicSong } from '@/lib/api/subsonicTypes';
 import type { CoverServerScope } from '@/cover/types';
 import { serverSupportsRawStream, useAuthStore } from '@/store/authStore';
 import type { LocalPlaybackEntry, PinnedGroup, PinSource } from '@/store/localPlaybackStore';
-import { useLocalPlaybackStore } from '@/store/localPlaybackStore';
+import {
+  localPlaybackEntryHasPinSource,
+  useLocalPlaybackStore,
+} from '@/store/localPlaybackStore';
 import { findLocalPlaybackEntry, hasLocalLibraryBytes } from '@/store/localPlaybackResolve';
 import { useOfflineStore, type OfflineAlbumMeta } from '@/features/offline/store/offlineStore';
 import { resolveTrackCoverArtId, trackToSong } from '@/lib/library/advancedSearchLocal';
@@ -60,27 +63,30 @@ export function isOfflinePinComplete(
   albumId: string,
   serverId: string,
   songIds?: string[],
+  pinSource?: PinSource,
 ): boolean {
+  const entryIsComplete = (trackId: string) => {
+    const entry = findLocalPlaybackEntry(trackId, serverId);
+    return localEntrySatisfiesOriginalRequirement(entry, serverId)
+      && (!pinSource || (entry?.tier === 'library'
+        && localPlaybackEntryHasPinSource(entry, pinSource)));
+  };
   if (songIds?.length) {
-    return songIds.every(tid => localEntrySatisfiesOriginalRequirement(
-      findLocalPlaybackEntry(tid, serverId),
-      serverId,
-    ));
+    return songIds.every(entryIsComplete);
   }
   const server = useAuthStore.getState().servers.find(s => s.id === serverId);
   const indexKey = server ? (serverIndexKeyForProfile(server) || serverId) : serverId;
   const meta = resolveOfflineAlbumMeta(albumId, serverId);
   const groupTrackIds = useLocalPlaybackStore.getState()
     .listPinnedGroups(indexKey)
-    .find(g => g.pinSource.sourceId === albumId)?.trackIds;
+    .find(g => g.pinSource.sourceId === albumId
+      && (!pinSource || (g.pinSource.kind === pinSource.kind
+        && g.pinSource.sourceId === pinSource.sourceId)))?.trackIds;
   const trackIds = meta?.trackIds.length
     ? meta.trackIds
     : (groupTrackIds ?? []);
   if (trackIds.length === 0) return false;
-  return trackIds.every(tid => localEntrySatisfiesOriginalRequirement(
-    findLocalPlaybackEntry(tid, serverId),
-    serverId,
-  ));
+  return trackIds.every(entryIsComplete);
 }
 
 /** @deprecated Use {@link reconcileLibraryTierForAlbum} from `./libraryTierReconcile`. */
