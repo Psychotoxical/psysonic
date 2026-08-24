@@ -12,6 +12,7 @@ import { useTrackCoverRef } from '@/cover/useLibraryCoverRef';
 import { COVER_DENSE_RAIL_CELL_CSS_PX } from '@/cover/layoutSizes';
 import { enqueueAndPlay } from '@/features/playback/utils/playback/playSong';
 import { useDragDrop } from '@/lib/dnd/DragDropContext';
+import { useDragPress } from '@/lib/dnd/useDragPress';
 import { useOrbitSongRowBehavior } from '@/features/orbit';
 import { useNavigateToAlbum } from '@/features/album';
 import { useNavigateToArtist } from '@/features/artist';
@@ -82,6 +83,18 @@ function SongCard({
     navigateToAlbum(song.albumId, { search: appendServerQuery(undefined, song.serverId) });
   };
 
+  const onCardMouseDown = useDragPress({
+    preventDefault: false,
+    onStart: (me) => psyDrag.startDrag(
+      {
+        data: JSON.stringify({ type: 'song', track: songToTrack(song) }),
+        label: song.title,
+        coverUrl: coverUrl || undefined,
+      },
+      me.clientX, me.clientY,
+    ),
+  });
+
   return (
     <div
       className="song-card card"
@@ -94,30 +107,7 @@ function SongCard({
         e.preventDefault();
         openContextMenu(e.clientX, e.clientY, song, 'song');
       }}
-      onMouseDown={e => {
-        if (e.button !== 0) return;
-        const sx = e.clientX, sy = e.clientY;
-        const onMove = (me: MouseEvent) => {
-          if (Math.abs(me.clientX - sx) > 5 || Math.abs(me.clientY - sy) > 5) {
-            document.removeEventListener('mousemove', onMove);
-            document.removeEventListener('mouseup', onUp);
-            psyDrag.startDrag(
-              {
-                data: JSON.stringify({ type: 'song', track: songToTrack(song) }),
-                label: song.title,
-                coverUrl: coverUrl || undefined,
-              },
-              me.clientX, me.clientY,
-            );
-          }
-        };
-        const onUp = () => {
-          document.removeEventListener('mousemove', onMove);
-          document.removeEventListener('mouseup', onUp);
-        };
-        document.addEventListener('mousemove', onMove);
-        document.addEventListener('mouseup', onUp);
-      }}
+      onMouseDown={onCardMouseDown}
     >
       <div className="song-card-cover cover-circle">
         {!disableArtwork && coverRef ? (

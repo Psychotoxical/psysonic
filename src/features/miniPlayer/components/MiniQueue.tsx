@@ -5,6 +5,7 @@ import OverlayScrollArea from '@/ui/OverlayScrollArea';
 import type { MiniSyncPayload, MiniTrackInfo } from '@/features/miniPlayer/utils/miniPlayerBridge';
 import { OptionalQueueTrackRowCoverThumb } from '@/cover/TrackRowCoverThumb';
 import { useTrackListCoverArtEnabled } from '@/cover/useTrackListCoverArtSettings';
+import { useDragPressHandle } from '@/lib/dnd/useDragPress';
 
 // Stable initial rect so the virtualizer never re-initializes on re-render (an
 // inline literal would be a new ref each render → render loop). Replaced by the
@@ -39,6 +40,8 @@ export function MiniQueue({
   jumpTo, t,
 }: Props) {
   const showCovers = useTrackListCoverArtEnabled('queue');
+  // Rows are virtualised, so one can be recycled out from under a held button.
+  const dragPress = useDragPressHandle();
   // Virtualize so a multi-thousand-track queue keeps the mini window's DOM at
   // O(visible rows). Scroll element is the OverlayScrollArea viewport.
   // React Compiler incompatible-library rule: third-party hook/value the compiler cannot analyze; usage is correct.
@@ -109,30 +112,20 @@ export function MiniQueue({
                 setCtxMenu({ x: e.clientX, y: e.clientY, track, index: i });
               }}
               onMouseDown={(e) => {
-                if (e.button !== 0) return;
-                // Don't start drag while a click would also be valid —
-                // the threshold check below upgrades to a drag once
-                // the pointer leaves the deadband.
-                const startX = e.clientX;
-                const startY = e.clientY;
-                const onMove = (me: MouseEvent) => {
-                  if (Math.abs(me.clientX - startX) > 5 || Math.abs(me.clientY - startY) > 5) {
-                    document.removeEventListener('mousemove', onMove);
-                    document.removeEventListener('mouseup', onUp);
+                // Don't start drag while a click would also be valid — the
+                // threshold check upgrades to a drag once the pointer leaves
+                // the deadband. The row is a <button>, so its default stands.
+                dragPress.arm(e, {
+                  preventDefault: false,
+                  onStart: (me) => {
                     psyDragFromIdxRef.current = i;
                     startDrag(
                       { data: JSON.stringify({ type: 'queue_reorder', index: i }), label: track.title },
                       me.clientX,
                       me.clientY,
                     );
-                  }
-                };
-                const onUp = () => {
-                  document.removeEventListener('mousemove', onMove);
-                  document.removeEventListener('mouseup', onUp);
-                };
-                document.addEventListener('mousemove', onMove);
-                document.addEventListener('mouseup', onUp);
+                  },
+                });
               }}
               style={{ position: 'absolute', top: 0, left: 0, width: '100%', transform: `translateY(${vi.start}px)`, ...dragStyle }}
             >

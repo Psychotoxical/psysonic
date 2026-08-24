@@ -20,6 +20,7 @@ import React, {
 } from 'react';
 import { createPortal } from 'react-dom';
 import { Trash2 } from 'lucide-react';
+import { useDragPress } from './useDragPress';
 
 // ── Types ─────────────────────────────────────────────────────────
 export interface DragPayload {
@@ -279,7 +280,6 @@ export function DragDropProvider({ children }: { children: React.ReactNode }) {
 }
 
 // ── useDragSource hook ────────────────────────────────────────────
-const DRAG_THRESHOLD = 5; // px before drag starts
 
 /**
  * Returns an onMouseDown handler for a draggable element.
@@ -289,47 +289,14 @@ const DRAG_THRESHOLD = 5; // px before drag starts
 // eslint-disable-next-line react-refresh/only-export-components
 export function useDragSource(getPayload: () => DragPayload) {
   const { startDrag } = useDragDrop();
-  const startPosRef = useRef<{ x: number; y: number } | null>(null);
   const payloadRef = useRef(getPayload);
   // React Compiler refs rule: latest-value box kept in sync for use in handlers; not render data.
   // eslint-disable-next-line react-hooks/refs
   payloadRef.current = getPayload;
 
-  const onMouseDown = useCallback(
-    (e: React.MouseEvent) => {
-      // Only left-click
-      if (e.button !== 0) return;
-      // Prevent the browser from starting a text-selection drag during the
-      // threshold detection phase (mousedown → mousemove before startDrag).
-      e.preventDefault();
-
-      const startX = e.clientX;
-      const startY = e.clientY;
-      startPosRef.current = { x: startX, y: startY };
-
-      const onMove = (me: MouseEvent) => {
-        if (!startPosRef.current) return;
-        const dx = me.clientX - startX;
-        const dy = me.clientY - startY;
-        if (Math.abs(dx) > DRAG_THRESHOLD || Math.abs(dy) > DRAG_THRESHOLD) {
-          startPosRef.current = null;
-          document.removeEventListener('mousemove', onMove);
-          document.removeEventListener('mouseup', onUp);
-          startDrag(payloadRef.current(), me.clientX, me.clientY);
-        }
-      };
-
-      const onUp = () => {
-        startPosRef.current = null;
-        document.removeEventListener('mousemove', onMove);
-        document.removeEventListener('mouseup', onUp);
-      };
-
-      document.addEventListener('mousemove', onMove);
-      document.addEventListener('mouseup', onUp);
-    },
-    [startDrag],
-  );
+  const onMouseDown = useDragPress({
+    onStart: (me) => startDrag(payloadRef.current(), me.clientX, me.clientY),
+  });
 
   return { onMouseDown };
 }

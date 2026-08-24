@@ -103,6 +103,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * **Linux/KDE Plasma:** Alt+Tab could return to Psysonic while leaving its webview without keyboard focus, so Space, F11 and other in-app shortcuts did nothing until the window was clicked. Psysonic now restores keyboard focus as soon as the native window is reactivated.
 
+### Drags no longer start on their own when a press goes nowhere
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1456](https://github.com/Psysonic/psysonic/pull/1456)**
+
+* Albums were fixed above; the same problem sat in every other place a track can be dragged from — the queue and the mini-player queue, playlists, favorites, search results, Random Mix and the song cards on Home. Holding the mouse button while the list changed underneath left a drag primed, and the next movement picked up a row that was no longer on screen.
+* A press whose release never arrives now ends with whatever replaces it — the pointer leaving the window, the app losing focus, or the system taking the drag over — instead of waiting for a mouse-up that is never delivered.
+
 ## [1.51.0] - 2026-08-17
 
 ## Added
