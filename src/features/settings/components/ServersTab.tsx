@@ -28,6 +28,7 @@ import {
   verifySameServerEndpoints,
   type VerifySameServerResult,
 } from '@/lib/server/serverFingerprint';
+import { runOfflineServerMaintenanceBatch } from '@/features/offline';
 import {
   indexKeyRemapForUrlChange,
   runIndexKeyRemigration,
@@ -332,38 +333,6 @@ export function ServersTab({
     const editGeneration = (editGenerationRef.current[id] ?? 0) + 1;
     editGenerationRef.current[id] = editGeneration;
     const previous = auth.servers.find(s => s.id === id);
-
-    // URL-change remigration — runs BEFORE everything else when the edit
-    // changes the derived index key. User confirms first; on failure the
-    // edit is aborted with a stage-specific toast. Spec §8.
-    const remap = previous ? indexKeyRemapForUrlChange(previous, data) : null;
-    if (remap) {
-      const confirmed = await useConfirmModalStore.getState().request({
-        title: t('settings.urlRemigrationTitle'),
-        message: t('settings.urlRemigrationMessage', {
-          oldKey: remap.oldKey,
-          newKey: remap.newKey,
-        }),
-        confirmLabel: t('settings.urlRemigrationConfirm'),
-        cancelLabel: t('common.cancel'),
-        danger: true,
-      });
-      if (!confirmed) return;
-      setConnStatus(s => ({ ...s, [id]: 'testing' }));
-      const result = await runIndexKeyRemigration(remap);
-      if (!result.ok) {
-        const failureKey =
-          result.failure.stage === 'inspect'
-            ? 'settings.urlRemigrationFailureInspect'
-            : result.failure.stage === 'run'
-            ? 'settings.urlRemigrationFailureRun'
-            : 'settings.urlRemigrationFailureCoverRename';
-        showToast(t(failureKey), 8000, 'error');
-        setConnStatus(s => ({ ...s, [id]: 'error' }));
-        return;
-      }
-    }
-
     const dualAddressChanged =
       data.alternateUrl != null &&
       data.alternateUrl !== '' &&
@@ -390,8 +359,55 @@ export function ServersTab({
       }
     }
 
+    // Keep remigration and profile commit under one maintenance lease so
+    // offline producers never observe a half-switched key.
+    const remap = previous ? indexKeyRemapForUrlChange(previous, data) : null;
+    let profileUpdated = false;
+    if (remap) {
+      const confirmed = await useConfirmModalStore.getState().request({
+        title: t('settings.urlRemigrationTitle'),
+        message: t('settings.urlRemigrationMessage', {
+          oldKey: remap.oldKey,
+          newKey: remap.newKey,
+        }),
+        confirmLabel: t('settings.urlRemigrationConfirm'),
+        cancelLabel: t('common.cancel'),
+        danger: true,
+      });
+      if (!confirmed) return;
+      setConnStatus(s => ({ ...s, [id]: 'testing' }));
+      const result = await runIndexKeyRemigration(
+        remap,
+        operation => runOfflineServerMaintenanceBatch(
+          [remap.oldKey, remap.newKey],
+          async () => {
+            const guardedResult = await operation();
+            if (
+              guardedResult.ok
+              || guardedResult.failure.stage === 'cover-rename'
+            ) {
+              auth.updateServer(id, data);
+              profileUpdated = true;
+            }
+            return guardedResult;
+          },
+        ),
+      );
+      if (!result.ok) {
+        const failureKey =
+          result.failure.stage === 'inspect'
+            ? 'settings.urlRemigrationFailureInspect'
+            : result.failure.stage === 'run'
+            ? 'settings.urlRemigrationFailureRun'
+            : 'settings.urlRemigrationFailureCoverRename';
+        showToast(t(failureKey), 8000, 'error');
+        setConnStatus(s => ({ ...s, [id]: 'error' }));
+        if (result.failure.stage !== 'cover-rename') return;
+      }
+    }
+
     setEditingServerId(null);
-    auth.updateServer(id, data);
+    if (!profileUpdated) auth.updateServer(id, data);
     onPersisted?.();
     const updated = useAuthStore.getState().servers.find(s => s.id === id);
     if (!updated) return;

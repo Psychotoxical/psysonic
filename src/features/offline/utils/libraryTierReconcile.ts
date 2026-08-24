@@ -2,8 +2,12 @@ import { libraryUpsertSongsFromApi } from '@/lib/api/library';
 import { librarySqlServerId } from '@/lib/api/coverCache';
 import type { SubsonicSong } from '@/lib/api/subsonicTypes';
 import { useAuthStore } from '@/store/authStore';
-import type { LocalPlaybackEntry, PinSource } from '@/store/localPlaybackStore';
-import { useLocalPlaybackStore } from '@/store/localPlaybackStore';
+import {
+  localPlaybackPinSources,
+  useLocalPlaybackStore,
+  type LocalPlaybackEntry,
+  type PinSource,
+} from '@/store/localPlaybackStore';
 import { getMediaDir } from '@/lib/media/mediaDir';
 import { discoverLibraryTierOnDisk, pruneOrphanLibraryTierFiles } from '@/lib/api/syncfs';
 import { resolveIndexKey, serverIndexKeyForProfile } from '@/lib/server/serverIndexKey';
@@ -13,6 +17,10 @@ import {
   indexKeyBelongsToServer,
 } from '@/store/localPlaybackResolve';
 import type { LibraryTierDiskHit } from '@/generated/bindings';
+import {
+  runOfflineServerMaintenance,
+  waitForOfflineTrackDeletion,
+} from '@/features/offline/utils/offlineOperationCoordinator';
 
 interface LibraryTrackProbeResult {
   path: string;
@@ -54,14 +62,16 @@ function libraryEntriesForServer(serverId: string): LocalPlaybackEntry[] {
   );
 }
 
-function upsertFromProbe(
+async function upsertFromProbe(
   probe: LibraryTrackProbeResult,
   serverIndexKey: string,
   serverId: string,
   trackId: string,
   suffix: string,
   pinSource?: PinSource,
-): void {
+  pinSources?: PinSource[],
+): Promise<void> {
+  await waitForOfflineTrackDeletion(serverIndexKey, trackId);
   const lp = useLocalPlaybackStore.getState();
   const existing = findLocalPlaybackEntry(trackId, serverId);
   if (existing && existing.serverIndexKey !== serverIndexKey) {
@@ -75,6 +85,7 @@ function upsertFromProbe(
     layoutFingerprint: probe.layoutFingerprint,
     tier: 'library',
     pinSource: pinSource ?? existing?.pinSource,
+    pinSources: pinSources ?? (existing ? localPlaybackPinSources(existing) : undefined),
     suffix,
   });
 }
@@ -100,6 +111,7 @@ async function discoverLibraryTierHits(
 async function importLibraryTierFromDisk(
   serverId: string,
   candidateTrackIds: string[],
+  shouldContinue: () => boolean = () => true,
 ): Promise<{
   hits: LibraryTierDiskHit[];
   imported: number;
@@ -110,6 +122,7 @@ async function importLibraryTierFromDisk(
   const hitByTrackId = new Map(hits.map(hit => [hit.trackId, hit]));
   let imported = 0;
   for (const hit of hits) {
+    if (!shouldContinue()) break;
     const existing = findLocalPlaybackEntry(hit.trackId, serverId);
     if (
       existing
@@ -120,7 +133,7 @@ async function importLibraryTierFromDisk(
     ) {
       continue;
     }
-    upsertFromProbe(
+    await upsertFromProbe(
       {
         path: hit.path,
         size: hit.size,
@@ -132,6 +145,7 @@ async function importLibraryTierFromDisk(
       hit.trackId,
       hit.suffix || 'mp3',
       existing?.pinSource,
+      existing ? localPlaybackPinSources(existing) : undefined,
     );
     imported += 1;
   }
@@ -151,8 +165,9 @@ export async function reconcileAllLibraryTiersFromDisk(): Promise<void> {
   }
 }
 
-export async function reconcileLibraryTierForServer(
+async function reconcileLibraryTierForServerUnchecked(
   serverId: string,
+  shouldContinue: () => boolean,
 ): Promise<LibraryTierReconcileResult> {
   const serverIndexKey = serverIndexKeyForServerId(serverId);
   const lp = useLocalPlaybackStore.getState();
@@ -161,13 +176,14 @@ export async function reconcileLibraryTierForServer(
   let removedStaleIndex = 0;
 
   const candidates = collectCandidateTrackIds(serverId);
-  const diskImport = await importLibraryTierFromDisk(serverId, candidates);
+  const diskImport = await importLibraryTierFromDisk(serverId, candidates, shouldContinue);
   syncedFromDisk += diskImport.imported;
   for (const hit of diskImport.hits) {
     keepPaths.add(hit.path);
   }
 
   for (const entry of libraryEntriesForServer(serverId)) {
+    if (!shouldContinue()) break;
     const hit = diskImport.hitByTrackId.get(entry.trackId);
     if (hit) {
       keepPaths.add(hit.path);
@@ -179,6 +195,7 @@ export async function reconcileLibraryTierForServer(
 
   let orphansRemoved: number;
   try {
+    if (!shouldContinue()) return { syncedFromDisk, removedStaleIndex, orphansRemoved: 0 };
     const removed = await pruneOrphanLibraryTierFiles({
       serverIndexKey,
       keepPaths: [...keepPaths],
@@ -192,8 +209,19 @@ export async function reconcileLibraryTierForServer(
   return { syncedFromDisk, removedStaleIndex, orphansRemoved };
 }
 
+export async function reconcileLibraryTierForServer(
+  serverId: string,
+  shouldContinue: () => boolean = () => true,
+): Promise<LibraryTierReconcileResult> {
+  const serverIndexKey = serverIndexKeyForServerId(serverId);
+  return runOfflineServerMaintenance(
+    serverIndexKey,
+    () => reconcileLibraryTierForServerUnchecked(serverId, shouldContinue),
+  );
+}
+
 /** Album-scoped reconcile: sync index ↔ disk for the current track list, then prune orphans. */
-export async function reconcileLibraryTierForAlbum(
+async function reconcileLibraryTierForAlbumUnchecked(
   serverId: string,
   songs: SubsonicSong[],
   pinSource?: PinSource,
@@ -222,7 +250,7 @@ export async function reconcileLibraryTierForAlbum(
         || existing.layoutFingerprint !== hit.layoutFingerprint
         || existing.serverIndexKey !== serverIndexKey
       ) {
-        upsertFromProbe(
+        await upsertFromProbe(
           {
             path: hit.path,
             size: hit.size,
@@ -234,6 +262,7 @@ export async function reconcileLibraryTierForAlbum(
           song.id,
           hit.suffix || song.suffix || 'mp3',
           effectivePin,
+          existing ? localPlaybackPinSources(existing) : undefined,
         );
         syncedFromDisk += 1;
       }
@@ -262,4 +291,16 @@ export async function reconcileLibraryTierForAlbum(
   }
 
   return { syncedFromDisk, removedStaleIndex, orphansRemoved };
+}
+
+export async function reconcileLibraryTierForAlbum(
+  serverId: string,
+  songs: SubsonicSong[],
+  pinSource?: PinSource,
+): Promise<LibraryTierReconcileResult> {
+  const serverIndexKey = serverIndexKeyForServerId(serverId);
+  return runOfflineServerMaintenance(
+    serverIndexKey,
+    () => reconcileLibraryTierForAlbumUnchecked(serverId, songs, pinSource),
+  );
 }

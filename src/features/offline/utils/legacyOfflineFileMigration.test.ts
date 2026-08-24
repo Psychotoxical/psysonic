@@ -87,4 +87,36 @@ describe('restoreOfflineLibraryPinSources', () => {
     expect(e.pinSource).toEqual({ kind: 'album', sourceId: 'al-1', displayName: 'My Album' });
     expect(useLocalPlaybackStore.getState().listPinnedGroups()).toHaveLength(1);
   });
+
+  it('restores additional owners for an entry that already has a pin source', () => {
+    useOfflineStore.setState(state => ({
+      albums: {
+        ...state.albums,
+        'music.test:playlist-1': {
+          id: 'playlist-1',
+          serverId: 'music.test',
+          name: 'Shared Mix',
+          artist: '',
+          trackIds: ['t1'],
+          type: 'playlist',
+        },
+      },
+    }));
+    useLocalPlaybackStore.setState(state => ({
+      entries: {
+        ...state.entries,
+        'music.test:t1': {
+          ...state.entries['music.test:t1'],
+          pinSource: { kind: 'album', sourceId: 'al-1', displayName: 'My Album' },
+        },
+      },
+    }));
+
+    expect(restoreOfflineLibraryPinSources()).toBe(1);
+    expect(useLocalPlaybackStore.getState().listPinnedGroups()).toEqual(expect.arrayContaining([
+      expect.objectContaining({ pinSource: expect.objectContaining({ sourceId: 'al-1' }) }),
+      expect.objectContaining({ pinSource: expect.objectContaining({ sourceId: 'playlist-1' }) }),
+    ]));
+    expect(useLocalPlaybackStore.getState().listPinnedGroups()).toHaveLength(2);
+  });
 });

@@ -119,12 +119,17 @@ export default function MainApp() {
 
   useEffect(() => {
     if (!migrationReady) return undefined;
+    let disposed = false;
+    const shouldContinue = () => !disposed;
     void (async () => {
-      await runLegacyOfflineFileMigration();
+      await runLegacyOfflineFileMigration(undefined, shouldContinue);
+      if (disposed) return;
       const servers = useAuthStore.getState().servers;
       for (const server of servers) {
-        await reconcileLibraryTierForServer(server.id);
+        if (disposed) return;
+        await reconcileLibraryTierForServer(server.id, shouldContinue);
       }
+      if (disposed) return;
       scheduleResumeIncompleteOfflinePins();
     })();
     const stopInvalidation = initLocalPlaybackInvalidation();
@@ -132,6 +137,7 @@ export default function MainApp() {
     const stopPinnedOfflineSync = initPinnedOfflineSync();
     const stopOfflineResume = initResumeIncompleteOfflinePins();
     return () => {
+      disposed = true;
       stopInvalidation();
       stopFavoritesSync();
       stopPinnedOfflineSync();

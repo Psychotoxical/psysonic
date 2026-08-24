@@ -94,6 +94,35 @@ describe('runIndexKeyRemigration', () => {
     expect(vi.mocked(invoke).mock.calls[2]![1]).toEqual({ oldKey: 'old', newKey: 'new' });
   });
 
+  it('keeps the caller guard around the complete remigration pipeline', async () => {
+    const order: string[] = [];
+    vi.mocked(invoke).mockImplementation(async command => {
+      order.push(String(command));
+      if (command === 'migration_inspect') return inspectStub();
+      if (command === 'migration_run') return runStub();
+      return undefined;
+    });
+
+    const result = await runIndexKeyRemigration(
+      { oldKey: 'old', newKey: 'new' },
+      async operation => {
+        order.push('guard:start');
+        const guardedResult = await operation();
+        order.push('guard:end');
+        return guardedResult;
+      },
+    );
+
+    expect(result.ok).toBe(true);
+    expect(order).toEqual([
+      'guard:start',
+      'migration_inspect',
+      'migration_run',
+      'cover_cache_rename_server_bucket',
+      'guard:end',
+    ]);
+  });
+
   it('hands the same { legacyId, indexKey } mapping to inspect + run', async () => {
     vi.mocked(invoke)
       .mockResolvedValueOnce(inspectStub())

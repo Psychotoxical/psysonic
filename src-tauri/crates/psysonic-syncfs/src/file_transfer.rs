@@ -1,16 +1,130 @@
-use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::time::Duration;
 
-/// Build a reqwest client with the standard Subsonic UA and a single overall timeout.
-/// For flows that need separate connect + read timeouts (long-running update/zip
-/// downloads with progress events), build the client inline.
+mod locking;
+mod resumable;
+mod space;
+mod streaming;
+
+pub use locking::{acquire_download_destination_lock, sibling_part_path, DownloadDestinationGuard};
+pub use resumable::{
+    finalize_resumable_download, finalize_resumable_download_cancellable,
+    is_protected_download_artifact, prepare_resumable_download,
+    prepare_resumable_download_cancellable, promote_completed_partial, ResumableDownloadResponse,
+};
+pub use streaming::{finalize_streamed_download, stream_to_file};
+
+const DOWNLOAD_CONNECT_TIMEOUT: Duration = Duration::from_secs(30);
+const DOWNLOAD_READ_TIMEOUT: Duration = Duration::from_secs(120);
+const DOWNLOAD_SIZE_HEADROOM_BYTES: u64 = 64 * 1024 * 1024;
+const FALLBACK_MAX_DOWNLOAD_BYTES: u64 = 16 * 1024 * 1024 * 1024;
+const ABSOLUTE_MAX_DOWNLOAD_BYTES: u64 = 64 * 1024 * 1024 * 1024;
+const CANCELLATION_POLL_INTERVAL: Duration = Duration::from_millis(50);
+
+#[derive(Clone)]
+pub struct DownloadCancellation {
+    flag: Arc<AtomicBool>,
+    receiver: tokio::sync::watch::Receiver<bool>,
+}
+
+impl DownloadCancellation {
+    pub(crate) fn new(flag: Arc<AtomicBool>, receiver: tokio::sync::watch::Receiver<bool>) -> Self {
+        Self { flag, receiver }
+    }
+
+    pub fn flag(&self) -> &AtomicBool {
+        &self.flag
+    }
+
+    pub fn is_cancelled(&self) -> bool {
+        self.flag.load(Ordering::Relaxed) || *self.receiver.borrow()
+    }
+
+    pub async fn cancelled(&mut self) {
+        loop {
+            if self.is_cancelled() {
+                return;
+            }
+            if self.receiver.changed().await.is_err() {
+                wait_for_atomic_cancellation(&self.flag).await;
+                return;
+            }
+        }
+    }
+}
+
+pub(super) async fn wait_for_atomic_cancellation(flag: &AtomicBool) {
+    while !flag.load(Ordering::Relaxed) {
+        tokio::time::sleep(CANCELLATION_POLL_INTERVAL).await;
+    }
+}
+
+pub(super) fn reborrow_cancellation<'a>(
+    cancellation: &'a mut Option<&mut DownloadCancellation>,
+) -> Option<&'a mut DownloadCancellation> {
+    cancellation.as_mut().map(|cancel| &mut **cancel)
+}
+
+pub(crate) async fn acquire_download_permit<'a>(
+    semaphore: &'a tokio::sync::Semaphore,
+    cancellation: Option<&mut DownloadCancellation>,
+) -> Result<tokio::sync::SemaphorePermit<'a>, String> {
+    if let Some(cancel) = cancellation {
+        tokio::select! {
+            permit = semaphore.acquire() => permit.map_err(|error| error.to_string()),
+            _ = cancel.cancelled() => Err("CANCELLED".to_string()),
+        }
+    } else {
+        semaphore.acquire().await.map_err(|error| error.to_string())
+    }
+}
+
+/// Build a reqwest client with the standard Subsonic user agent and one timeout.
 pub fn subsonic_http_client(timeout: Duration) -> Result<reqwest::Client, String> {
     reqwest::Client::builder()
         .user_agent(psysonic_core::user_agent::subsonic_wire_user_agent())
         .timeout(timeout)
         .build()
-        .map_err(|e| e.to_string())
+        .map_err(|error| error.to_string())
+}
+
+fn build_subsonic_download_http_client(
+    connect_timeout: Duration,
+    read_timeout: Duration,
+) -> Result<reqwest::Client, String> {
+    reqwest::Client::builder()
+        .user_agent(psysonic_core::user_agent::subsonic_wire_user_agent())
+        .connect_timeout(connect_timeout)
+        .read_timeout(read_timeout)
+        .build()
+        .map_err(|error| error.to_string())
+}
+
+/// File downloads may run for hours. Bound connection and stalled-read time only.
+pub fn subsonic_download_http_client() -> Result<reqwest::Client, String> {
+    build_subsonic_download_http_client(DOWNLOAD_CONNECT_TIMEOUT, DOWNLOAD_READ_TIMEOUT)
+}
+
+pub fn reqwest_error_without_url(error: reqwest::Error) -> String {
+    let timed_out = error.is_timeout();
+    let message = error.without_url().to_string();
+    if timed_out && !message.to_ascii_lowercase().contains("timed out") {
+        format!("{message}: timed out")
+    } else {
+        message
+    }
+}
+
+pub fn max_download_bytes(expected_size_bytes: Option<u64>) -> u64 {
+    expected_size_bytes
+        .filter(|size| *size > 0)
+        .map(|size| {
+            size.saturating_mul(2)
+                .saturating_add(DOWNLOAD_SIZE_HEADROOM_BYTES)
+        })
+        .unwrap_or(FALLBACK_MAX_DOWNLOAD_BYTES)
+        .min(ABSOLUTE_MAX_DOWNLOAD_BYTES)
 }
 
 pub fn apply_server_http_get(
@@ -27,239 +141,50 @@ pub fn apply_server_http_get(
     )
 }
 
-/// Streams an HTTP response body to `dest_path` in chunks. Never buffers the full
-/// file in memory — keeps RAM flat regardless of file size.
-///
-/// When `cancel` is supplied, the flag is checked before each chunk write: a set
-/// flag aborts the transfer with `Err("CANCELLED")`, leaving the partial
-/// `dest_path` for the caller to clean up. `None` means the transfer cannot be
-/// cancelled (device-sync / hot-cache callers).
-pub async fn stream_to_file(
-    response: reqwest::Response,
-    dest_path: &Path,
-    cancel: Option<&AtomicBool>,
-) -> Result<(), String> {
-    use futures_util::StreamExt;
-    use tokio::io::AsyncWriteExt;
-
-    let mut file = tokio::fs::File::create(dest_path)
-        .await
-        .map_err(|e| e.to_string())?;
-    let mut stream = response.bytes_stream();
-    while let Some(chunk) = stream.next().await {
-        if cancel.is_some_and(|c| c.load(Ordering::Relaxed)) {
-            return Err("CANCELLED".to_string());
-        }
-        let chunk = chunk.map_err(|e| e.to_string())?;
-        file.write_all(&chunk).await.map_err(|e| e.to_string())?;
-    }
-    file.flush().await.map_err(|e| e.to_string())?;
-    Ok(())
-}
-
-/// Streams `response` to `part_path`, then renames `part_path` → `dest_path`.
-/// On any failure the partial `.part` file is best-effort removed so it does
-/// not linger on disk — this includes a `cancel`-triggered abort. Caller must
-/// ensure `dest_path.parent()` exists.
-///
-/// Note vs. previous inline implementations: the offline/device single-track
-/// flows used to leave a `.part` orphan if the final rename failed. This helper
-/// always cleans up, matching the batch-sync flow that already did.
-pub async fn finalize_streamed_download(
-    response: reqwest::Response,
-    dest_path: &Path,
-    part_path: &Path,
-    cancel: Option<&AtomicBool>,
-) -> Result<(), String> {
-    if let Err(e) = stream_to_file(response, part_path, cancel).await {
-        let _ = tokio::fs::remove_file(part_path).await;
-        return Err(e);
-    }
-    if let Err(e) = tokio::fs::rename(part_path, dest_path).await {
-        let _ = tokio::fs::remove_file(part_path).await;
-        return Err(e.to_string());
-    }
-    Ok(())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use wiremock::matchers::{method, path as wm_path};
-    use wiremock::{Mock, MockServer, ResponseTemplate};
+    use std::sync::atomic::AtomicBool;
 
     #[test]
-    fn subsonic_http_client_builds_with_short_timeout() {
+    fn download_clients_accept_short_long_and_zero_timeouts() {
         assert!(subsonic_http_client(Duration::from_secs(1)).is_ok());
-    }
-
-    #[test]
-    fn subsonic_http_client_builds_with_long_timeout() {
-        // The 5-minute timeout used by sync_track_to_device must construct successfully.
         assert!(subsonic_http_client(Duration::from_secs(300)).is_ok());
+        assert!(subsonic_http_client(Duration::ZERO).is_ok());
     }
 
     #[test]
-    fn subsonic_http_client_builds_with_zero_timeout() {
-        // zero is a valid Duration — reqwest treats it as "no timeout effectively".
-        // The constructor must not reject it.
-        assert!(subsonic_http_client(Duration::from_secs(0)).is_ok());
-    }
-
-    // ── stream_to_file ────────────────────────────────────────────────────────
-
-    #[tokio::test(flavor = "multi_thread")]
-    async fn stream_to_file_writes_full_response_body() {
-        let server = MockServer::start().await;
-        let body = b"hello psysonic test bytes".to_vec();
-        Mock::given(method("GET"))
-            .and(wm_path("/track.flac"))
-            .respond_with(ResponseTemplate::new(200).set_body_bytes(body.clone()))
-            .mount(&server)
-            .await;
-
-        let dir = tempfile::tempdir().unwrap();
-        let dest = dir.path().join("track.flac");
-        let response = reqwest::get(format!("{}/track.flac", server.uri()))
-            .await
-            .unwrap();
-        stream_to_file(response, &dest, None).await.unwrap();
-
-        let written = std::fs::read(&dest).unwrap();
-        assert_eq!(written, body);
+    fn expected_size_limit_has_headroom_and_absolute_cap() {
+        assert_eq!(
+            max_download_bytes(Some(10)),
+            DOWNLOAD_SIZE_HEADROOM_BYTES + 20
+        );
+        assert_eq!(max_download_bytes(None), FALLBACK_MAX_DOWNLOAD_BYTES);
+        assert_eq!(
+            max_download_bytes(Some(u64::MAX)),
+            ABSOLUTE_MAX_DOWNLOAD_BYTES
+        );
     }
 
     #[tokio::test(flavor = "multi_thread")]
-    async fn stream_to_file_creates_empty_file_for_empty_body() {
-        let server = MockServer::start().await;
-        Mock::given(method("GET"))
-            .and(wm_path("/empty"))
-            .respond_with(ResponseTemplate::new(200).set_body_bytes(Vec::<u8>::new()))
-            .mount(&server)
-            .await;
+    async fn cancellation_wakes_semaphore_waiter() {
+        let semaphore = tokio::sync::Semaphore::new(0);
+        let flag = Arc::new(AtomicBool::new(false));
+        let (sender, receiver) = tokio::sync::watch::channel(false);
+        let mut cancellation = DownloadCancellation::new(Arc::clone(&flag), receiver);
+        let wait = acquire_download_permit(&semaphore, Some(&mut cancellation));
+        tokio::pin!(wait);
 
-        let dir = tempfile::tempdir().unwrap();
-        let dest = dir.path().join("empty.bin");
-        let response = reqwest::get(format!("{}/empty", server.uri()))
-            .await
-            .unwrap();
-        stream_to_file(response, &dest, None).await.unwrap();
-        assert!(dest.exists());
-        assert_eq!(std::fs::metadata(&dest).unwrap().len(), 0);
-    }
+        tokio::time::sleep(Duration::from_millis(25)).await;
+        flag.store(true, Ordering::Relaxed);
+        sender.send_replace(true);
 
-    #[tokio::test(flavor = "multi_thread")]
-    async fn stream_to_file_returns_err_when_dest_directory_missing() {
-        let server = MockServer::start().await;
-        Mock::given(method("GET"))
-            .and(wm_path("/x"))
-            .respond_with(ResponseTemplate::new(200).set_body_bytes(b"x".to_vec()))
-            .mount(&server)
-            .await;
-
-        let dir = tempfile::tempdir().unwrap();
-        let dest = dir.path().join("missing-subdir").join("x.bin");
-        let response = reqwest::get(format!("{}/x", server.uri()))
-            .await
-            .unwrap();
-        let result = stream_to_file(response, &dest, None).await;
-        assert!(result.is_err(), "create on missing parent dir must err");
-    }
-
-    // ── finalize_streamed_download ────────────────────────────────────────────
-
-    #[tokio::test(flavor = "multi_thread")]
-    async fn finalize_renames_part_to_dest_on_success() {
-        let server = MockServer::start().await;
-        let body = b"final body content".to_vec();
-        Mock::given(method("GET"))
-            .and(wm_path("/track"))
-            .respond_with(ResponseTemplate::new(200).set_body_bytes(body.clone()))
-            .mount(&server)
-            .await;
-
-        let dir = tempfile::tempdir().unwrap();
-        let dest = dir.path().join("track.flac");
-        let part = dest.with_extension("flac.part");
-        let response = reqwest::get(format!("{}/track", server.uri()))
-            .await
-            .unwrap();
-
-        finalize_streamed_download(response, &dest, &part, None).await.unwrap();
-        assert!(dest.exists(), "dest file must exist after success");
-        assert!(!part.exists(), "part file must not linger");
-        assert_eq!(std::fs::read(&dest).unwrap(), body);
-    }
-
-    #[tokio::test(flavor = "multi_thread")]
-    async fn finalize_cleans_up_part_when_rename_fails() {
-        // Pre-create the dest as a directory — rename(file -> existing-dir)
-        // fails on every supported OS (renaming a file over a directory is
-        // not allowed, even when the dir is empty).
-        let server = MockServer::start().await;
-        let body = b"some content".to_vec();
-        Mock::given(method("GET"))
-            .and(wm_path("/track"))
-            .respond_with(ResponseTemplate::new(200).set_body_bytes(body.clone()))
-            .mount(&server)
-            .await;
-
-        let dir = tempfile::tempdir().unwrap();
-        let dest = dir.path().join("blocker");
-        std::fs::create_dir(&dest).unwrap(); // dest is a dir → rename should fail
-        let part = dir.path().join("blocker.part");
-        let response = reqwest::get(format!("{}/track", server.uri()))
-            .await
-            .unwrap();
-
-        let result = finalize_streamed_download(response, &dest, &part, None).await;
-        assert!(result.is_err(), "rename onto existing directory must fail");
-        assert!(!part.exists(), "part file must be cleaned up after rename failure");
-        assert!(dest.is_dir(), "the blocker directory itself stays untouched");
-    }
-
-    // ── cancellation ──────────────────────────────────────────────────────────
-
-    #[tokio::test(flavor = "multi_thread")]
-    async fn stream_to_file_aborts_when_cancel_flag_is_already_set() {
-        let server = MockServer::start().await;
-        Mock::given(method("GET"))
-            .and(wm_path("/track"))
-            .respond_with(ResponseTemplate::new(200).set_body_bytes(b"body bytes".to_vec()))
-            .mount(&server)
-            .await;
-
-        let dir = tempfile::tempdir().unwrap();
-        let dest = dir.path().join("track.flac");
-        let response = reqwest::get(format!("{}/track", server.uri()))
-            .await
-            .unwrap();
-
-        let cancel = AtomicBool::new(true);
-        let result = stream_to_file(response, &dest, Some(&cancel)).await;
-        assert_eq!(result.unwrap_err(), "CANCELLED");
-    }
-
-    #[tokio::test(flavor = "multi_thread")]
-    async fn finalize_cleans_up_part_when_cancelled() {
-        let server = MockServer::start().await;
-        Mock::given(method("GET"))
-            .and(wm_path("/track"))
-            .respond_with(ResponseTemplate::new(200).set_body_bytes(b"body bytes".to_vec()))
-            .mount(&server)
-            .await;
-
-        let dir = tempfile::tempdir().unwrap();
-        let dest = dir.path().join("track.flac");
-        let part = dest.with_extension("flac.part");
-        let response = reqwest::get(format!("{}/track", server.uri()))
-            .await
-            .unwrap();
-
-        let cancel = AtomicBool::new(true);
-        let result = finalize_streamed_download(response, &dest, &part, Some(&cancel)).await;
-        assert_eq!(result.unwrap_err(), "CANCELLED");
-        assert!(!part.exists(), "cancelled transfer must not leave a .part orphan");
-        assert!(!dest.exists(), "cancelled transfer must not produce the final file");
+        assert_eq!(
+            tokio::time::timeout(Duration::from_secs(1), wait)
+                .await
+                .unwrap()
+                .unwrap_err(),
+            "CANCELLED"
+        );
     }
 }

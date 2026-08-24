@@ -42,21 +42,23 @@ type LegacyHotBlob = {
   };
 };
 
-function pinSourceForTrack(
+function pinSourcesForTrack(
   serverKey: string,
   trackId: string,
   albums: Record<string, OfflineAlbumMeta>,
-): PinSource | undefined {
+): PinSource[] {
+  const sources = new Map<string, PinSource>();
   for (const album of Object.values(albums)) {
     if (album.serverId !== serverKey && resolveIndexKey(album.serverId) !== serverKey) continue;
     if (!album.trackIds.includes(trackId)) continue;
-    return {
+    const source: PinSource = {
       kind: album.type ?? 'album',
       sourceId: album.id,
       displayName: album.name,
     };
+    sources.set(`${source.kind}:${source.sourceId}`, source);
   }
-  return undefined;
+  return [...sources.values()];
 }
 
 /** One-time import from `psysonic-offline` + `psysonic-hot-cache` persist keys. */
@@ -78,6 +80,14 @@ export function importLegacyLocalPlayback(
         const trackId = key.slice(colon + 1);
         const serverIndexKey = resolveIndexKeyForServerId(legacyServer, servers);
         const entryKey = localPlaybackEntryKey(serverIndexKey, trackId);
+        const pinSources = new Map<string, PinSource>();
+        for (const source of [
+          ...pinSourcesForTrack(serverIndexKey, trackId, albums),
+          ...pinSourcesForTrack(legacyServer, trackId, albums),
+        ]) {
+          pinSources.set(`${source.kind}:${source.sourceId}`, source);
+        }
+        const owners = [...pinSources.values()];
         out[entryKey] = {
           serverIndexKey,
           trackId,
@@ -86,8 +96,8 @@ export function importLegacyLocalPlayback(
           sizeBytes: 0,
           tier: 'library',
           cachedAt: Date.parse(meta.cachedAt) || Date.now(),
-          pinSource: pinSourceForTrack(serverIndexKey, trackId, albums)
-            ?? pinSourceForTrack(legacyServer, trackId, albums),
+          pinSource: owners[0],
+          pinSources: owners.length > 1 ? owners : undefined,
           suffix: meta.suffix || 'mp3',
           originalBytesVerified: false,
         };

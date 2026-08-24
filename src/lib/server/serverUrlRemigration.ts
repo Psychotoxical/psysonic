@@ -49,6 +49,10 @@ export type IndexKeyRemigrationResult =
   | { ok: true; inspect: MigrationInspectReport; run: MigrationRunResult }
   | { ok: false; failure: IndexKeyRemigrationFailure };
 
+type IndexKeyRemigrationGuard = (
+  operation: () => Promise<IndexKeyRemigrationResult>,
+) => Promise<IndexKeyRemigrationResult>;
+
 /**
  * Detect whether a profile edit changes the **index key** derived from the
  * primary url. Returns `null` when both sides normalize to the same key —
@@ -78,45 +82,48 @@ export function indexKeyRemapForUrlChange(
  */
 export async function runIndexKeyRemigration(
   remap: IndexKeyRemap,
+  guard: IndexKeyRemigrationGuard = operation => operation(),
 ): Promise<IndexKeyRemigrationResult> {
-  const mappings = [{ legacyId: remap.oldKey, indexKey: remap.newKey }];
+  return guard(async () => {
+    const mappings = [{ legacyId: remap.oldKey, indexKey: remap.newKey }];
 
-  let inspect: MigrationInspectReport;
-  try {
-    inspect = await migrationInspect(mappings);
-  } catch (e) {
-    return { ok: false, failure: { stage: 'inspect', error: String(e) } };
-  }
+    let inspect: MigrationInspectReport;
+    try {
+      inspect = await migrationInspect(mappings);
+    } catch (e) {
+      return { ok: false, failure: { stage: 'inspect', error: String(e) } };
+    }
 
-  let run: MigrationRunResult;
-  try {
-    run = await migrationRun(mappings);
-  } catch (e) {
-    return { ok: false, failure: { stage: 'run', error: String(e) } };
-  }
+    let run: MigrationRunResult;
+    try {
+      run = await migrationRun(mappings);
+    } catch (e) {
+      return { ok: false, failure: { stage: 'run', error: String(e) } };
+    }
 
-  // Frontend stores — this is in-memory only; if zustand throws (it
-  // shouldn't), the user is left with a DB tagged on newKey and stores on
-  // oldKey. That recovers on next app start via the existing rehydration
-  // path, so we don't treat it as a failure here.
-  try {
-    await rewriteFrontendStoreKeysForRemap([remap]);
-  } catch {
-    /* in-memory rewrite is best-effort; the persisted state catches up at
-       the next zustand persist tick. */
-  }
+    // Frontend stores — this is in-memory only; if zustand throws (it
+    // shouldn't), the user is left with a DB tagged on newKey and stores on
+    // oldKey. That recovers on next app start via the existing rehydration
+    // path, so we don't treat it as a failure here.
+    try {
+      await rewriteFrontendStoreKeysForRemap([remap]);
+    } catch {
+      /* in-memory rewrite is best-effort; the persisted state catches up at
+         the next zustand persist tick. */
+    }
 
-  try {
-    const res = await commands.coverCacheRenameServerBucket(remap.oldKey, remap.newKey);
-    if (res.status === 'error') throw new Error(res.error);
-  } catch (e) {
-    // Cover rename is the latest step and the most recoverable failure:
-    // the disk bucket is still under oldKey, library + analysis already
-    // point at newKey, so covers will look "missing" until the user re-
-    // triggers a sync or the backfill catches them. Surface the failure
-    // but don't undo the DB step — that would be far more destructive.
-    return { ok: false, failure: { stage: 'cover-rename', error: String(e) } };
-  }
+    try {
+      const res = await commands.coverCacheRenameServerBucket(remap.oldKey, remap.newKey);
+      if (res.status === 'error') throw new Error(res.error);
+    } catch (e) {
+      // Cover rename is the latest step and the most recoverable failure:
+      // the disk bucket is still under oldKey, library + analysis already
+      // point at newKey, so covers will look "missing" until the user re-
+      // triggers a sync or the backfill catches them. Surface the failure
+      // but don't undo the DB step — that would be far more destructive.
+      return { ok: false, failure: { stage: 'cover-rename', error: String(e) } };
+    }
 
-  return { ok: true, inspect, run };
+    return { ok: true, inspect, run };
+  });
 }

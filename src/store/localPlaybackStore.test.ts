@@ -81,4 +81,54 @@ describe('local playback eviction server scope', () => {
     expect(useLocalPlaybackStore.getState().entries[activeKey]).toBeUndefined();
     expect(useLocalPlaybackStore.getState().entries[protectedKey]).toBeDefined();
   });
+
+  it('keeps shared bytes until the last pin source is removed', async () => {
+    const base = {
+      serverIndexKey: 'a.test',
+      trackId: 'shared',
+      localPath: '/media/library/a.test/shared.flac',
+      layoutFingerprint: 'fp',
+      sizeBytes: 80,
+      tier: 'library' as const,
+      suffix: 'flac',
+    };
+    useLocalPlaybackStore.getState().upsertEntry({
+      ...base,
+      pinSource: { kind: 'album', sourceId: 'album-a' },
+    });
+    useLocalPlaybackStore.getState().upsertEntry({
+      ...base,
+      pinSource: { kind: 'playlist', sourceId: 'playlist-b' },
+    });
+
+    expect(useLocalPlaybackStore.getState().listPinnedGroups()).toEqual([
+      expect.objectContaining({ pinSource: { kind: 'album', sourceId: 'album-a' } }),
+      expect.objectContaining({ pinSource: { kind: 'playlist', sourceId: 'playlist-b' } }),
+    ]);
+
+    await useLocalPlaybackStore.getState().removePinSource(
+      'shared',
+      'a.test',
+      { kind: 'playlist', sourceId: 'playlist-b' },
+      null,
+    );
+    expect(invokeMock).not.toHaveBeenCalledWith(
+      'delete_media_file',
+      expect.objectContaining({ localPath: base.localPath }),
+    );
+    expect(useLocalPlaybackStore.getState().getEntry('shared', 'a.test')?.pinSource)
+      .toEqual({ kind: 'album', sourceId: 'album-a' });
+
+    await useLocalPlaybackStore.getState().removePinSource(
+      'shared',
+      'a.test',
+      { kind: 'album', sourceId: 'album-a' },
+      null,
+    );
+    expect(invokeMock).toHaveBeenCalledWith('delete_media_file', {
+      localPath: base.localPath,
+      mediaDir: null,
+    });
+    expect(useLocalPlaybackStore.getState().getEntry('shared', 'a.test')).toBeNull();
+  });
 });
