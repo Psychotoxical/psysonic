@@ -48,5 +48,7 @@ export const sidebar = {
   themeUpdatesTooltip: 'Dostępne aktualizacje motywu',
   themeUpdatesDismiss: 'Odrzuć',
   playlistSongCount_one: '{{count}} utwór',
+  playlistSongCount_few: '{{count}} utwory',
+  playlistSongCount_many: '{{count}} utworów',
   playlistSongCount_other: '{{count}} utwory',
 };
