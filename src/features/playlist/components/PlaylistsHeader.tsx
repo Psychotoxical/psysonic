@@ -8,7 +8,9 @@ import {
 import { offlineActionPolicy, type OfflineActionPolicy } from '@/features/offline';
 import PlaylistsNewFolderButton from '@/features/playlist/components/PlaylistsNewFolderButton';
 import PlaylistsFolderViewToggle from '@/features/playlist/components/PlaylistsFolderViewToggle';
+import PlaylistsOwnershipFilter from '@/features/playlist/components/PlaylistsOwnershipFilter';
 import PlaylistCreateFields from '@/features/playlist/components/PlaylistCreateFields';
+import type { PlaylistOwnershipBucket } from '@/features/playlist/utils/playlistOwnership';
 
 interface Props {
   selectionMode: boolean;
@@ -34,6 +36,8 @@ interface Props {
   onEditorIntent: () => void;
   actionPolicy?: OfflineActionPolicy;
   foldersEnabled?: boolean;
+  /** Bucket sizes across the whole list — the filter hides itself when nothing is shared. */
+  ownershipCounts: Record<PlaylistOwnershipBucket, number>;
 }
 
 export default function PlaylistsHeader({
@@ -45,6 +49,7 @@ export default function PlaylistsHeader({
   smartCreateServerOptions, setEditingSmartId, setSmartFilters, setGenreQuery, onEditorIntent,
   actionPolicy,
   foldersEnabled = true,
+  ownershipCounts,
 }: Props) {
   const { t } = useTranslation();
   const policy = actionPolicy ?? offlineActionPolicy('playlistsHeader', false);
@@ -118,6 +123,9 @@ export default function PlaylistsHeader({
           </button>
         </div>
       </div>
+      {!(selectionMode && selectedIds.size > 0) && (
+        <PlaylistsOwnershipFilter counts={ownershipCounts} />
+      )}
       {creating && (
         <form
           className="playlist-create-panel"
