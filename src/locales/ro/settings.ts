@@ -264,6 +264,7 @@ export const settings = {
   showTrayIconDesc: 'Afișează iconița Psysonic în zona notificărilor de sistem / bara de meniu.',
   minimizeToTray: 'Minimizează în Tavă',
   minimizeToTrayDesc: 'La închiderea ferestrei, continuă rularea Psysonic în tava de sistem în loc de ieșire',
+  minimizeToTrayRequiresTray: 'Activează mai întâi „Afișează iconița tăvii” — fără tavă nu poți redeschide fereastra după închidere.',
   startMinimizedToTray: 'Pornește minimizat în tavă',
   startMinimizedToTrayDesc: 'Lansează Psysonic cu fereastra principală ascunsă; folosește iconița din tavă pentru a o afișa.',
   startMinimizedToTrayRequiresTray: 'Activează mai întâi „Afișează iconița tăvii” — fără tavă nu poți deschide fereastra după un start ascuns.',

@@ -262,6 +262,7 @@ export const settings = {
   showTrayIconDesc: 'Psysonic-Icon im System-Tray / in der Menüleiste anzeigen.',
   minimizeToTray: 'Im Tray minimieren',
   minimizeToTrayDesc: 'Beim Schließen des Fensters läuft Psysonic weiter im System-Tray statt zu beenden.',
+  minimizeToTrayRequiresTray: 'Zuerst „Tray-Icon anzeigen“ aktivieren — ohne Tray lässt sich das Fenster nach dem Schließen nicht wieder öffnen.',
   startMinimizedToTray: 'Im Tray starten',
   startMinimizedToTrayDesc: 'Psysonic mit verstecktem Hauptfenster starten; über das Tray-Icon wieder anzeigen.',
   startMinimizedToTrayRequiresTray: 'Zuerst „Tray-Icon anzeigen“ aktivieren — ohne Tray lässt sich das Fenster nach verstecktem Start nicht öffnen.',

@@ -261,6 +261,7 @@ export const settings = {
   showTrayIconDesc: 'Toont het Psysonic-pictogram in het systeemvak / de menubalk.',
   minimizeToTray: 'Minimaliseren naar systeemvak',
   minimizeToTrayDesc: 'Bij het sluiten van het venster blijft Psysonic actief in het systeemvak in plaats van af te sluiten.',
+  minimizeToTrayRequiresTray: 'Schakel eerst „Tray-pictogram weergeven” in — zonder tray kun je het venster na het sluiten niet opnieuw openen.',
   startMinimizedToTray: 'Start geminimaliseerd in systeemvak',
   startMinimizedToTrayDesc: 'Start Psysonic met het hoofdvenster verborgen; gebruik het tray-pictogram om het te tonen.',
   startMinimizedToTrayRequiresTray: 'Schakel eerst „Tray-pictogram weergeven” in — zonder tray kun je het venster na een verborgen start niet openen.',

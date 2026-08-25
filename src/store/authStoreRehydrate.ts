@@ -321,8 +321,8 @@ export function computeAuthStoreRehydration(state: AuthState): Partial<AuthState
       (state as { debugLoggingDepth?: unknown }).debugLoggingDepth,
     ),
     musicFolders: state.activeServerId ? (musicFoldersByServer[state.activeServerId] ?? []) : [],
-    ...(state.startMinimizedToTray && state.showTrayIcon === false
-      ? { startMinimizedToTray: false as const }
+    ...(state.showTrayIcon === false
+      ? { minimizeToTray: false as const, startMinimizedToTray: false as const }
       : {}),
     mixMinRatingSong: clampMixFilterMinStars(state.mixMinRatingSong as number),
     mixMinRatingAlbum: clampMixFilterMinStars(state.mixMinRatingAlbum as number),

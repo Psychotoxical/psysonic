@@ -261,6 +261,7 @@ export const settings = {
   showTrayIconDesc: '在系统通知区域 / 菜单栏显示 Psysonic 图标。',
   minimizeToTray: '最小化到托盘',
   minimizeToTrayDesc: '关闭窗口时，Psysonic 将继续在系统托盘中运行，而不是退出。',
+  minimizeToTrayRequiresTray: '请先启用“显示托盘图标”——没有托盘图标，关闭窗口后将无法重新打开。',
   startMinimizedToTray: '启动时最小化到托盘',
   startMinimizedToTrayDesc: '启动时隐藏主窗口；通过托盘图标显示窗口。',
   startMinimizedToTrayRequiresTray: '请先启用“显示托盘图标”——隐藏启动后需要通过托盘打开窗口。',

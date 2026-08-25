@@ -265,6 +265,7 @@ export const settings = {
   showTrayIconDesc: 'Mostra l\'icona di Psysonic nell\'area di notifica di sistema / barra dei menu.',
   minimizeToTray: 'Riduci nell\'area di notifica',
   minimizeToTrayDesc: 'Alla chiusura della finestra, mantieni Psysonic in esecuzione nell\'area di notifica invece di chiuderlo.',
+  minimizeToTrayRequiresTray: 'Abilita prima «Mostra icona nell\'area di notifica» — senza l\'icona non puoi riaprire la finestra dopo averla chiusa.',
   startMinimizedToTray: 'Avvia ridotto nell\'area di notifica',
   startMinimizedToTrayDesc: 'Avvia Psysonic con la finestra principale nascosta; usa l\'icona nell\'area di notifica per mostrarla.',
   startMinimizedToTrayRequiresTray: 'Abilita prima «Mostra icona nell\'area di notifica» — senza tray non puoi aprire la finestra dopo un avvio nascosto.',

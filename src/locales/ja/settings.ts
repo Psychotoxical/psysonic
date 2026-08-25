@@ -265,6 +265,7 @@ export const settings = {
   showTrayIconDesc: 'システム通知領域 / メニューバーに Psysonic アイコンを表示します。',
   minimizeToTray: 'トレイへ最小化',
   minimizeToTrayDesc: 'ウィンドウを閉じたとき、終了せずにシステムトレイで Psysonic を実行し続けます。',
+  minimizeToTrayRequiresTray: '先に「トレイアイコンを表示」を有効にしてください。トレイがないと、閉じた後にウィンドウを再度開けません。',
   startMinimizedToTray: 'トレイで起動',
   startMinimizedToTrayDesc: 'メインウィンドウを非表示のまま起動します。表示するにはトレイアイコンを使います。',
   startMinimizedToTrayRequiresTray: '先に「トレイアイコンを表示」を有効にしてください。非表示起動後はトレイから開けます。',

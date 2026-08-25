@@ -331,7 +331,21 @@ describe('lyrics source setters', () => {
   });
 });
 
-describe('tray startup settings coupling', () => {
+describe('tray settings coupling', () => {
+  it('setShowTrayIcon(false) clears minimizeToTray', () => {
+    useAuthStore.getState().setMinimizeToTray(true);
+    useAuthStore.getState().setShowTrayIcon(false);
+    const s = useAuthStore.getState();
+    expect(s.showTrayIcon).toBe(false);
+    expect(s.minimizeToTray).toBe(false);
+  });
+
+  it('setMinimizeToTray(true) is ignored when the tray icon is off', () => {
+    useAuthStore.getState().setShowTrayIcon(false);
+    useAuthStore.getState().setMinimizeToTray(true);
+    expect(useAuthStore.getState().minimizeToTray).toBe(false);
+  });
+
   it('setStartMinimizedToTray enables showTrayIcon when it was off', () => {
     useAuthStore.getState().setShowTrayIcon(false);
     useAuthStore.getState().setStartMinimizedToTray(true);

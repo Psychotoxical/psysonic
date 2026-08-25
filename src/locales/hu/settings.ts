@@ -265,6 +265,7 @@ export const settings = {
   showTrayIconDesc: 'A Psysonic ikon megjelenítése a rendszer értesítési területén / menüsorban.',
   minimizeToTray: 'Kis méretre a tálcára',
   minimizeToTrayDesc: 'Az ablak bezárásakor a Psysonic kilépés helyett a rendszer tálcáján fut tovább.',
+  minimizeToTrayRequiresTray: 'Először kapcsold be a „Tálcaikon megjelenítése” beállítást — tálcaikon nélkül bezárás után nem nyitható meg újra az ablak.',
   startMinimizedToTray: 'Indítás a tálcán',
   startMinimizedToTrayDesc: 'A Psysonic rejtett főablakkal indul; a megjelenítéshez használd a tálca ikont.',
   startMinimizedToTrayRequiresTray: 'Először kapcsold be a „Tálcaikon megjelenítése” beállítást — rejtett indítás után csak így nyitható meg az ablak.',

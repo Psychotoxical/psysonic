@@ -261,6 +261,7 @@ export const settings = {
   showTrayIconDesc: 'Muestra el icono de Psysonic en el área de notificación / barra de menú.',
   minimizeToTray: 'Minimizar a Bandeja',
   minimizeToTrayDesc: 'Al cerrar la ventana, mantener Psysonic ejecutándose en la bandeja del sistema en lugar de salir.',
+  minimizeToTrayRequiresTray: 'Activa primero «Mostrar icono en bandeja»; sin él no podrás volver a abrir la ventana después de cerrarla.',
   startMinimizedToTray: 'Iniciar minimizado en la bandeja',
   startMinimizedToTrayDesc: 'Iniciar Psysonic con la ventana principal oculta; usa el icono de la bandeja para mostrarla.',
   startMinimizedToTrayRequiresTray: 'Activa primero «Mostrar icono en bandeja»; sin él no podrás abrir la ventana tras un inicio oculto.',
