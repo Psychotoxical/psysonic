@@ -126,6 +126,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Albums were fixed above; the same problem sat in every other place a track can be dragged from — the queue and the mini-player queue, playlists, favorites, search results, Random Mix and the song cards on Home. Holding the mouse button while the list changed underneath left a drag primed, and the next movement picked up a row that was no longer on screen.
 * A press whose release never arrives now ends with whatever replaces it — the pointer leaving the window, the app losing focus, or the system taking the drag over — instead of waiting for a mouse-up that is never delivered.
 
+### Individual libraries can be selected again after updating
+
+**By [@cucadmuh](https://github.com/cucadmuh), issue reported by [@tummydummy](https://github.com/tummydummy), PR [#1459](https://github.com/Psysonic/psysonic/pull/1459)**
+
+* Updating from Psysonic 1.50 to 1.51 could leave the library selector stuck on **All libraries**: clicking an individual music folder closed the menu without changing the selection. Existing saved scope is now repaired during startup, and an empty scope restores the active server before saving a new choice.
+
 ## [1.51.0] - 2026-08-17
 
 ## Added
