@@ -449,6 +449,7 @@ const CONTRIBUTOR_ENTRIES = [
       'Cards: full name on hover when the text is cut off, optional in Appearance (PR #1433)',
       'Playlists — a header switch separating your own playlists from the ones shared with you (PR #1454)',
       'Sidebar — playlist covers and song counts, plus sorting by name, creation date or size (PR #1455)',
+      'Artist pages — an All Tracks tab listing everything an artist performs on, with pickable sortable columns (PR #1458)',
     ],
   },
   {

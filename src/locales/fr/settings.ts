@@ -480,7 +480,7 @@ export const settings = {
   artistLayoutDesc: 'Glissez pour réorganiser, basculez pour masquer des sections individuelles de la page artiste. Les sections sans données sont ignorées automatiquement.',
   artistLayoutReset: 'Réinitialiser',
   artistLayoutBio: 'Biographie de l\'artiste',
-  artistLayoutTopTracks: 'Titres populaires',
+  artistLayoutTopTracks: 'Morceaux',
   artistLayoutSimilar: 'Artistes similaires',
   artistLayoutAlbums: 'Albums',
   artistLayoutFeatured: 'Apparaît aussi sur',

@@ -480,7 +480,7 @@ export const settings = {
   artistLayoutDesc: 'Versleep om te herschikken, schakel om individuele secties van de artiestenpagina te verbergen. Secties zonder gegevens worden automatisch overgeslagen.',
   artistLayoutReset: 'Standaard herstellen',
   artistLayoutBio: 'Biografie van de artiest',
-  artistLayoutTopTracks: 'Populaire nummers',
+  artistLayoutTopTracks: 'Nummers',
   artistLayoutSimilar: 'Soortgelijke artiesten',
   artistLayoutAlbums: 'Albums',
   artistLayoutFeatured: 'Ook te horen op',

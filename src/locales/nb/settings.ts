@@ -479,7 +479,7 @@ export const settings = {
   artistLayoutDesc: 'Dra for å omorganisere, veksle for å skjule individuelle seksjoner av artistsiden. Seksjoner uten data hoppes over automatisk.',
   artistLayoutReset: 'Tilbakestill til standard',
   artistLayoutBio: 'Artistbiografi',
-  artistLayoutTopTracks: 'Toppspor',
+  artistLayoutTopTracks: 'Spor',
   artistLayoutSimilar: 'Lignende artister',
   artistLayoutAlbums: 'Album',
   artistLayoutFeatured: 'Også med på',

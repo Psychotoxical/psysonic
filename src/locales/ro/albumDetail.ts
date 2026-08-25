@@ -39,6 +39,7 @@ export const albumDetail = {
   trackLastPlayed: 'Ultima redare',
   trackBpm: 'BPM',
   trackFormat: 'Format',
+  trackYear: 'An',
   trackFavorite: 'Favorit',
   trackRating: 'Rating',
   trackDuration: 'Durată',

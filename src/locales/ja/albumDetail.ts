@@ -39,6 +39,7 @@ export const albumDetail = {
   trackLastPlayed: '最終再生',
   trackBpm: 'BPM',
   trackFormat: '形式',
+  trackYear: '年',
   trackFavorite: 'お気に入り',
   trackRating: '評価',
   trackDuration: '長さ',

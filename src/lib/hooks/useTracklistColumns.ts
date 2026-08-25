@@ -8,6 +8,12 @@ export interface ColDef {
   readonly required: boolean;
   /** If true the column uses minmax(minWidth, 1fr) instead of a fixed px width. */
   readonly flex?: boolean;
+  /**
+   * Offered in the picker but off until someone turns it on. For lists that can
+   * define more columns than fit at once, so the default view stays inside the
+   * page instead of running past its right edge.
+   */
+  readonly defaultHidden?: boolean;
 }
 
 /** Shared flex title column — room for play/preview/cover controls + readable title text. */
@@ -36,7 +42,9 @@ function loadPrefs(
   const defaultWidths: Record<string, number> = Object.fromEntries(
     columns.map(c => [c.key, c.defaultWidth]),
   );
-  const defaultVisible = new Set<string>(columns.map(c => c.key));
+  const defaultVisible = new Set<string>(
+    columns.filter(c => !c.defaultHidden).map(c => c.key),
+  );
   try {
     const raw = localStorage.getItem(storageKey);
     if (!raw) return { widths: defaultWidths, visible: defaultVisible };
@@ -47,7 +55,9 @@ function loadPrefs(
     // "known" tracks every column seen at save time; absent = newly added column → default to visible.
     if (parsed.known) {
       const known = new Set<string>(parsed.known);
-      columns.filter(c => !c.required && !known.has(c.key)).forEach(c => visible.add(c.key));
+      columns
+        .filter(c => !c.required && !c.defaultHidden && !known.has(c.key))
+        .forEach(c => visible.add(c.key));
     }
     const widths = { ...defaultWidths, ...(parsed.widths ?? {}) };
     const durationCol = columns.find(c => c.key === 'duration');
@@ -262,7 +272,10 @@ export function useTracklistColumns(columns: readonly ColDef[], storageKey: stri
 
   const resetColumns = useCallback(() => {
     const defaultWidths = Object.fromEntries(columns.map(c => [c.key, c.defaultWidth]));
-    const defaultVisible = new Set(columns.map(c => c.key));
+    // Same rule as the initial load: resetting must not switch on the columns a
+    // list ships hidden, or "reset" would overflow a table that never showed
+    // them in the first place.
+    const defaultVisible = new Set(columns.filter(c => !c.defaultHidden).map(c => c.key));
     setColWidths(defaultWidths);
     setColVisible(defaultVisible);
     localStorage.removeItem(storageKey);

@@ -56,3 +56,56 @@
   grid-template-columns: repeat(2, 1fr);
 }
 
+
+/* ── Track list header (section title + view pills) ─────────────────────────
+   The section keeps its heading and the switch sits opposite it, the same way
+   the album catalogue pages pair a title with their grid/table control. The
+   pills take their look from the global `.btn` classes, so they age with every
+   other button rather than carrying a private style. */
+.artist-tracks-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-4);
+}
+
+.artist-tracks-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.artist-tracks-tabs {
+  display: flex;
+  gap: 0.5rem;
+}
+
+/* The picker sits with the tabs, so it drops the standalone row's own spacing. */
+.artist-tracks-controls .tracklist-col-picker-wrapper {
+  padding: 0;
+  margin-bottom: 0;
+}
+
+/* Hidden on the ranking tab but still occupying its width, so switching tabs
+   does not shift the pills sideways. `visibility` (not `display`) also keeps the
+   button out of the tab order and the accessibility tree while it is away. */
+.artist-tracks-picker.is-hidden {
+  visibility: hidden;
+}
+
+.artist-tracks-tab {
+  font-size: 13px;
+  padding: 6px 14px;
+}
+
+/* Accent-tinted hover for the resting pill, matching the segmented controls. */
+.artist-tracks-tabs > .btn-ghost:hover {
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--border-subtle));
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+
+.app-shell[data-mobile] .artist-tracks-header {
+  gap: var(--space-2);
+}

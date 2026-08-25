@@ -39,6 +39,7 @@ export const albumDetail = {
   trackLastPlayed: 'Последно пуснато',
   trackBpm: 'BPM',
   trackFormat: 'Формат',
+  trackYear: 'Година',
   trackFavorite: 'Любима',
   trackRating: 'Оценка',
   trackDuration: 'Времетраене',

@@ -39,6 +39,7 @@ export const albumDetail = {
   trackLastPlayed: 'Laatst afgespeeld',
   trackBpm: 'BPM',
   trackFormat: 'Formaat',
+  trackYear: 'Jaar',
   trackFavorite: 'Favoriet',
   trackRating: 'Beoordeling',
   trackDuration: 'Duur',

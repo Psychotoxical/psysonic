@@ -537,7 +537,7 @@ export const settings = {
   artistLayoutDesc: 'Przeciągnij, aby zmienić kolejność, albo przełącz, aby ukryć poszczególne sekcje strony wykonawcy. Sekcje bez danych są automatycznie pomijane.',
   artistLayoutReset: 'Przywróć domyślne',
   artistLayoutBio: 'Biografia wykonawcy',
-  artistLayoutTopTracks: 'Najpopularniejsze utwory',
+  artistLayoutTopTracks: 'Utwory',
   artistLayoutSimilar: 'Podobni wykonawcy',
   artistLayoutAlbums: 'Albumy',
   artistLayoutFeatured: 'Występuje także na',

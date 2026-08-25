@@ -62,6 +62,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Interrupted downloads can resume from a verified partial file instead of starting over. Changed or unsafe server responses discard the partial cleanly, while cancellation, disk-space reservations and concurrent download attempts no longer race the final file.
 * Album, artist, playlist and favourites pins now keep every owner, survive restarts and server-address migrations, and do not return after the user cancels them.
 
+### Every track an artist performs on
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), suggested by MrMiniblock, PR [#1458](https://github.com/Psysonic/psysonic/pull/1458)**
+
+* An artist page showed five popular tracks and offered no way to reach the rest. It now has two tabs: the familiar ranking, and the complete list of everything that artist performs on — their own records as well as the compilations and guest appearances they turn up on.
+* The full list is ordered by album, disc and track number, and can be sorted by any column. Which columns are shown is up to you: title, album and duration to begin with, and artist, genre, year, format, plays, last played and BPM available from the column menu.
+* It is loaded the moment you open the tab, straight from the local index, so the artist page itself stays as quick to open as before.
+
 ## Changed
 
 ### Rust internals — smaller focused modules with the same behaviour

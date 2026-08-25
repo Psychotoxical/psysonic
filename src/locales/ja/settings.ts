@@ -531,7 +531,7 @@ export const settings = {
   artistLayoutDesc: 'ドラッグで並べ替え、切り替えでアーティストページの個別セクションを非表示にできます。データのないセクションは自動的にスキップされます。',
   artistLayoutReset: '既定に戻す',
   artistLayoutBio: 'アーティスト紹介',
-  artistLayoutTopTracks: '人気トラック',
+  artistLayoutTopTracks: 'トラック',
   artistLayoutSimilar: '類似アーティスト',
   artistLayoutAlbums: 'アルバム',
   artistLayoutFeatured: '参加作品',

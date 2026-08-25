@@ -537,7 +537,7 @@ export const settings = {
   artistLayoutDesc: 'Drag to reorder, toggle to hide individual sections of the artist page. Sections without data are skipped automatically.',
   artistLayoutReset: 'Reset to default',
   artistLayoutBio: 'Artist biography',
-  artistLayoutTopTracks: 'Top tracks',
+  artistLayoutTopTracks: 'Tracks',
   artistLayoutSimilar: 'Similar artists',
   artistLayoutAlbums: 'Albums',
   artistLayoutFeatured: 'Also featured on',

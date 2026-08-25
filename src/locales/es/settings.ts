@@ -492,7 +492,7 @@ export const settings = {
   artistLayoutDesc: 'Arrastra para reordenar, alterna para ocultar secciones individuales de la página del artista. Las secciones sin datos se omiten automáticamente.',
   artistLayoutReset: 'Restablecer a predeterminado',
   artistLayoutBio: 'Biografía del artista',
-  artistLayoutTopTracks: 'Mejores pistas',
+  artistLayoutTopTracks: 'Pistas',
   artistLayoutSimilar: 'Artistas similares',
   artistLayoutAlbums: 'Álbumes',
   artistLayoutFeatured: 'También presente en',
