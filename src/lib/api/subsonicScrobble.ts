@@ -27,26 +27,31 @@ async function scrobbleOnServer(
 
 export async function scrobbleSong(id: string, time: number, serverId: string): Promise<void> {
   if (!serverId) return;
+  let reachedServer = false;
   try {
-    const reachedServer = await scrobbleOnServer(serverId, id, true, time);
-    // Patch-on-use (§6.5 / F3): reflect the play in the local index so the
-    // played surfaces aren't stale. The count goes up by one rather than being
-    // set: the base lives in the row, not here, and nothing re-reads the row
-    // after a play — measured on a real library, a finished track left the
-    // count untouched through eight minutes of deltas, an album page opened
-    // twice, and a full navigation away and back.
-    //
-    // The two halves part company when the server was never reached. The
-    // timestamp is a local truth — the listener did play it, and any resync
-    // overwrites it. The count is a mirror of the server's own tally, and it
-    // accumulates: adding to it for a play the server never saw drifts the two
-    // apart with nothing left to pull them back together.
-    patchLibraryTrackOnUse(serverId, id, reachedServer
-      ? { playedAt: time, playCountDelta: 1 }
-      : { playedAt: time });
+    reachedServer = await scrobbleOnServer(serverId, id, true, time);
   } catch {
-    // best effort
+    // A refused scrobble — a server error, a stale credential, a timeout — is
+    // still a play that happened. Swallowed here rather than around everything
+    // below, so the local half runs either way.
   }
+
+  // Patch-on-use (§6.5 / F3): reflect the play in the local index so the played
+  // surfaces aren't stale. The count goes up by one rather than being set: the
+  // base lives in the row, not here, and nothing re-reads the row after a play
+  // — measured on a real library, a finished track left the count untouched
+  // through eight minutes of deltas, an album page opened twice, and a full
+  // navigation away and back.
+  //
+  // The two halves part company when the server never took it. The timestamp is
+  // a local truth: the listener did play it, and any resync overwrites it. The
+  // count mirrors the server's own tally and accumulates — adding to it for a
+  // play the server never saw drifts the two apart with nothing left to pull
+  // them back together. Both ways of not taking it count: the reachability
+  // guard's silent skip and an outright refusal.
+  patchLibraryTrackOnUse(serverId, id, reachedServer
+    ? { playedAt: time, playCountDelta: 1 }
+    : { playedAt: time });
 }
 
 export async function reportNowPlaying(id: string, serverId: string): Promise<void> {

@@ -135,11 +135,30 @@ describe('subsonicScrobble', () => {
     it('counts nothing when the server rejected the scrobble', async () => {
       // Counting a play the server rejected would drift the two apart with
       // nothing left to correct it.
-      apiForServerMock.mockRejectedValue(new Error('offline'));
+      apiForServerMock.mockRejectedValue(new Error('server error'));
 
       await scrobbleSong('t1', 1_700_000_000_000, 'a');
 
-      expect(patchTrackMock).not.toHaveBeenCalled();
+      expect(patchTrackMock).not.toHaveBeenCalledWith(
+        'a',
+        't1',
+        expect.objectContaining({ playCountDelta: expect.anything() }),
+      );
+    });
+
+    it('still records the play locally when the server refused it', async () => {
+      // A server that answers with an error is a different path from one the
+      // guard never called — a 500, an expired credential, a timeout while the
+      // browser still believes it is online. The play happened in all of them.
+      apiForServerMock.mockRejectedValue(new Error('server error'));
+
+      await scrobbleSong('t1', 1_700_000_000_000, 'a');
+
+      expect(patchTrackMock).toHaveBeenCalledWith(
+        'a',
+        't1',
+        { playedAt: 1_700_000_000_000 },
+      );
     });
 
     it('counts nothing when the reachability guard skipped the call', async () => {

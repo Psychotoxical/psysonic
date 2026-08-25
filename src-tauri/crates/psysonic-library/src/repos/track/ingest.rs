@@ -285,10 +285,44 @@ ON CONFLICT(server_id, id) DO UPDATE SET
   bit_rate             = excluded.bit_rate,
   size_bytes           = excluded.size_bytes,
   cover_art_id         = excluded.cover_art_id,
-  starred_at           = excluded.starred_at,
-  user_rating          = excluded.user_rating,
-  play_count           = excluded.play_count,
-  played_at            = excluded.played_at,
+  -- Annotations follow the same field-wise rule as `title_sort` above: a key
+  -- that is present wins, even when it is explicitly null, so unstarring on the
+  -- server still clears the local flag. A key the payload simply omits leaves
+  -- the stored value alone — otherwise every sync that touches a row for an
+  -- unrelated reason erases what patch-on-use wrote seconds earlier, and the
+  -- play the listener just finished disappears from the tracklist.
+  starred_at           = CASE
+    WHEN json_valid(excluded.raw_json)
+     AND (json_type(excluded.raw_json, '$.starred') IS NOT NULL
+       OR json_type(excluded.raw_json, '$.starredAt') IS NOT NULL)
+      THEN excluded.starred_at
+    WHEN excluded.starred_at IS NOT NULL THEN excluded.starred_at
+    ELSE track.starred_at
+  END,
+  user_rating          = CASE
+    WHEN json_valid(excluded.raw_json)
+     AND (json_type(excluded.raw_json, '$.userRating') IS NOT NULL
+       OR json_type(excluded.raw_json, '$.rating') IS NOT NULL)
+      THEN excluded.user_rating
+    WHEN excluded.user_rating IS NOT NULL THEN excluded.user_rating
+    ELSE track.user_rating
+  END,
+  play_count           = CASE
+    WHEN json_valid(excluded.raw_json)
+     AND json_type(excluded.raw_json, '$.playCount') IS NOT NULL
+      THEN excluded.play_count
+    WHEN excluded.play_count IS NOT NULL THEN excluded.play_count
+    ELSE track.play_count
+  END,
+  played_at            = CASE
+    WHEN json_valid(excluded.raw_json)
+     AND (json_type(excluded.raw_json, '$.playDate') IS NOT NULL
+       OR json_type(excluded.raw_json, '$.played') IS NOT NULL
+       OR json_type(excluded.raw_json, '$.playedAt') IS NOT NULL)
+      THEN excluded.played_at
+    WHEN excluded.played_at IS NOT NULL THEN excluded.played_at
+    ELSE track.played_at
+  END,
   server_path          = excluded.server_path,
   -- P20: never let a sync path that omits library membership (OpenSubsonic
   -- whole-server search3/getAlbumList2 carry no libraryId) clobber a library_id
@@ -368,10 +402,44 @@ ON CONFLICT(server_id, id) DO UPDATE SET
   bit_rate             = excluded.bit_rate,
   size_bytes           = excluded.size_bytes,
   cover_art_id         = excluded.cover_art_id,
-  starred_at           = excluded.starred_at,
-  user_rating          = excluded.user_rating,
-  play_count           = excluded.play_count,
-  played_at            = excluded.played_at,
+  -- Annotations follow the same field-wise rule as `title_sort` above: a key
+  -- that is present wins, even when it is explicitly null, so unstarring on the
+  -- server still clears the local flag. A key the payload simply omits leaves
+  -- the stored value alone — otherwise every sync that touches a row for an
+  -- unrelated reason erases what patch-on-use wrote seconds earlier, and the
+  -- play the listener just finished disappears from the tracklist.
+  starred_at           = CASE
+    WHEN json_valid(excluded.raw_json)
+     AND (json_type(excluded.raw_json, '$.starred') IS NOT NULL
+       OR json_type(excluded.raw_json, '$.starredAt') IS NOT NULL)
+      THEN excluded.starred_at
+    WHEN excluded.starred_at IS NOT NULL THEN excluded.starred_at
+    ELSE track.starred_at
+  END,
+  user_rating          = CASE
+    WHEN json_valid(excluded.raw_json)
+     AND (json_type(excluded.raw_json, '$.userRating') IS NOT NULL
+       OR json_type(excluded.raw_json, '$.rating') IS NOT NULL)
+      THEN excluded.user_rating
+    WHEN excluded.user_rating IS NOT NULL THEN excluded.user_rating
+    ELSE track.user_rating
+  END,
+  play_count           = CASE
+    WHEN json_valid(excluded.raw_json)
+     AND json_type(excluded.raw_json, '$.playCount') IS NOT NULL
+      THEN excluded.play_count
+    WHEN excluded.play_count IS NOT NULL THEN excluded.play_count
+    ELSE track.play_count
+  END,
+  played_at            = CASE
+    WHEN json_valid(excluded.raw_json)
+     AND (json_type(excluded.raw_json, '$.playDate') IS NOT NULL
+       OR json_type(excluded.raw_json, '$.played') IS NOT NULL
+       OR json_type(excluded.raw_json, '$.playedAt') IS NOT NULL)
+      THEN excluded.played_at
+    WHEN excluded.played_at IS NOT NULL THEN excluded.played_at
+    ELSE track.played_at
+  END,
   server_path          = excluded.server_path,
   -- P20: preserve prior library_id when a sync path omits it (see UPSERT above).
   library_id           = COALESCE(NULLIF(excluded.library_id, ''), track.library_id),

@@ -230,3 +230,75 @@ fn upsert_without_strong_key_creates_no_canonical_link() {
         .unwrap();
     assert_eq!(count, 0);
 }
+
+/// Read the four annotation columns of one row.
+fn annotations(store: &LibraryStore) -> (Option<i64>, Option<i64>, Option<i64>, Option<i64>) {
+    store
+        .with_conn("misc", |c| {
+            c.query_row(
+                "SELECT starred_at, user_rating, play_count, played_at \
+                 FROM track WHERE server_id='s1' AND id='t1'",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)),
+            )
+        })
+        .unwrap()
+}
+
+/// A row carrying the annotations a listener's own actions would have written.
+fn annotated(title: &str) -> TrackRow {
+    let mut r = row("s1", "t1", title);
+    r.starred_at = Some(1_700_000_111);
+    r.user_rating = Some(4);
+    r.play_count = Some(7);
+    r.played_at = Some(1_700_000_222);
+    r.raw_json = r#"{"starred":"2023-11-14T22:15:11Z","userRating":4,"playCount":7,"playDate":"2023-11-14T22:17:02Z"}"#.into();
+    r
+}
+
+#[test]
+fn a_payload_without_annotations_leaves_the_stored_ones_alone() {
+    // The listener stars a track, rates it, plays it — all of that lands in the
+    // columns and nowhere else. A later sync that touches the row for an
+    // unrelated reason carries none of it, and taking its silence for "none"
+    // would erase the lot seconds after it was written.
+    let store = LibraryStore::open_in_memory();
+    let repo = TrackRepository::new(&store);
+    repo.upsert_batch(&[annotated("Original")]).unwrap();
+
+    // Same row, re-ingested from a payload that says nothing about annotations.
+    let mut silent = row("s1", "t1", "Retagged");
+    silent.play_count = None;
+    silent.raw_json = r#"{"title":"Retagged"}"#.into();
+    repo.upsert_batch(&[silent]).unwrap();
+
+    assert_eq!(
+        annotations(&store),
+        (Some(1_700_000_111), Some(4), Some(7), Some(1_700_000_222)),
+        "a payload that omits the fields must not clear them",
+    );
+}
+
+#[test]
+fn a_payload_that_names_them_still_wins() {
+    // The other half: the server remains authoritative when it does speak. An
+    // unstar arrives as an explicit null, and that has to clear the flag —
+    // otherwise a favourite removed on the server could never come off here.
+    let store = LibraryStore::open_in_memory();
+    let repo = TrackRepository::new(&store);
+    repo.upsert_batch(&[annotated("Original")]).unwrap();
+
+    let mut spoken = row("s1", "t1", "Original");
+    spoken.starred_at = None;
+    spoken.user_rating = Some(2);
+    spoken.play_count = Some(9);
+    spoken.played_at = None;
+    spoken.raw_json = r#"{"starred":null,"userRating":2,"playCount":9,"playDate":null}"#.into();
+    repo.upsert_batch(&[spoken]).unwrap();
+
+    assert_eq!(
+        annotations(&store),
+        (None, Some(2), Some(9), None),
+        "a key that is present wins, explicit null included",
+    );
+}
