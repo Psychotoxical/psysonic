@@ -259,7 +259,14 @@ export function createMusicLibraryActions(set: SetState, get: GetState): Pick<
 
     setLibraryBrowseSelectionForServer: (serverId, libraryIds) => {
       const s = get();
-      if (!s.libraryBrowseServerIds.includes(serverId)) {
+      const effectiveServerIds = deriveLibraryBrowseServerIdsWithFallback({
+        servers: s.servers,
+        activeServerId: s.activeServerId,
+        libraryBrowseServerIds: s.libraryBrowseServerIds,
+      });
+      const scopeChanged = effectiveServerIds.length !== s.libraryBrowseServerIds.length
+        || effectiveServerIds.some((id, index) => id !== s.libraryBrowseServerIds[index]);
+      if (!effectiveServerIds.includes(serverId)) {
         emitMultiServerDebug('library_folder_selection_skip', {
           serverId,
           requestedLibraryIds: libraryIds,
@@ -273,7 +280,8 @@ export function createMusicLibraryActions(set: SetState, get: GetState): Pick<
       const unique = [...new Set(libraryIds)].filter(id => folders.length === 0 || knownFolderIds.has(id));
       const selection = collapseServerSelection(folders, unique);
       const previous = s.libraryBrowseSelectionByServer[serverId] ?? [];
-      if (selection.length === previous.length
+      if (!scopeChanged
+        && selection.length === previous.length
         && selection.every((id, index) => id === previous[index])) {
         emitMultiServerDebug('library_folder_selection_skip', {
           serverId,
@@ -284,6 +292,7 @@ export function createMusicLibraryActions(set: SetState, get: GetState): Pick<
         return;
       }
       set(state => ({
+        ...(scopeChanged ? { libraryBrowseServerIds: effectiveServerIds } : {}),
         libraryBrowseSelectionByServer: {
           ...state.libraryBrowseSelectionByServer,
           [serverId]: selection,
@@ -295,6 +304,7 @@ export function createMusicLibraryActions(set: SetState, get: GetState): Pick<
         requestedLibraryIds: libraryIds,
         previousLibraryIds: previous,
         normalizedLibraryIds: selection,
+        configuredServerIds: get().libraryBrowseServerIds,
         availableFolderIds: folders.map(folder => folder.id),
         libraryBrowseScopeVersion: get().libraryBrowseScopeVersion,
       });

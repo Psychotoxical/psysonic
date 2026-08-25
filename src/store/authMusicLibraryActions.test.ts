@@ -135,4 +135,19 @@ describe('Library browse scope', () => {
     useAuthStore.getState().setLibraryBrowseSelectionForServer(serverId, ['two', 'one']);
     expect(useAuthStore.getState().libraryBrowseSelectionByServer[serverId]).toEqual([]);
   });
+
+  it('repairs an empty server scope before storing a folder selection', () => {
+    const serverId = setUpActiveServer();
+    useAuthStore.getState().setMusicFoldersForServer(serverId, [
+      { id: 'one', name: 'One' },
+      { id: 'two', name: 'Two' },
+    ]);
+    useAuthStore.setState({ libraryBrowseServerIds: [] });
+
+    useAuthStore.getState().setLibraryBrowseSelectionForServer(serverId, ['two']);
+
+    const state = useAuthStore.getState();
+    expect(state.libraryBrowseServerIds).toEqual([serverId]);
+    expect(state.libraryBrowseSelectionByServer[serverId]).toEqual(['two']);
+  });
 });
