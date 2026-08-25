@@ -204,6 +204,18 @@ export const useAuthStore = create<AuthState>()(
     {
       name: 'psysonic-auth',
       storage: createJSONStorage(() => localStorage),
+      version: 1,
+      // Version 1 moves post-hydration repairs into `merge`. Returning the
+      // version-0 payload unchanged makes Zustand rewrite the repaired state.
+      migrate: persistedState => persistedState,
+      merge: (persistedState, currentState) => {
+        const state = {
+          ...currentState,
+          ...(persistedState as Partial<AuthState> | undefined),
+        };
+        const patch = computeAuthStoreRehydration(state);
+        return { ...state, ...patch };
+      },
       partialize: state => {
         const {
           musicFolders: _mf,
@@ -215,9 +227,7 @@ export const useAuthStore = create<AuthState>()(
       },
       onRehydrateStorage: () => (state, error) => {
         if (error || !state) return;
-        useAuthStore.setState(computeAuthStoreRehydration(state));
-        const current = useAuthStore.getState();
-        void syncAllServerHttpContexts(current.servers, current.subsonicServerIdentityByServer);
+        void syncAllServerHttpContexts(state.servers, state.subsonicServerIdentityByServer);
       },
     }
   )

@@ -66,6 +66,7 @@ export const LOCAL_PLAYBACK_PROTECT_AFTER_CURRENT = 1;
 
 interface LocalPlaybackState {
   entries: Record<string, LocalPlaybackEntry>;
+  applyHydratedEntries: (entries: Record<string, LocalPlaybackEntry>) => void;
   getEntry: (trackId: string, serverIndexKey: string) => LocalPlaybackEntry | null;
   getLocalUrl: (trackId: string, serverIndexKey: string, tier?: LocalPlaybackTier) => string | null;
   hasLocalBytes: (trackId: string, serverIndexKey: string) => boolean;
@@ -151,6 +152,7 @@ export const useLocalPlaybackStore = create<LocalPlaybackState>()(
   persist(
     (set, get) => ({
       entries: {},
+      applyHydratedEntries: entries => set({ entries }),
 
       getEntry: (trackId, serverIndexKey) =>
         get().entries[localPlaybackEntryKey(serverIndexKey, trackId)] ?? null,
@@ -485,7 +487,7 @@ export const useLocalPlaybackStore = create<LocalPlaybackState>()(
           return;
         }
         const merged = { ...imported, ...state.entries };
-        useLocalPlaybackStore.setState({ entries: merged });
+        state.applyHydratedEntries(merged);
         markLegacyMigrationDone();
       },
     },

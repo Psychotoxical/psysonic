@@ -39,9 +39,8 @@ import { sanitizeDebugLoggingDepth } from '@/lib/perf/debugLoggingMode';
 /**
  * Computes the post-rehydration patch for the auth store. Runs all
  * legacy-shape migrations + numeric sanitization that the persist
- * middleware can't express declaratively. The caller (the store's
- * `onRehydrateStorage` callback) applies the returned partial via
- * `useAuthStore.setState`.
+ * middleware can't express declaratively. The store's custom persist `merge`
+ * applies the returned partial before the hydrated state is published.
  *
  * Side effects this function takes: deletes obsolete legacy fields
  * directly off the rehydrated state object (`animationMode`,
