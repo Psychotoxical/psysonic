@@ -265,6 +265,7 @@ export const settings = {
   showTrayIconDesc: 'Display the Psysonic icon in the system notification area / menu bar.',
   minimizeToTray: 'Minimize to Tray',
   minimizeToTrayDesc: 'When closing the window, keep Psysonic running in the system tray instead of quitting.',
+  minimizeToTrayRequiresTray: 'Enable "Show Tray Icon" first — you need the tray to reopen the window after closing it.',
   startMinimizedToTray: 'Start Minimized to Tray',
   startMinimizedToTrayDesc: 'Launch Psysonic with the main window hidden; use the tray icon to show it.',
   startMinimizedToTrayRequiresTray: 'Enable "Show Tray Icon" first — you need the tray to open the window after a hidden start.',

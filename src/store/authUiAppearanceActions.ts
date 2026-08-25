@@ -49,9 +49,11 @@ export function createUiAppearanceActions(set: SetState): Pick<
     setLibraryGridMaxColumns: (v) => set({ libraryGridMaxColumns: clampLibraryGridMaxColumns(v) }),
     setShowTrayIcon: (v) => set({
       showTrayIcon: v,
-      ...(v ? {} : { startMinimizedToTray: false }),
+      ...(v ? {} : { minimizeToTray: false, startMinimizedToTray: false }),
     }),
-    setMinimizeToTray: (v) => set({ minimizeToTray: v }),
+    setMinimizeToTray: (v) => set((state) => ({
+      minimizeToTray: v && state.showTrayIcon,
+    })),
     setStartMinimizedToTray: (v) => set((state) => ({
       startMinimizedToTray: v,
       ...(v && !state.showTrayIcon ? { showTrayIcon: true } : {}),

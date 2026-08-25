@@ -163,8 +163,13 @@ export function SystemTab() {
             <div className="settings-section-divider" />
             <SettingsToggle
               label={t('settings.minimizeToTray')}
-              desc={t('settings.minimizeToTrayDesc')}
+              desc={
+                auth.showTrayIcon
+                  ? t('settings.minimizeToTrayDesc')
+                  : t('settings.minimizeToTrayRequiresTray')
+              }
               checked={auth.minimizeToTray}
+              disabled={!auth.showTrayIcon}
               onChange={auth.setMinimizeToTray}
             />
             <div className="settings-section-divider" />

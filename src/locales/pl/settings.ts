@@ -265,6 +265,7 @@ export const settings = {
   showTrayIconDesc: 'Wyświetl ikonę Psysonic w obszarze powiadomień systemu/pasku menu.',
   minimizeToTray: 'Minimalizuj do zasobnika systemowego',
   minimizeToTrayDesc: 'Podczas zamykania okna, zamiast wyłączać Psysonic, pozostaw go uruchomionym w zasobniku systemowym.',
+  minimizeToTrayRequiresTray: 'Najpierw włącz „Pokaż ikonę zasobnika” — bez niej nie otworzysz ponownie okna po jego zamknięciu.',
   startMinimizedToTray: 'Uruchamiaj zminimalizowany w zasobniku',
   startMinimizedToTrayDesc: 'Uruchamiaj Psysonic z ukrytym oknem głównym; pokaż je przez ikonę w zasobniku.',
   startMinimizedToTrayRequiresTray: 'Najpierw włącz „Pokaż ikonę zasobnika” — bez niej nie otworzysz okna po ukrytym starcie.',

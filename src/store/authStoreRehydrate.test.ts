@@ -218,13 +218,15 @@ describe('computeAuthStoreRehydration — lyrics', () => {
     ]);
   });
 
-  it('clears startMinimizedToTray when tray icon is off', () => {
+  it('clears tray-dependent settings when tray icon is off', () => {
     const base = useAuthStore.getState();
     const patch = computeAuthStoreRehydration({
       ...base,
+      minimizeToTray: true,
       startMinimizedToTray: true,
       showTrayIcon: false,
     });
+    expect(patch.minimizeToTray).toBe(false);
     expect(patch.startMinimizedToTray).toBe(false);
   });
 });

@@ -132,6 +132,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * Updating from Psysonic 1.50 to 1.51 could leave the library selector stuck on **All libraries**: clicking an individual music folder closed the menu without changing the selection. Existing saved scope is now repaired during startup, and an empty scope restores the active server before saving a new choice.
 
+### Closing Psysonic cannot leave it hidden without a tray icon
+
+**By [@cucadmuh](https://github.com/cucadmuh), issue reported by [@hello-foma](https://github.com/hello-foma), PR [#1460](https://github.com/Psysonic/psysonic/pull/1460)**
+
+* Turning off **Show Tray Icon** now also turns off both tray-dependent settings. **Minimize to Tray** and **Start Minimized to Tray** stay unavailable until the tray icon is enabled again.
+* Existing saved settings with the unsafe combination are repaired during startup, so closing the window exits instead of hiding Psysonic with no way to reopen it.
+
 ## [1.51.0] - 2026-08-17
 
 ## Added

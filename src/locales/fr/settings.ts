@@ -261,6 +261,7 @@ export const settings = {
   showTrayIconDesc: 'Affiche l\'icône Psysonic dans la zone de notification / barre des menus.',
   minimizeToTray: 'Réduire dans la barre système',
   minimizeToTrayDesc: 'Lors de la fermeture, Psysonic continue de fonctionner dans la barre système au lieu de se fermer.',
+  minimizeToTrayRequiresTray: 'Activez d\'abord « Afficher l\'icône dans la barre système » — sans elle, la fenêtre ne peut pas être rouverte après sa fermeture.',
   startMinimizedToTray: 'Démarrer réduit dans la barre système',
   startMinimizedToTrayDesc: 'Lance Psysonic avec la fenêtre principale masquée ; utilise l\'icône de la barre système pour l\'afficher.',
   startMinimizedToTrayRequiresTray: 'Activez d\'abord « Afficher l\'icône dans la barre système » — sans elle, la fenêtre ne s\'ouvre pas après un démarrage masqué.',

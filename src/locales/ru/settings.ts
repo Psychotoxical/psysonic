@@ -266,6 +266,7 @@ export const settings = {
   showTrayIconDesc: 'Показывать Psysonic в области уведомлений / строке меню.',
   minimizeToTray: 'Сворачивать в трей',
   minimizeToTrayDesc: 'При закрытии окна не выходить из приложения, а оставаться в трее.',
+  minimizeToTrayRequiresTray: 'Сначала включите «Иконка в трее» — без неё окно нельзя снова открыть после закрытия.',
   startMinimizedToTray: 'Запускать свёрнутым в трей',
   startMinimizedToTrayDesc: 'При запуске скрывать главное окно; открыть приложение можно через иконку в трее.',
   startMinimizedToTrayRequiresTray: 'Сначала включите «Иконка в трее» — без неё окно не открыть после скрытого запуска.',

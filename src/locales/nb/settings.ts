@@ -260,6 +260,7 @@ export const settings = {
   showOrbitTriggerDesc: 'Knappen i toppen for å starte eller bli med i en delt lytteøkt. Skjul den hvis du ikke bruker Orbit — du kan slå den på igjen her.',
   minimizeToTray: 'Minimer til oppgavelinjen',
   minimizeToTrayDesc: 'Når vinduet lukkes, vil Psysonic bli kjørende i oppgavelinjen fremfor å bli avsluttet.',
+  minimizeToTrayRequiresTray: 'Aktiver «Vis systemstatusikon» først — uten ikonet kan du ikke åpne vinduet igjen etter at det er lukket.',
   startMinimizedToTray: 'Start minimert til oppgavelinjen',
   startMinimizedToTrayDesc: 'Start Psysonic med hovedvinduet skjult; bruk oppgavelinjeikonet for å vise det.',
   startMinimizedToTrayRequiresTray: 'Aktiver «Vis systemstatusikon» først — uten oppgavelinjen kan du ikke åpne vinduet etter skjult oppstart.',
