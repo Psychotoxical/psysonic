@@ -54,6 +54,9 @@ import { offlineActionPolicy } from '@/features/offline';
 import { resolveIndexKey } from '@/lib/server/serverIndexKey';
 import { sameQueueTrack } from '@/features/playback';
 import { deriveEntitySourceScopes } from '@/lib/library/libraryBrowseScope';
+import { useResolvedTracklistBpm } from '@/lib/hooks/useResolvedTracklistBpm';
+
+const EMPTY_SONGS: SubsonicSong[] = [];
 
 export default function AlbumDetail() {
   const { t } = useTranslation();
@@ -145,6 +148,13 @@ export default function AlbumDetail() {
     if (!losslessOnly) return album.songs;
     return album.songs.filter(s => isLosslessSuffix(s.suffix));
   }, [album?.songs, losslessOnly]);
+  // Album columns own their visibility below this page, so resolve the small
+  // album list eagerly to keep BPM sorting and cells on the same values.
+  const resolvedBpmSongs = useResolvedTracklistBpm(
+    effectiveSongs ?? EMPTY_SONGS,
+    true,
+    albumOwnerServerId,
+  );
 
   const representativeSongs = useMemo(
     () => (effectiveSongs ?? album?.songs ?? []).filter(song => (
@@ -422,16 +432,16 @@ const handleShuffleAll = () => {
   // Must be before early returns — hooks must be called unconditionally.
   const mergedStarredSongs = useMemo(() => {
     const merged = new Set<string>();
-    for (const song of effectiveSongs ?? album?.songs ?? []) {
+    for (const song of resolvedBpmSongs) {
       const key = ownedEntityKey(song);
       const override = ownedOverrideValue(starredOverrides, song);
       if (override ?? starredSongs.has(key)) merged.add(key);
     }
     return merged;
-  }, [effectiveSongs, album?.songs, starredOverrides, starredSongs]);
+  }, [resolvedBpmSongs, starredOverrides, starredSongs]);
 
   const { sortKey, sortDir, handleSort, displayedSongs } = useAlbumDetailSort({
-    songs: effectiveSongs,
+    songs: resolvedBpmSongs,
     filterText,
     starredSongs: mergedStarredSongs,
     ratings,
@@ -470,7 +480,7 @@ const handleShuffleAll = () => {
   if (!album) return <div className="empty-state">{t('albumDetail.notFound')}</div>;
 
   const { album: info } = album;
-  const songs = effectiveSongs ?? [];
+  const songs = resolvedBpmSongs;
   const headerArtistRefs = deriveAlbumHeaderArtistRefs(info, songs);
   const hasVariousArtists = songs.some(s => s.artist !== info.artist);
 

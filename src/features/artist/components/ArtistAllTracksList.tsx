@@ -24,6 +24,7 @@ import { useVirtualizerScrollMargin } from '@/lib/hooks/useVirtualizerScrollMarg
 import { COVER_ARTIST_TOP_TRACK_CSS_PX } from '@/cover/layoutSizes';
 import { useWarmTrackListAlbumCovers } from '@/cover/useWarmTrackListAlbumCovers';
 import { useTrackListCoverArtEnabled } from '@/cover/useTrackListCoverArtSettings';
+import { useResolvedTracklistBpm } from '@/lib/hooks/useResolvedTracklistBpm';
 import ArtistAllTracksRow, { type ArtistAllTracksRowCallbacks } from '@/features/artist/components/ArtistAllTracksRow';
 import {
   ARTIST_ALL_TRACKS_CENTERED_COLS,
@@ -76,11 +77,18 @@ export default function ArtistAllTracksList({ songs, loading, failed, onPlay, co
   const { orbitActive, queueHint, addTrackToOrbit } = useOrbitSongRowBehavior();
 
   const [sort, setSort] = useState<ArtistAllTracksSortState>({ key: 'natural', dir: 'asc' });
-  const displayed = useMemo(() => sortArtistAllTracks(songs, sort), [songs, sort]);
 
   const {
-    visibleCols, gridStyle, pickerOpen, startResize, startFlexColumnResize, tracklistRef,
+    colVisible, visibleCols, gridStyle, pickerOpen, startResize, startFlexColumnResize, tracklistRef,
   } = columns;
+  const resolvedBpmSongs = useResolvedTracklistBpm(
+    songs,
+    colVisible.has('bpm') || sort.key === 'bpm',
+  );
+  const displayed = useMemo(
+    () => sortArtistAllTracks(resolvedBpmSongs, sort),
+    [resolvedBpmSongs, sort],
+  );
 
   // ── Virtualisation against the page's own scroll container ──────────────────
   const listWrapRef = useRef<HTMLDivElement | null>(null);
