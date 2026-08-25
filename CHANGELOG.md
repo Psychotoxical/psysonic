@@ -139,6 +139,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Turning off **Show Tray Icon** now also turns off both tray-dependent settings. **Minimize to Tray** and **Start Minimized to Tray** stay unavailable until the tray icon is enabled again.
 * Existing saved settings with the unsafe combination are repaired during startup, so closing the window exits instead of hiding Psysonic with no way to reopen it.
 
+### Analysed BPM appears consistently across tracklists
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1461](https://github.com/Psysonic/psysonic/pull/1461)**
+
+* Album, artist, favourites and playlist tracklists now show and sort by the locally analysed BPM when it is available, instead of continuing to use the BPM embedded in the track tag.
+
 ## [1.51.0] - 2026-08-17
 
 ## Added

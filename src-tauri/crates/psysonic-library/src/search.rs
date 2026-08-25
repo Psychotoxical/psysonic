@@ -346,7 +346,7 @@ pub(crate) fn aliased_track_columns_resolved_bpm(alias: &str) -> String {
     format!("{base}, ({}) AS bpm_source", bpm_source_expr(alias))
 }
 
-fn aliased_track_columns_with_resolved_bpm_expr(alias: &str) -> String {
+pub(crate) fn aliased_track_columns_with_resolved_bpm_expr(alias: &str) -> String {
     let bpm_expr = bpm_resolved_expr(alias);
     crate::repos::track_columns()
         .split(',')

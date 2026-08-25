@@ -26,6 +26,7 @@ import { getLibraryBrowseScope } from '@/lib/library/libraryBrowseScope';
 import { ownedEntityKey } from '@/lib/util/ownedEntityKey';
 import type { SubsonicSong } from '@/lib/api/subsonicTypes';
 import { sameRadioStation } from '@/features/radio';
+import { useResolvedTracklistBpm } from '@/lib/hooks/useResolvedTracklistBpm';
 
 const FAV_COLUMNS: readonly ColDef[] = [
   { key: 'num',        i18nKey: null,              minWidth: 60,  defaultWidth: 60,  required: true  },
@@ -79,6 +80,10 @@ export default function Favorites() {
     startResize, startFlexColumnResize, toggleColumn, resetColumns,
     pickerOpen, setPickerOpen, pickerRef, tracklistRef,
   } = useTracklistColumns(FAV_COLUMNS, 'psysonic_favorites_columns');
+  const resolvedBpmSongs = useResolvedTracklistBpm(
+    songs,
+    colVisible.has('bpm') || sortKey === 'bpm',
+  );
 
   const [ratings, setRatings] = useState<Record<string, number>>({});
   const [showPlPicker, setShowPlPicker] = useState(false);
@@ -110,7 +115,8 @@ export default function Favorites() {
   }
 
   const { visibleSongs, handleSortClick, getSortIndicator } = useFavoritesSongFiltering({
-    songs, sortKey, setSortKey, sortDir, setSortDir, sortClickCount, setSortClickCount,
+    songs: resolvedBpmSongs,
+    sortKey, setSortKey, sortDir, setSortDir, sortClickCount, setSortClickCount,
     selectedArtist, selectedGenres, yearRange, ratings,
   });
 

@@ -24,6 +24,13 @@ const SELECT_TRACKS_BY_ALBUM: &str = "SELECT server_id, id, title, title_sort, a
   FROM track WHERE server_id = ?1 AND album_id = ?2 AND deleted = 0 \
   ORDER BY COALESCE(disc_number, 1) ASC, track_number ASC NULLS LAST, id ASC, server_id ASC";
 
+fn select_track_by_id_resolved_bpm() -> String {
+    format!(
+        "SELECT {} FROM track t WHERE t.server_id = ?1 AND t.id = ?2 AND t.deleted = 0",
+        crate::search::aliased_track_columns_with_resolved_bpm_expr("t"),
+    )
+}
+
 impl TrackRepository<'_> {
     /// SELECT a single track by `(server_id, id)`. Returns `None`
     /// when missing or deleted (`deleted = 1`). Used by
@@ -57,7 +64,8 @@ impl TrackRepository<'_> {
             return Ok(Vec::new());
         }
         self.store.with_read_conn(|conn| {
-            let mut stmt = conn.prepare(SELECT_TRACK_BY_ID)?;
+            let sql = select_track_by_id_resolved_bpm();
+            let mut stmt = conn.prepare(&sql)?;
             let mut out: Vec<TrackRow> = Vec::with_capacity(refs.len());
             for (server_id, track_id) in refs {
                 if let Some(row) = stmt

@@ -5,6 +5,7 @@ use crate::commands::test_support::{make_row, runtime};
 use crate::dto::local_tracks_max_updated_ms;
 use crate::repos::TrackRepository;
 use crate::store::LibraryStore;
+use rusqlite::params;
 
 // The command functions take `tauri::State` which we can't easily
 // construct in unit tests without a Tauri runtime. The tests below
@@ -123,6 +124,35 @@ fn find_batch_preserves_input_order_and_drops_unknowns() {
     let rows = TrackRepository::new(&store).find_batch(&pairs).unwrap();
     let ids: Vec<&str> = rows.iter().map(|r| r.id.as_str()).collect();
     assert_eq!(ids, vec!["tr_2", "tr_1"]);
+}
+
+#[test]
+fn find_batch_resolves_analysis_bpm_over_hot_tag() {
+    let store = Arc::new(LibraryStore::open_in_memory());
+    let mut row = make_row("s1", "tr_1", "al_1", 1);
+    row.bpm = Some(90);
+    TrackRepository::new(&store).upsert_batch(&[row]).unwrap();
+    store
+        .with_conn("test.analysis_bpm", |conn| {
+            conn.execute(
+                "INSERT INTO track_fact (server_id, track_id, fact_kind, value_int, source_kind, source_id, confidence, fetched_at) \
+                 VALUES (?1, ?2, 'bpm', ?3, 'analysis', 'oximedia', 0.9, 1)",
+                params!["s1", "tr_1", 128],
+            )?;
+            Ok(())
+        })
+        .unwrap();
+
+    let hot = TrackRepository::new(&store)
+        .find_one("s1", "tr_1")
+        .unwrap()
+        .unwrap();
+    let resolved = TrackRepository::new(&store)
+        .find_batch(&[("s1".to_string(), "tr_1".to_string())])
+        .unwrap();
+
+    assert_eq!(hot.bpm, Some(90));
+    assert_eq!(resolved[0].bpm, Some(128));
 }
 
 #[test]

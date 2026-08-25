@@ -46,6 +46,7 @@ import { useOfflineBrowseContext } from '@/features/offline';
 import { offlineActionPolicy } from '@/features/offline';
 import { readDetailServerId } from '@/lib/navigation/detailServerScope';
 import { ownedEntityKey } from '@/lib/util/ownedEntityKey';
+import { useResolvedTracklistBpm } from '@/lib/hooks/useResolvedTracklistBpm';
 
 // ── Column configuration ──────────────────────────────────────────────────────
 const PL_COLUMNS: readonly ColDef[] = [
@@ -180,6 +181,11 @@ export default function PlaylistDetail() {
     startResize, startFlexColumnResize, toggleColumn, resetColumns,
     pickerOpen, setPickerOpen, pickerRef, tracklistRef,
   } = useTracklistColumns(PL_COLUMNS, 'psysonic_playlist_columns');
+  const resolvedBpmSongs = useResolvedTracklistBpm(
+    songs,
+    colVisible.has('bpm') || sortKey === 'bpm',
+    serverId || undefined,
+  );
 
   usePlaylistRouteEffects({ setContextMenuSongId, setEditingMeta, location, navigate });
 
@@ -295,7 +301,7 @@ export default function PlaylistDetail() {
   };
 
   // ── Memoized derivations ──────────────────────────────────────
-  const { existingIds, tracks, displayedSongs, displayedTracks, isFiltered } = usePlaylistDerived(songs, {
+  const { existingIds, tracks, displayedSongs, displayedTracks, isFiltered } = usePlaylistDerived(resolvedBpmSongs, {
     filterText, sortKey, sortDir, ratings, starredSongs,
   });
 
@@ -397,7 +403,7 @@ export default function PlaylistDetail() {
         startResize={startResize}
         startFlexColumnResize={startFlexColumnResize}
         tracklistRef={tracklistRef}
-        songs={songs}
+        songs={resolvedBpmSongs}
         displayedSongs={displayedSongs}
         displayedTracks={displayedTracks}
         isFiltered={isFiltered}
@@ -450,6 +456,7 @@ export default function PlaylistDetail() {
         starredSongs={starredSongs}
         handleRate={handleRate}
         handleToggleStar={handleToggleStar}
+        serverId={serverId || undefined}
       />
 
       {editingMeta && playlist && (
