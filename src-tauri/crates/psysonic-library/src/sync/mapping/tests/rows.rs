@@ -228,3 +228,17 @@ fn navidrome_song_also_accepts_the_subsonic_spelling_of_the_play_date() {
 
     assert!(row.played_at.is_some());
 }
+
+#[test]
+fn an_empty_play_date_falls_through_to_the_next_name() {
+    // Navidrome has been seen sending an empty `playDate` for never-played
+    // rows. Settling on the first key that merely holds a string would take
+    // that and never look at the usable date sitting beside it.
+    let raw = json!({
+        "id": "tr_1", "title": "Hello", "album": "An Album", "duration": 240,
+        "playDate": "", "played": "2026-08-25T20:55:58Z"
+    });
+    let row = navidrome_song_to_track_row("s1", &raw, 9_999, None).unwrap();
+
+    assert!(row.played_at.is_some(), "an unusable first name must not end the search");
+}

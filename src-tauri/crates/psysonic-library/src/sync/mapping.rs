@@ -318,10 +318,17 @@ pub fn navidrome_song_to_track_row(
         // 1043 rows carry `playDate`, none carry `playedAt`. `played` is the
         // Subsonic spelling, accepted here so one mapper covers a payload that
         // arrives in either shape.
+        // Parsing happens inside the search, not after it: stopping at the first
+        // key that merely holds a string would settle on an empty `playDate` —
+        // which Navidrome has been seen to send for never-played rows — and
+        // never look at a usable `played` beside it.
         played_at: ["playDate", "played", "playedAt"]
             .iter()
-            .find_map(|key| raw.get(*key).and_then(|v| v.as_str()))
-            .and_then(parse_iso_ms_str),
+            .find_map(|key| {
+                raw.get(*key)
+                    .and_then(|v| v.as_str())
+                    .and_then(parse_iso_ms_str)
+            }),
         server_path: string_field(raw, "path"),
         library_id,
         isrc: string_field(raw, "isrc"),
