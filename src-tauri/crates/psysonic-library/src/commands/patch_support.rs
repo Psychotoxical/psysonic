@@ -39,7 +39,8 @@ pub fn patch_content_hash(
 /// `unstar` → `starredAt: null`): `.map` keeps the present/absent distinction
 /// (outer `Some` = key present), `as_i64()` yields the value or `None` → bound
 /// as SQL NULL. Spec §6.5 patch-on-use: `starred_at`, `user_rating`,
-/// `play_count`, `played_at`; §8.1 E2: `content_hash`. All UPDATEs no-op when
+/// `play_count` (absolute, or relative via `playCountDelta`), `played_at`;
+/// §8.1 E2: `content_hash`. All UPDATEs no-op when
 /// the library has no row for `(server_id, track_id)`.
 pub(super) fn apply_track_patch(
     runtime: &LibraryRuntime,

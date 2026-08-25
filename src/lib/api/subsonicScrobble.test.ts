@@ -132,7 +132,7 @@ describe('subsonicScrobble', () => {
       );
     });
 
-    it('counts nothing when the server did not take the scrobble', async () => {
+    it('counts nothing when the server rejected the scrobble', async () => {
       // Counting a play the server rejected would drift the two apart with
       // nothing left to correct it.
       apiForServerMock.mockRejectedValue(new Error('offline'));
@@ -140,6 +140,37 @@ describe('subsonicScrobble', () => {
       await scrobbleSong('t1', 1_700_000_000_000, 'a');
 
       expect(patchTrackMock).not.toHaveBeenCalled();
+    });
+
+    it('counts nothing when the reachability guard skipped the call', async () => {
+      // The guard is the ordinary offline path and far more common than a
+      // rejection — and it returns without a word, so a caller that only awaits
+      // the call cannot tell it apart from success.
+      vi.mocked(shouldAttemptSubsonicForServer).mockImplementation(() => false);
+
+      await scrobbleSong('t1', 1_700_000_000_000, 'a');
+
+      expect(apiForServerMock).not.toHaveBeenCalled();
+      expect(patchTrackMock).not.toHaveBeenCalledWith(
+        'a',
+        't1',
+        expect.objectContaining({ playCountDelta: expect.anything() }),
+      );
+    });
+
+    it('still records the play locally when the server was unreachable', async () => {
+      // Listening offline happened, whatever the server knows. The timestamp is
+      // ours to hold and a resync overwrites it; only the running tally has to
+      // stay the server's.
+      vi.mocked(shouldAttemptSubsonicForServer).mockImplementation(() => false);
+
+      await scrobbleSong('t1', 1_700_000_000_000, 'a');
+
+      expect(patchTrackMock).toHaveBeenCalledWith(
+        'a',
+        't1',
+        { playedAt: 1_700_000_000_000 },
+      );
     });
   });
 });

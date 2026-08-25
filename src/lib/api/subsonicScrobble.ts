@@ -3,31 +3,47 @@ import type { PlaybackReportState, SubsonicNowPlaying } from '@/lib/api/subsonic
 import { patchLibraryTrackOnUse } from '@/lib/library/patchOnUse';
 import { shouldAttemptSubsonicForServer } from '@/lib/network/subsonicNetworkGuard';
 
+/**
+ * Resolves `true` only when the call actually reached the server.
+ *
+ * The reachability guard turns the whole thing into a silent no-op, which is
+ * indistinguishable from success to a caller that only awaits it — and one
+ * caller needs to know the difference.
+ */
 async function scrobbleOnServer(
   serverId: string,
   id: string,
   submission: boolean,
   time?: number,
-): Promise<void> {
+): Promise<boolean> {
   // Presence / play-count updates are not playback-byte fetches — omit trackId so
   // hot cache, offline library, and favorites-auto do not suppress Navidrome calls.
-  if (!shouldAttemptSubsonicForServer(serverId)) return;
+  if (!shouldAttemptSubsonicForServer(serverId)) return false;
   const params: Record<string, unknown> = { id, submission };
   if (time !== undefined) params.time = time;
   await apiForServer(serverId, 'scrobble.view', params);
+  return true;
 }
 
 export async function scrobbleSong(id: string, time: number, serverId: string): Promise<void> {
   if (!serverId) return;
   try {
-    await scrobbleOnServer(serverId, id, true, time);
+    const reachedServer = await scrobbleOnServer(serverId, id, true, time);
     // Patch-on-use (§6.5 / F3): reflect the play in the local index so the
     // played surfaces aren't stale. The count goes up by one rather than being
     // set: the base lives in the row, not here, and nothing re-reads the row
     // after a play — measured on a real library, a finished track left the
     // count untouched through eight minutes of deltas, an album page opened
     // twice, and a full navigation away and back.
-    patchLibraryTrackOnUse(serverId, id, { playedAt: time, playCountDelta: 1 });
+    //
+    // The two halves part company when the server was never reached. The
+    // timestamp is a local truth — the listener did play it, and any resync
+    // overwrites it. The count is a mirror of the server's own tally, and it
+    // accumulates: adding to it for a play the server never saw drifts the two
+    // apart with nothing left to pull them back together.
+    patchLibraryTrackOnUse(serverId, id, reachedServer
+      ? { playedAt: time, playCountDelta: 1 }
+      : { playedAt: time });
   } catch {
     // best effort
   }
