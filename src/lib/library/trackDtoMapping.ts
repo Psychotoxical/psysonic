@@ -73,7 +73,12 @@ export function trackToSong(t: LibraryTrackDto): SubsonicSong {
   // only changes when the row is synced again — so the column is never older.
   // Letting the snapshot through meant the app showed nothing while holding the
   // very timestamp the server was showing.
-  if (t.playCount != null) merged.playCount = t.playCount;
+  // The larger of the two, not simply the column: a sparse ingest keeps the old
+  // snapshot by patching it while overwriting the column with what the payload
+  // did not carry, and the column would then be a local `+1` standing next to a
+  // server total it knows nothing about. Taking it at its word would count a
+  // play and show a smaller number than before it.
+  if (t.playCount != null) merged.playCount = Math.max(t.playCount, merged.playCount ?? 0);
   if (t.playedAt != null) merged.played = new Date(t.playedAt).toISOString();
   if (t.serverId) merged.serverId = t.serverId;
   const hotAlbumId = base.albumId?.trim();

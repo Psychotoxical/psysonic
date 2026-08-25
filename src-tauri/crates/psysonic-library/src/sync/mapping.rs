@@ -315,9 +315,13 @@ pub fn navidrome_song_to_track_row(
         // Navidrome's own API calls this `playDate`; `playedAt` was never one of
         // its names, so reading only that wrote NULL on every native ingest and
         // the server's play dates never arrived. Measured on a real library:
-        // 1043 rows carry `playDate`, none carry `playedAt`. `played` is the
-        // Subsonic spelling, accepted here so one mapper covers a payload that
-        // arrives in either shape.
+        // 1043 rows carry `playDate`, none carry `playedAt`.
+        //
+        // The other two names are defensive, not load-bearing: this mapper is
+        // only ever handed a native payload today (Subsonic answers go through
+        // `subsonic_song_to_track_row`), so they cost nothing and would catch a
+        // payload shape that changed under us rather than silently dropping the
+        // date again.
         // Parsing happens inside the search, not after it: stopping at the first
         // key that merely holds a string would settle on an empty `playDate` —
         // which Navidrome has been seen to send for never-played rows — and

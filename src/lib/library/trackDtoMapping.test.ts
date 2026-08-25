@@ -76,3 +76,20 @@ describe('trackToSong play statistics', () => {
     expect(song.playCount).toBe(4);
   });
 });
+
+describe('trackToSong play count against a stale snapshot', () => {
+  it('never reports fewer plays than the snapshot already knew', () => {
+    // A sparse ingest keeps the old snapshot and blanks the column, so a local
+    // +1 can end up standing beside a server total it never saw. Believing the
+    // column alone would count a play and show a smaller number than before.
+    const song = trackToSong(dto({ playCount: 1, rawJson: { playCount: 5 } }));
+
+    expect(song.playCount).toBe(5);
+  });
+
+  it('still shows a local count that has moved past the snapshot', () => {
+    const song = trackToSong(dto({ playCount: 6, rawJson: { playCount: 5 } }));
+
+    expect(song.playCount).toBe(6);
+  });
+});
