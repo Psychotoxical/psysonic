@@ -6,6 +6,14 @@ type TrackPatch = {
   starredAt?: number | null;
   userRating?: number | null;
   playCount?: number | null;
+  /**
+   * How much to add to the stored count — one, after a play.
+   *
+   * Relative because a play knows only that one more has happened: the caller
+   * sits in the player, which never carries the running total. Applied after
+   * `playCount` when a patch holds both, and clamped at zero.
+   */
+  playCountDelta?: number;
   /** ms epoch of the last play. */
   playedAt?: number | null;
 };

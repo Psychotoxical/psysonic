@@ -68,6 +68,13 @@ export function trackToSong(t: LibraryTrackDto): SubsonicSong {
       trackPeak: t.replayGainPeak ?? merged.replayGain?.trackPeak,
     };
   }
+  // Play statistics are the one pair the frozen `rawJson` snapshot must not
+  // win. Patch-on-use writes these columns after every play, while the snapshot
+  // only changes when the row is synced again — so the column is never older.
+  // Letting the snapshot through meant the app showed nothing while holding the
+  // very timestamp the server was showing.
+  if (t.playCount != null) merged.playCount = t.playCount;
+  if (t.playedAt != null) merged.played = new Date(t.playedAt).toISOString();
   if (t.serverId) merged.serverId = t.serverId;
   const hotAlbumId = base.albumId?.trim();
   if (hotAlbumId && !merged.albumId?.trim()) {

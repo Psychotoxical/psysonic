@@ -50,6 +50,11 @@ pub(super) fn apply_track_patch(
     let starred_at = patch.get("starredAt").map(|v| v.as_i64());
     let user_rating = patch.get("userRating").map(|v| v.as_i64());
     let play_count = patch.get("playCount").map(|v| v.as_i64());
+    // Relative sibling of `playCount`. A play knows only that one more has
+    // happened, never the total — the caller sits in the player, which has no
+    // idea what the count was. Sending the running total from there would mean
+    // reading the row first; the row is right here.
+    let play_count_delta = patch.get("playCountDelta").and_then(|v| v.as_i64());
     let played_at = patch.get("playedAt").map(|v| v.as_i64());
     let content_hash = patch
         .get("contentHash")
@@ -80,6 +85,16 @@ pub(super) fn apply_track_patch(
                     "UPDATE track SET play_count = ?3 \
                      WHERE server_id = ?1 AND id = ?2",
                     params![server_id, track_id, v],
+                )?;
+            }
+            // After the absolute set, so a patch carrying both lands on the
+            // fresher value. Clamped at zero — a count is a tally, and no
+            // sequence of corrections should be able to drive it negative.
+            if let Some(delta) = play_count_delta {
+                conn.execute(
+                    "UPDATE track SET play_count = MAX(0, COALESCE(play_count, 0) + ?3) \
+                     WHERE server_id = ?1 AND id = ?2",
+                    params![server_id, track_id, delta],
                 )?;
             }
             if let Some(v) = played_at {
@@ -182,5 +197,56 @@ mod tests {
         // Empty patch is a no-op.
         apply_track_patch(&rt, "s1", "tr_1", &serde_json::json!({})).unwrap();
         assert_eq!(read(&store), (None, Some(4)));
+    }
+
+    #[test]
+    fn apply_track_patch_counts_a_play_without_being_told_the_total() {
+        // A play knows only that one more has happened. The player has no idea
+        // what the count was, and nothing else re-reads the row after a play —
+        // so if this does not add up, the column never moves at all.
+        let store = Arc::new(LibraryStore::open_in_memory());
+        TrackRepository::new(&store)
+            .upsert_batch(&[make_row("s1", "tr_1", "al_1", 1)])
+            .unwrap();
+        let rt = runtime(store.clone());
+        let read = |store: &LibraryStore| -> Option<i64> {
+            store
+                .with_conn("misc", |c| {
+                    c.query_row(
+                        "SELECT play_count FROM track WHERE server_id='s1' AND id='tr_1'",
+                        [],
+                        |r| r.get(0),
+                    )
+                })
+                .unwrap()
+        };
+
+        // First play of a track the server has never counted.
+        apply_track_patch(&rt, "s1", "tr_1", &serde_json::json!({ "playCountDelta": 1 })).unwrap();
+        assert_eq!(read(&store), Some(1), "an absent count starts at one, not stays null");
+
+        apply_track_patch(&rt, "s1", "tr_1", &serde_json::json!({ "playCountDelta": 1 })).unwrap();
+        assert_eq!(read(&store), Some(2));
+
+        // A sync bringing the server's own total wins, and counting continues
+        // from there rather than from what we had added up locally.
+        apply_track_patch(&rt, "s1", "tr_1", &serde_json::json!({ "playCount": 9 })).unwrap();
+        apply_track_patch(&rt, "s1", "tr_1", &serde_json::json!({ "playCountDelta": 1 })).unwrap();
+        assert_eq!(read(&store), Some(10));
+
+        // Both in one patch: the absolute value lands first, the delta on top.
+        apply_track_patch(
+            &rt,
+            "s1",
+            "tr_1",
+            &serde_json::json!({ "playCount": 20, "playCountDelta": 1 }),
+        )
+        .unwrap();
+        assert_eq!(read(&store), Some(21));
+
+        // A tally cannot go below zero, however the corrections arrive.
+        apply_track_patch(&rt, "s1", "tr_1", &serde_json::json!({ "playCountDelta": -99 }))
+            .unwrap();
+        assert_eq!(read(&store), Some(0));
     }
 }

@@ -22,9 +22,12 @@ export async function scrobbleSong(id: string, time: number, serverId: string): 
   try {
     await scrobbleOnServer(serverId, id, true, time);
     // Patch-on-use (§6.5 / F3): reflect the play in the local index so the
-    // "recently played" surfaces aren't stale. `play_count` is left to the next
-    // sync (the patch sets absolute values; a correct increment needs the base).
-    patchLibraryTrackOnUse(serverId, id, { playedAt: time });
+    // played surfaces aren't stale. The count goes up by one rather than being
+    // set: the base lives in the row, not here, and nothing re-reads the row
+    // after a play — measured on a real library, a finished track left the
+    // count untouched through eight minutes of deltas, an album page opened
+    // twice, and a full navigation away and back.
+    patchLibraryTrackOnUse(serverId, id, { playedAt: time, playCountDelta: 1 });
   } catch {
     // best effort
   }

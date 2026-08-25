@@ -1,101 +1,86 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { useAuthStore } from '@/store/authStore';
-import { usePlayerStore } from '@/features/playback/store/playerStore';
-import {
-  getNowPlayingForServer,
-  getNowPlayingForServers,
-  reportNowPlaying,
-  scrobbleSong,
-} from '@/lib/api/subsonicScrobble';
-import { shouldAttemptSubsonicForServer } from '@/lib/network/subsonicNetworkGuard';
 
-const { apiForServerMock } = vi.hoisted(() => ({
-  apiForServerMock: vi.fn(async (
-    _serverId?: string,
-    _endpoint?: string,
-    _params?: Record<string, unknown>,
-  ): Promise<unknown> => ({})),
+/**
+ * What a finished play leaves behind locally.
+ *
+ * The server gets the scrobble either way; the point of these is the second
+ * half — mirroring the play into the local index. Nothing else re-reads the row
+ * afterwards, so whatever is not written here is not shown at all.
+ */
+
+const hoisted = vi.hoisted(() => ({
+  apiForServer: vi.fn(async () => undefined),
+  patchTrack: vi.fn(),
+  reachable: true,
 }));
 
 vi.mock('@/lib/api/subsonicClient', () => ({
   api: vi.fn(),
-  apiForServer: apiForServerMock,
+  apiForServer: hoisted.apiForServer,
+}));
+vi.mock('@/lib/library/patchOnUse', () => ({
+  patchLibraryTrackOnUse: hoisted.patchTrack,
 }));
 vi.mock('@/lib/network/subsonicNetworkGuard', () => ({
-  shouldAttemptSubsonicForServer: vi.fn(() => true),
+  shouldAttemptSubsonicForServer: () => hoisted.reachable,
 }));
 
-describe('subsonicScrobble', () => {
-  beforeEach(() => {
-    apiForServerMock.mockClear();
-    vi.mocked(shouldAttemptSubsonicForServer).mockImplementation(() => true);
-    useAuthStore.setState({
-      servers: [
-        { id: 'a', name: 'A', url: 'http://a.test', username: 'u', password: 'p' },
-        { id: 'b', name: 'B', url: 'http://b.test', username: 'u', password: 'p' },
-      ],
-      activeServerId: 'b',
-      isLoggedIn: true,
-    });
-    usePlayerStore.setState({
-      queueItems: [{ serverId: 'a', trackId: 't1' }],
-      queueServerId: 'a',
-      queueIndex: 0,
-    });
-  });
+import { scrobbleSong } from './subsonicScrobble';
 
-  it('scrobbleSong targets the queue server when active server differs', async () => {
-    await scrobbleSong('t1', 1_700_000_000_000, 'a');
-    expect(apiForServerMock).toHaveBeenCalledWith(
-      'a',
+beforeEach(() => {
+  hoisted.apiForServer.mockClear();
+  hoisted.apiForServer.mockResolvedValue(undefined);
+  hoisted.patchTrack.mockClear();
+  hoisted.reachable = true;
+});
+
+describe('scrobbleSong', () => {
+  it('tells the server the track was played', async () => {
+    await scrobbleSong('tr_1', 1_700, 's1');
+
+    expect(hoisted.apiForServer).toHaveBeenCalledWith(
+      's1',
       'scrobble.view',
-      expect.objectContaining({ id: 't1', submission: true, time: 1_700_000_000_000 }),
+      expect.objectContaining({ id: 'tr_1', submission: true, time: 1_700 }),
     );
   });
 
-  it('reportNowPlaying and scrobbleSong use the presence guard without trackId', async () => {
-    vi.mocked(shouldAttemptSubsonicForServer).mockImplementation(
-      (_serverId: string, trackId?: string) => trackId === undefined,
-    );
+  it('counts the play in the local index', async () => {
+    // By one, not to a total: the running count lives in the row, and this
+    // caller never sees it.
+    await scrobbleSong('tr_1', 1_700, 's1');
 
-    await reportNowPlaying('t-local', 'a');
-    await scrobbleSong('t-local', 1_700_000_000_000, 'a');
-
-    expect(shouldAttemptSubsonicForServer).toHaveBeenCalledWith('a');
-    expect(shouldAttemptSubsonicForServer).not.toHaveBeenCalledWith('a', expect.anything());
-    expect(apiForServerMock).toHaveBeenCalledTimes(2);
-    expect(apiForServerMock).toHaveBeenNthCalledWith(
-      1,
-      'a',
-      'scrobble.view',
-      expect.objectContaining({ id: 't-local', submission: false }),
-    );
-    expect(apiForServerMock).toHaveBeenNthCalledWith(
-      2,
-      'a',
-      'scrobble.view',
-      expect.objectContaining({ id: 't-local', submission: true }),
+    expect(hoisted.patchTrack).toHaveBeenCalledWith(
+      's1',
+      'tr_1',
+      expect.objectContaining({ playCountDelta: 1 }),
     );
   });
 
-  it('annotates now-playing entries with their owning server', async () => {
-    apiForServerMock.mockResolvedValueOnce({
-      nowPlaying: { entry: { id: 't1', title: 'One', username: 'alice' } },
-    });
-    await expect(getNowPlayingForServer('a')).resolves.toEqual([
-      expect.objectContaining({ id: 't1', username: 'alice', serverId: 'a' }),
-    ]);
+  it('records when it was played', async () => {
+    await scrobbleSong('tr_1', 1_700, 's1');
+
+    expect(hoisted.patchTrack).toHaveBeenCalledWith(
+      's1',
+      'tr_1',
+      expect.objectContaining({ playedAt: 1_700 }),
+    );
   });
 
-  it('aggregates selected servers in scope order and tolerates partial failure', async () => {
-    apiForServerMock.mockImplementation(async (serverId?: string) => {
-      if (serverId === 'b') throw new Error('offline');
-      return { nowPlaying: { entry: [{ id: `${serverId}-1`, title: serverId, username: 'listener' }] } };
-    });
+  it('counts nothing when the server did not take the scrobble', async () => {
+    // Adding to the local count for a play the server rejected would drift the
+    // two apart with nothing to correct it.
+    hoisted.apiForServer.mockRejectedValue(new Error('offline'));
 
-    await expect(getNowPlayingForServers(['a', 'b', 'a'])).resolves.toEqual([
-      expect.objectContaining({ id: 'a-1', serverId: 'a' }),
-    ]);
-    expect(apiForServerMock).toHaveBeenCalledTimes(2);
+    await scrobbleSong('tr_1', 1_700, 's1');
+
+    expect(hoisted.patchTrack).not.toHaveBeenCalled();
+  });
+
+  it('does nothing at all without a server', async () => {
+    await scrobbleSong('tr_1', 1_700, '');
+
+    expect(hoisted.apiForServer).not.toHaveBeenCalled();
+    expect(hoisted.patchTrack).not.toHaveBeenCalled();
   });
 });
