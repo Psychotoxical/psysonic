@@ -1,9 +1,9 @@
 export const randomLanding = {
-  title: 'Build a Mix',
-  mixByTracks: 'Mix by Tracks',
-  mixByTracksDesc: 'Random selection of tracks from your entire library',
-  mixByAlbums: 'Mix by Albums',
-  mixByAlbumsDesc: 'Random album picks for your next discovery',
-  mixByLucky: 'Lucky Mix',
-  mixByLuckyDesc: 'Smart instant mix from your top artists, albums, and ratings',
+  title: 'Створити мікс',
+  mixByTracks: 'Мікс за треками',
+  mixByTracksDesc: 'Випадкова вибірка треків з усієї вашої медіатеки',
+  mixByAlbums: 'Мікс за альбомами',
+  mixByAlbumsDesc: 'Випадкові альбоми для наступних музичних відкриттів',
+  mixByLucky: 'Щасливий мікс',
+  mixByLuckyDesc: 'Розумний миттєвий мікс на основі ваших улюблених виконавців, альбомів та оцінок',
 };

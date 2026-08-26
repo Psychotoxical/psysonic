@@ -1,7 +1,7 @@
 export const discordBanner = {
-  ariaLabel: 'Join Psysonic on Discord',
-  message: 'Join the Psysonic community on Discord',
-  join: 'Join',
-  neverShow: 'Never show again',
-  close: 'Dismiss',
+  ariaLabel: 'Приєднуйтесь до Psysonic у Discord',
+  message: 'Приєднуйтесь до спільноти Psysonic у Discord',
+  join: 'Приєднатися',
+  neverShow: 'Більше не показувати',
+  close: 'Закрити',
 };

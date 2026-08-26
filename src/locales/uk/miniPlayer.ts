@@ -1,9 +1,9 @@
 export const miniPlayer = {
-  showQueue: 'Show queue',
-  hideQueue: 'Hide queue',
-  pinOnTop: 'Pin on top',
-  pinOff: 'Unpin',
-  openMainWindow: 'Open main window',
-  close: 'Close',
-  emptyQueue: 'Queue is empty',
+  showQueue: 'Показати чергу',
+  hideQueue: 'Сховати чергу',
+  pinOnTop: 'Закріпити поверх інших вікон',
+  pinOff: 'Відкріпити',
+  openMainWindow: 'Відкрити головне вікно',
+  close: 'Закрити',
+  emptyQueue: 'Черга порожня',
 };

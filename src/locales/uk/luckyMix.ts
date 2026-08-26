@@ -1,6 +1,6 @@
 export const luckyMix = {
-  done: 'Lucky Mix ready: {{count}} tracks',
-  failed: 'Could not build Lucky Mix. Try again.',
-  unavailable: 'Lucky Mix is unavailable for this server.',
-  cancelTooltip: 'Cancel Lucky Mix build',
+  done: 'Щасливий мікс готовий: {{count}} треків',
+  failed: 'Не вдалося створити щасливий мікс. Спробуйте ще раз.',
+  unavailable: 'Щасливий мікс недоступний для цього сервера.',
+  cancelTooltip: 'Скасувати створення щасливого міксу',
 };

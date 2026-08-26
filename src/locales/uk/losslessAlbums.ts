@@ -1,7 +1,7 @@
 export const losslessAlbums = {
-  empty: 'No lossless albums in this library yet.',
-  unsupported: 'This server does not expose the metadata needed to find lossless albums.',
-  slowFetchHint: 'Loads slower than other album pages — Psysonic walks the full song catalog by quality.',
-  modeBanner: 'Lossless mode — showing FLAC, WAV, and other lossless formats only.',
-  modeBannerExit: 'Show all formats',
+  empty: 'У цій медіатеці ще немає альбомів без втрат якості.',
+  unsupported: 'Цей сервер не надає метаданих, необхідних для пошуку альбомів без втрат якості.',
+  slowFetchHint: 'Завантажується повільніше, ніж інші сторінки альбомів — Psysonic переглядає весь каталог пісень за якістю.',
+  modeBanner: 'Режим без втрат якості — показуються лише формати FLAC, WAV та інші нестиснені формати.',
+  modeBannerExit: 'Показати всі формати',
 };

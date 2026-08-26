@@ -1,8 +1,8 @@
 export const tray = {
-  playPause: 'Play / Pause',
-  nextTrack: 'Next Track',
-  previousTrack: 'Previous Track',
-  showHide: 'Show / Hide',
-  exitPsysonic: 'Exit Psysonic',
-  nothingPlaying: 'Nothing playing',
+  playPause: 'Відтворити / Пауза',
+  nextTrack: 'Наступний трек',
+  previousTrack: 'Попередній трек',
+  showHide: 'Показати / Сховати',
+  exitPsysonic: 'Вийти з Psysonic',
+  nothingPlaying: 'Нічого не відтворюється',
 };
