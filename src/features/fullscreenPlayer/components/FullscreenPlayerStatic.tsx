@@ -94,7 +94,10 @@ export default function FullscreenPlayerStatic({ onClose }: Props) {
   // One high-res cover (cucadmuh's fullRes 2000px path) feeds the foreground
   // thumbnail — crisp instead of the old low-res tier. It is no longer a
   // background source (see below).
-  const cover = usePlaybackCoverArt(playbackCoverRef, 2000, { fullRes: true });
+  const cover = usePlaybackCoverArt(playbackCoverRef, 2000, {
+    fullRes: true,
+    ensureOpts: { artistName: currentTrack?.artist ?? '', albumTitle: currentTrack?.album ?? '' },
+  });
   const coverUrl = useCachedUrl(cover.src, cover.cacheKey, true);
   const thumbUrl = currentTrack?.directCoverArtUrl ?? coverUrl;
   // Background (§28). The album cover is deliberately NOT a background source —

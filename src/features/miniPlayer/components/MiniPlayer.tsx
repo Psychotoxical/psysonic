@@ -144,7 +144,13 @@ export default function MiniPlayer() {
 
   const { track, isPlaying } = state;
   const miniCoverRef = usePlaybackTrackCoverRef(track ?? undefined);
-  const { src: miniCoverSrc, cacheKey: miniCoverKey } = usePlaybackCoverArt(miniCoverRef, 300);
+  const { src: miniCoverSrc, cacheKey: miniCoverKey } = usePlaybackCoverArt(miniCoverRef, 300, {
+    ensureOpts: {
+      artistName: track?.artist ?? '',
+      albumTitle: track?.album ?? '',
+      allowExternalAlbum: true,
+    },
+  });
   const progress = duration > 0 ? Math.min(100, (currentTime / duration) * 100) : 0;
 
   return (

@@ -115,6 +115,10 @@ function SongCard({
             coverRef={coverRef}
             displayCssPx={layoutPx}
             surface="dense"
+            ensureOpts={{
+              artistName: song.displayAlbumArtist ?? song.albumArtist ?? song.artist,
+              albumTitle: song.album,
+            }}
             alt={`${song.album} Cover`}
             loading="eager"
             decoding="async"

@@ -12,6 +12,7 @@ import { useLocalPlaybackStore } from '@/store/localPlaybackStore';
 import { isOfflinePinComplete } from '@/features/offline';
 import { CoverArtImage } from '@/cover/CoverArtImage';
 import { useAlbumCoverRef } from '@/cover/useLibraryCoverRef';
+import type { CoverEnsureOpts } from '@/lib/api/coverCache';
 import { coverStorageKeyFromRef } from '@/cover/storageKeys';
 import type { CoverPrefetchPriority } from '@/cover/types';
 import { COVER_DENSE_GRID_MIN_CELL_CSS_PX } from '@/cover/layoutSizes';
@@ -46,6 +47,10 @@ interface AlbumCardProps {
   ensurePriority?: CoverPrefetchPriority;
   /** Artist/detail grids: API `coverArt` is enough — skip per-card library_resolve IPC. */
   libraryResolve?: boolean;
+  /** §5: let this card's server-miss fallback run the external apple/lastfm
+   *  album chain. OFF by default so a collection grid doesn't fan out to the
+   *  providers; the artist page opts its discography in. */
+  allowExternalAlbum?: boolean;
 }
 
 function AlbumCard({
@@ -62,6 +67,7 @@ function AlbumCard({
   ensurePriority,
   linkQuery,
   libraryResolve = false,
+  allowExternalAlbum = false,
 }: AlbumCardProps) {
   const { t } = useTranslation();
   const { isHolding, pressBind } = useLongPressAction({
@@ -95,6 +101,17 @@ function AlbumCard({
   const isNewAlbum = isAlbumRecentlyAdded(album.created);
   const artistRefs = useMemo(() => deriveAlbumArtistRefs(album), [album]);
   const artistLabel = useMemo(() => albumArtistDisplayName(album), [album]);
+  // External album-art context (§5): carry artist + album so the cover ensure's
+  // server-miss fallback can try apple/lastfm for album refs. Guarded to album
+  // refs so artist covers / fanart surfaces keep passing none.
+  const coverEnsureOpts = useMemo<CoverEnsureOpts | undefined>(() => {
+    if (!coverRef || coverRef.cacheKind !== 'album') return undefined;
+    return {
+      artistName: artistLabel,
+      albumTitle: album.name,
+      ...(allowExternalAlbum ? { allowExternalAlbum: true } : {}),
+    };
+  }, [coverRef, artistLabel, album.name, allowExternalAlbum]);
   const showCardTooltips = useThemeStore(s => s.showCardTooltips);
   const titleTooltip = useOverflowTooltip(album.name, showCardTooltips);
   const artistTooltip = useOverflowTooltip(artistLabel, showCardTooltips);
@@ -133,6 +150,7 @@ function AlbumCard({
             decoding="async"
             observeScrollRootId={observeScrollRootId}
             ensurePriority={ensurePriority}
+            ensureOpts={coverEnsureOpts}
           />
         ) : (
           <div className="album-card-cover-placeholder">

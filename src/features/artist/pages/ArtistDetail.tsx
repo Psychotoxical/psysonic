@@ -451,6 +451,7 @@ export default function ArtistDetail() {
                       <AlbumCard
                         album={a}
                         linkQuery={losslessOnly ? LOSSLESS_MODE_QUERY : undefined}
+                        allowExternalAlbum
                       />
                     )}
                   />
@@ -472,6 +473,7 @@ export default function ArtistDetail() {
                       <AlbumCard
                         album={a}
                         linkQuery={losslessOnly ? LOSSLESS_MODE_QUERY : undefined}
+                        allowExternalAlbum
                       />
                     )}
                     />

@@ -66,7 +66,9 @@ export default function FullscreenPlayerPrism({ onClose }: { onClose: () => void
   // Cover-derived accent (album-keyed so it stays stable within an album).
   const albumRef =
     useAlbumCoverRef(currentTrack?.albumId, undefined, undefined, { libraryResolve: false }) ?? undefined;
-  const cover = usePlaybackCoverArt(albumRef, 300);
+  const cover = usePlaybackCoverArt(albumRef, 300, {
+    ensureOpts: { artistName: currentTrack?.artist ?? '', albumTitle: currentTrack?.album ?? '' },
+  });
   const dynamicAccent = useFsDynamicAccent(currentTrack?.directCoverArtUrl ?? cover.src, cover.cacheKey);
 
   const [lyricsOpen, setLyricsOpen] = useState(true);

@@ -230,6 +230,7 @@ export function QueueCurrentTrack({
               displayCssPx={128}
               surface="sparse"
               ensurePriority="high"
+              ensureOpts={{ artistName: currentTrack?.artist ?? '', albumTitle: currentTrack?.album ?? '' }}
               alt=""
               loading="eager"
             />

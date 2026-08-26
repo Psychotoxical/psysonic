@@ -406,6 +406,7 @@ export default function MobileSearchOverlay({ onClose }: { onClose: () => void }
                         displayCssPx={MOBILE_SEARCH_THUMB_CSS_PX}
                         surface="dense"
                         className="mobile-search-thumb"
+                        album={a}
                         alt=""
                         ensurePriority="high"
                       />

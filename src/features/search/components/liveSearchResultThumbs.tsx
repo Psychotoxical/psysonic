@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Music, Users } from 'lucide-react';
-import type { SubsonicSong, SubsonicArtist } from '@/lib/api/subsonicTypes';
+import type { SubsonicAlbum, SubsonicSong, SubsonicArtist } from '@/lib/api/subsonicTypes';
 import { AlbumCoverArtImage } from '@/cover/AlbumCoverArtImage';
 import { ArtistCoverArtImage } from '@/cover/ArtistCoverArtImage';
 import { CoverArtImage } from '@/cover/CoverArtImage';
@@ -13,10 +13,12 @@ export function LiveSearchAlbumThumb({
   albumId,
   coverArt,
   serverId,
+  album,
 }: {
   albumId: string;
   coverArt: string;
   serverId?: string;
+  album?: Pick<SubsonicAlbum, 'name' | 'artist' | 'displayArtist'>;
 }) {
   return (
     <AlbumCoverArtImage
@@ -29,11 +31,12 @@ export function LiveSearchAlbumThumb({
       className="search-result-thumb"
       alt=""
       ensurePriority="high"
+      album={album}
     />
   );
 }
 
-export function LiveSearchSongThumb({ song }: { song: Pick<SubsonicSong, 'id' | 'albumId' | 'coverArt' | 'discNumber' | 'serverId'> }) {
+export function LiveSearchSongThumb({ song }: { song: Pick<SubsonicSong, 'id' | 'albumId' | 'coverArt' | 'discNumber' | 'serverId' | 'album' | 'artist' | 'albumArtist' | 'displayAlbumArtist'> }) {
   // Search results carry the per-track `mf-…` coverArt id, which the cover
   // pipeline fails to resolve and the thumbnail goes blank. The album-scoped
   // `al-<albumId>_0` id is what actually loads (verified in the RC1 blank-thumb
@@ -60,6 +63,10 @@ export function LiveSearchSongThumb({ song }: { song: Pick<SubsonicSong, 'id' | 
       className="search-result-thumb"
       alt=""
       ensurePriority="high"
+      ensureOpts={{
+        artistName: song.displayAlbumArtist ?? song.albumArtist ?? song.artist,
+        albumTitle: song.album,
+      }}
     />
   );
 }

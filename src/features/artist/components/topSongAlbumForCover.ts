@@ -1,6 +1,10 @@
 import type { SubsonicAlbum, SubsonicSong } from '@/lib/api/subsonicTypes';
 
-export type TopSongAlbumCoverSource = Pick<SubsonicAlbum, 'id' | 'coverArt' | 'name'>;
+export type TopSongAlbumCoverSource = Pick<SubsonicAlbum, 'id' | 'coverArt' | 'name'> & {
+  /** Optional name fields for the external album-art fallback (see useCoverArt sanitizer). */
+  artist?: string;
+  displayArtist?: string;
+};
 
 export type AlbumCoverWarmRow = { id: string; coverArt?: string | null };
 
@@ -22,8 +26,10 @@ function pushAlbumWarmRow(
  * featured-album fallback shape (`albumId` + song `coverArt`).
  */
 export function topSongAlbumForCover(
-  song: Pick<SubsonicSong, 'albumId' | 'album' | 'coverArt'>,
-  albums: ReadonlyArray<Pick<SubsonicAlbum, 'id' | 'name' | 'coverArt'>>,
+  song: Pick<SubsonicSong, 'albumId' | 'album' | 'coverArt'> & { artist?: string },
+  albums: ReadonlyArray<
+    Pick<SubsonicAlbum, 'id' | 'name' | 'coverArt'> & { artist?: string; displayArtist?: string }
+  >,
 ): TopSongAlbumCoverSource | null {
   const albumId = song.albumId?.trim();
   if (!albumId) return null;
@@ -37,6 +43,7 @@ export function topSongAlbumForCover(
     id: albumId,
     name: song.album,
     coverArt: song.coverArt,
+    artist: song.artist,
   };
 }
 

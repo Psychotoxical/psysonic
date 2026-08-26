@@ -8,7 +8,14 @@ import { COVER_TRACK_ROW_CSS_PX } from '@/cover/layoutSizes';
 export type DiscSeparatorSong = Pick<
   SubsonicSong,
   'id' | 'albumId' | 'coverArt' | 'discNumber' | 'serverId'
->;
+> & {
+  /** Optional name fields — carry album-art context so the server-miss fallback
+   *  can fire. Absent/blank here is fine; the cover layer drops it. */
+  album?: string;
+  artist?: string;
+  albumArtist?: string;
+  displayAlbumArtist?: string;
+};
 
 /**
  * Cover shown next to a multi-disc separator ("CD N"), resolved from the disc's own
@@ -34,6 +41,10 @@ export function DiscHeaderCover({ song }: { song: DiscSeparatorSong }) {
       coverRef={coverRef}
       displayCssPx={COVER_TRACK_ROW_CSS_PX}
       surface="dense"
+      ensureOpts={{
+        artistName: song.displayAlbumArtist ?? song.albumArtist ?? song.artist ?? '',
+        albumTitle: song.album ?? '',
+      }}
       alt=""
       loading="lazy"
       decoding="async"
