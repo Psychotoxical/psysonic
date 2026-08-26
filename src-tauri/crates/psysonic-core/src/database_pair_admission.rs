@@ -154,6 +154,14 @@ mod tests {
 
     use super::*;
 
+    fn test_serial_guard() -> MutexGuard<'static, ()> {
+        static TEST_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+        TEST_LOCK
+            .get_or_init(|| Mutex::new(()))
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
+
     fn wait_for_queued_writer() {
         let mut state = lock_state();
         while state.waiting_writers == 0 {
@@ -166,6 +174,7 @@ mod tests {
 
     #[test]
     fn queued_writer_precedes_new_reader() {
+        let _serial = test_serial_guard();
         let first_reader = database_pair_read_scope();
         let (writer_acquired_tx, writer_acquired_rx) = mpsc::channel();
         let (release_writer_tx, release_writer_rx) = mpsc::channel();
@@ -198,6 +207,7 @@ mod tests {
 
     #[test]
     fn nested_reader_is_admitted_while_writer_waits() {
+        let _serial = test_serial_guard();
         let outer = database_pair_read_scope();
         let (writer_acquired_tx, writer_acquired_rx) = mpsc::channel();
         let writer = thread::spawn(move || {
