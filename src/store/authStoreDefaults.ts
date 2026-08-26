@@ -4,6 +4,7 @@ import type {
   TrackPreviewLocation,
   TrackPreviewLocations,
 } from './authStoreTypes';
+import type { CoverSourcePref } from '@/cover/coverSources';
 
 export const LOUDNESS_LUFS_PRESETS: LoudnessLufsPreset[] = [-16, -14, -12, -10];
 
@@ -35,6 +36,13 @@ export const DEFAULT_LYRICS_SOURCES: LyricsSourceConfig[] = [
   { id: 'server',  enabled: false },
   { id: 'lrclib',  enabled: false },
   { id: 'netease', enabled: false },
+];
+
+/** Fresh installs: local server first, then apple, lastfm. */
+export const DEFAULT_COVER_SOURCES: CoverSourcePref[] = [
+  { source: 'server', enabled: true },
+  { source: 'apple',  enabled: true },
+  { source: 'lastfm', enabled: true },
 ];
 
 /** Upper bound for mix min-rating thresholds (UI shows five stars, only 1…this many are selectable). */

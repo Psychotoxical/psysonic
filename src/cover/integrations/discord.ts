@@ -1,5 +1,8 @@
 import { getAlbumInfo2 } from '@/lib/api/subsonicAlbumInfo';
 import { isLanUrl } from '@/lib/server/serverEndpoint';
+import { commands } from '@/generated/bindings';
+import type { CoverSourcePref } from '@/cover/coverSources';
+import { isRealArtistImage } from '@/cover/isRealArtistImage';
 
 /**
  * Query-param keys that carry a replayable Subsonic (or generic API) secret.
@@ -107,4 +110,51 @@ export async function resolveServerCoverForDiscord(
 
   serverCoverCache.set(cacheKey, { url: result, fetchedAt: Date.now() });
   return result;
+}
+
+export interface CoverResolveContext {
+  albumId?: string;
+  artist?: string;
+  album?: string;
+  title?: string;
+  shareBase: string | null;
+}
+
+/**
+ * Walk the ordered cover-source chain to a publishable Discord URL.
+ * First enabled source yielding a real, sanitized, non-placeholder URL wins.
+ * Server resolves frontend-side; apple via `resolveAppleCover` (typedError
+ * shape); lastfm via `resolveLastfmCover` (bare `string | null`).
+ */
+export async function resolveCoverForDiscord(
+  prefs: CoverSourcePref[],
+  ctx: CoverResolveContext,
+): Promise<string | null> {
+  for (const { source, enabled } of prefs) {
+    if (!enabled) continue;
+    let raw: string | null = null;
+    switch (source) {
+      case 'server':
+        if (ctx.albumId) raw = await resolveServerCoverForDiscord(ctx.albumId, ctx.shareBase);
+        break;
+      case 'apple':
+        if (ctx.artist && ctx.album) {
+          const res = await commands.resolveAppleCover(ctx.artist, ctx.album, ctx.title ?? '');
+          raw = res.status === 'ok' ? res.data : null;
+        }
+        break;
+      case 'lastfm':
+        if (ctx.artist && ctx.album) {
+          raw = await commands.resolveLastfmCover(ctx.artist, ctx.album);
+        }
+        break;
+    }
+    if (!raw) continue;
+    const clean = sanitizeDiscordCoverUrl(raw);
+    // Placeholder filter: covers the server source (Navidrome can aggregate the
+    // Last.fm placeholder) and is harmless for apple/lastfm. The Rust LastFM
+    // provider also filters it, so this is belt-and-suspenders.
+    if (clean && isRealArtistImage(clean)) return clean;
+  }
+  return null;
 }

@@ -231,26 +231,41 @@ describe('computeAuthStoreRehydration — lyrics', () => {
   });
 });
 
-describe('computeAuthStoreRehydration — discordCoverSource server-revival (PR #1299)', () => {
+describe('computeAuthStoreRehydration — discordCoverSource → coverSources (PR #1299)', () => {
   const SENTINEL_KEY = 'psysonic-discord-server-cover-revival-v1';
+  const ALL_DISABLED = [
+    { source: 'server' as const, enabled: false },
+    { source: 'apple' as const, enabled: false },
+    { source: 'lastfm' as const, enabled: false },
+  ];
+  const SERVER_ONLY = [
+    { source: 'server' as const, enabled: true },
+    { source: 'apple' as const, enabled: false },
+    { source: 'lastfm' as const, enabled: false },
+  ];
+  const APPLE_ONLY = [
+    { source: 'server' as const, enabled: false },
+    { source: 'apple' as const, enabled: true },
+    { source: 'lastfm' as const, enabled: false },
+  ];
 
   beforeEach(() => {
     resetAuthStore();
     localStorage.clear();
   });
 
-  it('coerces a stale pre-#1246 "server" value to "none" exactly once', () => {
+  it('coerces a stale pre-#1246 "server" value to an all-disabled chain exactly once', () => {
     const base = useAuthStore.getState();
     const patch = computeAuthStoreRehydration({ ...base, discordCoverSource: 'server' } as AuthState);
-    expect(patch.discordCoverSource).toBe('none');
+    expect(patch.coverSources).toEqual(ALL_DISABLED);
     expect(localStorage.getItem(SENTINEL_KEY)).toBe('1');
   });
 
-  it('does not coerce "server" once the sentinel is already set (post-revival user choice)', () => {
+  it('honors a post-revival "server" choice once the sentinel is already set', () => {
     localStorage.setItem(SENTINEL_KEY, '1');
     const base = useAuthStore.getState();
     const patch = computeAuthStoreRehydration({ ...base, discordCoverSource: 'server' } as AuthState);
-    expect(patch.discordCoverSource).toBeUndefined();
+    expect(patch.coverSources).toEqual(SERVER_ONLY);
   });
 
   it('sets the sentinel on first rehydrate even when the value is not "server"', () => {
@@ -259,11 +274,27 @@ describe('computeAuthStoreRehydration — discordCoverSource server-revival (PR 
     expect(localStorage.getItem(SENTINEL_KEY)).toBe('1');
   });
 
-  it('does not touch "apple" or "none"', () => {
+  it('maps "apple" and "none" onto the chain', () => {
     const base = useAuthStore.getState();
-    for (const source of ['apple', 'none'] as const) {
-      const patch = computeAuthStoreRehydration({ ...base, discordCoverSource: source } as AuthState);
-      expect(patch.discordCoverSource).toBeUndefined();
-    }
+    const apple = computeAuthStoreRehydration({ ...base, discordCoverSource: 'apple' } as AuthState);
+    expect(apple.coverSources).toEqual(APPLE_ONLY);
+    const none = computeAuthStoreRehydration({ ...base, discordCoverSource: 'none' } as AuthState);
+    expect(none.coverSources).toEqual(ALL_DISABLED);
+  });
+
+  it('is a no-op when no legacy discordCoverSource is present (never clobbers persisted chain)', () => {
+    // Once the legacy field is gone the migration must not force the chain back
+    // to all-disabled — doing so would overwrite the persisted coverSources on
+    // every rehydrate and block the external album-cover chain (PR #1299 follow-up).
+    const withSources = useAuthStore.getState();
+    const patch = computeAuthStoreRehydration({
+      ...withSources,
+      coverSources: [
+        { source: 'server', enabled: true },
+        { source: 'apple', enabled: true },
+        { source: 'lastfm', enabled: false },
+      ],
+    } as AuthState);
+    expect('coverSources' in patch).toBe(false);
   });
 });

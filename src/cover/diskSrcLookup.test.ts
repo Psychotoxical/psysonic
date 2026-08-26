@@ -77,4 +77,26 @@ describe('full-res (2000) seed guard', () => {
     const keys = vi.mocked(rememberDiskSrc).mock.calls.map(c => c[0]);
     expect(keys.some(k => k.endsWith(':2000'))).toBe(true);
   });
+
+  it('never seeds display keys from a full-res (2000) file', () => {
+    const ref = albumCoverRef('al-1', 'al-1');
+    rememberGridDiskSrc(ref, 2000, '/data/2000.webp');
+    const keys = vi.mocked(rememberDiskSrc).mock.calls.map(c => c[0]);
+    // Only the 2000 key may be seeded from a 2000.webp file. A tier-2000 file
+    // can be the Navidrome vinyl placeholder written by the lightbox's full-res
+    // path for a coverless album; seeding :800 with it is exactly the
+    // single-frame hero flash (vinyl shows for one frame, then the re-ensure
+    // peek reseeds :800 with real art).
+    expect(keys).toEqual(['_:cover:album:al-1:2000']);
+  });
+
+  it('seeds display keys from an 800 file as before', () => {
+    const ref = albumCoverRef('al-1', 'al-1');
+    rememberGridDiskSrc(ref, 800, '/data/800.webp');
+    const keys = vi.mocked(rememberDiskSrc).mock.calls.map(c => c[0]);
+    expect(keys.some(k => k.endsWith(':800'))).toBe(true);
+    expect(keys.some(k => k.endsWith(':512'))).toBe(true);
+    expect(keys.some(k => k.endsWith(':256'))).toBe(true);
+    expect(keys.some(k => k.endsWith(':128'))).toBe(true);
+  });
 });

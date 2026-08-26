@@ -22,6 +22,22 @@ function skipFullResSeedTier(tier: CoverArtTier, fsPath: string): boolean {
   return src == null || src < 2000;
 }
 
+/**
+ * Never seed a display (<2000) key from a full-res (≥2000) file — the mirror
+ * direction of {@link skipFullResSeedTier}. A tier-2000 file can be the
+ * Navidrome vinyl placeholder (the lightbox's full-res download writes it for a
+ * coverless album even after an external-chain HIT, because the chain never
+ * writes 2000), and a placeholder pinned under `:800` is exactly the
+ * single-frame hero flash: the hero renders vinyl, its next re-ensure peeks the
+ * real on-disk 800 and reseeds, flipping back. Seeding only the 2000 key keeps
+ * the lightbox's full-res behavior intact while display surfaces never see the
+ * placeholder.
+ */
+function isFullResSeedFile(fsPath: string): boolean {
+  const src = coverPathTier(fsPath);
+  return src != null && src >= 2000;
+}
+
 /** Dense grids: prefer a larger on-disk tier (800) before tiny thumbs when the ideal tier is missing. */
 export function gridDiskSrcLookupOrder(want: CoverArtTier): CoverArtTier[] {
   const out: CoverArtTier[] = [want];
@@ -49,8 +65,11 @@ export function getDiskSrcForGrid(ref: CoverArtRef, wantTier: CoverArtTier): str
 /** Seed lookup-order tier keys (512 + 800 fallback path, etc.) — no subscriber wakeups. */
 export function seedGridDiskSrcCache(ref: CoverArtRef, wantTier: CoverArtTier, fsPath: string): boolean {
   if (!fsPath) return false;
+  // A full-res (≥2000) file seeds ONLY its own key (see isFullResSeedFile).
+  const fullResFile = isFullResSeedFile(fsPath);
   let hit = false;
   for (const tier of gridDiskSrcLookupOrder(wantTier)) {
+    if (fullResFile && tier < 2000) continue;
     if (skipFullResSeedTier(tier, fsPath)) continue;
     if (rememberDiskSrc(coverStorageKeyFromRef(ref, tier), fsPath)) hit = true;
   }
@@ -78,8 +97,12 @@ export function rememberDiskSrcLadder(
   fsPath: string,
 ): boolean {
   if (!serverIndexKey || !ref.cacheEntityId || !fsPath) return false;
+  // A full-res (≥2000) file seeds ONLY its own key (see isFullResSeedFile) —
+  // `cover:tier-ready` tier=2000 events must never poison display keys.
+  const fullResFile = isFullResSeedFile(fsPath);
   let hit = false;
   for (const tier of gridDiskSrcLookupOrder(wantTier)) {
+    if (fullResFile && tier < 2000) continue;
     if (skipFullResSeedTier(tier, fsPath)) continue;
     const key = `${serverIndexKey}:cover:${ref.cacheKind}:${ref.cacheEntityId}:${tier}`;
     if (rememberDiskSrc(key, fsPath)) hit = true;

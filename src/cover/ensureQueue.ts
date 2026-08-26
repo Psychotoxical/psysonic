@@ -319,7 +319,10 @@ export function coverEnsureQueued(
   // External surfaces (fanart/banner) bypass the disk-src memory short-circuit:
   // their `{tier}-{surface}.webp` never seeds those caches, and the artist's
   // canonical cover sitting in the grid cache must not be mistaken for a hit.
-  if (!opts?.surfaceKind && ensureMemoryHit(storageKey, ref, tier)) {
+  // allowExternalAlbum (album hero / mini player) likewise bypasses it: the
+  // cached tier may be a server placeholder for a coverless album, and only
+  // Rust can run the external chain on the server-miss path.
+  if (!opts?.surfaceKind && !opts?.allowExternalAlbum && ensureMemoryHit(storageKey, ref, tier)) {
     return Promise.resolve({ hit: true, path: '' });
   }
 
@@ -327,6 +330,17 @@ export function coverEnsureQueued(
   if (existing) {
     const queued = findQueuedJob(storageKey);
     if (queued) bumpJob(queued, priority);
+    // If the caller carries ensure opts (AlbumCard with allowExternalAlbum) but
+    // the in-flight job was queued ctx-less (warm grid prime), the in-flight
+    // result may be a server-miss that under-serves the caller. Re-run with the
+    // caller's opts after it settles, but only when it actually missed — a hit
+    // path is already on disk, nothing to enrich.
+    if (opts) {
+      return existing.then(r => {
+        if (r.hit && r.path) return r;
+        return coverEnsureQueued(storageKey, ref, tier, priority, opts);
+      });
+    }
     return existing;
   }
 
@@ -335,6 +349,12 @@ export function coverEnsureQueued(
     const prev = findQueuedJob(storageKey);
     if (prev) {
       bumpJob(prev, priority);
+      // Adopt the incoming ensure opts so a context-less warm job already queued
+      // under this key (e.g. useWarmGridCovers priming a dense thumb with just a
+      // ref) is upgraded to the context-bearing one (AlbumCard with
+      // allowExternalAlbum). Without this the external album chain can't fire for
+      // albums still sitting in the queue behind the in-flight window.
+      if (opts) prev.opts = { ...prev.opts, ...opts };
       const chain = prev.resolve;
       prev.resolve = r => {
         chain(r);

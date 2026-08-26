@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useSyncExternalStore } from 'react';
+import type { CoverEnsureOpts } from '@/lib/api/coverCache';
 import { coverEnsureQueued, coverEnsureRelease } from './ensureQueue';
 import { coverPeekQueued } from './peekQueue';
 import { getDiskSrcForGrid, seedGridDiskSrcCache } from './diskSrcLookup';
@@ -33,9 +34,23 @@ export function useCoverArt(
     ensurePriority?: CoverPrefetchPriority;
     /** Dense grid: true after first viewport intersection — allows middle-tier scroll-ahead. */
     seenViewport?: boolean;
+    /** External album-art context (§5): carry artist/album so the server-miss
+     *  fallback can try apple/lastfm for album refs. Plain covers pass none. */
+    ensureOpts?: CoverEnsureOpts;
   },
 ): CoverArtHandle {
   const ref = coverRef ?? null;
+  // Sanitize external album-art context: drop it when either name is empty/blank
+  // (e.g. track metadata not yet resolved) so the Rust fallback isn't poisoned by
+  // a bare-query miss that lands a `.miss-album-ext` marker for 30 min.
+  const ensureOpts = useMemo(() => {
+    const o = opts?.ensureOpts;
+    if (!o) return undefined;
+    const artist = o.artistName?.trim();
+    const album = o.albumTitle?.trim();
+    if (!artist || !album) return undefined;
+    return { ...o, artistName: artist, albumTitle: album };
+  }, [opts?.ensureOpts]);
   const surface = opts?.surface ?? 'sparse';
   const reachable = ref ? coverServerReachable(ref.serverScope) : false;
 
@@ -82,17 +97,17 @@ export function useCoverArt(
   useEffect(() => {
     if (!ref || !storageKey) return;
 
-    if (readCachedSrc()) return;
+    if (readCachedSrc() && !ensureOpts?.allowExternalAlbum) return;
 
     let cancelled = false;
 
     void (async () => {
       await coverPeekQueued(storageKey, ref, tier);
       if (cancelled) return;
-      if (readCachedSrc()) return;
+      if (readCachedSrc() && !ensureOpts?.allowExternalAlbum) return;
 
       if (reachable && !deferEnsureUntilVisible) {
-        const result = await coverEnsureQueued(storageKey, ref, tier, ensurePriority);
+        const result = await coverEnsureQueued(storageKey, ref, tier, ensurePriority, ensureOpts);
         if (cancelled) return;
         if (result.hit && result.path) {
           applyDiskPath(result.path);
@@ -115,6 +130,7 @@ export function useCoverArt(
     reachable,
     ensurePriority,
     deferEnsureUntilVisible,
+    ensureOpts,
     applyDiskPath,
     readCachedSrc,
   ]);
@@ -131,11 +147,11 @@ export function useCoverArt(
     if (!ref) return;
     forgetDiskSrcPrefix(ref);
     if (reachable) {
-      void coverEnsureQueued(storageKey, ref, tier, 'high').then(result => {
+      void coverEnsureQueued(storageKey, ref, tier, 'high', ensureOpts).then(result => {
         if (result.hit && result.path) applyDiskPath(result.path);
       });
     }
-  }, [storageKey, ref, tier, reachable, applyDiskPath]);
+  }, [storageKey, ref, tier, reachable, ensureOpts, applyDiskPath]);
 
   return { src, storageKey, cacheKey: storageKey, tier, provisional, onImgError };
 }

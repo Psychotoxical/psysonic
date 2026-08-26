@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import type { CoverEnsureOpts } from '@/lib/api/coverCache';
 import { resolvePlaybackCoverScope } from './ref';
 import type { CoverArtHandle, CoverArtRef } from './types';
 import { useCoverArt } from './useCoverArt';
@@ -9,7 +10,7 @@ import { usePlayerStore } from '@/features/playback/store/playerStore';
 export function usePlaybackCoverArt(
   coverRef: CoverArtRef | undefined,
   displayCssPx: number,
-  opts?: { fullRes?: boolean },
+  opts?: { fullRes?: boolean; ensureOpts?: CoverEnsureOpts },
 ): CoverArtHandle {
   const queueServerId = usePlayerStore(s => s.queueServerId);
   const queueIndex = usePlayerStore(s => s.queueIndex);
@@ -39,5 +40,6 @@ export function usePlaybackCoverArt(
   return useCoverArt(refWithScope, displayCssPx, {
     surface: 'sparse',
     fullRes: opts?.fullRes,
+    ensureOpts: opts?.ensureOpts,
   });
 }

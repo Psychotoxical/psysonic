@@ -10,6 +10,7 @@ import { coverStorageKeyFromRef } from './storageKeys';
 import { resolveCoverDisplayTier } from './tiers';
 import { coverImgSrc } from './imgSrc';
 import { useCoverArt } from './useCoverArt';
+import type { CoverEnsureOpts } from '@/lib/api/coverCache';
 import type { CoverArtRef, CoverPrefetchPriority, CoverSurfaceKind } from './types';
 
 export type CoverArtImageProps = {
@@ -23,6 +24,9 @@ export type CoverArtImageProps = {
   observeRootMargin?: string;
   observeScrollRootId?: string;
   ensurePriority?: CoverPrefetchPriority;
+  /** External album-art context (§5) — carries artist/album so the server-miss
+   *  fallback can try apple/lastfm for album refs. */
+  ensureOpts?: CoverEnsureOpts;
 } & Omit<ImgHTMLAttributes<HTMLImageElement>, 'src'>;
 
 /**
@@ -41,6 +45,7 @@ export function CoverArtImage(props: CoverArtImageProps) {
       observeRootMargin: _observeRootMargin,
       observeScrollRootId: _observeScrollRootId,
       ensurePriority: _ensurePriority,
+      ensureOpts: _ensureOpts,
       onError: _onError,
       className,
       alt,
@@ -72,6 +77,7 @@ function CoverArtImageResolved({
   observeRootMargin = DEFAULT_CACHED_IMAGE_PREPARE_MARGIN,
   observeScrollRootId,
   ensurePriority: ensurePriorityProp,
+  ensureOpts,
   onError: restOnError,
   ...rest
 }: CoverArtImageResolvedProps) {
@@ -115,7 +121,7 @@ function CoverArtImageResolved({
 
     const queueEnsure = (priority: CoverPrefetchPriority) => {
       if (!reachable) return;
-      void coverEnsureQueued(storageKey, coverRef, tier, priority);
+      void coverEnsureQueued(storageKey, coverRef, tier, priority, ensureOpts);
     };
 
     const applyIntersecting = () => {
@@ -179,6 +185,7 @@ function CoverArtImageResolved({
     observeRootMargin,
     observeScrollRootId,
     pinnedHigh,
+    ensureOpts,
   ]);
 
   const { src, provisional, onImgError } = useCoverArt(coverRef, displayCssPx, {
@@ -187,6 +194,7 @@ function CoverArtImageResolved({
     ensurePriority,
     seenViewport,
     alt,
+    ensureOpts,
   });
 
   const imgSrc = coverImgSrc(src);

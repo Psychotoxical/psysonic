@@ -5,12 +5,12 @@ import { useThemeStore } from '@/store/themeStore';
 import SettingsSubSection from '@/features/settings/components/SettingsSubSection';
 import { SettingsGroup } from '@/features/settings/components/SettingsGroup';
 import { SettingsToggle } from '@/features/settings/components/SettingsToggle';
-import { SettingsSegmented, type SegmentedOption } from '@/features/settings/components/SettingsSegmented';
 import { SettingsSubCard, SettingsField } from '@/features/settings/components/SettingsSubCard';
-import type { DiscordCoverSource } from '@/store/authStoreTypes';
 import { BackdropSourceList } from '@/features/settings/components/BackdropSourceList';
 import type { BackdropSurface } from '@/store/themeStore';
 import type { BackdropSource } from '@/cover/artistBackdrop';
+import { CoverSourceList } from '@/features/settings/components/CoverSourceList';
+import type { CoverSource } from '@/cover/coverSources';
 import { MusicNetworkSection } from '@/features/settings/components/musicNetwork/MusicNetworkSection';
 import { purgeExternalArtworkAllServers } from '@/lib/api/coverCache';
 
@@ -24,17 +24,16 @@ export function IntegrationsTab() {
     { key: 'artistDetailHero', label: t('settings.backdropSurfaceArtistDetail') },
     { key: 'fullscreenPlayer', label: t('settings.backdropSurfaceFullscreen') },
   ];
-  const discordCoverOptions: SegmentedOption<DiscordCoverSource>[] = [
-    { id: 'none', label: t('settings.discordCoverNone') },
-    { id: 'server', label: t('settings.discordCoverServer') },
-    { id: 'apple', label: t('settings.discordCoverApple') },
-  ];
   const backdropSourceLabel = (s: BackdropSource): string =>
     s === 'banner'
       ? t('settings.backdropSourceBanner')
       : s === 'fanart'
         ? t('settings.backdropSourceFanart')
         : t('settings.backdropSourceNavidrome');
+  const coverSourceLabel = (s: CoverSource): string =>
+    s === 'server' ? t('settings.coverSourceServer')
+    : s === 'apple' ? t('settings.coverSourceApple')
+    : t('settings.coverSourceLastfm');
 
   return (
     <>
@@ -79,15 +78,6 @@ export function IntegrationsTab() {
           </SettingsGroup>
           {auth.discordRichPresence && (
             <>
-              <SettingsGroup title={t('settings.discordCoverTitle')} desc={t('settings.discordCoverDesc')}>
-                <SettingsSegmented
-                  options={discordCoverOptions}
-                  value={auth.discordCoverSource}
-                  onChange={auth.setDiscordCoverSource}
-                  ariaLabel={t('settings.discordCoverTitle')}
-                />
-              </SettingsGroup>
-
               <SettingsGroup title={t('settings.discordTemplates')} desc={t('settings.discordTemplatesDesc')}>
                 <SettingsSubCard>
                   <SettingsField label={t('settings.discordTemplateName')}>
@@ -130,6 +120,24 @@ export function IntegrationsTab() {
               </SettingsGroup>
             </>
           )}
+        </div>
+      </SettingsSubSection>
+
+      {/* Cover source chain — library-wide art */}
+      <SettingsSubSection
+        title={t('settings.coverSourceSectionTitle')}
+        icon={<ImageIcon size={16} />}
+      >
+        <div className="settings-card">
+          <SettingsGroup title={t('settings.coverSourceTitle')} desc={t('settings.coverSourceDesc')}>
+            <CoverSourceList
+              sources={auth.coverSources}
+              labelFor={coverSourceLabel}
+              onChange={auth.setCoverSources}
+              moveUpLabel={t('settings.backdropMoveUp')}
+              moveDownLabel={t('settings.backdropMoveDown')}
+            />
+          </SettingsGroup>
         </div>
       </SettingsSubSection>
 

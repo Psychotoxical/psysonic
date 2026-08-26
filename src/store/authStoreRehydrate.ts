@@ -11,6 +11,7 @@ import {
   clampStoredLoudnessPreAnalysisAttenuationRefDb,
 } from '@/lib/audio/loudnessPreAnalysisSlider';
 import {
+  DEFAULT_COVER_SOURCES,
   DEFAULT_LOUDNESS_PRE_ANALYSIS_ATTENUATION_DB,
   clampScrobbleThresholdPercent,
 } from './authStoreDefaults';
@@ -25,13 +26,13 @@ import {
 import type {
   AuthState,
   ArtistBrowseCreditMode,
-  DiscordCoverSource,
   DurationMode,
   LyricsSourceConfig,
   QueueDisplayMode,
   SeekbarStyle,
   WindowButtonStyle,
 } from './authStoreTypes';
+import type { CoverSourcePref } from '@/cover/coverSources';
 import { migrateLegacyLastfm, sanitizeAccounts, sanitizeScrobbleQueue } from '../music-network';
 import { deriveLibraryBrowseServerIdsWithFallback } from '@/lib/library/libraryBrowseScope';
 import { sanitizeDebugLoggingDepth } from '@/lib/perf/debugLoggingMode';
@@ -189,30 +190,41 @@ export function computeAuthStoreRehydration(state: AuthState): Partial<AuthState
             )
           : DEFAULT_LOUDNESS_PRE_ANALYSIS_ATTENUATION_DB);
 
-  // Migrate enableAppleMusicCoversDiscord boolean → discordCoverSource enum.
-  let discordCoverSourceMigrated: { discordCoverSource?: DiscordCoverSource } = {};
+  // Migrate the legacy single-value discordCoverSource → the ordered
+  // coverSources chain. Resolve the effective legacy value through the two
+  // prior migrations (enableAppleMusicCoversDiscord boolean; PR #1246/#1299
+  // 'server' revival guard), then map it to the equivalent chain.
+  let effectiveDiscordCover: unknown =
+    (state as { discordCoverSource?: unknown }).discordCoverSource;
   const legacyAppleCovers = (state as { enableAppleMusicCoversDiscord?: unknown }).enableAppleMusicCoversDiscord;
-  if (legacyAppleCovers === true && (!state.discordCoverSource || state.discordCoverSource === 'none')) {
-    discordCoverSourceMigrated = { discordCoverSource: 'apple' };
+  if (legacyAppleCovers === true && (!effectiveDiscordCover || effectiveDiscordCover === 'none')) {
+    effectiveDiscordCover = 'apple';
   }
-  // One-time: the 'server' cover source was removed in PR #1246 (it leaked
-  // authenticated Subsonic credentials) and reinstated in PR #1299 via a
-  // credential-free implementation. A value that predates the reinstatement
-  // must not be silently honored — a user who skipped every build between
-  // those two PRs would otherwise have their pre-#1246 'server' preference
-  // resurrected on first launch, without ever seeing the new opt-in
-  // disclosure copy. Runs exactly once (guarded by a sentinel, same pattern
-  // as the maxCacheMb migration below) so re-selecting 'server' afterward is
-  // never coerced back.
   const discordServerCoverRevivalMigrationKey = 'psysonic-discord-server-cover-revival-v1';
   try {
     if (!localStorage.getItem(discordServerCoverRevivalMigrationKey)) {
-      if ((state as { discordCoverSource?: unknown }).discordCoverSource === 'server') {
-        discordCoverSourceMigrated = { discordCoverSource: 'none' };
-      }
+      if (effectiveDiscordCover === 'server') effectiveDiscordCover = 'none';
       localStorage.setItem(discordServerCoverRevivalMigrationKey, '1');
     }
   } catch { /* ignore */ }
+  delete (state as { enableAppleMusicCoversDiscord?: unknown }).enableAppleMusicCoversDiscord;
+
+  const coverSourcesMigrated: { coverSources?: CoverSourcePref[] } = (() => {
+    // One-time migration of the legacy `discordCoverSource` field only. When that
+    // field is absent (already migrated, or a modern install) this must be a
+    // no-op — otherwise the all-disabled default below would overwrite the
+    // persisted coverSources chain on every rehydrate, silencing any sources the
+    // user enabled (and blocking the §5 external album-cover chain).
+    const rawDiscordCover = (state as { discordCoverSource?: unknown }).discordCoverSource;
+    if (rawDiscordCover === undefined && legacyAppleCovers !== true) return {};
+    const only = (src: CoverSourcePref['source']): CoverSourcePref[] =>
+      (['server', 'apple', 'lastfm'] as const).map(s => ({ source: s, enabled: s === src }));
+    if (effectiveDiscordCover === 'apple') return { coverSources: only('apple') };
+    if (effectiveDiscordCover === 'server') return { coverSources: only('server') };
+    // 'none' / undefined / garbage → chain off (preserves "no large image" intent).
+    return { coverSources: DEFAULT_COVER_SOURCES.map(s => ({ ...s, enabled: false })) };
+  })();
+  delete (state as unknown as Record<string, unknown>).discordCoverSource;
   // One-time: legacy unified `maxCacheMb` cap removed from Settings (offline + IDB covers).
   const maxCacheMbMigrationKey = 'psysonic-max-cache-mb-removed-v1';
   let maxCacheMbMigrated: { maxCacheMb?: number } = {};
@@ -395,7 +407,7 @@ export function computeAuthStoreRehydration(state: AuthState): Partial<AuthState
     ...queueDisplayModeMigrated,
     ...artistBrowseCreditModeMigrated,
     ...linuxWaylandTextRenderProfileMigrated,
-    ...discordCoverSourceMigrated,
+    ...coverSourcesMigrated,
     ...maxCacheMbMigrated,
   };
 }
