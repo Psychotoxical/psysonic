@@ -1,0 +1,40 @@
+export const home = {
+  hero: 'Featured',
+  starred: 'Personal Favorites',
+  mostPlayed: 'Most Played',
+  recentlyPlayed: 'Recently Played',
+  losslessAlbums: 'Lossless Albums',
+  discover: 'Discover',
+  discoverSongs: 'Discover Songs',
+  loadMore: 'Load More',
+  discoverMore: 'Discover More',
+  discoverArtists: 'Discover Artists',
+  discoverArtistsMore: 'All Artists',
+  becauseYouLike: 'Because you listened…',
+  becauseYouLikeFor: 'Because you listened to {{artist}}',
+  similarTo: 'Similar to {{artist}}',
+  becauseYouLikeTracks_one: '{{count}} track',
+  becauseYouLikeTracks_other: '{{count}} tracks',
+  mainstageEmptyTitle: 'Your Mainstage is empty',
+  mainstageEmptyBody: 'Every section is turned off. Turn sections back on, or hide Mainstage from the sidebar.',
+  mainstageEmptyCta: 'Open Personalisation settings',
+  diagnostics: {
+    copyAll: 'Copy Mainstage diagnostics',
+    enableSection: 'Enable {{section}}',
+    generationInfo: 'Generation information',
+    duration: 'Duration',
+    itemCount: 'Items',
+    status: 'Status',
+    detail: 'Detail',
+    unavailable: 'N/A',
+    statuses: {
+      idle: 'Idle',
+      loading: 'Loading',
+      ready: 'Ready',
+      empty: 'Empty',
+      error: 'Error',
+      timeout: 'Timed out',
+      disabled: 'Disabled'
+    }
+  }
+};
