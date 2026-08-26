@@ -33,6 +33,7 @@ pub async fn list_device_dir_files(dir: String) -> Result<Vec<String>, String> {
 #[tauri::command]
 #[specta::specta]
 pub async fn delete_device_file(path: String) -> Result<(), String> {
+    let _filesystem_write_guard = crate::filesystem_write_guard().await?;
     delete_device_file_impl(path).await
 }
 
@@ -254,6 +255,7 @@ pub async fn sync_batch_to_device(
     server_id: Option<String>,
     app: tauri::AppHandle,
 ) -> Result<SyncBatchResult, String> {
+    let _filesystem_write_guard = crate::filesystem_write_guard().await?;
     use std::sync::atomic::{AtomicU32, Ordering};
     use std::time::{Duration, Instant};
     use tokio::sync::Mutex;
@@ -475,6 +477,7 @@ pub async fn sync_batch_to_device(
 #[tauri::command]
 #[specta::specta]
 pub async fn delete_device_files(paths: Vec<String>) -> Result<u32, String> {
+    let _filesystem_write_guard = crate::filesystem_write_guard().await?;
     delete_device_files_impl(paths).await
 }
 

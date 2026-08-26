@@ -70,6 +70,7 @@ struct CoverIdleSignature {
 
 pub struct CoverBackfillWorker {
     pub enabled: AtomicBool,
+    migration_hold: AtomicBool,
     /// When true, the active pass yields so visible-route cover IPC is not starved.
     pub ui_priority_hold: AtomicBool,
     session: Mutex<Option<CoverBackfillSession>>,
@@ -125,6 +126,7 @@ impl CoverBackfillWorker {
     pub fn new() -> Self {
         Self {
             enabled: AtomicBool::new(false),
+            migration_hold: AtomicBool::new(false),
             ui_priority_hold: AtomicBool::new(false),
             session: Mutex::new(None),
             cursor: Mutex::new(String::new()),
@@ -140,6 +142,17 @@ impl CoverBackfillWorker {
 
     pub fn set_ui_priority_hold(&self, hold: bool) {
         self.ui_priority_hold.store(hold, Ordering::Relaxed);
+    }
+
+    pub fn set_migration_hold(&self, hold: bool) {
+        self.migration_hold.store(hold, Ordering::SeqCst);
+        if hold {
+            self.rerun_pending.store(false, Ordering::SeqCst);
+        }
+    }
+
+    pub fn migration_hold(&self) -> bool {
+        self.migration_hold.load(Ordering::Acquire)
     }
 
     /// Re-arm the idle gate so the next opportunistic pass runs even though the
@@ -243,7 +256,7 @@ fn session_matches_server(session: &CoverBackfillSession, server_id: &str) -> bo
 /// up live via `worker.base_url()`, so it does not abort the pass — only a
 /// server switch or disable does.
 async fn session_still_focused(worker: &CoverBackfillWorker, expected: &CoverBackfillSession) -> bool {
-    if !worker.enabled.load(Ordering::Relaxed) {
+    if !worker.enabled.load(Ordering::Relaxed) || worker.migration_hold() {
         return false;
     }
     worker
@@ -320,7 +333,7 @@ async fn ensure_one(
 }
 
 async fn run_full_pass(app: AppHandle, worker: Arc<CoverBackfillWorker>, force: bool) {
-    if !worker.enabled.load(Ordering::Relaxed) {
+    if !worker.enabled.load(Ordering::Relaxed) || worker.migration_hold() {
         return;
     }
     let session = worker.session.lock().await.clone();
@@ -566,7 +579,7 @@ pub async fn try_schedule_full_pass(app: &AppHandle, force: bool) -> bool {
         Some(w) => w.inner().clone(),
         None => return false,
     };
-    if !worker.enabled.load(Ordering::Relaxed) {
+    if !worker.enabled.load(Ordering::Relaxed) || worker.migration_hold() {
         return false;
     }
     if worker

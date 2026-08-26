@@ -2,6 +2,7 @@ use rusqlite::params;
 use serde_json::json;
 
 use super::super::remap::{REMAP_LOOKUP_BY_HASH_SQL, REMAP_LOOKUP_BY_PATH_SQL};
+use super::super::retarget::retarget_track_references;
 use super::*;
 
 fn row_with_id_hash(server: &str, id: &str, hash: &str, path: &str) -> TrackRow {
@@ -278,4 +279,141 @@ fn remap_is_noop_when_new_id_matches_existing_id() {
         .upsert_batch_with_remap(&[row_with_id_hash("s1", "tr_1", "h", "/p")], true)
         .unwrap();
     assert!(stats.remapped.is_empty());
+}
+
+#[test]
+fn retarget_merges_colliding_preserved_references_without_dropping_history() {
+    let store = LibraryStore::open_in_memory();
+    let repo = TrackRepository::new(&store);
+    repo.upsert_batch(&[
+        row_with_id_hash("s1", "tr_old", "same", "/music/x.flac"),
+        row_with_id_hash("s1", "tr_new", "same", "/music/x.flac"),
+    ])
+    .unwrap();
+    store
+        .with_conn("test.seed_retarget_collisions", |conn| {
+            conn.execute_batch(
+                "INSERT INTO canonical_track(id, created_at, updated_at) VALUES ('canonical-1', 1, 1);
+                 INSERT INTO track_canonical_link(server_id, track_id, canonical_id, match_method, confidence, linked_at)
+                   VALUES ('s1', 'tr_old', 'canonical-1', 'path', 0.8, 2),
+                          ('s1', 'tr_new', 'canonical-1', 'isrc', 0.9, 1);
+                 INSERT INTO entity_user_rating(server_id, entity_kind, entity_id, rating, fetched_at)
+                   VALUES ('s1', 'track', 'tr_old', 5, 20),
+                          ('s1', 'track', 'tr_new', 3, 10);
+                 INSERT INTO play_session(server_id, track_id, started_at_ms, listened_sec,
+                   position_max_sec, completion, end_reason)
+                   VALUES ('s1', 'tr_old', 1, 1, 1, 'full', 'ended'),
+                          ('s1', 'tr_new', 2, 1, 1, 'full', 'ended');
+                 INSERT INTO track_id_history(server_id, old_id, new_id, remapped_at)
+                   VALUES ('s1', 'older', 'tr_old', 1);",
+            )?;
+            Ok(())
+        })
+        .unwrap();
+
+    store
+        .with_conn_mut("test.retarget_collisions", |conn| {
+            let tx = conn.transaction()?;
+            retarget_track_references(
+                &tx,
+                "s1",
+                "tr_old",
+                "tr_new",
+                Some("same"),
+                Some("/music/x.flac"),
+                30,
+            )?;
+            tx.commit()
+        })
+        .unwrap();
+
+    store
+        .with_conn("test.verify_retarget_collisions", |conn| {
+            assert_eq!(
+                conn.query_row(
+                    "SELECT COUNT(*) FROM play_session WHERE server_id = 's1' AND track_id = 'tr_new'",
+                    [],
+                    |row| row.get::<_, i64>(0),
+                )?,
+                2
+            );
+            assert_eq!(
+                conn.query_row(
+                    "SELECT rating FROM entity_user_rating WHERE server_id = 's1' AND entity_kind = 'track' AND entity_id = 'tr_new'",
+                    [],
+                    |row| row.get::<_, i64>(0),
+                )?,
+                5
+            );
+            assert_eq!(
+                conn.query_row(
+                    "SELECT new_id FROM track_id_history WHERE server_id = 's1' AND old_id = 'older'",
+                    [],
+                    |row| row.get::<_, String>(0),
+                )?,
+                "tr_new"
+            );
+            assert_eq!(
+                conn.query_row(
+                    "SELECT COUNT(*) FROM track WHERE server_id = 's1' AND id = 'tr_old'",
+                    [],
+                    |row| row.get::<_, i64>(0),
+                )?,
+                0
+            );
+            Ok(())
+        })
+        .unwrap();
+}
+
+#[test]
+fn retarget_rolls_back_conflicting_canonical_identity() {
+    let store = LibraryStore::open_in_memory();
+    let repo = TrackRepository::new(&store);
+    repo.upsert_batch(&[
+        row_with_id_hash("s1", "tr_old", "same", "/music/x.flac"),
+        row_with_id_hash("s1", "tr_new", "same", "/music/x.flac"),
+    ])
+    .unwrap();
+    store
+        .with_conn("test.seed_retarget_conflict", |conn| {
+            conn.execute_batch(
+                "INSERT INTO canonical_track(id, created_at, updated_at) VALUES
+                   ('canonical-1', 1, 1), ('canonical-2', 1, 1);
+                 INSERT INTO track_canonical_link(server_id, track_id, canonical_id, match_method, confidence, linked_at)
+                   VALUES ('s1', 'tr_old', 'canonical-1', 'path', 0.8, 1),
+                          ('s1', 'tr_new', 'canonical-2', 'isrc', 0.9, 1);",
+            )?;
+            Ok(())
+        })
+        .unwrap();
+
+    let error = store
+        .with_conn_mut("test.retarget_conflict", |conn| {
+            let tx = conn.transaction()?;
+            retarget_track_references(
+                &tx,
+                "s1",
+                "tr_old",
+                "tr_new",
+                Some("same"),
+                Some("/music/x.flac"),
+                2,
+            )?;
+            tx.commit()
+        })
+        .unwrap_err();
+    assert!(error.contains("canonical track link conflict"));
+    assert_eq!(
+        store
+            .with_conn("test.verify_retarget_rollback", |conn| {
+                conn.query_row(
+                    "SELECT COUNT(*) FROM track WHERE server_id = 's1'",
+                    [],
+                    |row| row.get::<_, i64>(0),
+                )
+            })
+            .unwrap(),
+        2
+    );
 }

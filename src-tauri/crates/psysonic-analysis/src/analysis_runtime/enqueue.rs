@@ -108,6 +108,9 @@ pub(super) async fn enqueue_track_analysis_with_fetch(
     fetch_ms: u64,
     cpu_admitted: Option<tokio::sync::oneshot::Sender<()>>,
 ) -> Result<EnqueueTrackAnalysisOutcome, String> {
+    if let Some(cache) = app.try_state::<analysis_cache::AnalysisCache>() {
+        cache.ensure_ordinary_write_allowed()?;
+    }
     if bytes.is_empty() {
         return Ok(EnqueueTrackAnalysisOutcome::Complete);
     }
@@ -369,6 +372,9 @@ pub fn enqueue_seed_from_url(
     explicit_priority: Option<AnalysisBackfillPriority>,
     force: bool,
 ) -> Result<EnqueueSeedFromUrlOutcome, String> {
+    if let Some(cache) = app.try_state::<analysis_cache::AnalysisCache>() {
+        cache.ensure_ordinary_write_allowed()?;
+    }
     if track_id.trim().is_empty() || url.trim().is_empty() {
         return Ok(EnqueueSeedFromUrlOutcome::Skipped);
     }

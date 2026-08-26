@@ -1,6 +1,6 @@
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use rusqlite::{functions::FunctionFlags, Connection, OpenFlags};
@@ -36,14 +36,28 @@ fn in_memory_cluster_uri() -> String {
 
 impl LibraryStore {
     pub fn init(app: &tauri::AppHandle) -> Result<Self, String> {
+        Self::init_with_migration_barrier(app, Arc::new(Default::default()))
+    }
+
+    pub fn init_with_migration_barrier(
+        app: &tauri::AppHandle,
+        migration_write_barrier: Arc<
+            psysonic_core::migration_write_barrier::MigrationWriteBarrier,
+        >,
+    ) -> Result<Self, String> {
         let db_path = library_db_path(app)?;
         if let Some(parent) = db_path.parent() {
             std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
         }
-        Self::open_file(&db_path)
+        Self::open_file(&db_path, migration_write_barrier)
     }
 
-    fn open_file(db_path: &Path) -> Result<Self, String> {
+    fn open_file(
+        db_path: &Path,
+        migration_write_barrier: Arc<
+            psysonic_core::migration_write_barrier::MigrationWriteBarrier,
+        >,
+    ) -> Result<Self, String> {
         let (write_conn, read_conn, mainstage_read_conn, scope_detail_read_conn) =
             open_database_connections(db_path).map_err(|e| e.to_string())?;
         Ok(Self {
@@ -55,13 +69,60 @@ impl LibraryStore {
             mainstage_read_op_owner: Mutex::new(None),
             bulk_ingest_active: AtomicBool::new(false),
             swap_in_progress: AtomicBool::new(false),
+            migration_write_barrier,
+        })
+    }
+
+    /// Open an imported database for pre-activation migration without touching
+    /// the live on-disk identity sidecar.
+    pub fn open_staged_path(db_path: &Path) -> Result<Self, String> {
+        let write_conn = Connection::open(db_path).map_err(|error| error.to_string())?;
+        configure_write_connection(&write_conn).map_err(|error| error.to_string())?;
+        prepare_write_connection_for_open(&write_conn).map_err(|error| error.to_string())?;
+
+        let read_conn = Connection::open_with_flags(db_path, OpenFlags::SQLITE_OPEN_READ_ONLY)
+            .map_err(|error| error.to_string())?;
+        configure_read_connection(&read_conn).map_err(|error| error.to_string())?;
+        let mainstage_read_conn = Connection::open_with_flags(
+            db_path,
+            OpenFlags::SQLITE_OPEN_READ_ONLY,
+        )
+        .map_err(|error| error.to_string())?;
+        configure_read_connection(&mainstage_read_conn).map_err(|error| error.to_string())?;
+        let scope_detail_read_conn = Connection::open_with_flags(
+            db_path,
+            OpenFlags::SQLITE_OPEN_READ_ONLY,
+        )
+        .map_err(|error| error.to_string())?;
+        configure_read_connection(&scope_detail_read_conn).map_err(|error| error.to_string())?;
+
+        let cluster_uri = in_memory_cluster_uri();
+        crate::identity::attach_cluster_write_memory(&write_conn, &cluster_uri)
+            .map_err(|error| error.to_string())?;
+        crate::identity::attach_cluster_read_memory(&read_conn, &cluster_uri)
+            .map_err(|error| error.to_string())?;
+        crate::identity::attach_cluster_read_memory(&mainstage_read_conn, &cluster_uri)
+            .map_err(|error| error.to_string())?;
+        crate::identity::attach_cluster_read_memory(&scope_detail_read_conn, &cluster_uri)
+            .map_err(|error| error.to_string())?;
+
+        Ok(Self {
+            write_conn: Mutex::new(write_conn),
+            read_conn: Mutex::new(read_conn),
+            mainstage_read_conn: Mutex::new(mainstage_read_conn),
+            scope_detail_read_conn: Mutex::new(scope_detail_read_conn),
+            read_op_owner: Mutex::new(None),
+            mainstage_read_op_owner: Mutex::new(None),
+            bulk_ingest_active: AtomicBool::new(false),
+            swap_in_progress: AtomicBool::new(false),
+            migration_write_barrier: Arc::new(Default::default()),
         })
     }
 
     /// Open a production library DB file (read/write) — for local perf probes in tests.
     #[cfg(test)]
     pub fn open_path_for_test(db_path: &std::path::Path) -> Result<Self, String> {
-        Self::open_file(db_path)
+        Self::open_file(db_path, Arc::new(Default::default()))
     }
 
     /// Build an in-memory DB with the production schema applied.
@@ -102,6 +163,7 @@ impl LibraryStore {
             mainstage_read_op_owner: Mutex::new(None),
             bulk_ingest_active: AtomicBool::new(false),
             swap_in_progress: AtomicBool::new(false),
+            migration_write_barrier: Arc::new(Default::default()),
         }
     }
 

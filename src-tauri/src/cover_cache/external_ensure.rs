@@ -241,6 +241,7 @@ pub(super) async fn try_external_fanart(
     }
 
     let _permit = fanart_sem.clone().acquire_owned().await.ok()?;
+    super::ensure_migration_write_allowed(app).ok()?;
 
     let http_registry = app
         .try_state::<Arc<psysonic_core::server_http::ServerHttpRegistry>>()
@@ -272,6 +273,7 @@ pub(super) async fn try_external_fanart(
                         // ≤1 req/s: hold the single MB permit across the request
                         // plus a ≥1s spacing so concurrent ensures can't burst MB.
                         let _mb = musicbrainz_sem.clone().acquire_owned().await.ok()?;
+                        super::ensure_migration_write_allowed(app).ok()?;
                         let resolved =
                             external::resolve_mbid_via_musicbrainz(client, name, album).await;
                         tokio::time::sleep(Duration::from_millis(1100)).await;
@@ -357,6 +359,8 @@ pub(super) async fn try_external_fanart(
             return None;
         }
     };
+
+    super::ensure_migration_write_allowed(app).ok()?;
 
     // Decode + write {2000,512}-{surface}.webp (matryoshka §17).
     let dir_owned = dir.to_path_buf();

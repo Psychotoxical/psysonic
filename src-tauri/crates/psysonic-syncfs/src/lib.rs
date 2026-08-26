@@ -6,7 +6,7 @@
 //! devices (`sync_*`).
 
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 
 // Re-export logging facade so submodules can keep `crate::app_eprintln!()`.
@@ -18,6 +18,91 @@ pub mod sync;
 
 /// Shared semaphore that caps simultaneous `download_track_offline` executions.
 pub type DownloadSemaphore = Arc<tokio::sync::Semaphore>;
+
+struct FilesystemWriteBarrier {
+    active_generation: AtomicU64,
+    lock: Arc<tokio::sync::RwLock<()>>,
+    migration_guard: Mutex<Option<(u64, tokio::sync::OwnedRwLockWriteGuard<()>)>>,
+}
+
+fn filesystem_write_barrier() -> &'static FilesystemWriteBarrier {
+    static BARRIER: OnceLock<FilesystemWriteBarrier> = OnceLock::new();
+    BARRIER.get_or_init(|| FilesystemWriteBarrier {
+        active_generation: AtomicU64::new(0),
+        lock: Arc::new(tokio::sync::RwLock::new(())),
+        migration_guard: Mutex::new(None),
+    })
+}
+
+pub async fn filesystem_write_guard() -> Result<tokio::sync::OwnedRwLockReadGuard<()>, String> {
+    let barrier = filesystem_write_barrier();
+    let active = barrier.active_generation.load(Ordering::Acquire);
+    if active != 0 {
+        return Err(format!(
+            "migration generation {active} blocks ordinary filesystem writes"
+        ));
+    }
+    let guard = barrier.lock.clone().read_owned().await;
+    let active = barrier.active_generation.load(Ordering::Acquire);
+    if active != 0 {
+        drop(guard);
+        return Err(format!(
+            "migration generation {active} blocks ordinary filesystem writes"
+        ));
+    }
+    Ok(guard)
+}
+
+pub async fn activate_filesystem_migration_generation(generation: u64) -> Result<(), String> {
+    if generation == 0 {
+        return Err("filesystem migration generation must be non-zero".to_string());
+    }
+    let barrier = filesystem_write_barrier();
+    match barrier.active_generation.compare_exchange(
+        0,
+        generation,
+        Ordering::AcqRel,
+        Ordering::Acquire,
+    ) {
+        Ok(_) => {}
+        Err(active) if active == generation => return Ok(()),
+        Err(active) => {
+            return Err(format!(
+                "filesystem writers are already blocked by migration generation {active}"
+            ));
+        }
+    }
+    let guard = barrier.lock.clone().write_owned().await;
+    let mut slot = barrier
+        .migration_guard
+        .lock()
+        .map_err(|_| "filesystem migration guard lock poisoned".to_string())?;
+    *slot = Some((generation, guard));
+    Ok(())
+}
+
+pub fn deactivate_filesystem_migration_generation(generation: u64) -> Result<(), String> {
+    let barrier = filesystem_write_barrier();
+    let mut slot = barrier
+        .migration_guard
+        .lock()
+        .map_err(|_| "filesystem migration guard lock poisoned".to_string())?;
+    if !matches!(slot.as_ref(), Some((active, _)) if *active == generation) {
+        return Err(format!(
+            "cannot release filesystem migration generation {generation}"
+        ));
+    }
+    slot.take();
+    barrier
+        .active_generation
+        .compare_exchange(generation, 0, Ordering::AcqRel, Ordering::Acquire)
+        .map(|_| ())
+        .map_err(|active| {
+            format!(
+                "cannot release filesystem migration generation {generation}; active generation is {active}"
+            )
+        })
+}
 
 /// Per-job cancellation flags for `sync_batch_to_device`.
 /// Each running sync registers an `Arc<AtomicBool>` here; `cancel_device_sync`

@@ -11,9 +11,10 @@ import {
   ensureConnectUrlResolved,
   getCachedConnectBaseUrl,
   invalidateReachableEndpointCache,
+  installSuccessfulPingObserver,
   isLanUrl,
   normalizeServerBaseUrl,
-  pickReachableBaseUrl,
+  pickReachableBaseUrlForTests as pickReachableBaseUrl,
   profileServesShareBase,
   serverAddressEndpoints,
   serverShareBaseUrl,
@@ -555,6 +556,61 @@ describe('invalidateReachableEndpointCache', () => {
     await ensureConnectUrlResolved(makeProfile({ id: 'a' }));
     invalidateReachableEndpointCache();
     expect(getCachedConnectBaseUrl('a')).toBeNull();
+  });
+});
+
+describe('successful ping admission', () => {
+  beforeEach(() => {
+    invalidateReachableEndpointCache();
+    resetServerReachabilitySnapshot();
+    vi.mocked(pingWithCredentialsForProfile).mockReset();
+  });
+
+  it('does not publish a successful endpoint until the observer admits it', async () => {
+    let admit!: () => void;
+    const observer = vi.fn(() => new Promise<void>(resolve => { admit = resolve; }));
+    const uninstall = installSuccessfulPingObserver(observer);
+    vi.mocked(pingWithCredentialsForProfile).mockResolvedValue(pingOk({ serverVersion: '0.64.0' }));
+    try {
+      const pending = ensureConnectUrlResolved(makeProfile());
+      await vi.waitFor(() => expect(observer).toHaveBeenCalledOnce());
+      expect(getCachedConnectBaseUrl('profile-1')).toBeNull();
+      admit();
+      await expect(pending).resolves.toMatchObject({ ok: true });
+      expect(getCachedConnectBaseUrl('profile-1')).toBe('https://music.example.com');
+      expect(getUnavailableServerIds().has('profile-1')).toBe(false);
+    } finally {
+      uninstall();
+    }
+  });
+
+  it('keeps a successful raw probe unpublished when admission fails', async () => {
+    const observer = vi.fn(async () => { throw new Error('migration blocked'); });
+    const uninstall = installSuccessfulPingObserver(observer);
+    vi.mocked(pingWithCredentialsForProfile).mockResolvedValue(pingOk({ serverVersion: '0.64.0' }));
+    try {
+      await expect(ensureConnectUrlResolved(makeProfile())).rejects.toThrow('migration blocked');
+      expect(getCachedConnectBaseUrl('profile-1')).toBeNull();
+      expect(getUnavailableServerIds().has('profile-1')).toBe(true);
+    } finally {
+      uninstall();
+    }
+  });
+
+  it('evicts a previously admitted endpoint when a later admission fails', async () => {
+    const profile = makeProfile();
+    vi.mocked(pingWithCredentialsForProfile).mockResolvedValue(pingOk({ serverVersion: '0.64.0' }));
+    await expect(ensureConnectUrlResolved(profile)).resolves.toMatchObject({ ok: true });
+    expect(getCachedConnectBaseUrl('profile-1')).toBe('https://music.example.com');
+
+    const uninstall = installSuccessfulPingObserver(async () => { throw new Error('migration blocked'); });
+    try {
+      await expect(ensureConnectUrlResolved(profile)).rejects.toThrow('migration blocked');
+      expect(getCachedConnectBaseUrl('profile-1')).toBeNull();
+      expect(getUnavailableServerIds().has('profile-1')).toBe(true);
+    } finally {
+      uninstall();
+    }
   });
 });
 

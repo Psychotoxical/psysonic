@@ -347,6 +347,7 @@ pub async fn sync_track_to_device(
     job_id: String,
     app: tauri::AppHandle,
 ) -> Result<SyncTrackResult, String> {
+    let _filesystem_write_guard = crate::filesystem_write_guard().await?;
     let relative = build_track_path(&track);
     let file_name = format!("{}.{}", relative, track.suffix);
     let dest_path = std::path::Path::new(&dest_dir).join(&file_name);

@@ -402,6 +402,32 @@ pub fn prune_analysis_queues(
     Ok((http_removed, cpu_removed_jobs, cpu_removed_waiters))
 }
 
+pub async fn quiesce_analysis_for_migration(timeout: std::time::Duration) -> Result<(), String> {
+    let keep_track_ids = HashSet::new();
+    prune_analysis_queues(&keep_track_ids, None)?;
+    let deadline = tokio::time::Instant::now() + timeout;
+    loop {
+        let stats = analysis_pipeline_queue_stats();
+        if stats.http_queued == 0
+            && stats.http_download_active == 0
+            && stats.cpu_queued == 0
+            && stats.cpu_decode_active == 0
+        {
+            return Ok(());
+        }
+        if tokio::time::Instant::now() >= deadline {
+            return Err(format!(
+                "analysis pipeline did not drain before migration: http queued/active {}/{}, cpu queued/active {}/{}",
+                stats.http_queued,
+                stats.http_download_active,
+                stats.cpu_queued,
+                stats.cpu_decode_active
+            ));
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(25)).await;
+    }
+}
+
 /// Submit full-buffer analysis; serializes with other producers. Priority mirrors
 /// HTTP backfill tier ordering (high → middle → low).
 ///

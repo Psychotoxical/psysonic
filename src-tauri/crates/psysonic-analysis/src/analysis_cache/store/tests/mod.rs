@@ -90,6 +90,7 @@ fn open_file_cache(db_path: &Path) -> AnalysisCache {
     verify_operational_schema_conn(&conn).unwrap();
     AnalysisCache {
         conn: Mutex::new(conn),
+        migration_write_barrier: std::sync::Arc::new(Default::default()),
     }
 }
 

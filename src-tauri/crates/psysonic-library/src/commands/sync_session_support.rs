@@ -21,6 +21,7 @@ use crate::sync::error::SyncError;
 use crate::sync::initial::InitialSyncRunner;
 use crate::sync::library_tag::run_tag_pass_best_effort;
 use crate::sync::progress::{ChannelProgress, Progress, ProgressEvent};
+use crate::LibraryStore;
 
 static NEXT_SYNC_JOB_SEQUENCE: AtomicU64 = AtomicU64::new(1);
 
@@ -42,6 +43,39 @@ pub(super) const BIND_SESSION_TIMEOUTS: BindSessionTimeouts = BindSessionTimeout
     token: Duration::from_secs(10),
     probe: Duration::from_secs(30),
 };
+
+#[derive(Debug, Clone, Copy)]
+enum SyncAdmission {
+    Ordinary,
+    Migration(u64),
+}
+
+impl SyncAdmission {
+    fn generation(self) -> Option<u64> {
+        match self {
+            Self::Ordinary => None,
+            Self::Migration(generation) => Some(generation),
+        }
+    }
+
+    fn ensure_bind_allowed(self, runtime: &LibraryRuntime, server_id: &str) -> Result<(), String> {
+        match self {
+            Self::Ordinary => runtime.ensure_ordinary_sync_activity_allowed(),
+            Self::Migration(generation) => {
+                runtime.ensure_migration_server_allowed(generation, server_id)
+            }
+        }
+    }
+
+    fn ensure_sync_allowed(self, runtime: &LibraryRuntime, server_id: &str) -> Result<(), String> {
+        match self {
+            Self::Ordinary => runtime.ensure_ordinary_sync_activity_allowed(),
+            Self::Migration(generation) => {
+                runtime.ensure_migration_full_sync_allowed(generation, server_id)
+            }
+        }
+    }
+}
 
 /// Normalise a server URL the same way the frontend's
 /// `authStore.getBaseUrl()` does — prepend `http://` when no scheme is
@@ -88,6 +122,43 @@ pub(super) async fn bind_sync_session_inner(
     request: BindSessionRequest,
     timeouts: BindSessionTimeouts,
 ) -> Result<(), String> {
+    bind_sync_session_with_admission(
+        runtime,
+        http_registry,
+        request,
+        timeouts,
+        SyncAdmission::Ordinary,
+    )
+    .await
+}
+
+pub(super) async fn bind_migration_sync_session_inner(
+    runtime: &LibraryRuntime,
+    http_registry: &ServerHttpRegistry,
+    request: BindSessionRequest,
+    timeouts: BindSessionTimeouts,
+    generation: u64,
+) -> Result<(), String> {
+    bind_sync_session_with_admission(
+        runtime,
+        http_registry,
+        request,
+        timeouts,
+        SyncAdmission::Migration(generation),
+    )
+    .await
+}
+
+async fn bind_sync_session_with_admission(
+    runtime: &LibraryRuntime,
+    http_registry: &ServerHttpRegistry,
+    request: BindSessionRequest,
+    timeouts: BindSessionTimeouts,
+    admission: SyncAdmission,
+) -> Result<(), String> {
+    admission.ensure_bind_allowed(runtime, &request.server_id)?;
+    let migration_generation = admission.generation();
+    let bind = async move {
     let BindSessionRequest {
         server_id,
         base_url,
@@ -99,6 +170,7 @@ pub(super) async fn bind_sync_session_inner(
     let _barrier = runtime
         .cancel_and_drain_sync(None, Some(&server_id))
         .await?;
+    admission.ensure_bind_allowed(runtime, &server_id)?;
 
     // Prime the Navidrome native-API bearer at bind time (spec §6.1 + PR-5
     // kickoff Q5) so N1 probe / ingest works without every command passing a
@@ -156,25 +228,37 @@ pub(super) async fn bind_sync_session_inner(
     .map_err(|e| format!("bind probe failed: {e}"))?;
     runtime.set_session(session)?;
     Ok(())
+    };
+    match migration_generation {
+        Some(generation) => {
+            LibraryStore::scope_migration_write_generation(generation, bind).await
+        }
+        None => bind.await,
+    }
 }
 
 pub(super) async fn clear_sync_session(
     runtime: &LibraryRuntime,
     server_id: &str,
 ) -> Result<(), String> {
+    runtime.ensure_ordinary_sync_activity_allowed()?;
     let _barrier = runtime.cancel_and_drain_sync(None, Some(server_id)).await?;
+    runtime.ensure_ordinary_sync_activity_allowed()?;
     runtime.clear_session(server_id);
     Ok(())
 }
 
-/// Map a runner result for the sync-idle event. Cancellation is expected —
-/// the user cancelled, or a newer `library_sync_start` superseded this job
-/// (e.g. a server switch, or the startup resume) — and must never surface as
-/// a failure toast (error.rs: "Cancelled is silent").
-fn sync_outcome_to_result<T>(r: Result<T, SyncError>) -> Result<(), String> {
+/// Map a runner result for the sync-idle event. Ordinary cancellation is
+/// expected and silent; a migration full sync must report cancellation as a
+/// failure so the coordinator cannot mark an incomplete namespace ready.
+fn sync_outcome_to_result<T>(
+    r: Result<T, SyncError>,
+    admission: SyncAdmission,
+) -> Result<(), String> {
     match r {
         Ok(_) => Ok(()),
-        Err(SyncError::Cancelled) => Ok(()),
+        Err(SyncError::Cancelled) if matches!(admission, SyncAdmission::Ordinary) => Ok(()),
+        Err(SyncError::Cancelled) => Err("migration sync cancelled".to_string()),
         Err(e) => Err(e.to_string()),
     }
 }
@@ -187,11 +271,53 @@ pub(super) async fn library_sync_start_inner(
     library_scope: Option<String>,
     force_full_tombstone: bool,
 ) -> Result<SyncJobDto, String> {
+    library_sync_start_with_admission(
+        app,
+        runtime,
+        server_id,
+        mode,
+        library_scope,
+        force_full_tombstone,
+        SyncAdmission::Ordinary,
+    )
+    .await
+}
+
+pub(super) async fn library_migration_sync_start_inner(
+    app: AppHandle,
+    runtime: State<'_, LibraryRuntime>,
+    server_id: String,
+    library_scope: Option<String>,
+    generation: u64,
+) -> Result<SyncJobDto, String> {
+    library_sync_start_with_admission(
+        app,
+        runtime,
+        server_id,
+        "full".to_string(),
+        library_scope,
+        false,
+        SyncAdmission::Migration(generation),
+    )
+    .await
+}
+
+async fn library_sync_start_with_admission(
+    app: AppHandle,
+    runtime: State<'_, LibraryRuntime>,
+    server_id: String,
+    mode: String,
+    library_scope: Option<String>,
+    force_full_tombstone: bool,
+    admission: SyncAdmission,
+) -> Result<SyncJobDto, String> {
+    admission.ensure_sync_allowed(&runtime, &server_id)?;
     // Every foreground start supersedes the previous job, regardless of mode
     // or server. Drain it before installing the replacement so no late cursor
     // or ingest write can race the new runner. Read the session afterwards so
     // a concurrent rebind/purge cannot leave this start using a stale snapshot.
     let _barrier = runtime.cancel_and_drain_sync(None, None).await?;
+    admission.ensure_sync_allowed(&runtime, &server_id)?;
     let session = runtime.get_session(&server_id).ok_or_else(|| {
         format!("no bound session for server `{server_id}` — call library_sync_bind_session first")
     })?;
@@ -241,10 +367,12 @@ pub(super) async fn library_sync_start_inner(
     let cancel_for_task = Arc::clone(&cancel);
     let job_id_for_task = job_id.clone();
     let parallelism = ParallelismBudget::resolve(runtime.current_playback_hint());
+    let migration_generation = admission.generation();
 
     let app_for_runner = app.clone();
     let runner_handle: tokio::task::JoinHandle<Result<(), String>> =
         tokio::task::spawn(async move {
+            let run = async move {
             let registry = app_for_runner.state::<Arc<ServerHttpRegistry>>();
             let subsonic = subsonic_client_with_registry(
                 Some(registry.as_ref()),
@@ -277,7 +405,7 @@ pub(super) async fn library_sync_start_inner(
                 if let Some(creds) = navidrome_creds.clone() {
                     runner = runner.with_navidrome_credentials(creds);
                 }
-                let run = sync_outcome_to_result(runner.run().await);
+                let run = sync_outcome_to_result(runner.run().await, admission);
                 if run.is_ok() {
                     run_tag_pass_best_effort(
                         &store,
@@ -318,7 +446,7 @@ pub(super) async fn library_sync_start_inner(
                 if let Some(creds) = navidrome_creds.clone() {
                     runner = runner.with_navidrome_credentials(creds);
                 }
-                let run = sync_outcome_to_result(runner.run().await);
+                let run = sync_outcome_to_result(runner.run().await, admission);
                 if run.is_ok() {
                     run_tag_pass_best_effort(
                         &store,
@@ -338,6 +466,13 @@ pub(super) async fn library_sync_start_inner(
             drop(progress);
             let _ = job_id_for_task; // silence unused on Err
             result
+            };
+            match migration_generation {
+                Some(generation) => {
+                    LibraryStore::scope_migration_write_generation(generation, run).await
+                }
+                None => run.await,
+            }
         });
     if let Err(error) =
         runtime.attach_current_job_abort_handle(&job_id, runner_handle.abort_handle())
@@ -383,11 +518,21 @@ pub(super) async fn library_sync_start_inner(
                 &msg,
             )
             .with_job_id(&job_id_for_emit),
-            Err(join_err) if join_err.is_cancelled() => LibrarySyncIdlePayload::ok(
+            Err(join_err) if join_err.is_cancelled() && migration_generation.is_none() => {
+                LibrarySyncIdlePayload::ok(
+                    &server_id_for_emit,
+                    &scope_for_emit,
+                    &kind_for_emit,
+                    "foreground",
+                )
+                .with_job_id(&job_id_for_emit)
+            }
+            Err(join_err) if join_err.is_cancelled() => LibrarySyncIdlePayload::err(
                 &server_id_for_emit,
                 &scope_for_emit,
                 &kind_for_emit,
                 "foreground",
+                "migration sync task cancelled",
             )
             .with_job_id(&job_id_for_emit),
             Err(join_err) => LibrarySyncIdlePayload::err(
@@ -406,8 +551,17 @@ pub(super) async fn library_sync_start_inner(
             if let Some(store) = identity_store {
                 let identity_server_id = server_id_for_emit.clone();
                 if let Err(error) = super::library_spawn_blocking(move || {
-                    crate::identity::ensure_cluster_keys_built(&store, &identity_server_id)
-                        .map(|_| ())
+                    let ensure = || {
+                        crate::identity::ensure_cluster_keys_built(&store, &identity_server_id)
+                            .map(|_| ())
+                    };
+                    match migration_generation {
+                        Some(generation) => LibraryStore::scope_migration_write_generation_sync(
+                            generation,
+                            ensure,
+                        ),
+                        None => ensure(),
+                    }
                 })
                 .await
                 {
@@ -421,7 +575,14 @@ pub(super) async fn library_sync_start_inner(
             }
         }
         if let Some(runtime) = app_for_emit.try_state::<LibraryRuntime>() {
-            let _ = runtime.store.checkpoint_wal("sync.checkpoint");
+            let checkpoint = || runtime.store.checkpoint_wal("sync.checkpoint");
+            let _ = match migration_generation {
+                Some(generation) => LibraryStore::scope_migration_write_generation_sync(
+                    generation,
+                    checkpoint,
+                ),
+                None => checkpoint(),
+            };
         }
         let _ = app_for_emit.emit(LibrarySyncProgressPayload::IDLE_EVENT_NAME, &outcome);
 

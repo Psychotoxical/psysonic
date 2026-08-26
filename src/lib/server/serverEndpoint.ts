@@ -34,6 +34,22 @@ export type PickReachableResult =
     }
   | { ok: false; reason: 'unreachable' };
 
+type SuccessfulPickReachableResult = Extract<PickReachableResult, { ok: true }>;
+type SuccessfulPingObserver = (
+  profile: ServerProfile,
+  result: SuccessfulPickReachableResult,
+) => Promise<void>;
+
+let successfulPingObserver: SuccessfulPingObserver | null = null;
+
+/** Install the app-layer admission gate that runs before a successful ping is published. */
+export function installSuccessfulPingObserver(observer: SuccessfulPingObserver): () => void {
+  successfulPingObserver = observer;
+  return () => {
+    if (successfulPingObserver === observer) successfulPingObserver = null;
+  };
+}
+
 /** Whether either normalized profile address matches a shared server base URL. */
 export function profileServesShareBase(
   profile: Pick<ServerProfile, 'url' | 'alternateUrl'>,
@@ -70,7 +86,7 @@ export function serverShareBaseUrl(
 // ─────────────────────────────────────────────────────────────────────────────
 // Connect cache (in-memory, per-session)
 //
-// `pickReachableBaseUrl` probes the LAN-first endpoint list with the existing
+// The raw endpoint picker probes the LAN-first endpoint list with the existing
 // `pingWithCredentials`, sequentially (not parallel) so LAN wins over public
 // without racing. The first OK URL is cached against the profile id so the
 // next sync `getBaseUrl()` lookup is instant. Cache is **session only** —
@@ -153,6 +169,10 @@ export function getConnectCacheVersion(): number {
 const inFlightProbes = new Map<string, {
   token: ProbeToken;
   promise: Promise<PickReachableResult>;
+}>();
+const inFlightAdmissions = new Map<string, {
+  token: ProbeToken;
+  promise: Promise<void>;
 }>();
 
 /**
@@ -247,7 +267,7 @@ async function pingWithConnectRetries(
  * Single-address profiles: one endpoint sequence, identical intent to legacy
  * behavior aside from the retry cushion.
  */
-export async function pickReachableBaseUrl(
+async function pickReachableBaseUrlRaw(
   profile: ServerProfile,
 ): Promise<PickReachableResult> {
   const token = currentProbeToken(profile);
@@ -280,11 +300,6 @@ export async function pickReachableBaseUrl(
     ) {
       const ping = await pingWithCredentialsForProfile(profile, preferred.url);
       if (ping.ok) {
-        if (probeIsCurrent(profile.id, token)) {
-          connectCache.set(profile.id, { url: preferred.url, token });
-          notifyConnectCacheChanged();
-          setServerReachability(profile.id, 'available');
-        }
         return { ok: true, baseUrl: preferred.url, endpoint: preferred, ping };
       }
     }
@@ -301,12 +316,6 @@ export async function pickReachableBaseUrl(
     for (const endpoint of endpoints) {
       const ping = await pingWithConnectRetries(profile, endpoint.url);
       if (ping.ok) {
-        if (probeIsCurrent(profile.id, token)) {
-          const prev = connectCache.get(profile.id)?.url;
-          connectCache.set(profile.id, { url: endpoint.url, token });
-          if (prev !== endpoint.url) notifyConnectCacheChanged();
-          setServerReachability(profile.id, 'available');
-        }
         return { ok: true, baseUrl: endpoint.url, endpoint, ping };
       }
     }
@@ -331,12 +340,61 @@ export async function pickReachableBaseUrl(
   }
 }
 
+function publishSuccessfulProbe(
+  profile: ServerProfile,
+  token: ProbeToken,
+  result: SuccessfulPickReachableResult,
+): void {
+  if (!probeIsCurrent(profile.id, token)) return;
+  const previous = connectCache.get(profile.id)?.url;
+  connectCache.set(profile.id, { url: result.baseUrl, token });
+  if (previous !== result.baseUrl) notifyConnectCacheChanged();
+  setServerReachability(profile.id, 'available');
+}
+
+async function observeSuccessfulProbe(
+  profile: ServerProfile,
+  token: ProbeToken,
+  result: SuccessfulPickReachableResult,
+): Promise<void> {
+  if (!successfulPingObserver || !probeIsCurrent(profile.id, token)) return;
+  const existing = inFlightAdmissions.get(profile.id);
+  if (existing?.token === token) return existing.promise;
+  const promise = successfulPingObserver(profile, result);
+  const flight = { token, promise };
+  inFlightAdmissions.set(profile.id, flight);
+  try {
+    await promise;
+  } catch (error) {
+    if (probeIsCurrent(profile.id, token)) {
+      if (connectCache.delete(profile.id)) notifyConnectCacheChanged();
+      setServerReachability(profile.id, 'unavailable');
+    }
+    throw error;
+  } finally {
+    if (inFlightAdmissions.get(profile.id) === flight) inFlightAdmissions.delete(profile.id);
+  }
+}
+
+/** Test-only endpoint selection that publishes without the app admission observer. */
+export async function pickReachableBaseUrlForTests(profile: ServerProfile): Promise<PickReachableResult> {
+  const token = currentProbeToken(profile);
+  const result = await pickReachableBaseUrlRaw(profile);
+  if (result.ok) publishSuccessfulProbe(profile, token, result);
+  return result;
+}
+
 /**
  * Boot / switch / online-event entry point: same mechanism as
- * `pickReachableBaseUrl` but named for intent at the call site.
+ * the raw endpoint picker, with successful publication held behind admission.
  */
 export async function ensureConnectUrlResolved(
   profile: ServerProfile,
 ): Promise<PickReachableResult> {
-  return pickReachableBaseUrl(profile);
+  const token = currentProbeToken(profile);
+  const result = await pickReachableBaseUrlRaw(profile);
+  if (!result.ok) return result;
+  await observeSuccessfulProbe(profile, token, result);
+  publishSuccessfulProbe(profile, token, result);
+  return result;
 }

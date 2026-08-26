@@ -17,10 +17,7 @@ impl AnalysisCache {
         if track_id.trim().is_empty() {
             return Ok(0);
         }
-        let conn = self
-            .conn
-            .lock()
-            .map_err(|_| "analysis_cache lock poisoned".to_string())?;
+        let conn = self.lock_write_conn()?;
         let mut total: u64 = 0;
         for tid in track_id_cache_variants(track_id) {
             let n = conn
@@ -45,10 +42,7 @@ impl AnalysisCache {
         if track_id.trim().is_empty() {
             return Ok(0);
         }
-        let conn = self
-            .conn
-            .lock()
-            .map_err(|_| "analysis_cache lock poisoned".to_string())?;
+        let conn = self.lock_write_conn()?;
         let mut total: u64 = 0;
         for tid in track_id_cache_variants(track_id) {
             let n = conn
@@ -64,10 +58,7 @@ impl AnalysisCache {
 
     /// Remove all cached waveform rows across all tracks/variants.
     pub fn delete_all_waveforms(&self) -> Result<u64, String> {
-        let conn = self
-            .conn
-            .lock()
-            .map_err(|_| "analysis_cache lock poisoned".to_string())?;
+        let conn = self.lock_write_conn()?;
         let n = conn
             .execute("DELETE FROM waveform_cache", [])
             .map_err(|e| e.to_string())?;
@@ -79,10 +70,7 @@ impl AnalysisCache {
         &self,
         server_id: &str,
     ) -> Result<AnalysisDeleteServerReport, String> {
-        let mut conn = self
-            .conn
-            .lock()
-            .map_err(|_| "analysis_cache lock poisoned".to_string())?;
+        let mut conn = self.lock_write_conn()?;
         let tx = conn.transaction().map_err(|e| e.to_string())?;
         let waveforms = tx
             .execute(
@@ -112,10 +100,7 @@ impl AnalysisCache {
 
     /// Drop analysis rows written under legacy server ids (profile UUIDs).
     pub fn migrate_server_keys(&self, mappings: &[(String, String)]) -> Result<(), String> {
-        let mut conn = self
-            .conn
-            .lock()
-            .map_err(|_| "analysis_cache lock poisoned".to_string())?;
+        let mut conn = self.lock_write_conn()?;
         let tx = conn.transaction().map_err(|e| e.to_string())?;
         for (legacy, key) in mappings {
             let legacy = legacy.trim();
@@ -148,10 +133,7 @@ impl AnalysisCache {
     /// row is active, so `get_latest_*` reads can never surface a stale
     /// variant (e.g. a pre-fix transcode-derived row) for the track.
     pub fn delete_other_fingerprints(&self, key: &TrackKey) -> Result<usize, String> {
-        let mut conn = self
-            .conn
-            .lock()
-            .map_err(|_| "analysis_cache lock poisoned".to_string())?;
+        let mut conn = self.lock_write_conn()?;
         let tx = conn.transaction().map_err(|e| e.to_string())?;
         let mut removed = 0usize;
         for track_id in track_id_cache_variants(&key.track_id) {
@@ -173,10 +155,7 @@ impl AnalysisCache {
     /// Delete one exact `(server, track, fingerprint)` variant. Used when a
     /// trusted revision finishes after a newer revision already superseded it.
     pub fn delete_fingerprint(&self, key: &TrackKey) -> Result<usize, String> {
-        let mut conn = self
-            .conn
-            .lock()
-            .map_err(|_| "analysis_cache lock poisoned".to_string())?;
+        let mut conn = self.lock_write_conn()?;
         let tx = conn.transaction().map_err(|e| e.to_string())?;
         let mut removed = 0usize;
         for track_id in track_id_cache_variants(&key.track_id) {
@@ -197,10 +176,7 @@ impl AnalysisCache {
 
     pub fn touch_track_status(&self, key: &TrackKey, status: &str) -> Result<(), String> {
         let now = now_unix_ts();
-        let conn = self
-            .conn
-            .lock()
-            .map_err(|_| "analysis_cache lock poisoned".to_string())?;
+        let conn = self.lock_write_conn()?;
         conn.execute(
             r#"
             INSERT INTO analysis_track (
@@ -227,10 +203,7 @@ impl AnalysisCache {
     }
 
     pub fn upsert_waveform(&self, key: &TrackKey, entry: &WaveformEntry) -> Result<(), String> {
-        let conn = self
-            .conn
-            .lock()
-            .map_err(|_| "analysis_cache lock poisoned".to_string())?;
+        let conn = self.lock_write_conn()?;
         conn.execute(
             r#"
             INSERT INTO waveform_cache (
@@ -261,10 +234,7 @@ impl AnalysisCache {
     }
 
     pub fn upsert_loudness(&self, key: &TrackKey, entry: &LoudnessEntry) -> Result<(), String> {
-        let conn = self
-            .conn
-            .lock()
-            .map_err(|_| "analysis_cache lock poisoned".to_string())?;
+        let conn = self.lock_write_conn()?;
         conn.execute(
             r#"
             INSERT INTO loudness_cache (
@@ -296,10 +266,7 @@ impl AnalysisCache {
         server_id: &str,
         track_ids: &[String],
     ) -> Result<u64, String> {
-        let conn = self
-            .conn
-            .lock()
-            .map_err(|_| "analysis_cache lock poisoned".to_string())?;
+        let conn = self.lock_write_conn()?;
         if track_ids.is_empty() {
             let deleted = conn
                 .execute(

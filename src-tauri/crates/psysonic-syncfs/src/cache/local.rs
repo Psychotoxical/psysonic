@@ -95,6 +95,7 @@ pub async fn download_track_local(
     dl_sem: State<'_, DownloadSemaphore>,
     app: AppHandle,
 ) -> Result<LocalTrackDownloadResult, String> {
+    let _filesystem_write_guard = crate::filesystem_write_guard().await?;
     download::download_track_local(
         tier,
         track_id,
@@ -169,6 +170,7 @@ pub async fn prune_orphan_library_tier_files(
     media_dir: Option<String>,
     app: AppHandle,
 ) -> Result<Vec<String>, String> {
+    let _filesystem_write_guard = crate::filesystem_write_guard().await?;
     eviction::prune_orphan_library_tier_files(server_index_key, keep_paths, media_dir, app).await
 }
 
@@ -181,6 +183,7 @@ pub async fn evict_ephemeral_cache_orphans_to_fit(
     media_dir: Option<String>,
     app: AppHandle,
 ) -> Result<Vec<String>, String> {
+    let _filesystem_write_guard = crate::filesystem_write_guard().await?;
     eviction::evict_ephemeral_cache_orphans_to_fit(keep_paths, max_bytes, media_dir, app).await
 }
 
@@ -192,6 +195,7 @@ pub async fn prune_orphan_ephemeral_cache_files(
     media_dir: Option<String>,
     app: AppHandle,
 ) -> Result<Vec<String>, String> {
+    let _filesystem_write_guard = crate::filesystem_write_guard().await?;
     eviction::prune_orphan_ephemeral_cache_files(keep_paths, media_dir, app).await
 }
 
@@ -217,6 +221,7 @@ pub async fn purge_media_tier(
     media_dir: Option<String>,
     app: AppHandle,
 ) -> Result<(), String> {
+    let _filesystem_write_guard = crate::filesystem_write_guard().await?;
     eviction::purge_media_tier(tier, media_dir, app).await
 }
 
@@ -228,6 +233,7 @@ pub async fn delete_media_file(
     media_dir: Option<String>,
     app: AppHandle,
 ) -> Result<(), String> {
+    let _filesystem_write_guard = crate::filesystem_write_guard().await?;
     eviction::delete_media_file(local_path, media_dir, app).await
 }
 
@@ -239,6 +245,7 @@ pub async fn prune_empty_media_tier_dirs(
     media_dir: Option<String>,
     app: AppHandle,
 ) -> Result<(), String> {
+    let _filesystem_write_guard = crate::filesystem_write_guard().await?;
     eviction::prune_empty_media_tier_dirs(tier, media_dir, app).await
 }
 
@@ -257,6 +264,7 @@ pub async fn promote_stream_cache_to_local(
     app: AppHandle,
     state: State<'_, audio::AudioEngine>,
 ) -> Result<Option<LocalTrackDownloadResult>, String> {
+    let _filesystem_write_guard = crate::filesystem_write_guard().await?;
     promotion::promote_stream_cache_to_local(
         track_id,
         server_index_key,
@@ -282,6 +290,7 @@ pub async fn migrate_legacy_offline_disk(
     runtime: State<'_, LibraryRuntime>,
     app: AppHandle,
 ) -> Result<Vec<LegacyOfflineMigrationResult>, String> {
+    let _filesystem_write_guard = crate::filesystem_write_guard().await?;
     legacy::migrate_legacy_offline_disk(
         media_dir,
         custom_offline_dir,

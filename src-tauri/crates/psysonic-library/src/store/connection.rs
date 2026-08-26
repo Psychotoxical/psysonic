@@ -32,6 +32,54 @@ impl Drop for ReadOpOwnerGuard<'_> {
 }
 
 impl LibraryStore {
+    pub(crate) async fn scope_migration_write_generation<F>(
+        generation: u64,
+        future: F,
+    ) -> F::Output
+    where
+        F: std::future::Future,
+    {
+        psysonic_core::migration_write_barrier::MigrationWriteBarrier::scope(generation, future)
+            .await
+    }
+
+    pub fn scope_migration_write_generation_sync<R>(
+        generation: u64,
+        operation: impl FnOnce() -> R,
+    ) -> R {
+        psysonic_core::migration_write_barrier::MigrationWriteBarrier::scope_sync(
+            generation,
+            operation,
+        )
+    }
+
+    pub(crate) fn activate_migration_write_generation(
+        &self,
+        generation: u64,
+    ) -> Result<(), String> {
+        self.migration_write_barrier.activate(generation)?;
+
+        // A writer may have passed its first generation check before activation.
+        // Taking the connection once drains that writer; every later writer checks
+        // the generation again after acquiring the lock.
+        let conn = self.lock_write_conn()?;
+        drop(conn);
+        Ok(())
+    }
+
+    pub(crate) fn deactivate_migration_write_generation(
+        &self,
+        generation: u64,
+    ) -> Result<(), String> {
+        self.migration_write_barrier.deactivate(generation)
+    }
+
+    pub(crate) fn ensure_write_generation_allowed(&self) -> Result<(), String> {
+        self.migration_write_barrier
+            .ensure_write_allowed()
+            .map_err(|error| format!("library {error}"))
+    }
+
     pub(crate) fn set_bulk_ingest_active(&self, active: bool) {
         self.bulk_ingest_active.store(active, Ordering::Release);
     }
@@ -109,8 +157,10 @@ impl LibraryStore {
         op: &'static str,
         f: impl FnOnce(&Connection) -> rusqlite::Result<R>,
     ) -> Result<R, String> {
+        self.ensure_write_generation_allowed()?;
         let lock_start = std::time::Instant::now();
         let conn = self.lock_write_conn()?;
+        self.ensure_write_generation_allowed()?;
         let lock_wait_ms = lock_start.elapsed().as_millis();
         let exec_start = std::time::Instant::now();
         let out = run_conn_closure(&conn, f);
@@ -259,8 +309,10 @@ impl LibraryStore {
         op: &'static str,
         f: impl FnOnce(&mut Connection) -> rusqlite::Result<R>,
     ) -> Result<(R, WriteOpTiming), String> {
+        self.ensure_write_generation_allowed()?;
         let lock_start = std::time::Instant::now();
         let mut conn = self.lock_write_conn()?;
+        self.ensure_write_generation_allowed()?;
         let lock_wait_ms = lock_start.elapsed().as_millis() as u64;
         let exec_start = std::time::Instant::now();
         let out = run_conn_mut_closure(&mut conn, f)?;
@@ -275,7 +327,7 @@ impl LibraryStore {
         ))
     }
 
-    pub(crate) fn checkpoint_wal(&self, op: &'static str) -> Result<(), String> {
+    pub fn checkpoint_wal(&self, op: &'static str) -> Result<(), String> {
         self.with_conn_mut(op, |conn| {
             super::open::checkpoint_wal_conn(conn, op)?;
             Ok(())

@@ -10,6 +10,8 @@ pub mod icy;
 pub mod log_sanitize;
 pub mod media_layout;
 pub mod logging;
+pub mod migration_write_barrier;
+pub mod navidrome_id_codec;
 pub mod ports;
 pub mod track_analysis;
 pub mod track_enrichment;
