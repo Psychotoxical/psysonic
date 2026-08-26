@@ -1,4 +1,5 @@
 use reqwest::Client;
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
@@ -18,6 +19,10 @@ const COVER_CPU_BACKFILL_MAX: usize = 16;
 /// External providers (fanart.tv) get their own low-concurrency HTTP lane so
 /// they can never starve Navidrome cover / getArtistInfo2 fetches (§26).
 pub(super) const FANART_HTTP_CONCURRENCY: usize = 4;
+/// External album providers (iTunes / Last.fm §5) get their own low-concurrency
+/// lane too, so the library-wide server-miss fallback can never starve the
+/// Navidrome cover fetch / getArtistInfo2 lanes.
+const ALBUM_HTTP_CONCURRENCY: usize = 4;
 
 pub struct CoverCacheState {
     pub root: PathBuf,
@@ -31,10 +36,20 @@ pub struct CoverCacheState {
     /// External-provider (fanart.tv) HTTP lane — separate from `http_sem` so
     /// external fetches never starve Navidrome cover / getArtistInfo2 (§26).
     pub fanart_http_sem: Arc<Semaphore>,
+    /// External album-provider (iTunes / Last.fm §5) HTTP lane — separate from
+    /// `http_sem` and `fanart_http_sem` so the library-wide server-miss fallback
+    /// can never starve the Navidrome cover / getArtistInfo2 lanes.
+    pub album_http_sem: Arc<Semaphore>,
     /// MusicBrainz name→MBID lane — a single permit, so the §19 resolver runs
     /// strictly serially and the caller's ≥1s spacing keeps us under MB's rate
     /// limit (their ToS).
     pub musicbrainz_sem: Arc<Semaphore>,
+    /// One flight per cover dir: serializes concurrent `ensure_inner` calls
+    /// for the same album so a quiet/opts-less flight (library backfill,
+    /// background hook) can never interleave its writes with an in-flight
+    /// external chain. `Weak` entries evaporate once the last flight drops.
+    pub inflight_dirs:
+        std::sync::Mutex<HashMap<PathBuf, std::sync::Weak<tokio::sync::Mutex<()>>>>,
     /// Live permit count of `cover_cpu_backfill_sem` (the semaphore itself only
     /// exposes *available* permits, not the configured ceiling).
     cover_cpu_backfill_max: AtomicUsize,
@@ -58,7 +73,9 @@ impl CoverCacheState {
             cover_cpu_ui_sem: Arc::new(Semaphore::new(COVER_CPU_UI_CONCURRENCY)),
             cover_cpu_backfill_sem: Arc::new(Semaphore::new(COVER_CPU_BACKFILL_CONCURRENCY)),
             fanart_http_sem: Arc::new(Semaphore::new(FANART_HTTP_CONCURRENCY)),
+            album_http_sem: Arc::new(Semaphore::new(ALBUM_HTTP_CONCURRENCY)),
             musicbrainz_sem: Arc::new(Semaphore::new(1)),
+            inflight_dirs: std::sync::Mutex::new(HashMap::new()),
             cover_cpu_backfill_max: AtomicUsize::new(COVER_CPU_BACKFILL_CONCURRENCY),
         })
     }

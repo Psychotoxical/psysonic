@@ -76,6 +76,13 @@ pub struct CoverCacheEnsureArgs {
     /// the project key (§22). Falls back to the `PSYSONIC_FANART_CLIENT_KEY` env.
     #[serde(default)]
     pub external_artwork_byok: Option<String>,
+    /// Ordered external album chain (§5, cover provider chain): the enabled
+    /// `apple`/`lastfm` sources the server-miss fallback should try when the
+    /// Navidrome/Subsonic server returns no cover art. `None`/empty = external
+    /// album fallback off. This keys the album external branch (NOT
+    /// `external_artwork_enabled`, which is the fanart master toggle).
+    #[serde(default)]
+    pub external_album_sources: Option<Vec<String>>,
 }
 
 #[derive(Debug, Clone, Deserialize, specta::Type)]

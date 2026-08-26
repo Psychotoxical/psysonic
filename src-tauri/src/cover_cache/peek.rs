@@ -75,6 +75,7 @@ mod tests {
             artist_name: None,
             album_title: None,
             external_artwork_byok: None,
+            external_album_sources: None,
         }
     }
 

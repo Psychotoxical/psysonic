@@ -12,6 +12,7 @@
 // `crate::app_eprintln!()` and `crate::app_deprintln!()`.
 pub use psysonic_core::{app_deprintln, app_eprintln, logging};
 
+pub mod album_art;
 pub mod bandsintown;
 pub mod discord;
 pub mod navidrome;

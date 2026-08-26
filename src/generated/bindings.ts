@@ -810,6 +810,14 @@ export const commands = {
 	resolveStreamUrl: (url: string) => __TAURI_INVOKE<string>("resolve_stream_url", { url }),
 	/**  Clear the Discord Rich Presence activity (e.g. playback stopped). */
 	discordClearPresence: () => typedError<null, string>(__TAURI_INVOKE("discord_clear_presence")),
+	/**
+	 *  Resolve an iTunes artwork URL directly (Discord chain step). Reuses the
+	 *  blocking `search_itunes_artwork` + the managed client/cache so the 1h TTL
+	 *  is shared with the old `discord_update_presence` path.
+	 */
+	resolveAppleCover: (artist: string, album: string, title: string) => typedError<string | null, string>(__TAURI_INVOKE("resolve_apple_cover", { artist, album, title })),
+	/**  Resolve a Last.fm album-cover URL directly (Discord chain step). */
+	resolveLastfmCover: (artist: string, album: string) => __TAURI_INVOKE<string | null>("resolve_lastfm_cover", { artist, album }),
 };
 
 /* Types */
@@ -1000,6 +1008,14 @@ export type CoverCacheEnsureArgs = {
 	 *  the project key (§22). Falls back to the `PSYSONIC_FANART_CLIENT_KEY` env.
 	 */
 	externalArtworkByok?: string | null,
+	/**
+	 *  Ordered external album chain (§5, cover provider chain): the enabled
+	 *  `apple`/`lastfm` sources the server-miss fallback should try when the
+	 *  Navidrome/Subsonic server returns no cover art. `None`/empty = external
+	 *  album fallback off. This keys the album external branch (NOT
+	 *  `external_artwork_enabled`, which is the fanart master toggle).
+	 */
+	externalAlbumSources?: string[] | null,
 };
 
 export type CoverCacheEnsureResult = {
