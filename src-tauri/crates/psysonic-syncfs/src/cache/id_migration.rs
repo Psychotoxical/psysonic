@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 
 use psysonic_core::navidrome_id_codec::canonical_id;
 use psysonic_library::runtime::MigrationPhase;
-use psysonic_library::LibraryRuntime;
+use psysonic_library::{LibraryRuntime, LibraryStore};
 use tauri::{AppHandle, Manager, State};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, serde::Serialize, specta::Type)]
@@ -63,35 +63,23 @@ pub async fn migrate_navidrome_filesystem_ids(
     let store = runtime.store.clone();
 
     tauri::async_runtime::spawn_blocking(move || {
-        psysonic_core::migration_write_barrier::MigrationWriteBarrier::scope_sync(generation, || {
-            let offline = migrate_flat_cache_dir(&offline_dir, CollisionPolicy::RequireIdentical)?;
-            let hot = migrate_flat_cache_dir(&hot_dir, CollisionPolicy::PreferDestination)?;
-            let path_changes = offline
-                .path_changes
-                .iter()
-                .map(|(old_path, new_path)| {
-                    (
-                        old_path.to_string_lossy().to_string(),
-                        new_path.to_string_lossy().to_string(),
-                    )
+        psysonic_core::migration_write_barrier::MigrationWriteBarrier::scope_sync(
+            generation,
+            || {
+                let (offline, offline_paths_retargeted) =
+                    migrate_offline_cache_dir(&store, &library_server_id, &offline_dir)?;
+                let hot = migrate_flat_cache_dir(&hot_dir, CollisionPolicy::PreferDestination)?;
+                Ok(NavidromeFilesystemMigrationDto {
+                    offline_files_scanned: offline.scanned,
+                    offline_files_moved: offline.moved,
+                    offline_files_merged: offline.merged,
+                    hot_cache_files_scanned: hot.scanned,
+                    hot_cache_files_moved: hot.moved,
+                    hot_cache_files_merged: hot.merged,
+                    offline_paths_retargeted,
                 })
-                .collect::<Vec<_>>();
-            let offline_paths_retargeted =
-                psysonic_library::navidrome_native_migration::retarget_offline_paths(
-                    &store,
-                    &library_server_id,
-                    &path_changes,
-                )?;
-            Ok(NavidromeFilesystemMigrationDto {
-                offline_files_scanned: offline.scanned,
-                offline_files_moved: offline.moved,
-                offline_files_merged: offline.merged,
-                hot_cache_files_scanned: hot.scanned,
-                hot_cache_files_moved: hot.moved,
-                hot_cache_files_merged: hot.merged,
-                offline_paths_retargeted,
-            })
-        })
+            },
+        )
     })
     .await
     .map_err(|error| error.to_string())?
@@ -99,30 +87,66 @@ pub async fn migrate_navidrome_filesystem_ids(
 
 pub async fn verify_navidrome_filesystem_ids(
     app: &AppHandle,
+    store: std::sync::Arc<LibraryStore>,
+    library_server_id: &str,
     server_index_key: &str,
     custom_offline_dir: Option<String>,
     custom_hot_cache_dir: Option<String>,
 ) -> Result<(), String> {
     let server_index_key = server_index_key.trim();
+    let library_server_id = library_server_id.trim().to_string();
     if server_index_key.is_empty() {
         return Err("filesystem verification server index key must not be empty".to_string());
     }
-    let app_data = app.path().app_data_dir().map_err(|error| error.to_string())?;
+    let app_data = app
+        .path()
+        .app_data_dir()
+        .map_err(|error| error.to_string())?;
     let offline_root = custom_offline_dir
         .filter(|value| !value.trim().is_empty())
         .map(PathBuf::from)
         .unwrap_or_else(|| app_data.join("psysonic-offline"));
     let hot_root = super::downloads::resolve_hot_cache_root(custom_hot_cache_dir, app)?;
-    let offline_dir =
-        offline_root.join(super::offline::legacy_safe_segment(server_index_key));
+    let offline_dir = offline_root.join(super::offline::legacy_safe_segment(server_index_key));
     let hot_dir = hot_root.join(server_index_key);
 
     tauri::async_runtime::spawn_blocking(move || {
         verify_flat_cache_dir(&offline_dir)?;
+        psysonic_library::navidrome_native_migration::verify_offline_paths(
+            &store,
+            &library_server_id,
+            &offline_dir,
+        )?;
         verify_flat_cache_dir(&hot_dir)
     })
     .await
     .map_err(|error| error.to_string())?
+}
+
+fn migrate_offline_cache_dir(
+    store: &LibraryStore,
+    server_id: &str,
+    dir: &Path,
+) -> Result<(FlatCacheMigration, u64), String> {
+    let migration = migrate_flat_cache_dir(dir, CollisionPolicy::RequireIdentical)?;
+    let path_changes = migration
+        .path_changes
+        .iter()
+        .map(|(old_path, new_path)| {
+            (
+                old_path.to_string_lossy().to_string(),
+                new_path.to_string_lossy().to_string(),
+            )
+        })
+        .collect::<Vec<_>>();
+    let paths_retargeted = psysonic_library::navidrome_native_migration::reconcile_offline_paths(
+        store,
+        server_id,
+        dir,
+        &path_changes,
+    )?;
+    psysonic_library::navidrome_native_migration::verify_offline_paths(store, server_id, dir)?;
+    Ok((migration, paths_retargeted))
 }
 
 fn migrate_flat_cache_dir(
@@ -132,7 +156,9 @@ fn migrate_flat_cache_dir(
     let Ok(entries) = std::fs::read_dir(dir) else {
         return Ok(FlatCacheMigration::default());
     };
-    let entries = entries.collect::<Result<Vec<_>, _>>().map_err(|error| error.to_string())?;
+    let entries = entries
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|error| error.to_string())?;
     let mut result = FlatCacheMigration::default();
     for entry in entries {
         let source = entry.path();
@@ -178,17 +204,19 @@ fn migrate_flat_cache_dir(
 }
 
 fn files_are_identical(left: &Path, right: &Path) -> Result<bool, String> {
-    if std::fs::metadata(left).map_err(|error| error.to_string())?.len()
-        != std::fs::metadata(right).map_err(|error| error.to_string())?.len()
+    if std::fs::metadata(left)
+        .map_err(|error| error.to_string())?
+        .len()
+        != std::fs::metadata(right)
+            .map_err(|error| error.to_string())?
+            .len()
     {
         return Ok(false);
     }
-    let mut left = std::io::BufReader::new(
-        std::fs::File::open(left).map_err(|error| error.to_string())?,
-    );
-    let mut right = std::io::BufReader::new(
-        std::fs::File::open(right).map_err(|error| error.to_string())?,
-    );
+    let mut left =
+        std::io::BufReader::new(std::fs::File::open(left).map_err(|error| error.to_string())?);
+    let mut right =
+        std::io::BufReader::new(std::fs::File::open(right).map_err(|error| error.to_string())?);
     let mut left_buffer = [0_u8; 64 * 1024];
     let mut right_buffer = [0_u8; 64 * 1024];
     loop {
@@ -259,8 +287,7 @@ mod tests {
     fn moves_legacy_filename_and_preserves_suffix() {
         let dir = fresh_dir("move");
         std::fs::write(dir.join(format!("{LEGACY}.flac")), b"audio").unwrap();
-        let result =
-            migrate_flat_cache_dir(&dir, CollisionPolicy::RequireIdentical).unwrap();
+        let result = migrate_flat_cache_dir(&dir, CollisionPolicy::RequireIdentical).unwrap();
         assert_eq!(result.moved, 1);
         assert_eq!(
             std::fs::read(dir.join(format!("{CANONICAL}.flac"))).unwrap(),
@@ -274,8 +301,7 @@ mod tests {
         let dir = fresh_dir("merge");
         std::fs::write(dir.join(format!("{LEGACY}.flac")), b"same audio").unwrap();
         std::fs::write(dir.join(format!("{CANONICAL}.flac")), b"same audio").unwrap();
-        let result =
-            migrate_flat_cache_dir(&dir, CollisionPolicy::RequireIdentical).unwrap();
+        let result = migrate_flat_cache_dir(&dir, CollisionPolicy::RequireIdentical).unwrap();
         assert_eq!(result.merged, 1);
         assert_eq!(
             std::fs::read(dir.join(format!("{CANONICAL}.flac"))).unwrap(),
@@ -292,9 +318,11 @@ mod tests {
         let canonical_path = dir.join(format!("{CANONICAL}.flac"));
         std::fs::write(&legacy_path, b"legacy audio").unwrap();
         std::fs::write(&canonical_path, b"different audio").unwrap();
-        assert!(migrate_flat_cache_dir(&dir, CollisionPolicy::RequireIdentical)
-            .unwrap_err()
-            .contains("conflicting Navidrome filesystem collision"));
+        assert!(
+            migrate_flat_cache_dir(&dir, CollisionPolicy::RequireIdentical)
+                .unwrap_err()
+                .contains("conflicting Navidrome filesystem collision")
+        );
         assert_eq!(std::fs::read(legacy_path).unwrap(), b"legacy audio");
         assert_eq!(std::fs::read(canonical_path).unwrap(), b"different audio");
         let _ = std::fs::remove_dir_all(dir);
@@ -307,8 +335,7 @@ mod tests {
         let canonical_path = dir.join(format!("{CANONICAL}.mp3"));
         std::fs::write(&legacy_path, b"obsolete hot bytes").unwrap();
         std::fs::write(&canonical_path, b"current hot bytes").unwrap();
-        let result =
-            migrate_flat_cache_dir(&dir, CollisionPolicy::PreferDestination).unwrap();
+        let result = migrate_flat_cache_dir(&dir, CollisionPolicy::PreferDestination).unwrap();
         assert_eq!(result.merged, 1);
         assert!(!legacy_path.exists());
         assert_eq!(std::fs::read(canonical_path).unwrap(), b"current hot bytes");

@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { resolveStorageServerIndexKey } from '@/lib/server/serverIndexKey';
+import { canonicalNavidromeId } from '@/lib/server/navidromeCanonicalId';
+import { navidromeCanonicalCheckpointStatus } from '@/lib/server/navidromeCanonicalCheckpointStatus';
 
 export interface DeviceSyncSource {
   type: 'album' | 'playlist' | 'artist';
@@ -73,7 +75,16 @@ export function deviceSyncSourcesFromManifest(
   });
   const owner = deviceSyncOwnerKey(sources);
   if (!owner || (manifestOwner ? manifestOwner !== owner : fallbackOwner !== owner)) return [];
-  return sources;
+  const checkpointStatus = navidromeCanonicalCheckpointStatus(owner);
+  if (checkpointStatus === 'invalid' || checkpointStatus === 'pending') return [];
+  const normalized = new Map<string, DeviceSyncSource>();
+  for (const source of sources) {
+    const next = checkpointStatus === 'ready'
+      ? { ...source, id: canonicalNavidromeId(source.id) }
+      : source;
+    normalized.set(deviceSyncSourceKey(next), next);
+  }
+  return [...normalized.values()];
 }
 
 export function migrateDeviceSyncPersistedState(persisted: unknown): Partial<DeviceSyncState> {
@@ -134,16 +145,10 @@ export const useDeviceSyncStore = create<DeviceSyncState>()(
           const owner = deviceSyncOwnerKey(s.sources);
           const key = deviceSyncSourceKey(source);
           if (!source.serverIndexKey || (owner && owner !== source.serverIndexKey)) return s;
-          const recovered = s.legacySources.map(legacy => ({
-            ...legacy,
-            serverIndexKey: owner ?? source.serverIndexKey,
-          }));
-          const nextSources = [...s.sources, ...recovered];
           return {
-            sources: nextSources.some((x) => deviceSyncSourceKey(x) === key)
-              ? nextSources
-              : [...nextSources, source],
-            legacySources: [],
+            sources: s.sources.some((x) => deviceSyncSourceKey(x) === key)
+              ? s.sources
+              : [...s.sources, source],
           };
         }),
 
@@ -154,7 +159,7 @@ export const useDeviceSyncStore = create<DeviceSyncState>()(
           pendingDeletion: s.pendingDeletion.filter((x) => x !== id),
         })),
 
-      clearSources: () => set({ sources: [], legacySources: [], checkedIds: [], pendingDeletion: [] }),
+      clearSources: () => set({ sources: [], checkedIds: [], pendingDeletion: [] }),
       setLegacySources: (legacySources) => set({ legacySources }),
 
       toggleChecked: (id) =>

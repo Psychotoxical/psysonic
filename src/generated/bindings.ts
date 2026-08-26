@@ -72,7 +72,7 @@ export const commands = {
 	libraryClusterRebuild: (serverId: string | null) => typedError<number, string>(__TAURI_INVOKE("library_cluster_rebuild", { serverId })),
 	libraryResolveEntitySources: (request: LibraryResolveEntitySourcesRequest) => typedError<LibraryEntitySourceDto[], string>(__TAURI_INVOKE("library_resolve_entity_sources", { request })),
 	libraryResolveAlbumOverlay: (request: LibraryResolveAlbumOverlayRequest) => typedError<LibraryAlbumOverlayResolutionDto[], string>(__TAURI_INVOKE("library_resolve_album_overlay", { request })),
-	libraryMigrationBegin: (serverIds: string[]) => typedError<number, string>(__TAURI_INVOKE("library_migration_begin", { serverIds })),
+	libraryMigrationBegin: (serverIds: string[]) => typedError<MigrationBeginResultDto, string>(__TAURI_INVOKE("library_migration_begin", { serverIds })),
 	libraryMigrationAnalysisUpperRowid: (generation: number, serverId: string, step: AnalysisMigrationStep) => typedError<number, string>(__TAURI_INVOKE("library_migration_analysis_upper_rowid", { generation, serverId, step })),
 	libraryMigrationAnalysisBatch: (request: AnalysisMigrationBatchRequest) => typedError<AnalysisMigrationBatchDto, string>(__TAURI_INVOKE("library_migration_analysis_batch", { request })),
 	libraryMigrationAnalysisFinalize: (generation: number, serverId: string) => typedError<AnalysisMigrationFinalizeDto, string>(__TAURI_INVOKE("library_migration_analysis_finalize", { generation, serverId })),
@@ -628,9 +628,15 @@ export const commands = {
 	serverHttpContextSync: (wire: ServerHttpContextSyncWire) => typedError<null, string>(__TAURI_INVOKE("server_http_context_sync", { wire })),
 	serverHttpContextSyncAll: (entries: ServerHttpContextSyncWire[]) => typedError<null, string>(__TAURI_INVOKE("server_http_context_sync_all", { entries })),
 	backupExportLibraryDb: (destinationPath: string) => typedError<null, string>(__TAURI_INVOKE("backup_export_library_db", { destinationPath })),
-	backupImportLibraryDb: (sourcePath: string, canonicalServerIds: string[], migrationGeneration: number | null) => typedError<null, string>(__TAURI_INVOKE("backup_import_library_db", { sourcePath, canonicalServerIds, migrationGeneration })),
-	backupRollbackImportedDatabases: (migrationGeneration: number | null) => typedError<null, string>(__TAURI_INVOKE("backup_rollback_imported_databases", { migrationGeneration })),
+	backupImportLibraryDb: (sourcePath: string, canonicalServerIds: string[], migrationGeneration: number, durableFullImportRecovery: boolean) => typedError<null, string>(__TAURI_INVOKE("backup_import_library_db", { sourcePath, canonicalServerIds, migrationGeneration, durableFullImportRecovery })),
+	backupRollbackImportedDatabases: (migrationGeneration: number) => typedError<null, string>(__TAURI_INVOKE("backup_rollback_imported_databases", { migrationGeneration })),
 	backupCommitImportedDatabases: () => typedError<null, string>(__TAURI_INVOKE("backup_commit_imported_databases")),
+	backupInspectFullImportRecovery: () => typedError<{
+	phase: FullImportRecoveryPhase,
+	migrationGeneration: number,
+} | null, string>(__TAURI_INVOKE("backup_inspect_full_import_recovery")),
+	backupRecoverFullImportDatabases: () => typedError<null, string>(__TAURI_INVOKE("backup_recover_full_import_databases")),
+	backupFinalizeFullImportRecovery: () => typedError<null, string>(__TAURI_INVOKE("backup_finalize_full_import_recovery")),
 	registerGlobalShortcut: (shortcut: string, action: string) => typedError<null, string>(__TAURI_INVOKE("register_global_shortcut", { shortcut, action })),
 	unregisterGlobalShortcut: (shortcut: string) => typedError<null, string>(__TAURI_INVOKE("unregister_global_shortcut", { shortcut })),
 	mprisSetMetadata: (title: string | null, artist: string | null, album: string | null, coverUrl: string | null, durationSecs: number | null) => typedError<null, string>(__TAURI_INVOKE("mpris_set_metadata", { title, artist, album, coverUrl, durationSecs })),
@@ -1089,6 +1095,13 @@ export type FactInputDto = {
 	expiresAt?: number | null,
 };
 
+export type FullImportRecoveryPhase = "prepared" | "databases-restored" | "committed";
+
+export type FullImportRecoveryStatusDto = {
+	phase: FullImportRecoveryPhase,
+	migrationGeneration: number,
+};
+
 /**  Per-genre album/track totals from the local track catalog (Genres cloud + browse). */
 export type GenreAlbumCountDto = {
 	value: string,
@@ -1364,6 +1377,17 @@ export type LoudnessCachePayload = {
 	recommendedGainDb: number | null,
 	targetLufs: number | null,
 	updatedAt: number,
+};
+
+export type MigrationBeginResultDto = {
+	generation: number,
+	created: boolean,
+	servers: MigrationBeginServerDto[],
+};
+
+export type MigrationBeginServerDto = {
+	serverId: string,
+	previousPhase: MigrationPhase | null,
 };
 
 export type MigrationGenerationSnapshotDto = { state: "inactive"; lastGeneration: number } | { state: "active"; generation: number; servers: MigrationServerSnapshotDto[] };

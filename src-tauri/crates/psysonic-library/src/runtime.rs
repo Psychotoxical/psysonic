@@ -119,6 +119,21 @@ pub enum MigrationGenerationSnapshotDto {
     },
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct MigrationBeginServerDto {
+    pub server_id: String,
+    pub previous_phase: Option<MigrationPhase>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct MigrationBeginResultDto {
+    pub generation: u64,
+    pub created: bool,
+    pub servers: Vec<MigrationBeginServerDto>,
+}
+
 #[derive(Debug, Clone)]
 struct MigrationServerState {
     phase: MigrationPhase,
@@ -164,6 +179,8 @@ pub struct LibraryRuntime {
     analysis_progress_cache: Mutex<HashMap<String, AnalysisProgressCacheEntry>>,
     /// Long-lived global writer block for a connection migration generation.
     migration_generation: Mutex<MigrationGenerationState>,
+    /// Serializes cross-store migration activation, rollback, and release.
+    migration_admission: Arc<AsyncMutex<()>>,
 }
 
 impl LibraryRuntime {
@@ -181,6 +198,7 @@ impl LibraryRuntime {
             migration_generation: Mutex::new(MigrationGenerationState::Inactive {
                 last_generation: 0,
             }),
+            migration_admission: Arc::new(AsyncMutex::new(())),
         }
     }
 
@@ -199,8 +217,19 @@ impl LibraryRuntime {
         self.store.ensure_write_generation_allowed()
     }
 
+    /// Hold across the complete library/analysis/filesystem barrier transition.
+    /// Synchronous migration state locks must only be acquired after this guard.
+    pub async fn migration_admission_guard(&self) -> OwnedMutexGuard<()> {
+        Arc::clone(&self.migration_admission).lock_owned().await
+    }
+
     /// Start or extend the one active connection migration generation.
-    pub async fn begin_migration_generation<I, S>(&self, server_ids: I) -> Result<u64, String>
+    /// Canonical callers hold [`Self::migration_admission_guard`] until every
+    /// external barrier has activated or the new generation has rolled back.
+    pub async fn begin_migration_generation<I, S>(
+        &self,
+        server_ids: I,
+    ) -> Result<MigrationBeginResultDto, String>
     where
         I: IntoIterator<Item = S>,
         S: Into<String>,
@@ -214,14 +243,23 @@ impl LibraryRuntime {
             admitted.insert(server_id);
         }
 
-        let (generation, created) = {
+        let result = {
             let mut state = self
                 .migration_generation
                 .lock()
                 .map_err(|_| "library migration generation lock poisoned".to_string())?;
             match &mut *state {
                 MigrationGenerationState::Active(active) => {
+                    let mut servers = Vec::with_capacity(admitted.len());
                     for server_id in admitted {
+                        let previous_phase = active
+                            .servers
+                            .get(&server_id)
+                            .map(|server| server.phase);
+                        servers.push(MigrationBeginServerDto {
+                            server_id: server_id.clone(),
+                            previous_phase,
+                        });
                         match active.servers.entry(server_id) {
                             std::collections::btree_map::Entry::Vacant(entry) => {
                                 entry.insert(MigrationServerState {
@@ -240,18 +278,23 @@ impl LibraryRuntime {
                             std::collections::btree_map::Entry::Occupied(_) => {}
                         }
                     }
-                    (active.generation, false)
+                    MigrationBeginResultDto {
+                        generation: active.generation,
+                        created: false,
+                        servers,
+                    }
                 }
                 MigrationGenerationState::Inactive { last_generation } => {
-                    if admitted.is_empty() {
-                        return Err(
-                            "cannot begin a migration generation without an admitted server"
-                                .to_string(),
-                        );
-                    }
                     let generation = last_generation.checked_add(1).ok_or_else(|| {
                         "library migration generation counter exhausted".to_string()
                     })?;
+                    let begin_servers = admitted
+                        .iter()
+                        .map(|server_id| MigrationBeginServerDto {
+                            server_id: server_id.clone(),
+                            previous_phase: None,
+                        })
+                        .collect();
                     let servers = admitted
                         .into_iter()
                         .map(|server_id| {
@@ -268,15 +311,20 @@ impl LibraryRuntime {
                         generation,
                         servers,
                     });
-                    (generation, true)
+                    MigrationBeginResultDto {
+                        generation,
+                        created: true,
+                        servers: begin_servers,
+                    }
                 }
             }
         };
 
-        if !created {
-            return Ok(generation);
+        if !result.created {
+            return Ok(result);
         }
 
+        let generation = result.generation;
         let activation = async {
             let barrier = self.cancel_and_drain_sync(None, None).await?;
             self.store.activate_migration_write_generation(generation)?;
@@ -298,7 +346,7 @@ impl LibraryRuntime {
             }
             return Err(error);
         }
-        Ok(generation)
+        Ok(result)
     }
 
     pub fn inspect_migration_generation(
@@ -538,24 +586,30 @@ impl LibraryRuntime {
             .lock()
             .map_err(|_| "library migration generation lock poisoned".to_string())?;
         let active = active_migration_generation_mut(&mut state, generation)?;
-        let unfinished = active
-            .servers
-            .iter()
-            .filter(|(_, server)| !server.phase.is_terminal())
-            .map(|(server_id, server)| format!("{server_id} ({:?})", server.phase))
-            .collect::<Vec<_>>();
-        if !unfinished.is_empty() {
-            return Err(format!(
-                "library migration generation {generation} cannot release; unfinished servers: {}",
-                unfinished.join(", ")
-            ));
-        }
+        ensure_active_migration_releasable(active)?;
         self.store
             .deactivate_migration_write_generation(generation)?;
         *state = MigrationGenerationState::Inactive {
             last_generation: generation,
         };
         Ok(())
+    }
+
+    pub fn ensure_migration_generation_releasable(&self, generation: u64) -> Result<(), String> {
+        let state = self
+            .migration_generation
+            .lock()
+            .map_err(|_| "library migration generation lock poisoned".to_string())?;
+        let MigrationGenerationState::Active(active) = &*state else {
+            return Err("no active library migration generation".to_string());
+        };
+        if active.generation != generation {
+            return Err(format!(
+                "stale library migration generation {generation}; active generation is {}",
+                active.generation
+            ));
+        }
+        ensure_active_migration_releasable(active)
     }
 
     /// Undo a generation whose external writer barriers failed to activate.
@@ -834,6 +888,23 @@ fn admitted_migration_server_mut<'a>(
     active.servers.get_mut(server_id).ok_or_else(|| {
         format!("server `{server_id}` is not admitted to library migration generation {generation}")
     })
+}
+
+fn ensure_active_migration_releasable(active: &ActiveMigrationGeneration) -> Result<(), String> {
+    let unfinished = active
+        .servers
+        .iter()
+        .filter(|(_, server)| !server.phase.is_terminal())
+        .map(|(server_id, server)| format!("{server_id} ({:?})", server.phase))
+        .collect::<Vec<_>>();
+    if unfinished.is_empty() {
+        return Ok(());
+    }
+    Err(format!(
+        "library migration generation {} cannot release; unfinished servers: {}",
+        active.generation,
+        unfinished.join(", ")
+    ))
 }
 
 #[cfg(test)]

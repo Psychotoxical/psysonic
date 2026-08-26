@@ -80,13 +80,21 @@ fn playback_hint_default_is_idle_and_setter_updates() {
 #[tokio::test]
 async fn migration_generation_is_monotonic_and_rejects_stale_tokens() {
     let runtime = LibraryRuntime::new(Arc::new(LibraryStore::open_in_memory()));
-    let first = runtime.begin_migration_generation(["s1"]).await.unwrap();
+    let first = runtime
+        .begin_migration_generation(["s1"])
+        .await
+        .unwrap()
+        .generation;
     runtime
         .finish_migration_server(first, "s1", MigrationPhase::Ready)
         .unwrap();
     runtime.release_migration_generation(first).unwrap();
 
-    let second = runtime.begin_migration_generation(["s2"]).await.unwrap();
+    let second = runtime
+        .begin_migration_generation(["s2"])
+        .await
+        .unwrap()
+        .generation;
     assert_eq!(second, first + 1);
     assert!(runtime
         .update_migration_phase(first, "s2", MigrationPhase::Native)
@@ -97,13 +105,40 @@ async fn migration_generation_is_monotonic_and_rejects_stale_tokens() {
 #[tokio::test]
 async fn active_migration_begin_is_idempotent_and_adds_servers() {
     let runtime = LibraryRuntime::new(Arc::new(LibraryStore::open_in_memory()));
-    let generation = runtime.begin_migration_generation(["s2"]).await.unwrap();
+    let first = runtime.begin_migration_generation(["s2"]).await.unwrap();
+    let generation = first.generation;
     assert_eq!(
-        runtime
-            .begin_migration_generation(["s2", "s1"])
-            .await
-            .unwrap(),
-        generation
+        first,
+        MigrationBeginResultDto {
+            generation,
+            created: true,
+            servers: vec![MigrationBeginServerDto {
+                server_id: "s2".into(),
+                previous_phase: None,
+            }],
+        }
+    );
+
+    let second = runtime
+        .begin_migration_generation(["s2", "s1"])
+        .await
+        .unwrap();
+    assert_eq!(
+        second,
+        MigrationBeginResultDto {
+            generation,
+            created: false,
+            servers: vec![
+                MigrationBeginServerDto {
+                    server_id: "s1".into(),
+                    previous_phase: None,
+                },
+                MigrationBeginServerDto {
+                    server_id: "s2".into(),
+                    previous_phase: Some(MigrationPhase::Pending),
+                },
+            ],
+        }
     );
 
     assert_eq!(
@@ -127,16 +162,70 @@ async fn active_migration_begin_is_idempotent_and_adds_servers() {
 }
 
 #[tokio::test]
+async fn empty_migration_generation_blocks_writes_and_releases_vacuously() {
+    let runtime = LibraryRuntime::new(Arc::new(LibraryStore::open_in_memory()));
+    let result = runtime
+        .begin_migration_generation(std::iter::empty::<String>())
+        .await
+        .unwrap();
+    assert!(result.created);
+    assert!(result.servers.is_empty());
+    assert_eq!(
+        runtime.inspect_migration_generation().unwrap(),
+        MigrationGenerationSnapshotDto::Active {
+            generation: result.generation,
+            servers: Vec::new(),
+        }
+    );
+    assert!(runtime.ensure_ordinary_sync_activity_allowed().is_err());
+    assert!(runtime
+        .store
+        .with_conn("test.empty_generation_write", |conn| {
+            conn.execute(
+                "INSERT INTO artist (server_id, id, name, synced_at) VALUES ('s1', 'id', 'Name', 1)",
+                [],
+            )?;
+            Ok(())
+        })
+        .unwrap_err()
+        .contains("blocks ordinary native writes"));
+
+    runtime
+        .ensure_migration_generation_releasable(result.generation)
+        .unwrap();
+    runtime
+        .release_migration_generation(result.generation)
+        .unwrap();
+    assert_eq!(
+        runtime.inspect_migration_generation().unwrap(),
+        MigrationGenerationSnapshotDto::Inactive {
+            last_generation: result.generation,
+        }
+    );
+}
+
+#[tokio::test]
 async fn active_migration_begin_reopens_a_terminal_server_for_local_resume() {
     let runtime = LibraryRuntime::new(Arc::new(LibraryStore::open_in_memory()));
-    let generation = runtime.begin_migration_generation(["s1"]).await.unwrap();
+    let generation = runtime
+        .begin_migration_generation(["s1"])
+        .await
+        .unwrap()
+        .generation;
     runtime
         .finish_migration_server(generation, "s1", MigrationPhase::Ready)
         .unwrap();
 
     assert_eq!(
         runtime.begin_migration_generation(["s1"]).await.unwrap(),
-        generation
+        MigrationBeginResultDto {
+            generation,
+            created: false,
+            servers: vec![MigrationBeginServerDto {
+                server_id: "s1".into(),
+                previous_phase: Some(MigrationPhase::Ready),
+            }],
+        }
     );
     assert_eq!(
         runtime.inspect_migration_generation().unwrap(),
@@ -158,7 +247,11 @@ async fn active_migration_begin_reopens_a_terminal_server_for_local_resume() {
 #[tokio::test]
 async fn pending_migration_start_can_roll_back_after_external_barrier_failure() {
     let runtime = LibraryRuntime::new(Arc::new(LibraryStore::open_in_memory()));
-    let generation = runtime.begin_migration_generation(["s1"]).await.unwrap();
+    let generation = runtime
+        .begin_migration_generation(["s1"])
+        .await
+        .unwrap()
+        .generation;
 
     runtime
         .rollback_migration_generation_start(generation)
@@ -189,7 +282,8 @@ async fn migration_sync_authorization_requires_current_server_in_sync_phase() {
     let generation = runtime
         .begin_migration_generation(["s1", "s2"])
         .await
-        .unwrap();
+        .unwrap()
+        .generation;
 
     assert!(runtime.ensure_ordinary_sync_activity_allowed().is_err());
     assert!(runtime
@@ -209,7 +303,11 @@ async fn migration_sync_authorization_requires_current_server_in_sync_phase() {
 #[tokio::test]
 async fn migration_generation_blocks_ordinary_store_writes_but_allows_matching_scope() {
     let runtime = LibraryRuntime::new(Arc::new(LibraryStore::open_in_memory()));
-    let generation = runtime.begin_migration_generation(["s1"]).await.unwrap();
+    let generation = runtime
+        .begin_migration_generation(["s1"])
+        .await
+        .unwrap()
+        .generation;
 
     let ordinary = runtime.store.with_conn("test.ordinary_write", |conn| {
         conn.execute(
@@ -254,7 +352,11 @@ async fn migration_generation_blocks_ordinary_store_writes_but_allows_matching_s
 #[tokio::test]
 async fn migration_abort_stays_blocked_until_explicit_retry() {
     let runtime = LibraryRuntime::new(Arc::new(LibraryStore::open_in_memory()));
-    let generation = runtime.begin_migration_generation(["s1"]).await.unwrap();
+    let generation = runtime
+        .begin_migration_generation(["s1"])
+        .await
+        .unwrap()
+        .generation;
     runtime
         .abort_migration_server(generation, "s1", "verification failed")
         .unwrap();

@@ -141,7 +141,34 @@ export function rewriteNavidromeCanonicalHistoryForReadyServers(
 export function installNavidromeCanonicalHistoryNormalizer(
   storage: Storage = localStorage,
 ): () => void {
-  const normalize = () => rewriteNavidromeCanonicalHistoryForReadyServers(storage);
+  const originalPushState = window.history.pushState;
+  const originalReplaceState = window.history.replaceState;
+  let normalizing = false;
+  const normalize = () => {
+    if (normalizing) return;
+    normalizing = true;
+    try {
+      rewriteNavidromeCanonicalHistoryForReadyServers(storage);
+    } finally {
+      normalizing = false;
+    }
+  };
+  const pushState: History['pushState'] = (data, unused, url) => {
+    originalPushState.call(window.history, data, unused, url);
+    normalize();
+  };
+  const replaceState: History['replaceState'] = (data, unused, url) => {
+    originalReplaceState.call(window.history, data, unused, url);
+    normalize();
+  };
+  window.history.pushState = pushState;
+  window.history.replaceState = replaceState;
   window.addEventListener('popstate', normalize);
-  return () => window.removeEventListener('popstate', normalize);
+  window.addEventListener('hashchange', normalize);
+  return () => {
+    window.removeEventListener('popstate', normalize);
+    window.removeEventListener('hashchange', normalize);
+    if (window.history.pushState === pushState) window.history.pushState = originalPushState;
+    if (window.history.replaceState === replaceState) window.history.replaceState = originalReplaceState;
+  };
 }

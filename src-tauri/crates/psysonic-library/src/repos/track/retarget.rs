@@ -43,7 +43,7 @@ pub(crate) fn retarget_track_references(
 
     retarget_offline(tx, server_id, old_id, new_id)?;
     retarget_extensions(tx, server_id, old_id, new_id)?;
-    retarget_facts(tx, server_id, old_id, new_id)?;
+    retarget_facts(tx, server_id, old_id, new_id, remapped_at)?;
     retarget_artifacts(tx, server_id, old_id, new_id)?;
     retarget_canonical_link(tx, server_id, old_id, new_id)?;
     retarget_enrichment_links(tx, server_id, old_id, new_id)?;
@@ -161,8 +161,15 @@ fn retarget_offline(
          WHERE server_id = ?8 AND track_id = ?9",
         params![
             preferred.local_path,
-            preferred.file_size_bytes.or(old.file_size_bytes).or(destination.file_size_bytes),
-            preferred.suffix.as_ref().or(old.suffix.as_ref()).or(destination.suffix.as_ref()),
+            preferred
+                .file_size_bytes
+                .or(old.file_size_bytes)
+                .or(destination.file_size_bytes),
+            preferred
+                .suffix
+                .as_ref()
+                .or(old.suffix.as_ref())
+                .or(destination.suffix.as_ref()),
             if preferred.content_hash.is_empty() {
                 old.content_hash.as_str()
             } else {
@@ -257,6 +264,7 @@ fn retarget_facts(
     server_id: &str,
     old_id: &str,
     new_id: &str,
+    remapped_at: i64,
 ) -> rusqlite::Result<()> {
     tx.execute(
         "INSERT INTO track_fact (server_id, track_id, fact_kind, value_real, value_int, \
@@ -266,18 +274,22 @@ fn retarget_facts(
            source_id, source_detail, confidence, content_hash, fetched_at, expires_at \
          FROM track_fact WHERE server_id = ?2 AND track_id = ?3 \
          ON CONFLICT(server_id, track_id, fact_kind, source_kind, source_id) DO UPDATE SET \
-           value_real = CASE WHEN excluded.fetched_at > track_fact.fetched_at THEN excluded.value_real ELSE track_fact.value_real END, \
-           value_int = CASE WHEN excluded.fetched_at > track_fact.fetched_at THEN excluded.value_int ELSE track_fact.value_int END, \
-           value_text = CASE WHEN excluded.fetched_at > track_fact.fetched_at THEN excluded.value_text ELSE track_fact.value_text END, \
-           unit = CASE WHEN excluded.fetched_at > track_fact.fetched_at THEN excluded.unit ELSE track_fact.unit END, \
-           source_detail = CASE WHEN excluded.fetched_at > track_fact.fetched_at THEN excluded.source_detail ELSE track_fact.source_detail END, \
-           confidence = CASE WHEN excluded.fetched_at > track_fact.fetched_at THEN excluded.confidence ELSE track_fact.confidence END, \
-           content_hash = CASE WHEN excluded.fetched_at > track_fact.fetched_at THEN excluded.content_hash ELSE track_fact.content_hash END, \
-           fetched_at = MAX(track_fact.fetched_at, excluded.fetched_at), \
-           expires_at = CASE \
-             WHEN track_fact.expires_at IS NULL OR excluded.expires_at IS NULL THEN NULL \
-             ELSE MAX(track_fact.expires_at, excluded.expires_at) END",
-        params![new_id, server_id, old_id],
+           value_real = excluded.value_real, \
+           value_int = excluded.value_int, \
+           value_text = excluded.value_text, \
+           unit = excluded.unit, \
+           source_detail = excluded.source_detail, \
+           confidence = excluded.confidence, \
+           content_hash = excluded.content_hash, \
+           fetched_at = excluded.fetched_at, \
+           expires_at = excluded.expires_at \
+         WHERE \
+           (excluded.expires_at IS NULL OR excluded.expires_at >= ?4) > \
+             (track_fact.expires_at IS NULL OR track_fact.expires_at >= ?4) \
+           OR ((excluded.expires_at IS NULL OR excluded.expires_at >= ?4) = \
+                 (track_fact.expires_at IS NULL OR track_fact.expires_at >= ?4) \
+               AND excluded.fetched_at > track_fact.fetched_at)",
+        params![new_id, server_id, old_id, remapped_at],
     )?;
     tx.execute(
         "DELETE FROM track_fact WHERE server_id = ?1 AND track_id = ?2",
@@ -300,37 +312,28 @@ fn retarget_artifacts(
            content_text, content_blob, content_bytes, not_found, content_hash, fetched_at, expires_at \
          FROM track_artifact WHERE server_id = ?2 AND track_id = ?3 \
          ON CONFLICT(server_id, track_id, artifact_kind, source_kind, source_id, format) DO UPDATE SET \
-           language = CASE \
-             WHEN (excluded.not_found = 0 AND excluded.content_bytes > 0) > \
-                  (track_artifact.not_found = 0 AND track_artifact.content_bytes > 0) \
-               OR excluded.fetched_at > track_artifact.fetched_at THEN excluded.language \
-             ELSE track_artifact.language END, \
-           content_text = CASE \
-             WHEN (excluded.not_found = 0 AND excluded.content_bytes > 0) > \
-                  (track_artifact.not_found = 0 AND track_artifact.content_bytes > 0) \
-               OR excluded.fetched_at > track_artifact.fetched_at THEN excluded.content_text \
-             ELSE track_artifact.content_text END, \
-           content_blob = CASE \
-             WHEN (excluded.not_found = 0 AND excluded.content_bytes > 0) > \
-                  (track_artifact.not_found = 0 AND track_artifact.content_bytes > 0) \
-               OR excluded.fetched_at > track_artifact.fetched_at THEN excluded.content_blob \
-             ELSE track_artifact.content_blob END, \
-           content_bytes = CASE \
-             WHEN (excluded.not_found = 0 AND excluded.content_bytes > 0) > \
-                  (track_artifact.not_found = 0 AND track_artifact.content_bytes > 0) \
-               OR excluded.fetched_at > track_artifact.fetched_at THEN excluded.content_bytes \
-             ELSE track_artifact.content_bytes END, \
-           not_found = CASE \
-             WHEN (excluded.not_found = 0 AND excluded.content_bytes > 0) > \
-                  (track_artifact.not_found = 0 AND track_artifact.content_bytes > 0) \
-               OR excluded.fetched_at > track_artifact.fetched_at THEN excluded.not_found \
-             ELSE track_artifact.not_found END, \
-           content_hash = CASE WHEN excluded.fetched_at > track_artifact.fetched_at \
-             THEN excluded.content_hash ELSE track_artifact.content_hash END, \
-           fetched_at = MAX(track_artifact.fetched_at, excluded.fetched_at), \
-           expires_at = CASE \
-             WHEN track_artifact.expires_at IS NULL OR excluded.expires_at IS NULL THEN NULL \
-             ELSE MAX(track_artifact.expires_at, excluded.expires_at) END",
+           language = excluded.language, \
+           content_text = excluded.content_text, \
+           content_blob = excluded.content_blob, \
+           content_bytes = excluded.content_bytes, \
+           not_found = excluded.not_found, \
+           content_hash = excluded.content_hash, \
+           fetched_at = excluded.fetched_at, \
+           expires_at = excluded.expires_at \
+         WHERE \
+           (excluded.not_found = 0 AND \
+              (excluded.content_bytes > 0 OR excluded.content_text IS NOT NULL \
+               OR excluded.content_blob IS NOT NULL)) > \
+             (track_artifact.not_found = 0 AND \
+                (track_artifact.content_bytes > 0 OR track_artifact.content_text IS NOT NULL \
+                 OR track_artifact.content_blob IS NOT NULL)) \
+           OR ((excluded.not_found = 0 AND \
+                  (excluded.content_bytes > 0 OR excluded.content_text IS NOT NULL \
+                   OR excluded.content_blob IS NOT NULL)) = \
+                 (track_artifact.not_found = 0 AND \
+                    (track_artifact.content_bytes > 0 OR track_artifact.content_text IS NOT NULL \
+                     OR track_artifact.content_blob IS NOT NULL)) \
+               AND excluded.fetched_at > track_artifact.fetched_at)",
         params![new_id, server_id, old_id],
     )?;
     tx.execute(

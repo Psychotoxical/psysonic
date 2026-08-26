@@ -1,6 +1,8 @@
 import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
+import type { MigrationBeginResultDto } from '@/generated/bindings';
 import { serverAddressEndpoints } from '@/lib/server/serverAddress';
+import { profileProbeFingerprint } from '@/lib/server/serverEndpoint';
 import {
   serverHttpContextWireForProbe,
   serverHttpContextWireForProfile,
@@ -35,6 +37,7 @@ import {
   verifyNavidromeCoverIdb,
 } from './navidromeCanonicalIdb';
 import { rewriteNavidromeCanonicalHistoryForScope } from './navidromeCanonicalHistory';
+import { commitImportedBackupRecovery } from '@/features/settings/utils/backup';
 
 const NATIVE_STEPS = ['artist', 'album', 'track'] as const;
 const ANALYSIS_STEPS = ['analysis-track', 'waveform-cache', 'loudness-cache'] as const;
@@ -508,8 +511,12 @@ async function inspectBackend(): Promise<MigrationSnapshot> {
   return invoke<MigrationSnapshot>('library_migration_inspect');
 }
 
+async function beginMigrationAdmission(serverIds: string[]): Promise<MigrationBeginResultDto> {
+  return invoke<MigrationBeginResultDto>('library_migration_begin', { serverIds });
+}
+
 async function discardCommittedImportBackups(): Promise<void> {
-  await invoke('backup_commit_imported_databases').catch(() => {});
+  await commitImportedBackupRecovery();
 }
 
 async function verifyCanonicalInventory(args: {
@@ -550,8 +557,51 @@ async function observeNavidromeCanonicalSuccessfulPingNow(args: {
   profile: ServerProfile;
   ping: SuccessfulPingIdentity;
   storage?: Storage;
+  isCurrent?: () => boolean;
 }): Promise<boolean> {
   const storage = args.storage ?? localStorage;
+  const admissionIsCurrent = () => {
+    if (args.isCurrent && !args.isCurrent()) return false;
+    const currentProfile = readRawAuthServerProfileGroups(storage)
+      .flatMap(group => group.profiles)
+      .find(profile => profile.id === args.profile.id);
+    return Boolean(currentProfile
+      && profileProbeFingerprint(currentProfile) === profileProbeFingerprint(args.profile));
+  };
+  const staleAdmissionError = () => new Error(
+    `Successful ping admission became stale for ${args.profile.id}`,
+  );
+  const finishStaleAdmission = async (
+    admission: MigrationBeginResultDto,
+    serverId: string,
+    blocked = false,
+  ): Promise<never> => {
+    const serverAdmission = admission.servers.find(server => server.serverId === serverId);
+    if (!serverAdmission) {
+      throw new Error(`Migration begin omitted requested server ${serverId}`);
+    }
+    const previousPhase = serverAdmission.previousPhase;
+    const restorePhase = admission.created || previousPhase === null
+      ? 'not-applicable'
+      : previousPhase === 'ready' || previousPhase === 'legacy' || previousPhase === 'not-applicable'
+        ? previousPhase
+        : null;
+    if (restorePhase) {
+      if (blocked) {
+        await invoke('library_migration_retry', { generation: admission.generation, serverId });
+      }
+      await invoke('library_migration_finish_server', {
+        generation: admission.generation,
+        serverId,
+        phase: restorePhase,
+      });
+    }
+    if (admission.created) {
+      await invoke('library_migration_release', { generation: admission.generation }).catch(() => {});
+    }
+    throw staleAdmissionError();
+  };
+  if (!admissionIsCurrent()) throw staleAdmissionError();
   const groups = readRawAuthServerProfileGroups(storage);
   const group = groups.find(candidate => candidate.profiles.some(profile => profile.id === args.profile.id));
   if (!group) throw new Error(`Could not resolve canonical migration owner for ${args.profile.id}`);
@@ -565,14 +615,16 @@ async function observeNavidromeCanonicalSuccessfulPingNow(args: {
   if (classification !== 'canonical') {
     if (checkpointHasCanonicalNamespace(saved)) {
       const message = `Navidrome canonical ID namespace for ${serverId} cannot be downgraded after ${saved?.checkedVersion}`;
-      const generation = await invoke<number>('library_migration_begin', { serverIds: [serverId] });
+      const admission = await beginMigrationAdmission([serverId]);
+      if (!admissionIsCurrent()) return finishStaleAdmission(admission, serverId);
+      await invoke('library_migration_abort', { generation: admission.generation, serverId, error: message });
+      if (!admissionIsCurrent()) return finishStaleAdmission(admission, serverId, true);
       setBootstrapLock(storage);
       write.set(serverId, sourceVersion, {
         phase: 'blocked',
         checkedVersion: saved?.checkedVersion ?? null,
         lastError: message,
       });
-      await invoke('library_migration_abort', { generation, serverId, error: message });
       return true;
     }
     if (saved && BLOCKING_PHASES.has(saved.phase)) {
@@ -599,7 +651,8 @@ async function observeNavidromeCanonicalSuccessfulPingNow(args: {
 
   if (saved?.phase === 'ready' && saved.checkedVersion === sourceVersion) return false;
 
-  await invoke('library_migration_begin', { serverIds: [serverId] });
+  const admission = await beginMigrationAdmission([serverId]);
+  if (!admissionIsCurrent()) return finishStaleAdmission(admission, serverId);
   setBootstrapLock(storage);
   write.set(serverId, sourceVersion, {
     phase: 'pending',
@@ -618,6 +671,7 @@ export function observeNavidromeCanonicalSuccessfulPing(args: {
   profile: ServerProfile;
   ping: SuccessfulPingIdentity;
   storage?: Storage;
+  isCurrent?: () => boolean;
 }): Promise<boolean> {
   const observation = runtimeObservationQueue.then(
     () => observeNavidromeCanonicalSuccessfulPingNow(args),
@@ -751,7 +805,7 @@ export async function runNavidromeCanonicalMigrationCoordinator(
     }
     if (checkpointHasCanonicalNamespace(saved)) {
       const message = `Navidrome canonical ID namespace for ${serverId} cannot be downgraded after ${saved?.checkedVersion}`;
-      const generation = await invoke<number>('library_migration_begin', { serverIds: [serverId] });
+      const { generation } = await beginMigrationAdmission([serverId]);
       write.set(serverId, sourceVersion, {
         phase: 'blocked',
         checkedVersion: saved?.checkedVersion ?? null,
@@ -804,9 +858,9 @@ export async function runNavidromeCanonicalMigrationCoordinator(
 
   let generation: number;
   try {
-    generation = await invoke<number>('library_migration_begin', {
-      serverIds: migrationServers.map(server => server.group.serverIndexKey),
-    });
+    ({ generation } = await beginMigrationAdmission(
+      migrationServers.map(server => server.group.serverIndexKey),
+    ));
   } catch (error) {
     const wrapped = new Error(`Could not start canonical ID migration: ${String(error)}`) as Error & {
       cause?: unknown;

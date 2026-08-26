@@ -33,14 +33,14 @@ describe('rewriteNavidromeCanonicalFrontendState', () => {
         { id: 'profile-b', url: 'https://music.test' },
         { id: 'other', url: 'https://other.test' },
       ],
-      musicFolders: [{ id: LEGACY, name: 'All' }],
+      musicFolders: [{ id: LEGACY, name: 'All' }, { id: CANONICAL, name: '' }],
       musicFoldersByServer: {
-        'profile-a': [{ id: LEGACY, name: 'All' }],
+        'profile-a': [{ id: LEGACY, name: 'All' }, { id: CANONICAL, name: '' }],
         'profile-b': [{ id: LEGACY, name: 'All' }],
       },
-      libraryBrowseSelectionByServer: { 'profile-a': [LEGACY] },
+      libraryBrowseSelectionByServer: { 'profile-a': [LEGACY, CANONICAL] },
       musicLibraryFilterByServer: { 'profile-a': LEGACY },
-      musicLibrarySelectionByServer: { 'profile-a': [LEGACY] },
+      musicLibrarySelectionByServer: { 'profile-a': [LEGACY, CANONICAL] },
       skipStarManualSkipCountsByKey: {
         [`profile-a\u001f${LEGACY}`]: 2,
         [`profile-a\u001f${CANONICAL}`]: 4,
@@ -158,8 +158,11 @@ describe('rewriteNavidromeCanonicalFrontendState', () => {
     rewriteNavidromeCanonicalFrontendState(scope);
 
     const auth = JSON.parse(localStorage.getItem('psysonic-auth') ?? '{}').state;
-    expect(auth.musicFoldersByServer['profile-a'][0].id).toBe(CANONICAL);
+    expect(auth.musicFolders).toEqual([{ id: CANONICAL, name: 'All' }]);
+    expect(auth.musicFoldersByServer['profile-a']).toEqual([{ id: CANONICAL, name: 'All' }]);
     expect(auth.musicFoldersByServer['profile-b'][0].id).toBe(CANONICAL);
+    expect(auth.libraryBrowseSelectionByServer['profile-a']).toEqual([CANONICAL]);
+    expect(auth.musicLibrarySelectionByServer['profile-a']).toEqual([CANONICAL]);
     expect(auth.skipStarManualSkipCountsByKey).toEqual({
       [`profile-a\u001f${CANONICAL}`]: 4,
       [`other\u001f${LEGACY}`]: 3,
@@ -257,6 +260,40 @@ describe('rewriteNavidromeCanonicalFrontendState', () => {
 
     expect(() => rewriteNavidromeCanonicalFrontendState(scope))
       .toThrow(`Local playback collision at music.test:${CANONICAL}`);
+    expect(localStorage.getItem('psysonic-local-playback-migrated-v1')).toBeNull();
+  });
+
+  it('preserves a valid local playback entry owned by a removed server', () => {
+    localStorage.setItem('psysonic-local-playback', persisted({
+      entries: {
+        [`removed-profile:${LEGACY}`]: {
+          serverIndexKey: 'removed-profile', trackId: LEGACY, localPath: `/cache/${LEGACY}.flac`,
+          layoutFingerprint: 'a', sizeBytes: 1, tier: 'library', cachedAt: 1, suffix: 'flac',
+        },
+      },
+    }, 1));
+
+    rewriteNavidromeCanonicalFrontendState(scope);
+
+    const entries = JSON.parse(localStorage.getItem('psysonic-local-playback') ?? '{}').state.entries;
+    expect(entries[`removed-profile:${LEGACY}`]).toEqual({
+      serverIndexKey: 'removed-profile', trackId: LEGACY, localPath: `/cache/${LEGACY}.flac`,
+      layoutFingerprint: 'a', sizeBytes: 1, tier: 'library', cachedAt: 1, suffix: 'flac',
+    });
+  });
+
+  it('fails closed when a local playback entry is structurally malformed', () => {
+    localStorage.setItem('psysonic-local-playback', persisted({
+      entries: {
+        malformed: {
+          serverIndexKey: 'removed-profile', localPath: `/cache/${LEGACY}.flac`,
+          layoutFingerprint: 'a', sizeBytes: 1, tier: 'library', cachedAt: 1, suffix: 'flac',
+        },
+      },
+    }, 1));
+
+    expect(() => rewriteNavidromeCanonicalFrontendState(scope))
+      .toThrow('Malformed persisted state in psysonic-local-playback');
     expect(localStorage.getItem('psysonic-local-playback-migrated-v1')).toBeNull();
   });
 

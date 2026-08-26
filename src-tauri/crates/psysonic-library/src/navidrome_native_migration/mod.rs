@@ -1,5 +1,7 @@
 //! Bounded, resumable library-owner rewrite for Navidrome canonical IDs.
 
+use std::path::{Path, PathBuf};
+
 mod album;
 mod artist;
 mod track;
@@ -11,9 +13,7 @@ use crate::store::LibraryStore;
 
 const MAX_BATCH_LIMIT: u32 = 2_000;
 
-#[derive(
-    Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize, serde::Serialize, specta::Type,
-)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize, serde::Serialize, specta::Type)]
 #[serde(rename_all = "kebab-case")]
 pub enum NavidromeNativeMigrationStep {
     Artist,
@@ -169,19 +169,15 @@ pub fn finalize(
             ("library_tag_cursor", "server_id"),
             ("sync_state", "server_id"),
         ] {
-            removed = removed.saturating_add(
-                tx.execute(
-                    &format!("DELETE FROM {table} WHERE {column} = ?1"),
-                    params![server_id],
-                )? as u64,
-            );
-        }
-        removed = removed.saturating_add(
-            tx.execute(
-                "DELETE FROM cluster.track_cluster_key WHERE server_id = ?1",
+            removed = removed.saturating_add(tx.execute(
+                &format!("DELETE FROM {table} WHERE {column} = ?1"),
                 params![server_id],
-            )? as u64,
-        );
+            )? as u64);
+        }
+        removed = removed.saturating_add(tx.execute(
+            "DELETE FROM cluster.track_cluster_key WHERE server_id = ?1",
+            params![server_id],
+        )? as u64);
         tx.execute(
             "DELETE FROM cluster.cluster_meta WHERE key = ?1",
             params![format!("dirty_server:{server_id}")],
@@ -215,21 +211,110 @@ pub fn retarget_offline_paths(
     path_changes: &[(String, String)],
 ) -> Result<u64, String> {
     validate_server_id(server_id)?;
-    store.with_conn_mut("navidrome_native_migration.retarget_offline_paths", |conn| {
-        let tx = conn.transaction()?;
-        let mut updated = 0u64;
-        for (old_path, new_path) in path_changes {
-            updated = updated.saturating_add(
-                tx.execute(
+    store.with_conn_mut(
+        "navidrome_native_migration.retarget_offline_paths",
+        |conn| {
+            let tx = conn.transaction()?;
+            let mut updated = 0u64;
+            for (old_path, new_path) in path_changes {
+                updated = updated.saturating_add(tx.execute(
                     "UPDATE track_offline SET local_path = ?1 \
                      WHERE server_id = ?2 AND local_path = ?3",
                     params![new_path, server_id, old_path],
-                )? as u64,
-            );
+                )? as u64);
+            }
+            tx.commit()?;
+            Ok(updated)
+        },
+    )
+}
+
+pub fn reconcile_offline_paths(
+    store: &LibraryStore,
+    server_id: &str,
+    offline_dir: &Path,
+    path_changes: &[(String, String)],
+) -> Result<u64, String> {
+    validate_server_id(server_id)?;
+    store.with_conn_mut(
+        "navidrome_native_migration.reconcile_offline_paths",
+        |conn| {
+            let tx = conn.transaction()?;
+            let mut changes = path_changes.to_vec();
+            let local_paths = {
+                let mut statement =
+                    tx.prepare("SELECT local_path FROM track_offline WHERE server_id = ?1")?;
+                let rows = statement
+                    .query_map(params![server_id], |row| row.get::<_, String>(0))?
+                    .collect::<rusqlite::Result<Vec<_>>>()?;
+                rows
+            };
+            for local_path in local_paths {
+                let source = PathBuf::from(&local_path);
+                let Some(destination) = canonical_flat_cache_destination(&source, offline_dir)
+                else {
+                    continue;
+                };
+                if source.exists()
+                    || !destination.is_file()
+                    || changes.iter().any(|(old_path, _)| old_path == &local_path)
+                {
+                    continue;
+                }
+                changes.push((local_path, destination.to_string_lossy().to_string()));
+            }
+
+            let mut updated = 0u64;
+            for (old_path, new_path) in changes {
+                updated = updated.saturating_add(tx.execute(
+                    "UPDATE track_offline SET local_path = ?1 \
+                     WHERE server_id = ?2 AND local_path = ?3",
+                    params![new_path, server_id, old_path],
+                )? as u64);
+            }
+            tx.commit()?;
+            Ok(updated)
+        },
+    )
+}
+
+pub fn verify_offline_paths(
+    store: &LibraryStore,
+    server_id: &str,
+    offline_dir: &Path,
+) -> Result<(), String> {
+    validate_server_id(server_id)?;
+    store.with_read_conn(|conn| {
+        let mut statement =
+            conn.prepare("SELECT local_path FROM track_offline WHERE server_id = ?1")?;
+        let local_paths = statement
+            .query_map(params![server_id], |row| row.get::<_, String>(0))?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        for local_path in local_paths {
+            let source = PathBuf::from(local_path);
+            if let Some(destination) = canonical_flat_cache_destination(&source, offline_dir) {
+                return Err(migration_error(format!(
+                    "native migration residue in track_offline.local_path: `{}` -> `{}`",
+                    source.display(),
+                    destination.display()
+                )));
+            }
         }
-        tx.commit()?;
-        Ok(updated)
+        Ok(())
     })
+}
+
+fn canonical_flat_cache_destination(path: &Path, offline_dir: &Path) -> Option<PathBuf> {
+    if path.parent() != Some(offline_dir) {
+        return None;
+    }
+    let name = path.file_name()?.to_str()?;
+    if name.ends_with(".part") {
+        return None;
+    }
+    let (old_id, suffix) = name.split_once('.')?;
+    let new_id = crate::navidrome_id_codec::canonical_id(old_id);
+    (new_id != old_id).then(|| offline_dir.join(format!("{new_id}.{suffix}")))
 }
 
 pub fn verify(store: &LibraryStore, server_id: &str) -> Result<(), String> {
@@ -239,10 +324,7 @@ pub fn verify(store: &LibraryStore, server_id: &str) -> Result<(), String> {
         .map_err(|error| error.to_string())
 }
 
-fn verify_no_legacy_library_ids(
-    tx: &Connection,
-    server_id: &str,
-) -> rusqlite::Result<()> {
+fn verify_no_legacy_library_ids(tx: &Connection, server_id: &str) -> rusqlite::Result<()> {
     for (table, server_column, column, condition, artwork) in [
         ("artist", "server_id", "id", "", false),
         ("album", "server_id", "id", "", false),
@@ -293,13 +375,7 @@ fn verify_no_legacy_library_ids(
         ("track_extension", "server_id", "track_id", "", false),
         ("track_fact", "server_id", "track_id", "", false),
         ("track_artifact", "server_id", "track_id", "", false),
-        (
-            "track_canonical_link",
-            "server_id",
-            "track_id",
-            "",
-            false,
-        ),
+        ("track_canonical_link", "server_id", "track_id", "", false),
         (
             "canonical_enrichment_link",
             "owner_server_id",
@@ -322,9 +398,7 @@ fn verify_no_legacy_library_ids(
         } else {
             format!(" AND {condition}")
         };
-        let sql = format!(
-            "SELECT {column} FROM {table} WHERE {server_column} = ?1{where_suffix}"
-        );
+        let sql = format!("SELECT {column} FROM {table} WHERE {server_column} = ?1{where_suffix}");
         let mut statement = tx.prepare(&sql)?;
         let values = statement
             .query_map(params![server_id], |row| row.get::<_, String>(0))?
@@ -354,11 +428,9 @@ fn verify_no_legacy_library_ids(
             .query_map(params![server_id], |row| row.get::<_, Option<String>>(0))?
             .collect::<rusqlite::Result<Vec<_>>>()?;
         for payload in payloads {
-            let canonical = crate::navidrome_payload_codec::canonical_payload(
-                payload.as_deref(),
-                kind,
-            )
-            .map_err(migration_error)?;
+            let canonical =
+                crate::navidrome_payload_codec::canonical_payload(payload.as_deref(), kind)
+                    .map_err(migration_error)?;
             if canonical != payload {
                 return Err(migration_error(format!(
                     "native migration JSON residue in {table}.raw_json"

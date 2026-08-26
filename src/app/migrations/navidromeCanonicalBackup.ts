@@ -1,4 +1,5 @@
 import {
+  AUTH_PERSISTENCE_KEY,
   readRawAuthServerProfileGroups,
   type RawAuthServerProfileGroup,
 } from './navidromeCanonicalAuth';
@@ -56,25 +57,6 @@ class StagedBackupStorage implements NavidromeCanonicalFrontendStorage {
   }
 }
 
-function mergeGroups(
-  current: readonly RawAuthServerProfileGroup[],
-  imported: readonly RawAuthServerProfileGroup[],
-): RawAuthServerProfileGroup[] {
-  const groups = new Map<string, RawAuthServerProfileGroup>();
-  for (const group of [...current, ...imported]) {
-    const existing = groups.get(group.serverIndexKey);
-    if (!existing) {
-      groups.set(group.serverIndexKey, { ...group, profiles: [...group.profiles] });
-      continue;
-    }
-    const profileIds = new Set(existing.profiles.map(profile => profile.id));
-    for (const profile of group.profiles) {
-      if (!profileIds.has(profile.id)) existing.profiles.push(profile);
-    }
-  }
-  return [...groups.values()];
-}
-
 function frontendScope(
   group: RawAuthServerProfileGroup,
   groups: readonly RawAuthServerProfileGroup[],
@@ -95,13 +77,9 @@ export function normalizeNavidromeCanonicalBackupStores(
 ): Record<string, unknown> {
   const staged = new StagedBackupStorage(stores);
   const importedKeys = Object.keys(stores);
-  const authOverlay = {
-    getItem: (key: string) => staged.getItem(key) ?? storage.getItem(key),
-  };
-  const groups = mergeGroups(
-    readRawAuthServerProfileGroups(storage),
-    readRawAuthServerProfileGroups(authOverlay),
-  );
+  const groups = Object.prototype.hasOwnProperty.call(stores, AUTH_PERSISTENCE_KEY)
+    ? readRawAuthServerProfileGroups(staged)
+    : readRawAuthServerProfileGroups(storage);
   const checkpoint = readNavidromeCanonicalMigrationCheckpoint(storage);
   for (const group of groups) {
     const saved = checkpoint?.servers[group.serverIndexKey];
@@ -130,6 +108,28 @@ export function disarmNavidromeCanonicalBackupImport(storage: Storage = localSto
   }
 }
 
+export function captureNavidromeCanonicalBackupRecoveryState(
+  storage: Storage = localStorage,
+): Record<string, string | null> {
+  return {
+    [NAVIDROME_CANONICAL_MIGRATION_CHECKPOINT_KEY]: storage.getItem(
+      NAVIDROME_CANONICAL_MIGRATION_CHECKPOINT_KEY,
+    ),
+  };
+}
+
+export function restoreNavidromeCanonicalBackupRecoveryState(
+  snapshot: Record<string, string | null>,
+  storage: Storage = localStorage,
+): void {
+  const previous = snapshot[NAVIDROME_CANONICAL_MIGRATION_CHECKPOINT_KEY] ?? null;
+  if (previous === null) storage.removeItem(NAVIDROME_CANONICAL_MIGRATION_CHECKPOINT_KEY);
+  else storage.setItem(NAVIDROME_CANONICAL_MIGRATION_CHECKPOINT_KEY, previous);
+  if (storage.getItem(NAVIDROME_CANONICAL_MIGRATION_CHECKPOINT_KEY) !== previous) {
+    throw new Error('Could not restore canonical migration checkpoint after backup recovery');
+  }
+}
+
 export type NavidromeCanonicalDatabaseImportPlan = {
   serverIds: string[];
   canonicalServerIds: string[];
@@ -144,16 +144,19 @@ export function prepareNavidromeCanonicalDatabaseImport(
   const previousRaw = storage.getItem(NAVIDROME_CANONICAL_MIGRATION_CHECKPOINT_KEY);
   const checkpoint = readNavidromeCanonicalMigrationCheckpoint(storage);
   const importedStorage = importedStores ? new StagedBackupStorage(importedStores) : null;
-  const authOverlay = importedStorage ? {
-    getItem: (key: string) => importedStorage.getItem(key) ?? storage.getItem(key),
-  } : storage;
-  const groups = mergeGroups(
-    readRawAuthServerProfileGroups(storage),
-    readRawAuthServerProfileGroups(authOverlay),
+  const importedAuthIsAuthoritative = Boolean(
+    importedStorage
+      && importedStores
+      && Object.prototype.hasOwnProperty.call(importedStores, AUTH_PERSISTENCE_KEY),
   );
+  const groups = importedAuthIsAuthoritative
+    ? readRawAuthServerProfileGroups(importedStorage!)
+    : readRawAuthServerProfileGroups(storage);
   const serverIds = groups.map(group => group.serverIndexKey);
+  const serverIdSet = new Set(serverIds);
   const canonicalServerIds = Object.entries(checkpoint?.servers ?? {})
-    .filter(([, saved]) => saved.phase === 'ready'
+    .filter(([serverId, saved]) => (!importedAuthIsAuthoritative || serverIdSet.has(serverId))
+      && saved.phase === 'ready'
       && saved.checkedVersion
       && classifyNavidromeCanonicalVersion({
         type: 'navidrome',
@@ -161,9 +164,11 @@ export function prepareNavidromeCanonicalDatabaseImport(
     }) === 'canonical')
     .map(([serverId]) => serverId);
 
-  if (serverIds.length > 0 || canonicalServerIds.length > 0) {
+  if (importedAuthIsAuthoritative || serverIds.length > 0 || canonicalServerIds.length > 0) {
     const now = Date.now();
-    const servers = { ...(checkpoint?.servers ?? {}) };
+    const servers = importedAuthIsAuthoritative
+      ? Object.fromEntries(Object.entries(checkpoint?.servers ?? {}).filter(([serverId]) => serverIdSet.has(serverId)))
+      : { ...(checkpoint?.servers ?? {}) };
     for (const serverId of canonicalServerIds) delete servers[serverId];
     for (const serverId of serverIds) {
       const previous = checkpoint?.servers[serverId];

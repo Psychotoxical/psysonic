@@ -597,6 +597,23 @@ describe('successful ping admission', () => {
     }
   });
 
+  it('rejects admission that becomes stale while the observer is awaiting', async () => {
+    let admit!: () => void;
+    const observer = vi.fn(() => new Promise<void>(resolve => { admit = resolve; }));
+    const uninstall = installSuccessfulPingObserver(observer);
+    vi.mocked(pingWithCredentialsForProfile).mockResolvedValue(pingOk({ serverVersion: '0.64.0' }));
+    try {
+      const pending = ensureConnectUrlResolved(makeProfile());
+      await vi.waitFor(() => expect(observer).toHaveBeenCalledOnce());
+      invalidateReachableEndpointCache('profile-1');
+      admit();
+      await expect(pending).rejects.toThrow('admission became stale');
+      expect(getCachedConnectBaseUrl('profile-1')).toBeNull();
+    } finally {
+      uninstall();
+    }
+  });
+
   it('evicts a previously admitted endpoint when a later admission fails', async () => {
     const profile = makeProfile();
     vi.mocked(pingWithCredentialsForProfile).mockResolvedValue(pingOk({ serverVersion: '0.64.0' }));

@@ -420,6 +420,7 @@ pub async fn library_get_track(
     server_id: String,
     track_id: String,
 ) -> Result<Option<LibraryTrackDto>, String> {
+    let _pair_scope = psysonic_core::database_pair_admission::database_pair_read_scope();
     let repo = TrackRepository::new(&runtime.store);
     let Some(row) = repo.find_one(&server_id, &track_id)? else {
         return Ok(None);

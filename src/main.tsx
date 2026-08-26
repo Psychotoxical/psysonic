@@ -9,12 +9,17 @@ import {
   type NavidromeCanonicalMigrationProgress,
 } from './app/migrations/navidromeCanonicalCoordinator';
 import { installSuccessfulPingObserver } from '@/lib/server/serverEndpoint';
-import { installImportedBackupCoordinator } from '@/features/settings/utils/backup';
+import {
+  installImportedBackupCoordinator,
+} from '@/features/settings/utils/backup';
+import { reconcileFullBackupImportRecoveryForWindow } from './app/fullBackupRecoveryStartup';
 import {
   armNavidromeCanonicalBackupImport,
+  captureNavidromeCanonicalBackupRecoveryState,
   disarmNavidromeCanonicalBackupImport,
   normalizeNavidromeCanonicalBackupStores,
   prepareNavidromeCanonicalDatabaseImport,
+  restoreNavidromeCanonicalBackupRecoveryState,
 } from './app/migrations/navidromeCanonicalBackup';
 import {
   installNavidromeCanonicalHistoryNormalizer,
@@ -74,6 +79,15 @@ function renderMigrationShell(
 async function mountApplication(): Promise<void> {
   const windowKind = getWindowKind();
   renderMigrationShell({ serverId: null, phase: 'probing', step: null, completed: 0, total: 0 });
+  installImportedBackupCoordinator({
+    arm: () => armNavidromeCanonicalBackupImport(),
+    disarm: () => disarmNavidromeCanonicalBackupImport(),
+    captureRecoveryState: () => captureNavidromeCanonicalBackupRecoveryState(),
+    restoreRecoveryState: snapshot => restoreNavidromeCanonicalBackupRecoveryState(snapshot),
+    normalizeStores: stores => normalizeNavidromeCanonicalBackupStores(stores),
+    prepareDatabaseImport: stores => prepareNavidromeCanonicalDatabaseImport(stores),
+  });
+  await reconcileFullBackupImportRecoveryForWindow(windowKind);
   const result = await runNavidromeCanonicalMigrationCoordinator({
     windowKind,
     onProgress: progress => renderMigrationShell(progress),
@@ -87,20 +101,15 @@ async function mountApplication(): Promise<void> {
   rewriteNavidromeCanonicalHistoryForReadyServers();
   installNavidromeCanonicalHistoryNormalizer();
 
-  installSuccessfulPingObserver(async (profile, successfulProbe) => {
+  installSuccessfulPingObserver(async (profile, successfulProbe, isCurrent) => {
     const reloadRequired = await observeNavidromeCanonicalSuccessfulPing({
       profile,
       ping: successfulProbe.ping,
+      isCurrent,
     });
     if (!reloadRequired) return;
     window.location.reload();
     await new Promise<void>(() => {});
-  });
-  installImportedBackupCoordinator({
-    arm: () => armNavidromeCanonicalBackupImport(),
-    disarm: () => disarmNavidromeCanonicalBackupImport(),
-    normalizeStores: stores => normalizeNavidromeCanonicalBackupStores(stores),
-    prepareDatabaseImport: stores => prepareNavidromeCanonicalDatabaseImport(stores),
   });
   window.addEventListener('storage', event => {
     if (event.key === NAVIDROME_CANONICAL_BOOTSTRAP_LOCK_KEY && event.newValue === '1') {

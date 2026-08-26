@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { canonicalNavidromeId } from '@/lib/server/navidromeCanonicalId';
 import { NAVIDROME_CANONICAL_MIGRATION_CHECKPOINT_KEY } from './navidromeCanonicalCheckpoint';
 import {
+  installNavidromeCanonicalHistoryNormalizer,
   rewriteNavidromeCanonicalHistoryForReadyServers,
   rewriteNavidromeCanonicalHistoryForScope,
 } from './navidromeCanonicalHistory';
@@ -35,6 +36,20 @@ function auth(): string {
   });
 }
 
+function seedReadyCheckpoint(): void {
+  localStorage.setItem(NAVIDROME_CANONICAL_MIGRATION_CHECKPOINT_KEY, JSON.stringify({
+    version: 1,
+    servers: {
+      'music.test': {
+        sourceVersion: '0.64.0', checkedVersion: '0.64.0', canonicalVersion: 1,
+        phase: 'ready', step: null, cursorRowid: 0, upperRowid: 0,
+        cursorKey: null, upperKey: null, startedAt: 1, updatedAt: 1,
+        localCompletedAt: 1, syncCompletedAt: 1, lastError: null,
+      },
+    },
+  }));
+}
+
 beforeEach(() => {
   localStorage.clear();
   localStorage.setItem('psysonic-auth', auth());
@@ -66,17 +81,7 @@ describe('Navidrome canonical route history', () => {
   });
 
   it('normalizes an active-owner playlist bookmark only after its checkpoint is ready', () => {
-    localStorage.setItem(NAVIDROME_CANONICAL_MIGRATION_CHECKPOINT_KEY, JSON.stringify({
-      version: 1,
-      servers: {
-        'music.test': {
-          sourceVersion: '0.64.0', checkedVersion: '0.64.0', canonicalVersion: 1,
-          phase: 'ready', step: null, cursorRowid: 0, upperRowid: 0,
-          cursorKey: null, upperKey: null, startedAt: 1, updatedAt: 1,
-          localCompletedAt: 1, syncCompletedAt: 1, lastError: null,
-        },
-      },
-    }));
+    seedReadyCheckpoint();
     window.history.replaceState(null, '', `/playlists/${PLAYLIST_LEGACY}`);
 
     expect(rewriteNavidromeCanonicalHistoryForReadyServers()).toBe(true);
@@ -88,5 +93,24 @@ describe('Navidrome canonical route history', () => {
 
     expect(rewriteNavidromeCanonicalHistoryForScope(scope)).toBe(false);
     expect(window.location.pathname).toBe(`/composer/${LEGACY}`);
+  });
+
+  it('normalizes runtime pushState and replaceState navigation without recursion', () => {
+    seedReadyCheckpoint();
+    const uninstall = installNavidromeCanonicalHistoryNormalizer();
+    try {
+      window.history.pushState({
+        usr: { returnTo: `/album/${LEGACY}?server=profile-a` },
+      }, '', `/artist/${LEGACY}?server=profile-a`);
+      expect(window.location.pathname).toBe(`/artist/${CANONICAL}`);
+      expect(window.history.state).toMatchObject({
+        usr: { returnTo: `/album/${CANONICAL}?server=profile-a` },
+      });
+
+      window.history.replaceState(null, '', `/playlists/${PLAYLIST_LEGACY}`);
+      expect(window.location.pathname).toBe(`/playlists/${PLAYLIST_CANONICAL}`);
+    } finally {
+      uninstall();
+    }
   });
 });

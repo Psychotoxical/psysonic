@@ -38,6 +38,7 @@ type SuccessfulPickReachableResult = Extract<PickReachableResult, { ok: true }>;
 type SuccessfulPingObserver = (
   profile: ServerProfile,
   result: SuccessfulPickReachableResult,
+  isCurrent: () => boolean,
 ) => Promise<void>;
 
 let successfulPingObserver: SuccessfulPingObserver | null = null;
@@ -360,7 +361,12 @@ async function observeSuccessfulProbe(
   if (!successfulPingObserver || !probeIsCurrent(profile.id, token)) return;
   const existing = inFlightAdmissions.get(profile.id);
   if (existing?.token === token) return existing.promise;
-  const promise = successfulPingObserver(profile, result);
+  const promise = (async () => {
+    await successfulPingObserver?.(profile, result, () => probeIsCurrent(profile.id, token));
+    if (!probeIsCurrent(profile.id, token)) {
+      throw new Error(`Successful ping admission became stale for ${profile.id}`);
+    }
+  })();
   const flight = { token, promise };
   inFlightAdmissions.set(profile.id, flight);
   try {

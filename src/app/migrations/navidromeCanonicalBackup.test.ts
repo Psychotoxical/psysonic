@@ -6,9 +6,11 @@ import {
 } from './navidromeCanonicalCheckpoint';
 import {
   armNavidromeCanonicalBackupImport,
+  captureNavidromeCanonicalBackupRecoveryState,
   disarmNavidromeCanonicalBackupImport,
   normalizeNavidromeCanonicalBackupStores,
   prepareNavidromeCanonicalDatabaseImport,
+  restoreNavidromeCanonicalBackupRecoveryState,
 } from './navidromeCanonicalBackup';
 
 const LEGACY_ID = '123e4567-e89b-12d3-a456-426614174000';
@@ -50,6 +52,18 @@ function importedAuth(): Record<string, unknown> {
     },
     version: 1,
   };
+}
+
+function writeCurrentAuth(): void {
+  localStorage.setItem('psysonic-auth', JSON.stringify({
+    state: {
+      servers: [{
+        id: 'current-profile', name: 'Current', url: 'https://current.test', username: 'user', password: 'password',
+      }],
+      activeServerId: 'current-profile',
+    },
+    version: 1,
+  }));
 }
 
 describe('normalizeNavidromeCanonicalBackupStores', () => {
@@ -116,6 +130,16 @@ describe('normalizeNavidromeCanonicalBackupStores', () => {
     expect(localStorage.getItem(NAVIDROME_CANONICAL_MIGRATION_CHECKPOINT_KEY)).toBe(previous);
   });
 
+  it('captures and restores the exact pre-import checkpoint for crash recovery', () => {
+    const previous = localStorage.getItem(NAVIDROME_CANONICAL_MIGRATION_CHECKPOINT_KEY);
+    const snapshot = captureNavidromeCanonicalBackupRecoveryState();
+    prepareNavidromeCanonicalDatabaseImport({ 'psysonic-auth': importedAuth() });
+
+    restoreNavidromeCanonicalBackupRecoveryState(snapshot);
+
+    expect(localStorage.getItem(NAVIDROME_CANONICAL_MIGRATION_CHECKPOINT_KEY)).toBe(previous);
+  });
+
   it('arms imported profiles as pending before their database becomes active', () => {
     const plan = prepareNavidromeCanonicalDatabaseImport({
       'psysonic-auth': importedAuth(),
@@ -129,5 +153,31 @@ describe('normalizeNavidromeCanonicalBackupStores', () => {
       step: 'backup-import',
       checkedVersion: null,
     });
+  });
+
+  it('uses imported auth as the full-backup ownership snapshot', () => {
+    writeCurrentAuth();
+    const checkpoint = JSON.parse(
+      localStorage.getItem(NAVIDROME_CANONICAL_MIGRATION_CHECKPOINT_KEY) ?? '{}',
+    );
+    checkpoint.servers['current.test'] = {
+      ...checkpoint.servers['music.test'],
+      checkedVersion: null,
+      phase: 'native',
+      step: 'track',
+    };
+    localStorage.setItem(NAVIDROME_CANONICAL_MIGRATION_CHECKPOINT_KEY, JSON.stringify(checkpoint));
+
+    const plan = prepareNavidromeCanonicalDatabaseImport({
+      'psysonic-auth': importedAuth(),
+    });
+
+    expect(plan.serverIds).toEqual(['music.test']);
+    expect(plan.canonicalServerIds).toEqual(['music.test']);
+    const next = JSON.parse(
+      localStorage.getItem(NAVIDROME_CANONICAL_MIGRATION_CHECKPOINT_KEY) ?? '{}',
+    );
+    expect(next.servers['current.test']).toBeUndefined();
+    expect(next.servers['music.test']).toMatchObject({ phase: 'pending', step: 'backup-import' });
   });
 });

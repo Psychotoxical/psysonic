@@ -3,6 +3,7 @@ use psysonic_core::track_enrichment::TrackEnrichmentOutcome;
 use std::borrow::Cow;
 use tauri::Manager;
 
+use super::admission::{ordinary_queue_admission_guard, ordinary_queue_admission_guard_async};
 use super::backfill_queue::{analysis_backfill_shared, PlaybackPriorityHints};
 use super::cpu_seed::submit_analysis_cpu_seed;
 use super::trusted_revision::{activate_trusted_enrichment, activate_trusted_identity};
@@ -180,6 +181,9 @@ pub(super) async fn enqueue_track_analysis_with_fetch(
             track_id,
             content_hash
         );
+        // Hold ordinary admission through enrichment and every follow-up write.
+        // Migration drains this complete path before remapping canonical ids.
+        let _admission = ordinary_queue_admission_guard_async(app).await?;
         let bpm_started = std::time::Instant::now();
         let trusted_guard = trusted_revision
             .as_ref()
@@ -239,6 +243,9 @@ pub async fn run_track_enrichment_from_bytes(
     trusted_md5_16kb: Option<String>,
     notify_ui: bool,
 ) -> TrackEnrichmentOutcome {
+    let Ok(_admission) = ordinary_queue_admission_guard_async(app).await else {
+        return TrackEnrichmentOutcome::Failed;
+    };
     run_track_enrichment_from_owned_bytes(
         app,
         server_id,
@@ -424,6 +431,7 @@ pub fn enqueue_seed_from_url(
     let tid_log = track_id.to_string();
     let resolved = analysis_backfill_resolve_priority(app, &server_id, track_id, explicit_priority);
     let shared = analysis_backfill_shared(app);
+    let _admission = ordinary_queue_admission_guard(app)?;
     let kind = {
         let mut st = shared
             .state

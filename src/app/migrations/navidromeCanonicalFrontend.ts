@@ -130,11 +130,30 @@ function rewriteTrack(value: unknown, label: string): unknown {
 
 function rewriteFolderList(value: unknown): unknown {
   if (!Array.isArray(value)) return value;
-  return value.map(raw => isObject(raw) ? { ...raw, id: canonicalId(raw.id) } : raw);
+  const rewritten: unknown[] = [];
+  const indexById = new Map<string, number>();
+  for (const raw of value) {
+    const folder = isObject(raw) ? { ...raw, id: canonicalId(raw.id) } : raw;
+    if (!isObject(folder) || typeof folder.id !== 'string') {
+      rewritten.push(folder);
+      continue;
+    }
+    const existingIndex = indexById.get(folder.id);
+    if (existingIndex === undefined) {
+      indexById.set(folder.id, rewritten.length);
+      rewritten.push(folder);
+      continue;
+    }
+    const existing = rewritten[existingIndex];
+    rewritten[existingIndex] = isObject(existing)
+      ? mergeCompleteObjects(existing, folder)
+      : folder;
+  }
+  return rewritten;
 }
 
 function rewriteStringList(value: unknown): unknown {
-  return Array.isArray(value) ? value.map(canonicalId) : value;
+  return Array.isArray(value) ? [...new Set(value.map(canonicalId))] : value;
 }
 
 function rewriteAuthState(
@@ -470,10 +489,19 @@ function rewriteLocalPlaybackState(
   const state = asObject(root.state, LOCAL_PLAYBACK_KEY);
   if (!isObject(state.entries)) return;
   const entries: Record<string, JsonObject> = {};
-  for (const rawEntry of Object.values(state.entries)) {
+  for (const [persistedKey, rawEntry] of Object.entries(state.entries)) {
     const entry = asObject(rawEntry, LOCAL_PLAYBACK_KEY);
     const oldTrackId = typeof entry.trackId === 'string' ? entry.trackId : '';
-    const affected = resolveOwnerServerIndexKey(entry.serverIndexKey, scope) === scope.serverIndexKey;
+    const rawOwner = typeof entry.serverIndexKey === 'string' ? entry.serverIndexKey : '';
+    if (!rawOwner || !oldTrackId) {
+      throw new Error(`Malformed persisted state in ${LOCAL_PLAYBACK_KEY}`);
+    }
+    const resolvedOwner = resolveOwnerServerIndexKey(entry.serverIndexKey, scope);
+    if (!resolvedOwner) {
+      entries[persistedKey] = entry;
+      continue;
+    }
+    const affected = resolvedOwner === scope.serverIndexKey;
     const newTrackId = affected ? canonicalNavidromeId(oldTrackId) : oldTrackId;
     const next = affected ? {
       ...entry,

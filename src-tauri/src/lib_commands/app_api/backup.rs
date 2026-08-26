@@ -2,6 +2,7 @@ use std::collections::HashSet;
 use std::fs;
 use std::path::PathBuf;
 
+use psysonic_core::database_pair_admission::database_pair_read_scope;
 use serde_json::Value;
 use tauri::{AppHandle, Manager};
 
@@ -13,8 +14,11 @@ use archive::{
     FullBackupPayload, FULL_ARCHIVE_VERSION,
 };
 use database::{
-    analysis_db_path, import_databases_from_sqlite, library_db_path, remove_db_with_sidecars,
-    remove_if_exists, vacuum_copy, validate_import_database,
+    analysis_db_path, cleanup_database_paths, commit_imported_databases,
+    finalize_full_import_recovery_for_app, import_databases_from_sqlite,
+    inspect_full_import_recovery_for_app, library_db_path, recover_full_import_databases,
+    remove_db_with_sidecars, remove_if_exists, restore_database_pair, vacuum_copy,
+    validate_import_database, FullImportRecoveryStatusDto,
 };
 
 const ANALYSIS_DB_MIN_COMPATIBLE_VERSION: i64 = 1;
@@ -31,11 +35,8 @@ async fn acquire_sync_drain_barrier(
 
 async fn acquire_import_barrier(
     app: &AppHandle,
-    migration_generation: Option<u64>,
-) -> Result<Option<psysonic_library::runtime::SyncDrainBarrier>, String> {
-    let Some(generation) = migration_generation else {
-        return acquire_sync_drain_barrier(app).await.map(Some);
-    };
+    migration_generation: u64,
+) -> Result<(), String> {
     let runtime = app
         .try_state::<psysonic_library::LibraryRuntime>()
         .ok_or_else(|| "library runtime unavailable".to_string())?;
@@ -43,8 +44,10 @@ async fn acquire_import_barrier(
         psysonic_library::runtime::MigrationGenerationSnapshotDto::Active {
             generation: active,
             ..
-        } if active == generation => Ok(None),
-        _ => Err(format!("migration generation {generation} is not active")),
+        } if active == migration_generation => Ok(()),
+        _ => Err(format!(
+            "migration generation {migration_generation} is not active"
+        )),
     }
 }
 
@@ -66,6 +69,7 @@ fn backup_export_library_db_blocking(
     app: &AppHandle,
     destination_path: String,
 ) -> Result<(), String> {
+    let _pair_scope = database_pair_read_scope();
     let destination = PathBuf::from(destination_path);
     if let Some(parent) = destination.parent() {
         fs::create_dir_all(parent).map_err(|e| e.to_string())?;
@@ -99,15 +103,17 @@ pub(crate) async fn backup_import_library_db(
     app: AppHandle,
     source_path: String,
     canonical_server_ids: Vec<String>,
-    migration_generation: Option<u64>,
+    migration_generation: u64,
+    durable_full_import_recovery: bool,
 ) -> Result<(), String> {
-    let _barrier = acquire_import_barrier(&app, migration_generation).await?;
+    acquire_import_barrier(&app, migration_generation).await?;
     tauri::async_runtime::spawn_blocking(move || {
         backup_import_library_db_blocking(
             &app,
             source_path,
             canonical_server_ids,
             migration_generation,
+            durable_full_import_recovery,
         )
     })
     .await
@@ -118,7 +124,8 @@ fn backup_import_library_db_blocking(
     app: &AppHandle,
     source_path: String,
     canonical_server_ids: Vec<String>,
-    migration_generation: Option<u64>,
+    migration_generation: u64,
+    durable_full_import_recovery: bool,
 ) -> Result<(), String> {
     let source = PathBuf::from(source_path);
     if !source.exists() {
@@ -144,31 +151,105 @@ fn backup_import_library_db_blocking(
         ANALYSIS_DB_MIN_COMPATIBLE_VERSION,
         psysonic_analysis::analysis_cache::ANALYSIS_DB_SCHEMA_VERSION,
     )?;
-    let activate = || import_databases_from_sqlite(app, &import_library_tmp, &import_analysis_tmp);
-    let result = canonicalize_staged_databases(
+    let activate = || {
+        import_databases_from_sqlite(
+            app,
+            &import_library_tmp,
+            &import_analysis_tmp,
+            durable_full_import_recovery,
+            migration_generation,
+        )
+    };
+    if let Err(error) = canonicalize_staged_databases(
         &import_library_tmp,
         &import_analysis_tmp,
         canonical_server_ids,
+    ) {
+        return match cleanup_database_paths(&[&import_library_tmp, &import_analysis_tmp]) {
+            Ok(()) => Err(error),
+            Err(cleanup_error) => Err(format!(
+                "{error}; staged database cleanup failed: {cleanup_error}"
+            )),
+        };
+    }
+    psysonic_library::store::LibraryStore::scope_migration_write_generation_sync(
+        migration_generation,
+        || {
+            psysonic_analysis::analysis_cache::AnalysisCache::scope_migration_write_generation_sync(
+                migration_generation,
+                activate,
+            )
+        },
     )
-    .and_then(|_| match migration_generation {
+}
+
+#[tauri::command]
+#[specta::specta]
+pub(crate) fn backup_inspect_full_import_recovery(
+    app: AppHandle,
+) -> Result<Option<FullImportRecoveryStatusDto>, String> {
+    inspect_full_import_recovery_for_app(&app)
+}
+
+async fn acquire_full_import_recovery_barrier(
+    app: &AppHandle,
+    migration_generation: u64,
+) -> Result<
+    (
+        Option<psysonic_library::runtime::SyncDrainBarrier>,
+        Option<u64>,
+    ),
+    String,
+> {
+    let runtime = app
+        .try_state::<psysonic_library::LibraryRuntime>()
+        .ok_or_else(|| "library runtime unavailable".to_string())?;
+    match runtime.inspect_migration_generation()? {
+        psysonic_library::runtime::MigrationGenerationSnapshotDto::Active {
+            generation,
+            ..
+        } if generation == migration_generation => Ok((None, Some(generation))),
+        psysonic_library::runtime::MigrationGenerationSnapshotDto::Inactive { .. } => {
+            Ok((Some(acquire_sync_drain_barrier(app).await?), None))
+        }
+        psysonic_library::runtime::MigrationGenerationSnapshotDto::Active {
+            generation,
+            ..
+        } => Err(format!(
+            "full import recovery generation mismatch: marker={migration_generation}, active={generation}"
+        )),
+    }
+}
+
+#[tauri::command]
+#[specta::specta]
+pub(crate) async fn backup_recover_full_import_databases(app: AppHandle) -> Result<(), String> {
+    let status = inspect_full_import_recovery_for_app(&app)?
+        .ok_or_else(|| "full import recovery marker is missing".to_string())?;
+    let (_barrier, active_generation) =
+        acquire_full_import_recovery_barrier(&app, status.migration_generation).await?;
+    tauri::async_runtime::spawn_blocking(move || match active_generation {
         Some(generation) => {
             psysonic_library::store::LibraryStore::scope_migration_write_generation_sync(
                 generation,
                 || {
                     psysonic_analysis::analysis_cache::AnalysisCache::scope_migration_write_generation_sync(
                         generation,
-                        activate,
+                        || recover_full_import_databases(&app),
                     )
                 },
             )
         }
-        None => activate(),
-    });
-    if result.is_err() {
-        remove_db_with_sidecars(&import_library_tmp).ok();
-        remove_db_with_sidecars(&import_analysis_tmp).ok();
-    }
-    result
+        None => recover_full_import_databases(&app),
+    })
+    .await
+    .map_err(|error| error.to_string())?
+}
+
+#[tauri::command]
+#[specta::specta]
+pub(crate) fn backup_finalize_full_import_recovery(app: AppHandle) -> Result<(), String> {
+    finalize_full_import_recovery_for_app(&app)
 }
 
 fn canonicalize_staged_databases(
@@ -255,6 +336,7 @@ fn backup_export_full_blocking(
     stores: Value,
     app_version: String,
 ) -> Result<(), String> {
+    let _pair_scope = database_pair_read_scope();
     if !stores.is_object() {
         return Err("stores payload must be an object".to_string());
     }
@@ -333,13 +415,15 @@ fn backup_import_full_blocking(app: &AppHandle, source_path: String) -> Result<V
     )?;
     let stores = payload.stores;
     if !stores.is_object() {
-        remove_db_with_sidecars(&import_library_tmp).ok();
-        remove_db_with_sidecars(&import_analysis_tmp).ok();
-        return Err("backup payload stores must be an object".to_string());
+        return match cleanup_database_paths(&[&import_library_tmp, &import_analysis_tmp]) {
+            Ok(()) => Err("backup payload stores must be an object".to_string()),
+            Err(cleanup_error) => Err(format!(
+                "backup payload stores must be an object; staged database cleanup failed: {cleanup_error}"
+            )),
+        };
     }
 
-    remove_db_with_sidecars(&import_library_tmp).ok();
-    remove_db_with_sidecars(&import_analysis_tmp).ok();
+    cleanup_database_paths(&[&import_library_tmp, &import_analysis_tmp])?;
     Ok(stores)
 }
 
@@ -347,9 +431,9 @@ fn backup_import_full_blocking(app: &AppHandle, source_path: String) -> Result<V
 #[specta::specta]
 pub(crate) async fn backup_rollback_imported_databases(
     app: AppHandle,
-    migration_generation: Option<u64>,
+    migration_generation: u64,
 ) -> Result<(), String> {
-    let _barrier = acquire_import_barrier(&app, migration_generation).await?;
+    acquire_import_barrier(&app, migration_generation).await?;
     tauri::async_runtime::spawn_blocking(move || {
         backup_rollback_imported_databases_blocking(&app, migration_generation)
     })
@@ -359,7 +443,7 @@ pub(crate) async fn backup_rollback_imported_databases(
 
 fn backup_rollback_imported_databases_blocking(
     app: &AppHandle,
-    migration_generation: Option<u64>,
+    migration_generation: u64,
 ) -> Result<(), String> {
     let active_library = library_db_path(app)?;
     let active_analysis = analysis_db_path(app)?;
@@ -375,36 +459,28 @@ fn backup_rollback_imported_databases_blocking(
         .try_state::<psysonic_analysis::analysis_cache::AnalysisCache>()
         .ok_or_else(|| "analysis runtime unavailable".to_string())?;
     let rollback = || {
-        cache.restore_database_backup(&analysis_backup, &active_analysis)?;
-        runtime
-            .store
-            .restore_database_backup(&library_backup, &active_library)?;
-        runtime.store.verify_operational_schema()?;
-        cache.verify_operational_schema()
+        restore_database_pair(
+            &runtime,
+            &cache,
+            &[library_backup.as_path()],
+            &[analysis_backup.as_path()],
+            &active_library,
+            &active_analysis,
+        )
     };
-    match migration_generation {
-        Some(generation) => {
-            psysonic_library::store::LibraryStore::scope_migration_write_generation_sync(
-                generation,
-                || {
-                    psysonic_analysis::analysis_cache::AnalysisCache::scope_migration_write_generation_sync(
-                        generation,
-                        rollback,
-                    )
-                },
+    psysonic_library::store::LibraryStore::scope_migration_write_generation_sync(
+        migration_generation,
+        || {
+            psysonic_analysis::analysis_cache::AnalysisCache::scope_migration_write_generation_sync(
+                migration_generation,
+                rollback,
             )
-        }
-        None => rollback(),
-    }
+        },
+    )
 }
 
 #[tauri::command]
 #[specta::specta]
 pub(crate) fn backup_commit_imported_databases(app: AppHandle) -> Result<(), String> {
-    let active_library = library_db_path(&app)?;
-    let active_analysis = analysis_db_path(&app)?;
-    remove_db_with_sidecars(&active_library.with_file_name("library.sqlite.import.bak"))?;
-    remove_db_with_sidecars(
-        &active_analysis.with_file_name("audio-analysis.sqlite.import.bak"),
-    )
+    commit_imported_databases(&app)
 }

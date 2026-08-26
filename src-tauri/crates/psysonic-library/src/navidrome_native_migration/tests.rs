@@ -1,8 +1,8 @@
 use rusqlite::params;
 
 use super::{
-    finalize, preflight, retarget_offline_paths, run_batch, upper_rowid,
-    NavidromeNativeMigrationStep,
+    finalize, preflight, reconcile_offline_paths, retarget_offline_paths, run_batch, upper_rowid,
+    verify_offline_paths, NavidromeNativeMigrationStep,
 };
 use crate::navidrome_id_codec::canonical_id;
 use crate::store::LibraryStore;
@@ -10,6 +10,18 @@ use crate::store::LibraryStore;
 const LEGACY_TRACK: &str = "e3b7fc2ae9447bbec37a13bf916e3cf6";
 const LEGACY_ARTIST: &str = "00112233445566778899aabbccddeeff";
 const LEGACY_ALBUM: &str = "f47ac10b-58cc-4372-a567-0e02b2c3d479";
+
+fn fresh_dir(label: &str) -> std::path::PathBuf {
+    let path = std::env::temp_dir().join(format!(
+        "psysonic-native-migration-{label}-{}",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    std::fs::create_dir_all(&path).unwrap();
+    path
+}
 
 #[test]
 fn artist_batches_resume_against_the_original_upper_rowid() {
@@ -22,8 +34,7 @@ fn artist_batches_resume_against_the_original_upper_rowid() {
                  VALUES ('s1', ?1, 'Artist One', 1, 10, ?2)",
                 params![
                     LEGACY_ARTIST,
-                    serde_json::json!({ "id": LEGACY_ARTIST, "name": "Artist One" })
-                        .to_string()
+                    serde_json::json!({ "id": LEGACY_ARTIST, "name": "Artist One" }).to_string()
                 ],
             )?;
             conn.execute(
@@ -32,8 +43,7 @@ fn artist_batches_resume_against_the_original_upper_rowid() {
                  VALUES ('s1', ?1, 'Artist Two', 2, 20, ?2)",
                 params![
                     LEGACY_ALBUM,
-                    serde_json::json!({ "id": LEGACY_ALBUM, "name": "Artist Two" })
-                        .to_string()
+                    serde_json::json!({ "id": LEGACY_ALBUM, "name": "Artist Two" }).to_string()
                 ],
             )?;
             Ok(())
@@ -270,9 +280,11 @@ fn album_collision_retargets_tracks_and_preserves_newer_user_state() {
 
     let track_album: String = store
         .with_read_conn(|conn| {
-            conn.query_row("SELECT album_id FROM track WHERE id = 'track-1'", [], |row| {
-                row.get(0)
-            })
+            conn.query_row(
+                "SELECT album_id FROM track WHERE id = 'track-1'",
+                [],
+                |row| row.get(0),
+            )
         })
         .unwrap();
     assert_eq!(track_album, canonical_album);
@@ -454,4 +466,66 @@ fn retargets_offline_paths_without_opening_a_second_database_connection() {
         })
         .unwrap();
     assert_eq!(path, "/new/track.flac");
+}
+
+#[test]
+fn retry_repairs_offline_db_path_after_file_was_already_renamed() {
+    let dir = fresh_dir("resume-after-rename");
+    let source = dir.join(format!("{LEGACY_TRACK}.flac"));
+    let destination = dir.join(format!("{}.flac", canonical_id(LEGACY_TRACK)));
+    std::fs::write(&source, b"audio").unwrap();
+    std::fs::rename(&source, &destination).unwrap();
+
+    let store = LibraryStore::open_in_memory();
+    store
+        .with_conn_mut("test.seed_stale_offline_path", |conn| {
+            conn.execute(
+                "INSERT INTO track_offline (server_id, track_id, local_path, cached_at) \
+                 VALUES ('s1', 'canonical-track', ?1, 1)",
+                params![source.to_string_lossy().as_ref()],
+            )?;
+            Ok(())
+        })
+        .unwrap();
+
+    let verification_error = verify_offline_paths(&store, "s1", &dir).unwrap_err();
+    assert!(verification_error.contains("track_offline.local_path"));
+
+    let retargeted = reconcile_offline_paths(&store, "s1", &dir, &[]).unwrap();
+    assert_eq!(retargeted, 1);
+    let local_path: String = store
+        .with_read_conn(|conn| {
+            conn.query_row(
+                "SELECT local_path FROM track_offline WHERE server_id = 's1'",
+                [],
+                |row| row.get(0),
+            )
+        })
+        .unwrap();
+    assert_eq!(std::path::PathBuf::from(local_path), destination);
+    verify_offline_paths(&store, "s1", &dir).unwrap();
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn retry_keeps_stale_db_path_when_canonical_destination_is_missing() {
+    let dir = fresh_dir("missing-destination");
+    let source = dir.join(format!("{LEGACY_TRACK}.flac"));
+    let store = LibraryStore::open_in_memory();
+    store
+        .with_conn_mut("test.seed_missing_offline_path", |conn| {
+            conn.execute(
+                "INSERT INTO track_offline (server_id, track_id, local_path, cached_at) \
+                 VALUES ('s1', 'canonical-track', ?1, 1)",
+                params![source.to_string_lossy().as_ref()],
+            )?;
+            Ok(())
+        })
+        .unwrap();
+
+    assert_eq!(reconcile_offline_paths(&store, "s1", &dir, &[]).unwrap(), 0);
+    assert!(verify_offline_paths(&store, "s1", &dir)
+        .unwrap_err()
+        .contains("track_offline.local_path"));
+    let _ = std::fs::remove_dir_all(dir);
 }

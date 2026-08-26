@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
   migrateCoverBatch: vi.fn(),
   verifyCover: vi.fn(async () => undefined),
   invalidateLyrics: vi.fn(async () => undefined),
+  commitImportedBackupRecovery: vi.fn(async () => undefined),
 }));
 
 vi.mock('@tauri-apps/api/core', () => ({ invoke: mocks.invoke }));
@@ -29,6 +30,9 @@ vi.mock('./navidromeCanonicalIdb', () => ({
   migrateNavidromeCoverIdbBatch: mocks.migrateCoverBatch,
   verifyNavidromeCoverIdb: mocks.verifyCover,
   invalidateNavidromeLyricsIdb: mocks.invalidateLyrics,
+}));
+vi.mock('@/features/settings/utils/backup', () => ({
+  commitImportedBackupRecovery: mocks.commitImportedBackupRecovery,
 }));
 
 import {
@@ -78,6 +82,18 @@ function checkpoint(phase: NavidromeCanonicalMigrationCheckpointV1['servers'][st
   } satisfies NavidromeCanonicalMigrationCheckpointV1));
 }
 
+function beginResult(
+  generation: number,
+  created = true,
+  previousPhase: NavidromeCanonicalMigrationCheckpointV1['servers'][string]['phase'] | null = null,
+) {
+  return {
+    generation,
+    created,
+    servers: [{ serverId: 'music.test', previousPhase }],
+  };
+}
+
 describe('runNavidromeCanonicalMigrationCoordinator', () => {
   beforeEach(() => {
     localStorage.clear();
@@ -93,6 +109,7 @@ describe('runNavidromeCanonicalMigrationCoordinator', () => {
     mocks.migrateCoverBatch.mockReset();
     mocks.verifyCover.mockClear();
     mocks.invalidateLyrics.mockClear();
+    mocks.commitImportedBackupRecovery.mockClear();
   });
 
   it('records an old stable Navidrome release without taking the writer barrier', async () => {
@@ -126,6 +143,23 @@ describe('runNavidromeCanonicalMigrationCoordinator', () => {
 
     await expect(runNavidromeCanonicalMigrationCoordinator({ windowKind: 'mini' }))
       .resolves.toEqual({ blocked: true, migratedServers: 0 });
+  });
+
+  it('releases an active empty import generation before committing retained backups', async () => {
+    localStorage.removeItem('psysonic-auth');
+    mocks.invoke.mockImplementation(async (command: string) => {
+      if (command === 'library_migration_inspect') {
+        return { state: 'active', generation: 12, servers: [] };
+      }
+      if (command === 'library_migration_release') return undefined;
+      throw new Error(`Unexpected command ${command}`);
+    });
+
+    await expect(runNavidromeCanonicalMigrationCoordinator({ windowKind: 'main' }))
+      .resolves.toEqual({ blocked: false, migratedServers: 0 });
+
+    expect(mocks.invoke).toHaveBeenCalledWith('library_migration_release', { generation: 12 });
+    expect(mocks.commitImportedBackupRecovery).toHaveBeenCalledOnce();
   });
 
   it('does not unlock an unreachable server with a destructive checkpoint', async () => {
@@ -210,7 +244,7 @@ describe('runNavidromeCanonicalMigrationCoordinator', () => {
       if (command === 'probe_server_connection') {
         return { ok: true, type: 'navidrome', serverVersion: '0.63.2', openSubsonic: true };
       }
-      if (command === 'library_migration_begin') return 10;
+      if (command === 'library_migration_begin') return beginResult(10);
       if (command === 'library_migration_abort') return undefined;
       throw new Error(`Unexpected command ${command}`);
     });
@@ -261,7 +295,7 @@ describe('runNavidromeCanonicalMigrationCoordinator', () => {
     stored.servers['music.test'].syncCompletedAt = 11;
     localStorage.setItem(NAVIDROME_CANONICAL_MIGRATION_CHECKPOINT_KEY, JSON.stringify(stored));
     mocks.invoke.mockImplementation(async (command: string) => {
-      if (command === 'library_migration_begin') return 9;
+      if (command === 'library_migration_begin') return beginResult(9);
       throw new Error(`Unexpected command ${command}`);
     });
 
@@ -290,7 +324,7 @@ describe('runNavidromeCanonicalMigrationCoordinator', () => {
     stored.servers['music.test'].checkedVersion = '0.64.0';
     localStorage.setItem(NAVIDROME_CANONICAL_MIGRATION_CHECKPOINT_KEY, JSON.stringify(stored));
     mocks.invoke.mockImplementation(async (command: string) => {
-      if (command === 'library_migration_begin') return 11;
+      if (command === 'library_migration_begin') return beginResult(11);
       if (command === 'library_migration_abort') return undefined;
       throw new Error(`Unexpected command ${command}`);
     });
@@ -336,6 +370,119 @@ describe('runNavidromeCanonicalMigrationCoordinator', () => {
     expect(stored.servers['other.test']).toMatchObject({ phase: 'legacy', checkedVersion: '0.63.1' });
   });
 
+  it('finishes a generation admission when its profile is removed during begin', async () => {
+    let resolveBegin!: (result: ReturnType<typeof beginResult>) => void;
+    mocks.invoke.mockImplementation(async (command: string) => {
+      if (command === 'library_migration_begin') {
+        return new Promise<ReturnType<typeof beginResult>>(resolve => { resolveBegin = resolve; });
+      }
+      if (command === 'library_migration_finish_server' || command === 'library_migration_release') {
+        return undefined;
+      }
+      throw new Error(`Unexpected command ${command}`);
+    });
+
+    const observation = observeNavidromeCanonicalSuccessfulPing({
+      profile: {
+        id: 'profile', name: 'Music', url: 'https://music.test', username: 'user', password: 'password',
+      },
+      ping: { type: 'navidrome', serverVersion: '0.64.0' },
+    });
+    await vi.waitFor(() => expect(mocks.invoke).toHaveBeenCalledWith(
+      'library_migration_begin',
+      { serverIds: ['music.test'] },
+    ));
+    localStorage.removeItem('psysonic-auth');
+    resolveBegin(beginResult(13));
+
+    await expect(observation).rejects.toThrow('admission became stale');
+    expect(mocks.invoke).toHaveBeenCalledWith('library_migration_finish_server', {
+      generation: 13,
+      serverId: 'music.test',
+      phase: 'not-applicable',
+    });
+    expect(mocks.invoke).toHaveBeenCalledWith('library_migration_release', { generation: 13 });
+    expect(localStorage.getItem(NAVIDROME_CANONICAL_BOOTSTRAP_LOCK_KEY)).toBeNull();
+    expect(localStorage.getItem(NAVIDROME_CANONICAL_MIGRATION_CHECKPOINT_KEY)).toBeNull();
+  });
+
+  it('does not release a shared generation when a newly added admission becomes stale', async () => {
+    let resolveBegin!: (result: ReturnType<typeof beginResult>) => void;
+    mocks.invoke.mockImplementation(async (command: string) => {
+      if (command === 'library_migration_begin') {
+        return new Promise<ReturnType<typeof beginResult>>(resolve => { resolveBegin = resolve; });
+      }
+      if (command === 'library_migration_finish_server') return undefined;
+      throw new Error(`Unexpected command ${command}`);
+    });
+
+    const observation = observeNavidromeCanonicalSuccessfulPing({
+      profile: {
+        id: 'profile', name: 'Music', url: 'https://music.test', username: 'user', password: 'password',
+      },
+      ping: { type: 'navidrome', serverVersion: '0.64.0' },
+    });
+    await vi.waitFor(() => expect(mocks.invoke).toHaveBeenCalledWith(
+      'library_migration_begin',
+      { serverIds: ['music.test'] },
+    ));
+    localStorage.removeItem('psysonic-auth');
+    resolveBegin(beginResult(20, false));
+
+    await expect(observation).rejects.toThrow('admission became stale');
+    expect(mocks.invoke).toHaveBeenCalledWith('library_migration_finish_server', {
+      generation: 20,
+      serverId: 'music.test',
+      phase: 'not-applicable',
+    });
+    expect(mocks.invoke).not.toHaveBeenCalledWith('library_migration_release', expect.anything());
+  });
+
+  it('leaves an existing non-terminal server admission untouched when observation becomes stale', async () => {
+    mocks.invoke.mockImplementation(async (command: string) => {
+      if (command === 'library_migration_begin') {
+        localStorage.removeItem('psysonic-auth');
+        return beginResult(21, false, 'native');
+      }
+      throw new Error(`Unexpected command ${command}`);
+    });
+
+    await expect(observeNavidromeCanonicalSuccessfulPing({
+      profile: {
+        id: 'profile', name: 'Music', url: 'https://music.test', username: 'user', password: 'password',
+      },
+      ping: { type: 'navidrome', serverVersion: '0.64.0' },
+    })).rejects.toThrow('admission became stale');
+
+    expect(mocks.invoke).not.toHaveBeenCalledWith('library_migration_finish_server', expect.anything());
+    expect(mocks.invoke).not.toHaveBeenCalledWith('library_migration_release', expect.anything());
+  });
+
+  it('restores a terminal server phase without releasing its shared generation', async () => {
+    mocks.invoke.mockImplementation(async (command: string) => {
+      if (command === 'library_migration_begin') {
+        localStorage.removeItem('psysonic-auth');
+        return beginResult(22, false, 'ready');
+      }
+      if (command === 'library_migration_finish_server') return undefined;
+      throw new Error(`Unexpected command ${command}`);
+    });
+
+    await expect(observeNavidromeCanonicalSuccessfulPing({
+      profile: {
+        id: 'profile', name: 'Music', url: 'https://music.test', username: 'user', password: 'password',
+      },
+      ping: { type: 'navidrome', serverVersion: '0.64.0' },
+    })).rejects.toThrow('admission became stale');
+
+    expect(mocks.invoke).toHaveBeenCalledWith('library_migration_finish_server', {
+      generation: 22,
+      serverId: 'music.test',
+      phase: 'ready',
+    });
+    expect(mocks.invoke).not.toHaveBeenCalledWith('library_migration_release', expect.anything());
+  });
+
   it('releases a runtime version gate without full sync when the minimal-root inventory is clean', async () => {
     checkpoint('pending');
     const stored = JSON.parse(localStorage.getItem(NAVIDROME_CANONICAL_MIGRATION_CHECKPOINT_KEY) ?? '{}');
@@ -376,7 +523,7 @@ describe('runNavidromeCanonicalMigrationCoordinator', () => {
       if (command === 'probe_server_connection') {
         return { ok: true, type: 'navidrome', serverVersion: '0.64.0', openSubsonic: true };
       }
-      if (command === 'library_migration_begin') return 7;
+      if (command === 'library_migration_begin') return beginResult(7);
       if (command.endsWith('_upper_rowid')) return 0;
       if (command === 'library_migration_sync_start') {
         queueMicrotask(() => mocks.idleHandler?.({
@@ -404,8 +551,9 @@ describe('runNavidromeCanonicalMigrationCoordinator', () => {
     expect(commands).toContain('cover_cache_migrate_navidrome_ids');
     expect(commands).toContain('library_migration_sync_start');
     expect(commands.filter(command => command === 'library_migration_verify')).toHaveLength(2);
-    expect(commands.indexOf('library_migration_release'))
-      .toBeLessThan(commands.indexOf('backup_commit_imported_databases'));
+    const releaseIndex = commands.indexOf('library_migration_release');
+    expect(mocks.invoke.mock.invocationCallOrder[releaseIndex])
+      .toBeLessThan(mocks.commitImportedBackupRecovery.mock.invocationCallOrder[0]);
     expect(commands.indexOf('migrate_navidrome_filesystem_ids'))
       .toBeLessThan(commands.indexOf('library_migration_native_preflight'));
     expect(mocks.rewriteFrontend).toHaveBeenCalledOnce();
@@ -430,7 +578,7 @@ describe('runNavidromeCanonicalMigrationCoordinator', () => {
       if (command === 'probe_server_connection') {
         return { ok: true, type: 'navidrome', serverVersion: '0.64.0', openSubsonic: true };
       }
-      if (command === 'library_migration_begin') return 8;
+      if (command === 'library_migration_begin') return beginResult(8);
       if (command.endsWith('_upper_rowid')) return 0;
       if (command === 'library_migration_sync_start') {
         queueMicrotask(() => mocks.idleHandler?.({

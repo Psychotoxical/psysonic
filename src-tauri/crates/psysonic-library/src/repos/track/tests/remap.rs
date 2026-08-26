@@ -367,6 +367,228 @@ fn retarget_merges_colliding_preserved_references_without_dropping_history() {
 }
 
 #[test]
+fn retarget_artifact_collision_preserves_older_valid_content_over_newer_miss() {
+    let store = LibraryStore::open_in_memory();
+    let repo = TrackRepository::new(&store);
+    repo.upsert_batch(&[
+        row_with_id_hash("s1", "tr_old", "same", "/music/x.flac"),
+        row_with_id_hash("s1", "tr_new", "same", "/music/x.flac"),
+    ])
+    .unwrap();
+    store
+        .with_conn("test.seed_artifact_positive_destination", |conn| {
+            conn.execute_batch(
+                "INSERT INTO track_artifact
+                   (server_id, track_id, artifact_kind, format, source_kind, source_id,
+                    content_text, content_bytes, not_found, content_hash, fetched_at, expires_at)
+                 VALUES ('s1', 'tr_new', 'lyrics', 'plain', 'lrclib', 'lrclib',
+                         'valid lyrics', 12, 0, 'positive-hash', 100, 1000),
+                        ('s1', 'tr_old', 'lyrics', 'plain', 'lrclib', 'lrclib',
+                         NULL, 0, 1, 'miss-hash', 200, 300);",
+            )?;
+            Ok(())
+        })
+        .unwrap();
+
+    store
+        .with_conn_mut("test.retarget_artifact_positive_destination", |conn| {
+            let tx = conn.transaction()?;
+            retarget_track_references(&tx, "s1", "tr_old", "tr_new", None, None, 250)?;
+            tx.commit()
+        })
+        .unwrap();
+
+    let row: (Option<String>, i64, i64, Option<String>, i64, Option<i64>) = store
+        .with_conn("test.verify_artifact_positive_destination", |conn| {
+            conn.query_row(
+                "SELECT content_text, content_bytes, not_found, content_hash, fetched_at, expires_at
+                 FROM track_artifact WHERE server_id = 's1' AND track_id = 'tr_new'",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?, row.get(5)?)),
+            )
+        })
+        .unwrap();
+    assert_eq!(
+        row,
+        (
+            Some("valid lyrics".to_string()),
+            12,
+            0,
+            Some("positive-hash".to_string()),
+            100,
+            Some(1000),
+        )
+    );
+}
+
+#[test]
+fn retarget_artifact_collision_promotes_valid_source_over_older_miss() {
+    let store = LibraryStore::open_in_memory();
+    let repo = TrackRepository::new(&store);
+    repo.upsert_batch(&[
+        row_with_id_hash("s1", "tr_old", "same", "/music/x.flac"),
+        row_with_id_hash("s1", "tr_new", "same", "/music/x.flac"),
+    ])
+    .unwrap();
+    store
+        .with_conn("test.seed_artifact_positive_source", |conn| {
+            conn.execute_batch(
+                "INSERT INTO track_artifact
+                   (server_id, track_id, artifact_kind, format, source_kind, source_id,
+                    content_text, content_bytes, not_found, content_hash, fetched_at, expires_at)
+                 VALUES ('s1', 'tr_new', 'lyrics', 'plain', 'lrclib', 'lrclib',
+                         NULL, 0, 1, 'miss-hash', 100, 300),
+                        ('s1', 'tr_old', 'lyrics', 'plain', 'lrclib', 'lrclib',
+                         'valid lyrics', 12, 0, 'positive-hash', 200, 1000);",
+            )?;
+            Ok(())
+        })
+        .unwrap();
+
+    store
+        .with_conn_mut("test.retarget_artifact_positive_source", |conn| {
+            let tx = conn.transaction()?;
+            retarget_track_references(&tx, "s1", "tr_old", "tr_new", None, None, 250)?;
+            tx.commit()
+        })
+        .unwrap();
+
+    let row: (Option<String>, i64, i64, Option<String>, i64, Option<i64>) = store
+        .with_conn("test.verify_artifact_positive_source", |conn| {
+            conn.query_row(
+                "SELECT content_text, content_bytes, not_found, content_hash, fetched_at, expires_at
+                 FROM track_artifact WHERE server_id = 's1' AND track_id = 'tr_new'",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?, row.get(5)?)),
+            )
+        })
+        .unwrap();
+    assert_eq!(
+        row,
+        (
+            Some("valid lyrics".to_string()),
+            12,
+            0,
+            Some("positive-hash".to_string()),
+            200,
+            Some(1000),
+        )
+    );
+}
+
+#[test]
+fn retarget_fact_collision_preserves_current_destination_over_newer_expired_source() {
+    let store = LibraryStore::open_in_memory();
+    let repo = TrackRepository::new(&store);
+    repo.upsert_batch(&[
+        row_with_id_hash("s1", "tr_old", "same", "/music/x.flac"),
+        row_with_id_hash("s1", "tr_new", "same", "/music/x.flac"),
+    ])
+    .unwrap();
+    store
+        .with_conn("test.seed_fact_current_destination", |conn| {
+            conn.execute_batch(
+                "INSERT INTO track_fact
+                   (server_id, track_id, fact_kind, value_int, source_kind, source_id,
+                    confidence, content_hash, fetched_at, expires_at)
+                 VALUES ('s1', 'tr_new', 'bpm', 120, 'analysis', 'oximedia',
+                         0.9, 'current-hash', 100, 1000),
+                        ('s1', 'tr_old', 'bpm', 90, 'analysis', 'oximedia',
+                         0.5, 'expired-hash', 200, 50);",
+            )?;
+            Ok(())
+        })
+        .unwrap();
+
+    store
+        .with_conn_mut("test.retarget_fact_current_destination", |conn| {
+            let tx = conn.transaction()?;
+            retarget_track_references(&tx, "s1", "tr_old", "tr_new", None, None, 500)?;
+            tx.commit()
+        })
+        .unwrap();
+
+    let row: (i64, f64, Option<String>, i64, Option<i64>) = store
+        .with_conn("test.verify_fact_current_destination", |conn| {
+            conn.query_row(
+                "SELECT value_int, confidence, content_hash, fetched_at, expires_at
+                 FROM track_fact WHERE server_id = 's1' AND track_id = 'tr_new'",
+                [],
+                |row| {
+                    Ok((
+                        row.get(0)?,
+                        row.get(1)?,
+                        row.get(2)?,
+                        row.get(3)?,
+                        row.get(4)?,
+                    ))
+                },
+            )
+        })
+        .unwrap();
+    assert_eq!(
+        row,
+        (120, 0.9, Some("current-hash".to_string()), 100, Some(1000))
+    );
+}
+
+#[test]
+fn retarget_fact_collision_promotes_current_source_over_newer_expired_destination() {
+    let store = LibraryStore::open_in_memory();
+    let repo = TrackRepository::new(&store);
+    repo.upsert_batch(&[
+        row_with_id_hash("s1", "tr_old", "same", "/music/x.flac"),
+        row_with_id_hash("s1", "tr_new", "same", "/music/x.flac"),
+    ])
+    .unwrap();
+    store
+        .with_conn("test.seed_fact_current_source", |conn| {
+            conn.execute_batch(
+                "INSERT INTO track_fact
+                   (server_id, track_id, fact_kind, value_int, source_kind, source_id,
+                    confidence, content_hash, fetched_at, expires_at)
+                 VALUES ('s1', 'tr_new', 'bpm', 90, 'analysis', 'oximedia',
+                         0.5, 'expired-hash', 200, 50),
+                        ('s1', 'tr_old', 'bpm', 120, 'analysis', 'oximedia',
+                         0.9, 'current-hash', 100, 1000);",
+            )?;
+            Ok(())
+        })
+        .unwrap();
+
+    store
+        .with_conn_mut("test.retarget_fact_current_source", |conn| {
+            let tx = conn.transaction()?;
+            retarget_track_references(&tx, "s1", "tr_old", "tr_new", None, None, 500)?;
+            tx.commit()
+        })
+        .unwrap();
+
+    let row: (i64, f64, Option<String>, i64, Option<i64>) = store
+        .with_conn("test.verify_fact_current_source", |conn| {
+            conn.query_row(
+                "SELECT value_int, confidence, content_hash, fetched_at, expires_at
+                 FROM track_fact WHERE server_id = 's1' AND track_id = 'tr_new'",
+                [],
+                |row| {
+                    Ok((
+                        row.get(0)?,
+                        row.get(1)?,
+                        row.get(2)?,
+                        row.get(3)?,
+                        row.get(4)?,
+                    ))
+                },
+            )
+        })
+        .unwrap();
+    assert_eq!(
+        row,
+        (120, 0.9, Some("current-hash".to_string()), 100, Some(1000))
+    );
+}
+
+#[test]
 fn retarget_rolls_back_conflicting_canonical_identity() {
     let store = LibraryStore::open_in_memory();
     let repo = TrackRepository::new(&store);
