@@ -70,6 +70,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * The full list is ordered by album, disc and track number, and can be sorted by any column. Which columns are shown is up to you: title, album and duration to begin with, and artist, genre, year, format, plays, last played and BPM available from the column menu.
 * It is loaded the moment you open the tab, straight from the local index, so the artist page itself stays as quick to open as before.
 
+### Navidrome ID upgrades keep local libraries intact
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1464](https://github.com/Psysonic/psysonic/pull/1464)**
+
+* When a future Navidrome release switches albums, artists and tracks to canonical IDs, Psysonic pauses startup while it safely updates the local library, analysis results, offline downloads, cached covers and saved app state, then verifies everything with a full sync.
+* The migration resumes after an interruption and protects normal playback, sync, imports and background work from seeing a half-converted library. Navidrome 0.63.2 and older servers, and other Subsonic servers, continue without migration.
+
 ## Changed
 
 ### Rust internals — smaller focused modules with the same behaviour
