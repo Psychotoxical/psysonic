@@ -139,6 +139,7 @@ export function SystemTab() {
                     { value: 'hu', label: t('settings.languageHu') },
                     { value: 'pl', label: t('settings.languagePl') },
                     { value: 'bg', label: t('settings.languageBg') },
+                    { value: 'uk', label: t('settings.languageUk') },
                   ]}
                 />
               </SettingsField>

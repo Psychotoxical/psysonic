@@ -12,6 +12,7 @@ import { visualizer as nl } from './nl/visualizer';
 import { visualizer as pl } from './pl/visualizer';
 import { visualizer as ro } from './ro/visualizer';
 import { visualizer as ru } from './ru/visualizer';
+import { visualizer as uk } from './uk/visualizer';
 import { visualizer as zh } from './zh/visualizer';
 
 function keyShape(value: Record<string, unknown>, prefix = ''): string[] {
@@ -25,7 +26,7 @@ function keyShape(value: Record<string, unknown>, prefix = ''): string[] {
 
 describe('visualizer locale namespace', () => {
   const baseline = keyShape(en);
-  const locales = { bg, de, es, fr, hu, it: itLocale, ja, nb, nl, pl, ro, ru, zh };
+  const locales = { bg, de, es, fr, hu, it: itLocale, ja, nb, nl, pl, ro, ru, uk, zh };
 
   it.each(Object.entries(locales))('%s matches the English key shape', (_locale, translation) => {
     expect(keyShape(translation)).toEqual(baseline);
