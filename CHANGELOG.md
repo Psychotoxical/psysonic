@@ -168,6 +168,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * The missing sentences are back; the rest of the Ukrainian wording is unchanged.
 * The README language list includes Ukrainian again.
 
+### The help page describes the app as it is today
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1468](https://github.com/Psysonic/psysonic/pull/1468)**
+
+* Three answers had stopped being true: the page still said only one server can be active at a time, it knew only gapless and crossfade without mentioning AutoDJ, and it sent people to a Settings → Queue tab that no longer exists to restrict auto-added tracks to a genre, which is no longer possible either.
+* Nine topics that were never covered are now there: browsing several servers at once, the timeline queue view with Play from Here, capping the streaming bitrate per server address, the table view on the album pages, telling your own playlists from shared ones, the Composers page, the audio visualizer, the theme store and the background sources.
+* All of it in every language the app ships in.
+
 ## [1.51.0] - 2026-08-17
 
 ## Added
