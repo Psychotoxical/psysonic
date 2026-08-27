@@ -25,6 +25,7 @@ const COUNTS = [1, 2, 3, 5, 11, 21, 100];
  */
 const OWN_WORDING: Record<string, RegExp> = {
   ru: /трек/,
+  uk: /трек/,
   pl: /utw/,
   ro: /melod/,
   fr: /titre/,
@@ -50,6 +51,17 @@ describe('sidebar playlist song count plurals', () => {
     const few = i18n.t(key, { count: 3, lng: 'ru' });
     const many = i18n.t(key, { count: 5, lng: 'ru' });
     expect(new Set([one, few, many]).size).toBe(3);
+  });
+
+  it('resolves the Ukrainian categories to distinct wordings', () => {
+    // 1 → one, 3 → few, 5 → many.
+    const one = i18n.t(key, { count: 1, lng: 'uk' });
+    const few = i18n.t(key, { count: 3, lng: 'uk' });
+    const many = i18n.t(key, { count: 5, lng: 'uk' });
+    expect(new Set([one, few, many]).size).toBe(3);
+    expect(one).toBe('1 трек');
+    expect(few).toBe('3 треки');
+    expect(many).toBe('5 треків');
   });
 
   it('keeps English working for both of its forms', () => {
