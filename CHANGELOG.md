@@ -165,8 +165,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 **By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1463](https://github.com/Psysonic/psysonic/pull/1463)**
 
 * Tracks played inside the app kept showing an empty play count and no last played date, even once the server had recorded the play.
-* Root cause: the last played date was stored locally but never carried back into the track lists, and the play count was not written at all after a scrobble. Both now update as soon as a play is reported, and the count is incremented rather than overwritten, so plays reported by other clients are not lost.
-* Native Navidrome connections read the wrong field for the last played date, so it never arrived at all; they now read the one the server actually sends.
+* Root cause: the last played date was stored locally but never carried back into the track lists, and the play count was not written at all after a scrobble. Both now update as soon as a play is reported — the count is read back from the server that just accepted it, so it stays the same number the server shows and plays from other clients are never lost or double-counted.
+* Native Navidrome connections read the wrong field for the last played date, so it never arrived at all; they now read the one the server actually sends, and tracks that were already stored without it show their date again without waiting for a resync.
 
 ### Ukrainian settings notices no longer drop their warnings
 
