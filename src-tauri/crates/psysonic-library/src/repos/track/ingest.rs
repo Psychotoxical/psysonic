@@ -287,8 +287,27 @@ ON CONFLICT(server_id, id) DO UPDATE SET
   cover_art_id         = excluded.cover_art_id,
   starred_at           = excluded.starred_at,
   user_rating          = excluded.user_rating,
-  play_count           = excluded.play_count,
-  played_at            = excluded.played_at,
+  -- Play statistics survive a payload that does not mention them. A sync whose
+  -- song objects carry no playCount/played says nothing about the tally; writing
+  -- its NULL would drop a count this app had just read back from the server, and
+  -- the row's own raw_json still holds the older snapshot the UI would fall back
+  -- to. Key present (even as explicit null) still wins, same shape as
+  -- server_updated_at below: absence means "not mentioned", not "cleared".
+  play_count           = CASE
+    WHEN json_valid(excluded.raw_json)
+     AND json_type(excluded.raw_json, '$.playCount') IS NOT NULL
+      THEN excluded.play_count
+    WHEN excluded.play_count IS NOT NULL THEN excluded.play_count
+    ELSE track.play_count
+  END,
+  played_at            = CASE
+    WHEN json_valid(excluded.raw_json)
+     AND (json_type(excluded.raw_json, '$.played') IS NOT NULL
+       OR json_type(excluded.raw_json, '$.playDate') IS NOT NULL)
+      THEN excluded.played_at
+    WHEN excluded.played_at IS NOT NULL THEN excluded.played_at
+    ELSE track.played_at
+  END,
   server_path          = excluded.server_path,
   -- P20: never let a sync path that omits library membership (OpenSubsonic
   -- whole-server search3/getAlbumList2 carry no libraryId) clobber a library_id
@@ -370,8 +389,22 @@ ON CONFLICT(server_id, id) DO UPDATE SET
   cover_art_id         = excluded.cover_art_id,
   starred_at           = excluded.starred_at,
   user_rating          = excluded.user_rating,
-  play_count           = excluded.play_count,
-  played_at            = excluded.played_at,
+  -- Preserve play statistics a payload does not mention (see UPSERT above).
+  play_count           = CASE
+    WHEN json_valid(excluded.raw_json)
+     AND json_type(excluded.raw_json, '$.playCount') IS NOT NULL
+      THEN excluded.play_count
+    WHEN excluded.play_count IS NOT NULL THEN excluded.play_count
+    ELSE track.play_count
+  END,
+  played_at            = CASE
+    WHEN json_valid(excluded.raw_json)
+     AND (json_type(excluded.raw_json, '$.played') IS NOT NULL
+       OR json_type(excluded.raw_json, '$.playDate') IS NOT NULL)
+      THEN excluded.played_at
+    WHEN excluded.played_at IS NOT NULL THEN excluded.played_at
+    ELSE track.played_at
+  END,
   server_path          = excluded.server_path,
   -- P20: preserve prior library_id when a sync path omits it (see UPSERT above).
   library_id           = COALESCE(NULLIF(excluded.library_id, ''), track.library_id),
