@@ -9,13 +9,14 @@ import {
 } from '@/lib/api/subsonicScrobble';
 import { shouldAttemptSubsonicForServer } from '@/lib/network/subsonicNetworkGuard';
 
-const { apiForServerMock, patchTrackMock } = vi.hoisted(() => ({
+const { apiForServerMock, patchTrackMock, indexEnabledMock } = vi.hoisted(() => ({
   apiForServerMock: vi.fn(async (
     _serverId?: string,
     _endpoint?: string,
     _params?: Record<string, unknown>,
   ): Promise<unknown> => ({})),
   patchTrackMock: vi.fn(),
+  indexEnabledMock: vi.fn(() => true),
 }));
 
 /** Answer `getSong.view` with these stats, everything else with an empty body. */
@@ -34,6 +35,7 @@ vi.mock('@/lib/network/subsonicNetworkGuard', () => ({
 }));
 vi.mock('@/lib/library/patchOnUse', () => ({
   patchLibraryTrackOnUse: patchTrackMock,
+  libraryPatchReachesIndex: indexEnabledMock,
 }));
 
 describe('subsonicScrobble', () => {
@@ -41,6 +43,8 @@ describe('subsonicScrobble', () => {
     apiForServerMock.mockClear();
     apiForServerMock.mockResolvedValue({});
     patchTrackMock.mockClear();
+    indexEnabledMock.mockClear();
+    indexEnabledMock.mockReturnValue(true);
     vi.mocked(shouldAttemptSubsonicForServer).mockImplementation(() => true);
     useAuthStore.setState({
       servers: [
@@ -166,6 +170,48 @@ describe('subsonicScrobble', () => {
         't1',
         { playCount: 7, playedAt: Date.parse('2026-08-25T20:55:58.000Z') },
       );
+    });
+
+    it('does not ask for the count when there is no index to write it to', async () => {
+      // The patch would return immediately, so the request buys nothing — it is
+      // one round trip per finished track for every user with the index off.
+      indexEnabledMock.mockReturnValue(false);
+      serverReportsSong({ playCount: 7 });
+
+      await scrobbleSong('t1', 1_700_000_000_000, 'a');
+
+      expect(apiForServerMock).toHaveBeenCalledWith('a', 'scrobble.view', expect.anything());
+      expect(apiForServerMock).not.toHaveBeenCalledWith('a', 'getSong.view', expect.anything());
+    });
+
+    it('lets the newer read-back win when two responses cross', async () => {
+      // Same track played twice in quick succession: both reads are legitimate
+      // server values, and only the order they were asked in says which is
+      // current. Here the first response is delayed past the second.
+      let releaseFirst: (() => void) | undefined;
+      const firstInFlight = new Promise<void>(resolve => {
+        releaseFirst = resolve;
+      });
+      let call = 0;
+      apiForServerMock.mockImplementation(async (_serverId, endpoint) => {
+        if (endpoint !== 'getSong.view') return {};
+        call += 1;
+        if (call === 1) {
+          await firstInFlight;
+          return { song: { playCount: 6 } };
+        }
+        return { song: { playCount: 7 } };
+      });
+
+      const older = scrobbleSong('t1', 1_700_000_000_000, 'a');
+      await scrobbleSong('t1', 1_700_000_050_000, 'a');
+      releaseFirst?.();
+      await older;
+
+      const counts = patchTrackMock.mock.calls
+        .map(([, , patch]) => (patch as { playCount?: number }).playCount)
+        .filter(c => c != null);
+      expect(counts).toEqual([7]);
     });
 
     it('keeps the local timestamp when the server reports no play date', async () => {

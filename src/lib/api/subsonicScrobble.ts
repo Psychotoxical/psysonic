@@ -1,6 +1,6 @@
 import { api, apiForServer } from '@/lib/api/subsonicClient';
 import type { PlaybackReportState, SubsonicNowPlaying } from '@/lib/api/subsonicTypes';
-import { patchLibraryTrackOnUse } from '@/lib/library/patchOnUse';
+import { libraryPatchReachesIndex, patchLibraryTrackOnUse } from '@/lib/library/patchOnUse';
 import { shouldAttemptSubsonicForServer } from '@/lib/network/subsonicNetworkGuard';
 
 /**
@@ -23,6 +23,29 @@ async function scrobbleOnServer(
   if (time !== undefined) params.time = time;
   await apiForServer(serverId, 'scrobble.view', params);
   return true;
+}
+
+/**
+ * Ordering guard for the stats read-back, keyed per track and server.
+ *
+ * Track ids are only unique within one server, so the bare id would let two
+ * servers cancel each other's refreshes.
+ */
+const statsRefreshGeneration = new Map<string, number>();
+
+const statsRefreshKey = (serverId: string, trackId: string) => `${serverId}\u0000${trackId}`;
+
+/** Claim the next generation for this track; the caller keeps the returned value. */
+function beginStatsRefresh(serverId: string, trackId: string): number {
+  const key = statsRefreshKey(serverId, trackId);
+  const next = (statsRefreshGeneration.get(key) ?? 0) + 1;
+  statsRefreshGeneration.set(key, next);
+  return next;
+}
+
+/** False once a later refresh for the same track has been started. */
+function isNewestStatsRefresh(serverId: string, trackId: string, generation: number): boolean {
+  return statsRefreshGeneration.get(statsRefreshKey(serverId, trackId)) === generation;
 }
 
 /**
@@ -81,10 +104,20 @@ export async function scrobbleSong(id: string, time: number, serverId: string): 
   //
   // Only when the scrobble actually arrived. A refused or skipped one leaves the
   // server tally untouched, and re-reading it would just rewrite the value the
-  // row already has.
-  if (!reachedServer) return;
+  // row already has. And only when there is an index to write it to — otherwise
+  // the request is paid for and handed to a patch that returns immediately.
+  if (!reachedServer || !libraryPatchReachesIndex(serverId)) return;
+
+  const generation = beginStatsRefresh(serverId, id);
   const refreshed = await readServerPlayStats(serverId, id);
   if (refreshed?.playCount == null) return;
+  // Two plays of the same track in quick succession each read the count back,
+  // and the responses can land out of order — the older one would then write a
+  // smaller total over the newer. Nothing in the row can tell the two apart,
+  // because both are legitimate server values; only the order they were asked
+  // in can, and that is what this holds.
+  if (!isNewestStatsRefresh(serverId, id, generation)) return;
+
   const playedAt = refreshed.played != null ? Date.parse(refreshed.played) : NaN;
   patchLibraryTrackOnUse(serverId, id, {
     playCount: refreshed.playCount,

@@ -27,6 +27,18 @@ export type StarPatchMeta = {
 };
 
 /**
+ * Whether a patch for this server would reach anything.
+ *
+ * For callers that have to *fetch* something before they can patch: without this
+ * they pay for the request and hand the result to a no-op. The index check lives
+ * here rather than at the call site so the store stays imported in one place.
+ */
+export function libraryPatchReachesIndex(serverId: string | null | undefined): boolean {
+  if (!serverId) return false;
+  return useLibraryIndexStore.getState().isIndexEnabled(serverId);
+}
+
+/**
  * Patch-on-use (spec §6.5 / F3): after a successful star / rating / scrobble on a
  * **track**, mirror the change into the local library index. Skipped when the index
  * is off; Rust no-ops when no row exists. Fire-and-forget.
