@@ -1,33 +1,130 @@
 import { api, apiForServer } from '@/lib/api/subsonicClient';
 import type { PlaybackReportState, SubsonicNowPlaying } from '@/lib/api/subsonicTypes';
-import { patchLibraryTrackOnUse } from '@/lib/library/patchOnUse';
+import { libraryPatchReachesIndex, patchLibraryTrackOnUse } from '@/lib/library/patchOnUse';
 import { shouldAttemptSubsonicForServer } from '@/lib/network/subsonicNetworkGuard';
 
+/**
+ * Resolves `true` only when the call actually reached the server.
+ *
+ * The reachability guard turns the whole thing into a silent no-op, which is
+ * indistinguishable from success to a caller that only awaits it — and one
+ * caller needs to know the difference.
+ */
 async function scrobbleOnServer(
   serverId: string,
   id: string,
   submission: boolean,
   time?: number,
-): Promise<void> {
+): Promise<boolean> {
   // Presence / play-count updates are not playback-byte fetches — omit trackId so
   // hot cache, offline library, and favorites-auto do not suppress Navidrome calls.
-  if (!shouldAttemptSubsonicForServer(serverId)) return;
+  if (!shouldAttemptSubsonicForServer(serverId)) return false;
   const params: Record<string, unknown> = { id, submission };
   if (time !== undefined) params.time = time;
   await apiForServer(serverId, 'scrobble.view', params);
+  return true;
+}
+
+/**
+ * Ordering guard for the stats read-back, keyed per track and server.
+ *
+ * Track ids are only unique within one server, so the bare id would let two
+ * servers cancel each other's refreshes.
+ */
+const statsRefreshGeneration = new Map<string, number>();
+
+const statsRefreshKey = (serverId: string, trackId: string) => `${serverId}\u0000${trackId}`;
+
+/** Claim the next generation for this track; the caller keeps the returned value. */
+function beginStatsRefresh(serverId: string, trackId: string): number {
+  const key = statsRefreshKey(serverId, trackId);
+  const next = (statsRefreshGeneration.get(key) ?? 0) + 1;
+  statsRefreshGeneration.set(key, next);
+  return next;
+}
+
+/** False once a later refresh for the same track has been started. */
+function isNewestStatsRefresh(serverId: string, trackId: string, generation: number): boolean {
+  return statsRefreshGeneration.get(statsRefreshKey(serverId, trackId)) === generation;
+}
+
+/**
+ * The server's play statistics for one track, read straight back after it
+ * accepted a scrobble.
+ *
+ * Deliberately not `getSongForServer` from `subsonicLibrary`, for two reasons
+ * that both matter here. That module reaches the network guard, which reaches
+ * the playback stores, which reach back into this one — a static import closes
+ * that ring and `dep:check` rejects it (a dynamic one is counted just the same).
+ * And its guard call names the track, which suppresses the request for anything
+ * the app can already play locally: right for a byte fetch, wrong for a stats
+ * read, because a hot-cached or offline track still scrobbles and its count
+ * still moves. The guard below is the same one, asked the way this call needs.
+ */
+async function readServerPlayStats(
+  serverId: string,
+  id: string,
+): Promise<{ playCount?: number; played?: string } | null> {
+  if (!shouldAttemptSubsonicForServer(serverId)) return null;
+  try {
+    const data = await apiForServer<{ song?: { playCount?: number; played?: string } }>(
+      serverId,
+      'getSong.view',
+      { id },
+    );
+    return data.song ?? null;
+  } catch {
+    return null;
+  }
 }
 
 export async function scrobbleSong(id: string, time: number, serverId: string): Promise<void> {
   if (!serverId) return;
+  let reachedServer = false;
   try {
-    await scrobbleOnServer(serverId, id, true, time);
-    // Patch-on-use (§6.5 / F3): reflect the play in the local index so the
-    // "recently played" surfaces aren't stale. `play_count` is left to the next
-    // sync (the patch sets absolute values; a correct increment needs the base).
-    patchLibraryTrackOnUse(serverId, id, { playedAt: time });
+    reachedServer = await scrobbleOnServer(serverId, id, true, time);
   } catch {
-    // best effort
+    // A refused scrobble — a server error, a stale credential, a timeout — is
+    // still a play that happened. Swallowed here rather than around everything
+    // below, so the local half runs either way.
   }
+
+  // Patch-on-use (§6.5 / F3): reflect the play in the local index so the played
+  // surfaces aren't stale. The timestamp is a local truth — the listener did
+  // play it, whether or not the server took the scrobble — so it is written
+  // either way, and any resync overwrites it.
+  patchLibraryTrackOnUse(serverId, id, { playedAt: time });
+
+  // The count is the server's own tally, and only the server can say what it is
+  // now. Counting locally cannot work: the row holds a server total, a local
+  // increment is measured in a different unit, and the two are indistinguishable
+  // once stored — a sync landing between the two writes then either loses the
+  // play or counts it twice. So the count is not derived here at all; it is read
+  // back from the server that just accepted the scrobble.
+  //
+  // Only when the scrobble actually arrived. A refused or skipped one leaves the
+  // server tally untouched, and re-reading it would just rewrite the value the
+  // row already has. And only when there is an index to write it to — otherwise
+  // the request is paid for and handed to a patch that returns immediately.
+  if (!reachedServer || !libraryPatchReachesIndex(serverId)) return;
+
+  const generation = beginStatsRefresh(serverId, id);
+  const refreshed = await readServerPlayStats(serverId, id);
+  if (refreshed?.playCount == null) return;
+  // Two plays of the same track in quick succession each read the count back,
+  // and the responses can land out of order — the older one would then write a
+  // smaller total over the newer. Nothing in the row can tell the two apart,
+  // because both are legitimate server values; only the order they were asked
+  // in can, and that is what this holds.
+  if (!isNewestStatsRefresh(serverId, id, generation)) return;
+
+  const playedAt = refreshed.played != null ? Date.parse(refreshed.played) : NaN;
+  patchLibraryTrackOnUse(serverId, id, {
+    playCount: refreshed.playCount,
+    // The server's own timestamp for the same play, once it has one. Falls back
+    // to the local time written above rather than clearing it.
+    ...(Number.isFinite(playedAt) ? { playedAt } : {}),
+  });
 }
 
 export async function reportNowPlaying(id: string, serverId: string): Promise<void> {

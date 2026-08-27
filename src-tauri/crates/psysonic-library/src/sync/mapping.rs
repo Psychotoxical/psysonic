@@ -312,10 +312,27 @@ pub fn navidrome_song_to_track_row(
             .and_then(parse_iso_ms_str),
         user_rating: raw.get("rating").and_then(|v| v.as_i64()),
         play_count: raw.get("playCount").and_then(|v| v.as_i64()),
-        played_at: raw
-            .get("playedAt")
-            .and_then(|v| v.as_str())
-            .and_then(parse_iso_ms_str),
+        // Navidrome's own API calls this `playDate`; `playedAt` was never one of
+        // its names, so reading only that wrote NULL on every native ingest and
+        // the server's play dates never arrived. Measured on a real library:
+        // 1043 rows carry `playDate`, none carry `playedAt`.
+        //
+        // The other two names are defensive, not load-bearing: this mapper is
+        // only ever handed a native payload today (Subsonic answers go through
+        // `subsonic_song_to_track_row`), so they cost nothing and would catch a
+        // payload shape that changed under us rather than silently dropping the
+        // date again.
+        // Parsing happens inside the search, not after it: stopping at the first
+        // key that merely holds a string would settle on an empty `playDate` —
+        // which Navidrome has been seen to send for never-played rows — and
+        // never look at a usable `played` beside it.
+        played_at: ["playDate", "played", "playedAt"]
+            .iter()
+            .find_map(|key| {
+                raw.get(*key)
+                    .and_then(|v| v.as_str())
+                    .and_then(parse_iso_ms_str)
+            }),
         server_path: string_field(raw, "path"),
         library_id,
         isrc: string_field(raw, "isrc"),

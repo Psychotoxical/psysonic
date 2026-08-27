@@ -160,6 +160,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * Album, artist, favourites and playlist tracklists now show and sort by the locally analysed BPM when it is available, instead of continuing to use the BPM embedded in the track tag.
 
+### Play counts and last played dates for tracks played in Psysonic
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1463](https://github.com/Psysonic/psysonic/pull/1463)**
+
+* Tracks played inside the app kept showing an empty play count and no last played date, even once the server had recorded the play.
+* Root cause: the last played date was stored locally but never carried back into the track lists, and the play count was not written at all after a scrobble. Both now update as soon as a play is reported — the count is read back from the server that just accepted it, so it stays the same number the server shows and plays from other clients are never lost or double-counted.
+* Native Navidrome connections read the wrong field for the last played date, so it never arrived at all; they now read the one the server actually sends, and tracks that were already stored without it show their date again without waiting for a resync.
+
 ### Ukrainian settings notices no longer drop their warnings
 
 **By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1467](https://github.com/Psysonic/psysonic/pull/1467)**

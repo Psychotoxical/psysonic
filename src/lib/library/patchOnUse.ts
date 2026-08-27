@@ -5,6 +5,10 @@ type TrackPatch = {
   /** ms epoch when starred, or `null` to clear (unstar). */
   starredAt?: number | null;
   userRating?: number | null;
+  /**
+   * The server's own tally, never a locally derived one — a count that mixes
+   * units cannot be reconciled once stored (see `scrobbleSong`).
+   */
   playCount?: number | null;
   /** ms epoch of the last play. */
   playedAt?: number | null;
@@ -21,6 +25,18 @@ export type StarPatchMeta = {
   year?: number;
   albumCount?: number;
 };
+
+/**
+ * Whether a patch for this server would reach anything.
+ *
+ * For callers that have to *fetch* something before they can patch: without this
+ * they pay for the request and hand the result to a no-op. The index check lives
+ * here rather than at the call site so the store stays imported in one place.
+ */
+export function libraryPatchReachesIndex(serverId: string | null | undefined): boolean {
+  if (!serverId) return false;
+  return useLibraryIndexStore.getState().isIndexEnabled(serverId);
+}
 
 /**
  * Patch-on-use (spec §6.5 / F3): after a successful star / rating / scrobble on a

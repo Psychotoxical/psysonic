@@ -196,3 +196,49 @@ fn navidrome_song_skips_rows_without_id() {
     let row = navidrome_song_to_track_row("s1", &json!({"title": "no id"}), 1, None);
     assert!(row.is_none());
 }
+
+#[test]
+fn navidrome_song_reads_the_play_date_under_its_own_name() {
+    // Navidrome calls it `playDate`. Reading `playedAt` — a name it never sends —
+    // wrote NULL on every native ingest, and the server's play dates never
+    // arrived. Measured on a real library: 1043 rows carry `playDate`, none
+    // carry `playedAt`.
+    let raw = json!({
+        "id": "tr_1", "title": "Hello", "album": "An Album", "duration": 240,
+        "playDate": "2026-08-25T20:55:58Z", "playCount": 4,
+        "starredAt": "2026-08-25T18:00:00Z", "rating": 5
+    });
+    let row = navidrome_song_to_track_row("s1", &raw, 9_999, None).unwrap();
+
+    assert!(row.played_at.is_some(), "the play date has to survive the mapper");
+    assert_eq!(row.play_count, Some(4));
+    assert!(row.starred_at.is_some());
+    assert_eq!(row.user_rating, Some(5));
+}
+
+#[test]
+fn navidrome_song_also_accepts_the_subsonic_spelling_of_the_play_date() {
+    // One mapper, either shape — the same row can arrive from the native API or
+    // from a Subsonic-flavoured payload, and neither should lose the date.
+    let raw = json!({
+        "id": "tr_1", "title": "Hello", "album": "An Album", "duration": 240,
+        "played": "2026-08-25T20:55:58Z"
+    });
+    let row = navidrome_song_to_track_row("s1", &raw, 9_999, None).unwrap();
+
+    assert!(row.played_at.is_some());
+}
+
+#[test]
+fn an_empty_play_date_falls_through_to_the_next_name() {
+    // Navidrome has been seen sending an empty `playDate` for never-played
+    // rows. Settling on the first key that merely holds a string would take
+    // that and never look at the usable date sitting beside it.
+    let raw = json!({
+        "id": "tr_1", "title": "Hello", "album": "An Album", "duration": 240,
+        "playDate": "", "played": "2026-08-25T20:55:58Z"
+    });
+    let row = navidrome_song_to_track_row("s1", &raw, 9_999, None).unwrap();
+
+    assert!(row.played_at.is_some(), "an unusable first name must not end the search");
+}

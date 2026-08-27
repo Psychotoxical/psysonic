@@ -41,6 +41,12 @@ pub fn patch_content_hash(
 /// as SQL NULL. Spec §6.5 patch-on-use: `starred_at`, `user_rating`,
 /// `play_count`, `played_at`; §8.1 E2: `content_hash`. All UPDATEs no-op when
 /// the library has no row for `(server_id, track_id)`.
+///
+/// `play_count` is absolute on purpose. The column holds the server's tally, so
+/// a relative increment would be measured in a different unit than the value it
+/// lands on, and a sync writing its snapshot in between could not be told apart
+/// from a lost or doubled play. Callers read the count back from the server
+/// instead of deriving it.
 pub(super) fn apply_track_patch(
     runtime: &LibraryRuntime,
     server_id: &str,
@@ -182,5 +188,52 @@ mod tests {
         // Empty patch is a no-op.
         apply_track_patch(&rt, "s1", "tr_1", &serde_json::json!({})).unwrap();
         assert_eq!(read(&store), (None, Some(4)));
+    }
+
+    #[test]
+    fn apply_track_patch_stores_the_play_count_the_server_reported() {
+        // The column mirrors the server's own tally, so whatever the caller read
+        // back from the server lands verbatim — including a value *lower* than the
+        // stored one, which is what a corrected or reset count looks like. Any rule
+        // that combined the two numbers instead would make such a correction
+        // unreachable and would silently keep the higher figure forever.
+        let store = Arc::new(LibraryStore::open_in_memory());
+        TrackRepository::new(&store)
+            .upsert_batch(&[make_row("s1", "tr_1", "al_1", 1)])
+            .unwrap();
+        let rt = runtime(store.clone());
+        let read = |store: &LibraryStore| -> (Option<i64>, Option<i64>) {
+            store
+                .with_conn("misc", |c| {
+                    c.query_row(
+                        "SELECT play_count, played_at FROM track \
+                         WHERE server_id='s1' AND id='tr_1'",
+                        [],
+                        |r| Ok((r.get(0)?, r.get(1)?)),
+                    )
+                })
+                .unwrap()
+        };
+
+        apply_track_patch(
+            &rt,
+            "s1",
+            "tr_1",
+            &serde_json::json!({ "playCount": 9, "playedAt": 1700 }),
+        )
+        .unwrap();
+        assert_eq!(read(&store), (Some(9), Some(1700)));
+
+        // A smaller figure from the server still wins.
+        apply_track_patch(&rt, "s1", "tr_1", &serde_json::json!({ "playCount": 3 })).unwrap();
+        assert_eq!(
+            read(&store),
+            (Some(3), Some(1700)),
+            "the server's number is taken as given, and an absent key leaves its column alone"
+        );
+
+        // Explicit null clears the count, matching the other nullable columns.
+        apply_track_patch(&rt, "s1", "tr_1", &serde_json::json!({ "playCount": null })).unwrap();
+        assert_eq!(read(&store), (None, Some(1700)));
     }
 }
