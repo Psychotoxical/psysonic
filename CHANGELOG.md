@@ -70,6 +70,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * The full list is ordered by album, disc and track number, and can be sorted by any column. Which columns are shown is up to you: title, album and duration to begin with, and artist, genre, year, format, plays, last played and BPM available from the column menu.
 * It is loaded the moment you open the tab, straight from the local index, so the artist page itself stays as quick to open as before.
 
+### Navidrome ID upgrades keep local libraries intact
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1464](https://github.com/Psysonic/psysonic/pull/1464)**
+
+* When a future Navidrome release switches albums, artists and tracks to canonical IDs, Psysonic pauses startup while it safely updates the local library, analysis results, offline downloads, cached covers and saved app state, then verifies everything with a full sync.
+* The migration resumes after an interruption and protects normal playback, sync, imports and background work from seeing a half-converted library. Navidrome 0.63.2 and older servers, and other Subsonic servers, continue without migration.
+
+### Ukrainian translation
+
+**By [@albedych](https://github.com/albedych), PR [#1465](https://github.com/Psysonic/psysonic/pull/1465)**
+
+* Full Ukrainian (Українська) UI translation — selectable from the language picker on the Settings and Login screens.
+* Counts read naturally in Ukrainian: the one, few and many plural forms are all translated, so quantities such as 1, 2 and 5 items no longer fall back to English.
+* Library identity keys now fold Ukrainian Cyrillic (ї → і) the way Russian and Bulgarian already do, so the same release still merges into a single entry across servers. The keys are rebuilt once after updating, which takes a few seconds on a large library.
+
 ## Changed
 
 ### Rust internals — smaller focused modules with the same behaviour
@@ -144,6 +159,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 **By [@cucadmuh](https://github.com/cucadmuh), PR [#1461](https://github.com/Psysonic/psysonic/pull/1461)**
 
 * Album, artist, favourites and playlist tracklists now show and sort by the locally analysed BPM when it is available, instead of continuing to use the BPM embedded in the track tag.
+
+### Ukrainian settings notices no longer drop their warnings
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1467](https://github.com/Psysonic/psysonic/pull/1467)**
+
+* Nine settings descriptions in Ukrainian had been shortened to their first sentence, which silently removed the warnings the English text carries — that a settings backup stores passwords in plain text, that a Discord server cover exposes your server's public address, that external artwork is off by default and is provided by fanart.tv, and that playback-rate changes do not apply to radio, previews or Orbit.
+* The missing sentences are back; the rest of the Ukrainian wording is unchanged.
+* The README language list includes Ukrainian again.
+
+### The help page describes the app as it is today
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1468](https://github.com/Psysonic/psysonic/pull/1468)**
+
+* Three answers had stopped being true: the page still said only one server can be active at a time, it knew only gapless and crossfade without mentioning AutoDJ, and it sent people to a Settings → Queue tab that no longer exists to restrict auto-added tracks to a genre, which is no longer possible either.
+* Nine topics that were never covered are now there: browsing several servers at once, the timeline queue view with Play from Here, capping the streaming bitrate per server address, the table view on the album pages, telling your own playlists from shared ones, the Composers page, the audio visualizer, the theme store and the background sources.
+* All of it in every language the app ships in.
 
 ## [1.51.0] - 2026-08-17
 

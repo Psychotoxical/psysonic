@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { persist, createJSONStorage } from 'zustand/middleware';
+import { persist } from 'zustand/middleware';
 import { createAudioSettingsActions } from './authAudioSettingsActions';
 import { createCacheStorageActions } from './authCacheStorageActions';
 import { createDiscordSettingsActions } from './authDiscordSettingsActions';
@@ -38,6 +38,7 @@ import {
 } from '@/lib/perf/debugLoggingMode';
 import { createDiscordBannerActions } from './authDiscordBannerActions';
 import { setLibraryBrowseScopeSource } from '@/lib/library/libraryBrowseScope';
+import { createNavidromeCanonicalMigrationAwareJSONStorage } from '@/lib/util/safeStorage';
 import { PAUSE_RESUME_FADE_DEFAULT_SECS } from '@/lib/audio/pauseResumeFade';
 
 export const useAuthStore = create<AuthState>()(
@@ -203,7 +204,7 @@ export const useAuthStore = create<AuthState>()(
     }),
     {
       name: 'psysonic-auth',
-      storage: createJSONStorage(() => localStorage),
+      storage: createNavidromeCanonicalMigrationAwareJSONStorage(),
       version: 1,
       // Version 1 moves post-hydration repairs into `merge`. Returning the
       // version-0 payload unchanged makes Zustand rewrite the repaired state.

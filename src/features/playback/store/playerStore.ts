@@ -28,6 +28,7 @@ import { createUiStateActions } from '@/features/playback/store/uiStateActions';
 import { createUndoRedoActions } from '@/features/playback/store/undoRedoActions';
 import { setShuffleOriginalOrder } from '@/features/playback/store/shuffleModeActions';
 import { readShuffleModeSnapshot } from '@/features/playback/store/shuffleModeStorage';
+import { navidromeCanonicalBootstrapIsActive } from '@/lib/server/navidromeCanonicalCheckpointStatus';
 
 const initialPlayerPrefs = readInitialPlayerPrefs();
 const initialNetworkLovedCache = readInitialNetworkLovedCache();
@@ -109,7 +110,7 @@ export const usePlayerStore = create<PlayerState>()(
       // killed `playTrack` before `audio_play`. See safeStorage.ts.
       storage: createHydrationGatedStorage(
         createSafeJSONStorage(),
-        () => playerPersistWritesEnabled,
+        () => playerPersistWritesEnabled && !navidromeCanonicalBootstrapIsActive(),
       ),
       partialize: (state) => ({
         // volume/repeatMode → psysonic_player_prefs; isQueueVisible →

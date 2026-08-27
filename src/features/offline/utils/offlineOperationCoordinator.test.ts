@@ -8,7 +8,23 @@ import {
   runOfflineServerMaintenanceBatch,
   runOfflineTrackCleanup,
   runOfflineTrackDeletionBatch,
+  waitForAllOfflineTransfers,
 } from '@/features/offline/utils/offlineOperationCoordinator';
+
+it('waits for every active transfer before resolving the global drain', async () => {
+  const finishA = await beginOfflineTrackTransfer('drain-a.test', 'track-1');
+  const finishB = await beginOfflineTrackTransfer('drain-b.test', 'track-2');
+  let drained = false;
+  const drain = waitForAllOfflineTransfers().then(() => { drained = true; });
+
+  finishA();
+  await Promise.resolve();
+  expect(drained).toBe(false);
+
+  finishB();
+  await drain;
+  expect(drained).toBe(true);
+});
 
 it('lets nested track work reuse an outer server lease while maintenance waits', async () => {
   const serverLease = await beginOfflineServerOperation('leased.test');

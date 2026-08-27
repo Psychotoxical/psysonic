@@ -1,0 +1,17 @@
+export const genres = {
+  title: 'Жанри',
+  genreCount: 'Жанри',
+  albumCount_one: '{{count}} альбом',
+  albumCount_few: '{{count}} альбоми',
+  albumCount_many: '{{count}} альбомів',
+  albumCount_other: '{{count}} альбомів',
+  loading: 'Завантаження жанрів…',
+  empty: 'Жанрів не знайдено.',
+  albumsLoading: 'Завантаження альбомів…',
+  albumsEmpty: 'Для цього жанру альбомів не знайдено.',
+  loadMore: 'Завантажити ще',
+  back: 'Назад',
+  playTooltip: 'Грати (утримуйте для перемішування)',
+  shuffle: 'Перемішати',
+  addToQueue: 'Додати в чергу',
+};

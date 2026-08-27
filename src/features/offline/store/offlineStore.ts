@@ -4,8 +4,9 @@ import { getAlbumForServer } from '@/lib/api/subsonicLibrary';
 import { getArtistForServer } from '@/lib/api/subsonicArtists';
 import type { SubsonicSong } from '@/lib/api/subsonicTypes';
 import { create } from 'zustand';
-import { persist, createJSONStorage } from 'zustand/middleware';
+import { persist } from 'zustand/middleware';
 import { invoke } from '@tauri-apps/api/core';
+import { createNavidromeCanonicalMigrationAwareJSONStorage } from '@/lib/util/safeStorage';
 import { useAuthStore } from '@/store/authStore';
 import { showToast } from '@/lib/dom/toast';
 import {
@@ -31,6 +32,7 @@ import {
 } from '@/features/offline/utils/offlineLibraryHelpers';
 import { librarySqlServerId } from '@/lib/api/coverCache';
 import { resolveIndexKey, serverIndexKeyForProfile } from '@/lib/server/serverIndexKey';
+import { navidromeCanonicalBootstrapIsActive } from '@/lib/server/navidromeCanonicalCheckpointStatus';
 import { isSmartPlaylistName } from '@/lib/format/playlistDetailHelpers';
 import {
   enqueueOfflinePin,
@@ -458,7 +460,11 @@ async function runOfflinePinDownloadWithServerLease(
             pendingSongs.push(song);
             continue;
           }
-          useLocalPlaybackStore.getState().upsertEntry({
+            if (navidromeCanonicalBootstrapIsActive()) {
+              cancelled = true;
+              return;
+            }
+            useLocalPlaybackStore.getState().upsertEntry({
             ...latestExisting,
             serverIndexKey: trackServerIndexKey,
             pinSource,
@@ -511,7 +517,7 @@ async function runOfflinePinDownloadWithServerLease(
                 finishTransferBeforeCleanup();
               }
               error = 'CANCELLED';
-            } else if (isCancelled()) {
+            } else if (isCancelled() || navidromeCanonicalBootstrapIsActive()) {
               const { res } = outcome;
               finishTransferBeforeCleanup();
               await cleanupUnclaimedNativeResult(song.id, res.path);
@@ -519,7 +525,7 @@ async function runOfflinePinDownloadWithServerLease(
             } else {
               const { res } = outcome;
               await waitForOfflineTrackDeletion(trackServerIndexKey, song.id);
-              if (isCancelled()) {
+              if (isCancelled() || navidromeCanonicalBootstrapIsActive()) {
                 finishTransferBeforeCleanup();
                 await cleanupUnclaimedNativeResult(song.id, res.path);
                 error = 'CANCELLED';
@@ -920,7 +926,7 @@ export const useOfflineStore = create<OfflineState>()(
     }),
     {
       name: 'psysonic-offline',
-      storage: createJSONStorage(() => localStorage),
+      storage: createNavidromeCanonicalMigrationAwareJSONStorage(),
       partialize: state => ({ albums: state.albums }),
     },
   ),

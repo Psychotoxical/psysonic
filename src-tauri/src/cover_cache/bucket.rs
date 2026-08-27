@@ -117,20 +117,19 @@ fn is_safe_index_key(key: &str) -> bool {
     true
 }
 
-fn merge_cover_bucket(old_dir: &Path, new_dir: &Path) -> Result<(), String> {
+pub(super) fn merge_cover_bucket(old_dir: &Path, new_dir: &Path) -> Result<(), String> {
     let entries = std::fs::read_dir(old_dir).map_err(|e| e.to_string())?;
     for entry in entries {
         let entry = entry.map_err(|e| e.to_string())?;
         let from = entry.path();
         let to = new_dir.join(entry.file_name());
-        if to.exists() {
-            // Prefer existing in destination — newer bucket wins.
-            continue;
-        }
         if from.is_dir() {
+            if to.is_file() {
+                continue;
+            }
             std::fs::create_dir_all(&to).map_err(|e| e.to_string())?;
             merge_cover_bucket(&from, &to)?;
-        } else {
+        } else if !to.exists() {
             std::fs::rename(&from, &to).map_err(|e| e.to_string())?;
         }
     }

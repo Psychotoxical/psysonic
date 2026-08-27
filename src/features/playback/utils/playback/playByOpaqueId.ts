@@ -4,12 +4,16 @@ import { songToTrack } from '@/lib/media/songToTrack';
 import { playAlbum } from '@/features/playback/utils/playback/playAlbum';
 import { playArtistShuffled } from '@/features/playback/utils/playback/playArtistShuffled';
 import { usePlayerStore } from '@/features/playback/store/playerStore';
+import { useAuthStore } from '@/store/authStore';
+import { normalizeNavidromeExternalId } from '@/lib/server/navidromeCanonicalExternalId';
 /**
  * `getSong` → `getAlbum` → `getArtist`: one opaque Subsonic id may refer to a track,
  * album, or artist depending on the server.
  */
 export async function playByOpaqueId(id: string): Promise<void> {
-  const trimmed = id.trim();
+  const raw = id.trim();
+  const activeServerId = useAuthStore.getState().activeServerId;
+  const trimmed = activeServerId ? normalizeNavidromeExternalId(activeServerId, raw) : raw;
   if (!trimmed) return;
 
   const song = await getSong(trimmed);

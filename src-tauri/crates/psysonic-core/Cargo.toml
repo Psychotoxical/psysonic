@@ -12,6 +12,8 @@ specta = { version = "=2.0.0-rc.25", features = ["derive"] }
 serde = { version = "1", features = ["derive"] }
 reqwest = { version = "0.13", default-features = false, features = ["rustls"] }
 url = "2"
+tokio = { version = "1", features = ["rt"] }
+md5 = "0.8"
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"

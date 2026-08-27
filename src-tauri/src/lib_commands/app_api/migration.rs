@@ -2,6 +2,9 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::{Mutex, OnceLock};
 
+use psysonic_core::database_pair_admission::{
+    database_pair_read_scope, database_pair_write_scope,
+};
 use tauri::{AppHandle, Emitter, Manager};
 
 mod analysis;
@@ -11,8 +14,8 @@ mod rewrite;
 
 use analysis::run_analysis_import;
 use files::{
-    health_check, migration_paths, open_readonly, remove_db_with_sidecars, restore_backup,
-    switch_file,
+    health_check_within_pair_scope, migration_paths, open_readonly, remove_db_with_sidecars,
+    restore_backup, switch_file,
 };
 use library::run_library_import;
 use rewrite::{count_rows_eq, inspect_tables, normalize_mappings};
@@ -183,6 +186,7 @@ pub fn migration_inspect(
     app: AppHandle,
     mappings: Vec<ServerIndexMapping>,
 ) -> Result<MigrationInspectReport, String> {
+    let _pair_scope = database_pair_read_scope();
     inspect_internal(&app, mappings)
 }
 
@@ -286,6 +290,7 @@ fn run_internal(
     app: &AppHandle,
     mappings: Vec<ServerIndexMapping>,
 ) -> Result<MigrationRunResult, String> {
+    let _pair_scope = database_pair_write_scope();
     let inspect = inspect_internal(app, mappings)?;
     if !inspect.needs_migration {
         return Ok(MigrationRunResult {
@@ -381,7 +386,9 @@ fn run_internal(
     }
     let switched = library_backup.is_some() || analysis_backup.is_some();
 
-    if let Err(err) = health_check(app, &paths.library_active, &paths.analysis_active) {
+    if let Err(err) =
+        health_check_within_pair_scope(app, &paths.library_active, &paths.analysis_active)
+    {
         if let Some(ref backup) = library_backup {
             if let Some(runtime) = app.try_state::<psysonic_library::LibraryRuntime>() {
                 let _ = runtime

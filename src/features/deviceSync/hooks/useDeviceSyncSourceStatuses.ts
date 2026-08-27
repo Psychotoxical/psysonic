@@ -1,7 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { computeSyncPaths } from '@/lib/api/syncfs';
 import { fetchTracksForSource } from '@/features/playback/utils/playback/fetchTracksForSource';
-import { trackToSyncInfo, type SyncStatus } from '@/features/deviceSync/utils/deviceSyncHelpers';
+import {
+  playlistPathId,
+  trackToSyncInfo,
+  type SyncStatus,
+} from '@/features/deviceSync/utils/deviceSyncHelpers';
 import { deviceSyncSourceKey, type DeviceSyncSource } from '@/features/deviceSync/store/deviceSyncStore';
 
 export interface DeviceSyncSourceStatusesResult {
@@ -37,7 +41,13 @@ export function useDeviceSyncSourceStatuses(
           const paths = await computeSyncPaths({
             tracks: tracks.map((tr, idx) => trackToSyncInfo(
               tr, '',
-              source.type === 'playlist' ? { name: source.name, index: idx + 1 } : undefined,
+              source.type === 'playlist'
+                ? {
+                  id: playlistPathId(source, sources),
+                  name: source.name,
+                  index: idx + 1,
+                }
+                : undefined,
             )),
             destDir: targetDir,
           });

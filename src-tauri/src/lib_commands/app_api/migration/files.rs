@@ -62,7 +62,7 @@ pub(super) fn restore_backup(backup: &Path, active: &Path) -> Result<(), String>
     Ok(())
 }
 
-pub(super) fn health_check(
+pub(super) fn health_check_within_pair_scope(
     app: &AppHandle,
     library_active: &Path,
     analysis_active: &Path,

@@ -23,7 +23,7 @@ use crate::file_transfer::{
 
 // ─── Offline Track Cache ──────────────────────────────────────────────────────
 
-fn legacy_safe_segment(segment: &str) -> String {
+pub(super) fn legacy_safe_segment(segment: &str) -> String {
     let sanitized = sanitize_path_segment(segment);
     if sanitized == segment
         && sanitized.len() <= 120
@@ -211,6 +211,7 @@ pub async fn download_track_offline(
     dl_sem: tauri::State<'_, DownloadSemaphore>,
     app: tauri::AppHandle,
 ) -> Result<String, String> {
+    let _filesystem_write_guard = crate::filesystem_write_guard().await?;
     let default_root = app
         .path()
         .app_data_dir()

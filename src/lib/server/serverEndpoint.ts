@@ -10,6 +10,7 @@ import {
   serverAddressEndpoints,
   type ServerEndpoint,
 } from '@/lib/server/serverAddress';
+import { profileProbeFingerprint } from '@/lib/server/serverProbeFingerprint';
 
 export {
   allNormalizedAddresses,
@@ -19,6 +20,7 @@ export {
   type ServerEndpoint,
   type ServerEndpointKind,
 } from '@/lib/server/serverAddress';
+export { profileProbeFingerprint } from '@/lib/server/serverProbeFingerprint';
 
 export type PickReachableResult =
   | {
@@ -33,6 +35,23 @@ export type PickReachableResult =
       ping: PingWithCredentialsResult;
     }
   | { ok: false; reason: 'unreachable' };
+
+type SuccessfulPickReachableResult = Extract<PickReachableResult, { ok: true }>;
+type SuccessfulPingObserver = (
+  profile: ServerProfile,
+  result: SuccessfulPickReachableResult,
+  isCurrent: () => boolean,
+) => Promise<void>;
+
+let successfulPingObserver: SuccessfulPingObserver | null = null;
+
+/** Install the app-layer admission gate that runs before a successful ping is published. */
+export function installSuccessfulPingObserver(observer: SuccessfulPingObserver): () => void {
+  successfulPingObserver = observer;
+  return () => {
+    if (successfulPingObserver === observer) successfulPingObserver = null;
+  };
+}
 
 /** Whether either normalized profile address matches a shared server base URL. */
 export function profileServesShareBase(
@@ -70,7 +89,7 @@ export function serverShareBaseUrl(
 // ─────────────────────────────────────────────────────────────────────────────
 // Connect cache (in-memory, per-session)
 //
-// `pickReachableBaseUrl` probes the LAN-first endpoint list with the existing
+// The raw endpoint picker probes the LAN-first endpoint list with the existing
 // `pingWithCredentials`, sequentially (not parallel) so LAN wins over public
 // without racing. The first OK URL is cached against the profile id so the
 // next sync `getBaseUrl()` lookup is instant. Cache is **session only** —
@@ -89,16 +108,6 @@ interface ConnectCacheEntry {
 
 const connectCache = new Map<string, ConnectCacheEntry>();
 const currentProbeTokenByProfile = new Map<string, ProbeToken>();
-
-export function profileProbeFingerprint(profile: ServerProfile): string {
-  return JSON.stringify([
-    ...allNormalizedAddresses(profile),
-    profile.username,
-    profile.password,
-    profile.customHeaders ?? [],
-    profile.customHeadersApplyTo ?? '',
-  ]);
-}
 
 function currentProbeToken(profile: ServerProfile): ProbeToken {
   const fingerprint = profileProbeFingerprint(profile);
@@ -153,6 +162,12 @@ export function getConnectCacheVersion(): number {
 const inFlightProbes = new Map<string, {
   token: ProbeToken;
   promise: Promise<PickReachableResult>;
+}>();
+const inFlightAdmissions = new Map<string, {
+  token: ProbeToken;
+  fingerprint: string;
+  superseded: boolean;
+  promise: Promise<void>;
 }>();
 
 /**
@@ -247,7 +262,7 @@ async function pingWithConnectRetries(
  * Single-address profiles: one endpoint sequence, identical intent to legacy
  * behavior aside from the retry cushion.
  */
-export async function pickReachableBaseUrl(
+async function pickReachableBaseUrlRaw(
   profile: ServerProfile,
 ): Promise<PickReachableResult> {
   const token = currentProbeToken(profile);
@@ -280,11 +295,6 @@ export async function pickReachableBaseUrl(
     ) {
       const ping = await pingWithCredentialsForProfile(profile, preferred.url);
       if (ping.ok) {
-        if (probeIsCurrent(profile.id, token)) {
-          connectCache.set(profile.id, { url: preferred.url, token });
-          notifyConnectCacheChanged();
-          setServerReachability(profile.id, 'available');
-        }
         return { ok: true, baseUrl: preferred.url, endpoint: preferred, ping };
       }
     }
@@ -301,12 +311,6 @@ export async function pickReachableBaseUrl(
     for (const endpoint of endpoints) {
       const ping = await pingWithConnectRetries(profile, endpoint.url);
       if (ping.ok) {
-        if (probeIsCurrent(profile.id, token)) {
-          const prev = connectCache.get(profile.id)?.url;
-          connectCache.set(profile.id, { url: endpoint.url, token });
-          if (prev !== endpoint.url) notifyConnectCacheChanged();
-          setServerReachability(profile.id, 'available');
-        }
         return { ok: true, baseUrl: endpoint.url, endpoint, ping };
       }
     }
@@ -331,12 +335,111 @@ export async function pickReachableBaseUrl(
   }
 }
 
+function publishSuccessfulProbe(
+  profile: ServerProfile,
+  token: ProbeToken,
+  result: SuccessfulPickReachableResult,
+): void {
+  if (!probeIsCurrent(profile.id, token)) return;
+  const previous = connectCache.get(profile.id)?.url;
+  connectCache.set(profile.id, { url: result.baseUrl, token });
+  if (previous !== result.baseUrl) notifyConnectCacheChanged();
+  setServerReachability(profile.id, 'available');
+}
+
+async function observeSuccessfulProbe(
+  profile: ServerProfile,
+  token: ProbeToken,
+  result: SuccessfulPickReachableResult,
+): Promise<void> {
+  if (!successfulPingObserver || !probeIsCurrent(profile.id, token)) return;
+  const fingerprint = JSON.stringify([
+    result.baseUrl,
+    result.ping.type ?? null,
+    result.ping.serverVersion ?? null,
+    result.ping.openSubsonic ?? null,
+  ]);
+  const existing = inFlightAdmissions.get(profile.id);
+  if (existing?.token === token && existing.fingerprint === fingerprint) {
+    await existing.promise;
+    if (existing.superseded) {
+      throw new Error(`Successful ping admission was superseded for ${profile.id}`);
+    }
+    return;
+  }
+  if (existing?.token === token) existing.superseded = true;
+  const previous = existing?.token === token
+    ? existing.promise.catch(() => undefined)
+    : Promise.resolve();
+  const promise = (async () => {
+    await previous;
+    if (!probeIsCurrent(profile.id, token)) {
+      throw new Error(`Successful ping admission became stale for ${profile.id}`);
+    }
+    await successfulPingObserver?.(profile, result, () => probeIsCurrent(profile.id, token));
+    if (!probeIsCurrent(profile.id, token)) {
+      throw new Error(`Successful ping admission became stale for ${profile.id}`);
+    }
+  })();
+  const flight = { token, fingerprint, superseded: false, promise };
+  inFlightAdmissions.set(profile.id, flight);
+  try {
+    await promise;
+    if (flight.superseded) {
+      throw new Error(`Successful ping admission was superseded for ${profile.id}`);
+    }
+  } catch (error) {
+    if (probeIsCurrent(profile.id, token)) {
+      if (connectCache.delete(profile.id)) notifyConnectCacheChanged();
+      setServerReachability(profile.id, 'unavailable');
+    }
+    throw error;
+  } finally {
+    if (inFlightAdmissions.get(profile.id) === flight) inFlightAdmissions.delete(profile.id);
+  }
+}
+
+/** Test-only endpoint selection that publishes without the app admission observer. */
+export async function pickReachableBaseUrlForTests(profile: ServerProfile): Promise<PickReachableResult> {
+  const token = currentProbeToken(profile);
+  const result = await pickReachableBaseUrlRaw(profile);
+  if (result.ok) publishSuccessfulProbe(profile, token, result);
+  return result;
+}
+
 /**
  * Boot / switch / online-event entry point: same mechanism as
- * `pickReachableBaseUrl` but named for intent at the call site.
+ * the raw endpoint picker, with successful publication held behind admission.
  */
 export async function ensureConnectUrlResolved(
   profile: ServerProfile,
 ): Promise<PickReachableResult> {
-  return pickReachableBaseUrl(profile);
+  const token = currentProbeToken(profile);
+  const result = await pickReachableBaseUrlRaw(profile);
+  if (!result.ok) return result;
+  await observeSuccessfulProbe(profile, token, result);
+  publishSuccessfulProbe(profile, token, result);
+  return result;
+}
+
+/** Admit and publish a successful explicit-credential ping through the app gate. */
+export async function admitSuccessfulPingForProfile(
+  profile: ServerProfile,
+  baseUrl: string,
+  ping: PingWithCredentialsResult,
+): Promise<SuccessfulPickReachableResult> {
+  if (!ping.ok) throw new Error(`Cannot admit an unsuccessful ping for ${profile.id}`);
+  const normalizedBaseUrl = normalizeServerBaseUrl(baseUrl);
+  const endpoint = serverAddressEndpoints(profile).find(candidate => candidate.url === normalizedBaseUrl);
+  if (!endpoint) throw new Error(`Successful ping endpoint is not configured for ${profile.id}`);
+  const token = currentProbeToken(profile);
+  const result: SuccessfulPickReachableResult = {
+    ok: true,
+    baseUrl: normalizedBaseUrl,
+    endpoint,
+    ping,
+  };
+  await observeSuccessfulProbe(profile, token, result);
+  publishSuccessfulProbe(profile, token, result);
+  return result;
 }

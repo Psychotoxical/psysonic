@@ -182,6 +182,12 @@ function waitForOfflineServerTransfers(serverIndexKey: string): Promise<void> {
   });
 }
 
+export async function waitForAllOfflineTransfers(): Promise<void> {
+  while (activeServerTransfers.size > 0) {
+    await Promise.all([...activeServerTransfers.keys()].map(waitForOfflineServerTransfers));
+  }
+}
+
 export async function runOfflineServerMaintenance<T>(
   serverIndexKey: string,
   operation: () => Promise<T>,

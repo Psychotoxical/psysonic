@@ -27,6 +27,7 @@ import {
   migrateRadioStationKeys,
   radioStationKey,
 } from '@/features/radio';
+import { navidromeCanonicalBootstrapIsActive } from '@/lib/server/navidromeCanonicalCheckpointStatus';
 
 export interface FavoritesDataResult {
   albums: SubsonicAlbum[];
@@ -110,7 +111,9 @@ export function useFavoritesData(): FavoritesDataResult {
               [...favIds],
               available,
             ));
-            localStorage.setItem('psysonic_radio_favorites', JSON.stringify([...migrated]));
+            if (!navidromeCanonicalBootstrapIsActive()) {
+              localStorage.setItem('psysonic_radio_favorites', JSON.stringify([...migrated]));
+            }
             return available.filter(station => migrated.has(radioStationKey(station)));
           });
           emitFavoritesBrowseDebug('radio_favorites_applied', {
@@ -214,7 +217,9 @@ export function useFavoritesData(): FavoritesDataResult {
       const next = new Set<string>(JSON.parse(localStorage.getItem('psysonic_radio_favorites') ?? '[]'));
       next.delete(key);
       next.delete(station.id);
-      localStorage.setItem('psysonic_radio_favorites', JSON.stringify([...next]));
+      if (!navidromeCanonicalBootstrapIsActive()) {
+        localStorage.setItem('psysonic_radio_favorites', JSON.stringify([...next]));
+      }
     } catch { /* ignore */ }
   }
 

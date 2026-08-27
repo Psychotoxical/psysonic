@@ -1,6 +1,6 @@
 import type { QueueItemRef } from '@/lib/media/trackTypes';
 import { create } from 'zustand';
-import { persist, createJSONStorage } from 'zustand/middleware';
+import { persist } from 'zustand/middleware';
 import { frontendDebugLog } from '@/lib/api/debugLog';
 import { deleteMediaFile, pruneEmptyMediaTierDirs, purgeMediaTier } from '@/lib/api/syncfs';
 import { isHotCachePreviousTrackUnderGrace } from '@/lib/cache/hotCacheGate';
@@ -12,6 +12,7 @@ import {
   legacyMigrationAlreadyDone,
   markLegacyMigrationDone,
 } from './localPlaybackMigration';
+import { createNavidromeCanonicalMigrationAwareJSONStorage } from '@/lib/util/safeStorage';
 import {
   evictEphemeralOrphansToFit,
   getEphemeralDiskBytes,
@@ -462,7 +463,7 @@ export const useLocalPlaybackStore = create<LocalPlaybackState>()(
     }),
     {
       name: 'psysonic-local-playback',
-      storage: createJSONStorage(() => localStorage),
+      storage: createNavidromeCanonicalMigrationAwareJSONStorage(),
       version: 1,
       migrate: (persisted, version) => {
         const state = persisted as { entries?: Record<string, LocalPlaybackEntry> };

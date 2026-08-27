@@ -122,9 +122,16 @@ async fn failed_bind_probe_preserves_previous_session_and_is_bounded() {
 fn sync_outcome_treats_cancellation_as_silent_success() {
     // Cancellation (user cancel, or a newer sync_start superseding this
     // job) must not surface as a failure on the sync-idle event.
-    assert!(sync_outcome_to_result::<()>(Ok(())).is_ok());
-    assert!(sync_outcome_to_result::<()>(Err(SyncError::Cancelled)).is_ok());
-    let err = sync_outcome_to_result::<()>(Err(SyncError::Transport("boom".into())));
+    assert!(sync_outcome_to_result::<()>(Ok(()), SyncAdmission::Ordinary).is_ok());
+    assert!(sync_outcome_to_result::<()>(Err(SyncError::Cancelled), SyncAdmission::Ordinary).is_ok());
+    assert_eq!(
+        sync_outcome_to_result::<()>(Err(SyncError::Cancelled), SyncAdmission::Migration(7)),
+        Err("migration sync cancelled".to_string())
+    );
+    let err = sync_outcome_to_result::<()>(
+        Err(SyncError::Transport("boom".into())),
+        SyncAdmission::Ordinary,
+    );
     assert_eq!(err, Err("sync transport: boom".to_string()));
 }
 

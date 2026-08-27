@@ -34,8 +34,12 @@ use crate::dto::{
     TrackFactDto, TrackRefDto,
 };
 use crate::live_search;
+use crate::navidrome_native_migration::{
+    NavidromeNativeMigrationBatchDto, NavidromeNativeMigrationFinalizeDto,
+    NavidromeNativeMigrationPreflightDto, NavidromeNativeMigrationStep,
+};
 use crate::repos::{PlaySessionRepository, SyncStateRepository, TrackRepository};
-use crate::runtime::LibraryRuntime;
+use crate::runtime::{LibraryRuntime, MigrationGenerationSnapshotDto, MigrationPhase};
 use crate::scope_merge;
 use crate::search::search_tracks;
 use crate::sync::bandwidth::PlaybackHint;
@@ -59,7 +63,8 @@ use read_support::{
     upsert_songs_from_api, SyncStateRow, TRACKS_BATCH_LIMIT,
 };
 use sync_session_support::{
-    bind_sync_session_inner, clear_sync_session, library_sync_start_inner, BindSessionRequest,
+    bind_migration_sync_session_inner, bind_sync_session_inner, clear_sync_session,
+    library_migration_sync_start_inner, library_sync_start_inner, BindSessionRequest,
     BIND_SESSION_TIMEOUTS,
 };
 
@@ -81,6 +86,17 @@ const ANALYSIS_PROGRESS_CACHE_TTL: Duration = Duration::from_secs(30);
 pub struct LibraryServerKeyMigrationDto {
     pub legacy_id: String,
     pub index_key: String,
+}
+
+#[derive(Debug, Clone, serde::Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct LibraryMigrationBindSessionRequest {
+    pub generation: u64,
+    pub server_id: String,
+    pub base_url: String,
+    pub username: String,
+    pub password: String,
+    pub library_scope: Option<String>,
 }
 
 /// Resolve cover disk + fetch ids from the local library (`album` | `artist` | `track`).
@@ -404,6 +420,7 @@ pub async fn library_get_track(
     server_id: String,
     track_id: String,
 ) -> Result<Option<LibraryTrackDto>, String> {
+    let _pair_scope = psysonic_core::database_pair_admission::database_pair_read_scope();
     let repo = TrackRepository::new(&runtime.store);
     let Some(row) = repo.find_one(&server_id, &track_id)? else {
         return Ok(None);
@@ -1021,6 +1038,146 @@ pub async fn library_sync_bind_session(
 
 #[tauri::command]
 #[specta::specta]
+pub fn library_migration_inspect(
+    runtime: State<'_, LibraryRuntime>,
+) -> Result<MigrationGenerationSnapshotDto, String> {
+    runtime.inspect_migration_generation()
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn library_migration_update_phase(
+    runtime: State<'_, LibraryRuntime>,
+    generation: u64,
+    server_id: String,
+    phase: MigrationPhase,
+) -> Result<(), String> {
+    runtime.update_migration_phase(generation, &server_id, phase)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn library_migration_abort(
+    runtime: State<'_, LibraryRuntime>,
+    generation: u64,
+    server_id: String,
+    error: String,
+) -> Result<(), String> {
+    runtime.abort_migration_server(generation, &server_id, error)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn library_migration_retry(
+    runtime: State<'_, LibraryRuntime>,
+    generation: u64,
+    server_id: String,
+) -> Result<(), String> {
+    runtime.retry_migration_server(generation, &server_id)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn library_migration_finish_server(
+    runtime: State<'_, LibraryRuntime>,
+    generation: u64,
+    server_id: String,
+    phase: MigrationPhase,
+) -> Result<(), String> {
+    runtime.finish_migration_server(generation, &server_id, phase)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn library_migration_native_upper_rowid(
+    runtime: State<'_, LibraryRuntime>,
+    generation: u64,
+    server_id: String,
+    step: NavidromeNativeMigrationStep,
+) -> Result<i64, String> {
+    let server_id = server_id.trim();
+    runtime.ensure_migration_phase(generation, server_id, MigrationPhase::Native)?;
+    crate::navidrome_native_migration::upper_rowid(&runtime.store, server_id, step)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn library_migration_native_preflight(
+    runtime: State<'_, LibraryRuntime>,
+    generation: u64,
+    server_id: String,
+) -> Result<NavidromeNativeMigrationPreflightDto, String> {
+    let server_id = server_id.trim();
+    runtime.ensure_migration_phase(generation, server_id, MigrationPhase::Native)?;
+    crate::store::LibraryStore::scope_migration_write_generation_sync(generation, || {
+        crate::navidrome_native_migration::preflight(&runtime.store, server_id)
+    })
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn library_migration_native_batch(
+    runtime: State<'_, LibraryRuntime>,
+    generation: u64,
+    server_id: String,
+    step: NavidromeNativeMigrationStep,
+    cursor_rowid: i64,
+    upper_rowid: i64,
+    limit: Option<u32>,
+) -> Result<NavidromeNativeMigrationBatchDto, String> {
+    let server_id = server_id.trim();
+    runtime.ensure_migration_phase(generation, server_id, MigrationPhase::Native)?;
+    crate::store::LibraryStore::scope_migration_write_generation_sync(generation, || {
+        crate::navidrome_native_migration::run_batch(
+            &runtime.store,
+            server_id,
+            step,
+            cursor_rowid,
+            upper_rowid,
+            limit.unwrap_or(1_000),
+        )
+    })
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn library_migration_native_finalize(
+    runtime: State<'_, LibraryRuntime>,
+    generation: u64,
+    server_id: String,
+) -> Result<NavidromeNativeMigrationFinalizeDto, String> {
+    let server_id = server_id.trim();
+    runtime.ensure_migration_phase(generation, server_id, MigrationPhase::Native)?;
+    crate::store::LibraryStore::scope_migration_write_generation_sync(generation, || {
+        crate::navidrome_native_migration::finalize(&runtime.store, server_id)
+    })
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn library_migration_bind_session(
+    runtime: State<'_, LibraryRuntime>,
+    http_registry: State<'_, Arc<ServerHttpRegistry>>,
+    request: LibraryMigrationBindSessionRequest,
+) -> Result<(), String> {
+    bind_migration_sync_session_inner(
+        &runtime,
+        http_registry.as_ref(),
+        BindSessionRequest {
+            server_id: request.server_id,
+            base_url: request.base_url,
+            username: request.username,
+            password: request.password,
+            library_scope: request.library_scope,
+        },
+        BIND_SESSION_TIMEOUTS,
+        request.generation,
+    )
+    .await
+}
+
+#[tauri::command]
+#[specta::specta]
 pub async fn library_sync_clear_session(
     runtime: State<'_, LibraryRuntime>,
     server_id: String,
@@ -1064,6 +1221,18 @@ pub async fn library_sync_start(
     library_scope: Option<String>,
 ) -> Result<SyncJobDto, String> {
     library_sync_start_inner(app, runtime, server_id, mode, library_scope, false).await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn library_migration_sync_start(
+    app: AppHandle,
+    runtime: State<'_, LibraryRuntime>,
+    generation: u64,
+    server_id: String,
+    library_scope: Option<String>,
+) -> Result<SyncJobDto, String> {
+    library_migration_sync_start_inner(app, runtime, server_id, library_scope, generation).await
 }
 
 /// Manual «Verify library integrity» — same dispatch shape as

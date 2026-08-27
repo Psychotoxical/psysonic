@@ -78,6 +78,306 @@ fn playback_hint_default_is_idle_and_setter_updates() {
 }
 
 #[tokio::test]
+async fn migration_generation_is_monotonic_and_rejects_stale_tokens() {
+    let runtime = LibraryRuntime::new(Arc::new(LibraryStore::open_in_memory()));
+    let first = runtime
+        .begin_migration_generation(["s1"])
+        .await
+        .unwrap()
+        .generation;
+    runtime
+        .finish_migration_server(first, "s1", MigrationPhase::Ready)
+        .unwrap();
+    runtime.release_migration_generation(first).unwrap();
+
+    let second = runtime
+        .begin_migration_generation(["s2"])
+        .await
+        .unwrap()
+        .generation;
+    assert_eq!(second, first + 1);
+    assert!(runtime
+        .update_migration_phase(first, "s2", MigrationPhase::Native)
+        .unwrap_err()
+        .contains("stale library migration generation"));
+}
+
+#[tokio::test]
+async fn active_migration_begin_is_idempotent_and_adds_servers() {
+    let runtime = LibraryRuntime::new(Arc::new(LibraryStore::open_in_memory()));
+    let first = runtime.begin_migration_generation(["s2"]).await.unwrap();
+    let generation = first.generation;
+    assert_eq!(
+        first,
+        MigrationBeginResultDto {
+            generation,
+            created: true,
+            servers: vec![MigrationBeginServerDto {
+                server_id: "s2".into(),
+                previous_phase: None,
+            }],
+        }
+    );
+
+    let second = runtime
+        .begin_migration_generation(["s2", "s1"])
+        .await
+        .unwrap();
+    assert_eq!(
+        second,
+        MigrationBeginResultDto {
+            generation,
+            created: false,
+            servers: vec![
+                MigrationBeginServerDto {
+                    server_id: "s1".into(),
+                    previous_phase: None,
+                },
+                MigrationBeginServerDto {
+                    server_id: "s2".into(),
+                    previous_phase: Some(MigrationPhase::Pending),
+                },
+            ],
+        }
+    );
+
+    assert_eq!(
+        runtime.inspect_migration_generation().unwrap(),
+        MigrationGenerationSnapshotDto::Active {
+            generation,
+            servers: vec![
+                MigrationServerSnapshotDto {
+                    server_id: "s1".into(),
+                    phase: MigrationPhase::Pending,
+                    error: None,
+                },
+                MigrationServerSnapshotDto {
+                    server_id: "s2".into(),
+                    phase: MigrationPhase::Pending,
+                    error: None,
+                },
+            ],
+        }
+    );
+}
+
+#[tokio::test]
+async fn empty_migration_generation_blocks_writes_and_releases_vacuously() {
+    let runtime = LibraryRuntime::new(Arc::new(LibraryStore::open_in_memory()));
+    let result = runtime
+        .begin_migration_generation(std::iter::empty::<String>())
+        .await
+        .unwrap();
+    assert!(result.created);
+    assert!(result.servers.is_empty());
+    assert_eq!(
+        runtime.inspect_migration_generation().unwrap(),
+        MigrationGenerationSnapshotDto::Active {
+            generation: result.generation,
+            servers: Vec::new(),
+        }
+    );
+    assert!(runtime.ensure_ordinary_sync_activity_allowed().is_err());
+    assert!(runtime
+        .store
+        .with_conn("test.empty_generation_write", |conn| {
+            conn.execute(
+                "INSERT INTO artist (server_id, id, name, synced_at) VALUES ('s1', 'id', 'Name', 1)",
+                [],
+            )?;
+            Ok(())
+        })
+        .unwrap_err()
+        .contains("blocks ordinary native writes"));
+
+    runtime
+        .ensure_migration_generation_releasable(result.generation)
+        .unwrap();
+    runtime
+        .release_migration_generation(result.generation)
+        .unwrap();
+    assert_eq!(
+        runtime.inspect_migration_generation().unwrap(),
+        MigrationGenerationSnapshotDto::Inactive {
+            last_generation: result.generation,
+        }
+    );
+}
+
+#[tokio::test]
+async fn active_migration_begin_reopens_a_terminal_server_for_local_resume() {
+    let runtime = LibraryRuntime::new(Arc::new(LibraryStore::open_in_memory()));
+    let generation = runtime
+        .begin_migration_generation(["s1"])
+        .await
+        .unwrap()
+        .generation;
+    runtime
+        .finish_migration_server(generation, "s1", MigrationPhase::Ready)
+        .unwrap();
+
+    assert_eq!(
+        runtime.begin_migration_generation(["s1"]).await.unwrap(),
+        MigrationBeginResultDto {
+            generation,
+            created: false,
+            servers: vec![MigrationBeginServerDto {
+                server_id: "s1".into(),
+                previous_phase: Some(MigrationPhase::Ready),
+            }],
+        }
+    );
+    assert_eq!(
+        runtime.inspect_migration_generation().unwrap(),
+        MigrationGenerationSnapshotDto::Active {
+            generation,
+            servers: vec![MigrationServerSnapshotDto {
+                server_id: "s1".into(),
+                phase: MigrationPhase::Pending,
+                error: None,
+            }],
+        }
+    );
+    runtime
+        .finish_migration_server(generation, "s1", MigrationPhase::Ready)
+        .unwrap();
+    runtime.release_migration_generation(generation).unwrap();
+}
+
+#[tokio::test]
+async fn pending_migration_start_can_roll_back_after_external_barrier_failure() {
+    let runtime = LibraryRuntime::new(Arc::new(LibraryStore::open_in_memory()));
+    let generation = runtime
+        .begin_migration_generation(["s1"])
+        .await
+        .unwrap()
+        .generation;
+
+    runtime
+        .rollback_migration_generation_start(generation)
+        .unwrap();
+
+    assert_eq!(
+        runtime.inspect_migration_generation().unwrap(),
+        MigrationGenerationSnapshotDto::Inactive {
+            last_generation: generation,
+        }
+    );
+    runtime
+        .store
+        .with_conn("test.write_after_start_rollback", |conn| {
+            conn.execute(
+                "INSERT INTO artist (server_id, id, name, synced_at) VALUES ('s1', 'id', 'Name', 1)",
+                [],
+            )?;
+            Ok(())
+        })
+        .unwrap();
+}
+
+#[tokio::test]
+async fn migration_sync_authorization_requires_current_server_in_sync_phase() {
+    let runtime = LibraryRuntime::new(Arc::new(LibraryStore::open_in_memory()));
+    runtime.ensure_ordinary_sync_activity_allowed().unwrap();
+    let generation = runtime
+        .begin_migration_generation(["s1", "s2"])
+        .await
+        .unwrap()
+        .generation;
+
+    assert!(runtime.ensure_ordinary_sync_activity_allowed().is_err());
+    assert!(runtime
+        .ensure_migration_full_sync_allowed(generation, "s1")
+        .is_err());
+    runtime
+        .update_migration_phase(generation, "s1", MigrationPhase::Sync)
+        .unwrap();
+    runtime
+        .ensure_migration_full_sync_allowed(generation, "s1")
+        .unwrap();
+    assert!(runtime
+        .ensure_migration_full_sync_allowed(generation, "s2")
+        .is_err());
+}
+
+#[tokio::test]
+async fn migration_generation_blocks_ordinary_store_writes_but_allows_matching_scope() {
+    let runtime = LibraryRuntime::new(Arc::new(LibraryStore::open_in_memory()));
+    let generation = runtime
+        .begin_migration_generation(["s1"])
+        .await
+        .unwrap()
+        .generation;
+
+    let ordinary = runtime.store.with_conn("test.ordinary_write", |conn| {
+        conn.execute(
+            "INSERT INTO artist (server_id, id, name, synced_at) VALUES ('s1', 'old', 'Old', 1)",
+            [],
+        )?;
+        Ok(())
+    });
+    assert!(ordinary
+        .unwrap_err()
+        .contains("blocks ordinary native writes"));
+
+    LibraryStore::scope_migration_write_generation(generation, async {
+        runtime
+            .store
+            .with_conn("test.migration_write", |conn| {
+                conn.execute(
+                    "INSERT INTO artist (server_id, id, name, synced_at) VALUES ('s1', 'new', 'New', 1)",
+                    [],
+                )?;
+                Ok(())
+            })
+            .unwrap();
+    })
+    .await;
+
+    runtime
+        .finish_migration_server(generation, "s1", MigrationPhase::Ready)
+        .unwrap();
+    runtime.release_migration_generation(generation).unwrap();
+    assert_eq!(
+        runtime
+            .store
+            .with_conn("test.count_after_release", |conn| {
+                conn.query_row("SELECT COUNT(*) FROM artist", [], |row| row.get::<_, i64>(0))
+            })
+            .unwrap(),
+        1
+    );
+}
+
+#[tokio::test]
+async fn migration_abort_stays_blocked_until_explicit_retry() {
+    let runtime = LibraryRuntime::new(Arc::new(LibraryStore::open_in_memory()));
+    let generation = runtime
+        .begin_migration_generation(["s1"])
+        .await
+        .unwrap()
+        .generation;
+    runtime
+        .abort_migration_server(generation, "s1", "verification failed")
+        .unwrap();
+
+    assert!(runtime.release_migration_generation(generation).is_err());
+    assert!(runtime
+        .update_migration_phase(generation, "s1", MigrationPhase::Sync)
+        .is_err());
+    assert!(runtime
+        .finish_migration_server(generation, "s1", MigrationPhase::Ready)
+        .is_err());
+
+    runtime.retry_migration_server(generation, "s1").unwrap();
+    runtime
+        .finish_migration_server(generation, "s1", MigrationPhase::Ready)
+        .unwrap();
+    runtime.release_migration_generation(generation).unwrap();
+    runtime.ensure_ordinary_sync_activity_allowed().unwrap();
+}
+
+#[tokio::test]
 async fn job_done_notify_one_survives_early_signal_before_await() {
     let done = Arc::new(Notify::new());
     done.notify_one();

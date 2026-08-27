@@ -219,6 +219,7 @@ const CONTRIBUTOR_ENTRIES = [
       'Audio controls — configurable pause/resume fade for native playback and internet radio (PR #1422)',
       'Timeline — replay listening history from any selected point (PR #1423)',
       'Offline downloads — slow-server tolerance, resumable transfers, owner-safe pins, and coordinated cancellation and maintenance (report: jsongerber, PR #1457)',
+      'Navidrome canonical-ID upgrade — resumable migration for library, analysis, offline, cache, and persisted app state (PR #1464)',
     ],
   },
   {
@@ -552,6 +553,13 @@ const CONTRIBUTOR_ENTRIES = [
     since: '1.52.0',
     contributions: [
       'Navidrome delta sync preserves structured multi-artist credits (PR #1449)',
+    ],
+  },
+  {
+    github: 'albedych',
+    since: '1.52.0',
+    contributions: [
+      'Ukrainian translation, with Ukrainian Cyrillic folding in library identity keys (PR #1465)',
     ],
   },
 ] as const;

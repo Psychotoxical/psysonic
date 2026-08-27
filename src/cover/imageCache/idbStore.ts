@@ -1,6 +1,7 @@
 import { useAuthStore } from '../../store/authStore';
 import { DB_NAME, STORE_NAME, MAX_AGE_MS } from './constants';
 import { blobCache } from './blobCache';
+import { navidromeCanonicalBootstrapIsActive } from '@/lib/server/navidromeCanonicalCheckpointStatus';
 
 let db: IDBDatabase | null = null;
 let dbPromise: Promise<IDBDatabase> | null = null;
@@ -75,8 +76,10 @@ export async function mapBlobsFromIDB(keys: readonly string[]): Promise<Map<stri
 }
 
 async function evictDiskIfNeeded(maxBytes: number): Promise<void> {
+  if (navidromeCanonicalBootstrapIsActive()) return;
   try {
     const database = await openDB();
+    if (navidromeCanonicalBootstrapIsActive()) return;
     const entries: Array<{ key: string; timestamp: number; size: number }> = await new Promise(resolve => {
       const req = database.transaction(STORE_NAME, 'readonly').objectStore(STORE_NAME).getAll();
       req.onsuccess = () => {
@@ -96,6 +99,7 @@ async function evictDiskIfNeeded(maxBytes: number): Promise<void> {
 
     entries.sort((a, b) => a.timestamp - b.timestamp);
 
+    if (navidromeCanonicalBootstrapIsActive()) return;
     const tx = database.transaction(STORE_NAME, 'readwrite');
     const store = tx.objectStore(STORE_NAME);
     for (const entry of entries) {
@@ -113,11 +117,12 @@ async function evictDiskIfNeeded(maxBytes: number): Promise<void> {
 let evictDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 let evictPendingMaxBytes = 0;
 
-function scheduleEvictDiskIfNeeded(maxBytes: number): void {
+export function scheduleEvictDiskIfNeeded(maxBytes: number): void {
   evictPendingMaxBytes = maxBytes;
   if (evictDebounceTimer) clearTimeout(evictDebounceTimer);
   evictDebounceTimer = setTimeout(() => {
     evictDebounceTimer = null;
+    if (navidromeCanonicalBootstrapIsActive()) return;
     void evictDiskIfNeeded(evictPendingMaxBytes);
   }, 450);
 }
@@ -131,8 +136,10 @@ export function cancelScheduledEvict(): void {
 }
 
 export async function putBlob(key: string, blob: Blob): Promise<void> {
+  if (navidromeCanonicalBootstrapIsActive()) return;
   try {
     const database = await openDB();
+    if (navidromeCanonicalBootstrapIsActive()) return;
     await new Promise<void>(resolve => {
       const tx = database.transaction(STORE_NAME, 'readwrite');
       tx.objectStore(STORE_NAME).put({ key, blob, timestamp: Date.now() });

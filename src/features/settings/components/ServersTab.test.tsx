@@ -4,9 +4,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderWithProviders } from '@/test/helpers/renderWithProviders';
 import { resetAuthStore } from '@/test/helpers/storeReset';
 import { useAuthStore } from '@/store/authStore';
+import { NAVIDROME_CANONICAL_BOOTSTRAP_LOCK_KEY } from '@/lib/server/navidromeCanonicalCheckpointStatus';
 
 const mocks = vi.hoisted(() => ({
   bootstrapIndexedServer: vi.fn(),
+  admitSuccessfulPingForProfile: vi.fn(),
   ensureConnectUrlResolved: vi.fn(),
   pingWithCredentialsForProfile: vi.fn(),
   syncServerHttpContextForProfile: vi.fn(async () => undefined),
@@ -52,6 +54,7 @@ vi.mock('@/lib/dom/toast', () => ({
 }));
 
 vi.mock('@/lib/server/serverEndpoint', () => ({
+  admitSuccessfulPingForProfile: mocks.admitSuccessfulPingForProfile,
   ensureConnectUrlResolved: mocks.ensureConnectUrlResolved,
   invalidateReachableEndpointCache: mocks.invalidateReachableEndpointCache,
   allNormalizedAddresses: (srv: { url: string; alternateUrl?: string }) =>
@@ -169,8 +172,10 @@ function deferred<T>() {
 }
 
 beforeEach(() => {
+  localStorage.removeItem(NAVIDROME_CANONICAL_BOOTSTRAP_LOCK_KEY);
   resetAuthStore();
   mocks.bootstrapIndexedServer.mockReset().mockResolvedValue('bound');
+  mocks.admitSuccessfulPingForProfile.mockReset().mockResolvedValue({ ok: true });
   mocks.ensureConnectUrlResolved.mockReset();
   mocks.pingWithCredentialsForProfile.mockReset();
   mocks.syncServerHttpContextForProfile.mockReset().mockResolvedValue(undefined);
@@ -245,7 +250,59 @@ describe('ServersTab duplicate server login validation', () => {
       url: 'https://a.test/',
       username: 'other',
     });
+    expect(mocks.admitSuccessfulPingForProfile).toHaveBeenCalledWith(
+      expect.objectContaining({ url: 'https://a.test/', username: 'other' }),
+      'https://a.test/',
+      expect.objectContaining({ ok: true, serverVersion: '0.56.0' }),
+    );
     expect(mocks.showToast).not.toHaveBeenCalled();
+  });
+
+  it('rolls back a newly added profile when canonical admission fails', async () => {
+    mocks.pingWithCredentialsForProfile.mockResolvedValue({
+      ok: true,
+      type: 'navidrome',
+      serverVersion: '0.64.0',
+      openSubsonic: true,
+    });
+    mocks.admitSuccessfulPingForProfile.mockRejectedValueOnce(new Error('migration blocked'));
+    const user = userEvent.setup();
+    const view = renderWithProviders(<ServersTab initialInvite={null} />);
+
+    await user.click(view.container.querySelector('#settings-add-server-btn')!);
+    await user.click(screen.getByRole('button', { name: 'save-add-other-user' }));
+
+    await waitFor(() => expect(mocks.admitSuccessfulPingForProfile).toHaveBeenCalledOnce());
+    await waitFor(() => expect(useAuthStore.getState().servers).toHaveLength(1));
+    expect(useAuthStore.getState().servers[0]?.id).toBe('a');
+  });
+
+  it('keeps the durable profile when admission has already armed the migration lock', async () => {
+    mocks.pingWithCredentialsForProfile.mockResolvedValue({
+      ok: true,
+      type: 'navidrome',
+      serverVersion: '0.64.0',
+      openSubsonic: true,
+    });
+    mocks.admitSuccessfulPingForProfile.mockImplementationOnce(async () => {
+      localStorage.setItem(
+        NAVIDROME_CANONICAL_BOOTSTRAP_LOCK_KEY,
+        `runtime:${encodeURIComponent('a.test')}:token`,
+      );
+      throw new Error('migration blocked');
+    });
+    const user = userEvent.setup();
+    const view = renderWithProviders(<ServersTab initialInvite={null} />);
+
+    await user.click(view.container.querySelector('#settings-add-server-btn')!);
+    await user.click(screen.getByRole('button', { name: 'save-add-other-user' }));
+
+    await waitFor(() => expect(mocks.admitSuccessfulPingForProfile).toHaveBeenCalledOnce());
+    await waitFor(() => expect(useAuthStore.getState().servers).toHaveLength(2));
+    expect(useAuthStore.getState().servers[1]).toMatchObject({
+      url: 'https://a.test/',
+      username: 'other',
+    });
   });
 });
 

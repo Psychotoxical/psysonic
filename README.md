@@ -18,7 +18,7 @@ Psysonic is built primarily for **Navidrome** and also works with **Gonic**, **A
 
 <br><br>
 
-**Available languages:** English, German, Spanish, French, Norwegian Bokmål, Dutch, Romanian, Russian, Chinese, Japanese, Hungarian, Polish, Bulgarian and Italian.
+**Available languages:** English, German, Spanish, French, Norwegian Bokmål, Dutch, Romanian, Russian, Chinese, Japanese, Hungarian, Polish, Bulgarian, Italian and Ukrainian.
 
 More translations are added over time.
 

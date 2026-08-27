@@ -72,6 +72,24 @@ export const commands = {
 	libraryClusterRebuild: (serverId: string | null) => typedError<number, string>(__TAURI_INVOKE("library_cluster_rebuild", { serverId })),
 	libraryResolveEntitySources: (request: LibraryResolveEntitySourcesRequest) => typedError<LibraryEntitySourceDto[], string>(__TAURI_INVOKE("library_resolve_entity_sources", { request })),
 	libraryResolveAlbumOverlay: (request: LibraryResolveAlbumOverlayRequest) => typedError<LibraryAlbumOverlayResolutionDto[], string>(__TAURI_INVOKE("library_resolve_album_overlay", { request })),
+	libraryMigrationBegin: (serverIds: string[]) => typedError<MigrationBeginResultDto, string>(__TAURI_INVOKE("library_migration_begin", { serverIds })),
+	libraryMigrationAnalysisUpperRowid: (generation: number, serverId: string, step: AnalysisMigrationStep) => typedError<number, string>(__TAURI_INVOKE("library_migration_analysis_upper_rowid", { generation, serverId, step })),
+	libraryMigrationAnalysisBatch: (request: AnalysisMigrationBatchRequest) => typedError<AnalysisMigrationBatchDto, string>(__TAURI_INVOKE("library_migration_analysis_batch", { request })),
+	libraryMigrationAnalysisFinalize: (generation: number, serverId: string) => typedError<AnalysisMigrationFinalizeDto, string>(__TAURI_INVOKE("library_migration_analysis_finalize", { generation, serverId })),
+	libraryMigrationVerify: (generation: number, serverId: string) => typedError<null, string>(__TAURI_INVOKE("library_migration_verify", { generation, serverId })),
+	libraryMigrationInventory: (serverId: string, serverIndexKey: string, customOfflineDir: string | null, customHotCacheDir: string | null) => typedError<null, string>(__TAURI_INVOKE("library_migration_inventory", { serverId, serverIndexKey, customOfflineDir, customHotCacheDir })),
+	libraryMigrationInspect: () => typedError<MigrationGenerationSnapshotDto, string>(__TAURI_INVOKE("library_migration_inspect")),
+	libraryMigrationUpdatePhase: (generation: number, serverId: string, phase: MigrationPhase) => typedError<null, string>(__TAURI_INVOKE("library_migration_update_phase", { generation, serverId, phase })),
+	libraryMigrationAbort: (generation: number, serverId: string, error: string) => typedError<null, string>(__TAURI_INVOKE("library_migration_abort", { generation, serverId, error })),
+	libraryMigrationRetry: (generation: number, serverId: string) => typedError<null, string>(__TAURI_INVOKE("library_migration_retry", { generation, serverId })),
+	libraryMigrationFinishServer: (generation: number, serverId: string, phase: MigrationPhase) => typedError<null, string>(__TAURI_INVOKE("library_migration_finish_server", { generation, serverId, phase })),
+	libraryMigrationRelease: (generation: number) => typedError<null, string>(__TAURI_INVOKE("library_migration_release", { generation })),
+	libraryMigrationNativePreflight: (generation: number, serverId: string) => typedError<NavidromeNativeMigrationPreflightDto, string>(__TAURI_INVOKE("library_migration_native_preflight", { generation, serverId })),
+	libraryMigrationNativeUpperRowid: (generation: number, serverId: string, step: NavidromeNativeMigrationStep) => typedError<number, string>(__TAURI_INVOKE("library_migration_native_upper_rowid", { generation, serverId, step })),
+	libraryMigrationNativeBatch: (generation: number, serverId: string, step: NavidromeNativeMigrationStep, cursorRowid: number, upperRowid: number, limit: number | null) => typedError<NavidromeNativeMigrationBatchDto, string>(__TAURI_INVOKE("library_migration_native_batch", { generation, serverId, step, cursorRowid, upperRowid, limit })),
+	libraryMigrationNativeFinalize: (generation: number, serverId: string) => typedError<NavidromeNativeMigrationFinalizeDto, string>(__TAURI_INVOKE("library_migration_native_finalize", { generation, serverId })),
+	libraryMigrationBindSession: (request: LibraryMigrationBindSessionRequest) => typedError<null, string>(__TAURI_INVOKE("library_migration_bind_session", { request })),
+	libraryMigrationSyncStart: (generation: number, serverId: string, libraryScope: string | null) => typedError<SyncJobDto, string>(__TAURI_INVOKE("library_migration_sync_start", { generation, serverId, libraryScope })),
 	librarySyncBindSession: (serverId: string, baseUrl: string, username: string, password: string, libraryScope: string | null) => typedError<null, string>(__TAURI_INVOKE("library_sync_bind_session", { serverId, baseUrl, username, password, libraryScope })),
 	librarySyncClearSession: (serverId: string) => typedError<null, string>(__TAURI_INVOKE("library_sync_clear_session", { serverId })),
 	librarySetPlaybackHint: (hint: string) => typedError<null, string>(__TAURI_INVOKE("library_set_playback_hint", { hint })),
@@ -251,6 +269,7 @@ export const commands = {
 	 *  construct a `psysonic-local://<path>` URL for the audio engine.
 	 */
 	downloadTrackOffline: (trackId: string, serverId: string, url: string, suffix: string, customDir: string | null, downloadId: string | null) => typedError<string, string>(__TAURI_INVOKE("download_track_offline", { trackId, serverId, url, suffix, customDir, downloadId })),
+	migrateNavidromeFilesystemIds: (generation: number, libraryServerId: string, serverIndexKey: string, customOfflineDir: string | null, customHotCacheDir: string | null) => typedError<NavidromeFilesystemMigrationDto, string>(__TAURI_INVOKE("migrate_navidrome_filesystem_ids", { generation, libraryServerId, serverIndexKey, customOfflineDir, customHotCacheDir })),
 	/**
 	 *  Marks the given offline-download ids as cancelled. In-flight
 	 *  `download_track_offline` calls abort their HTTP stream at the next chunk
@@ -366,7 +385,7 @@ export const commands = {
 	 *  playlist is self-contained — moving/copying the folder anywhere keeps it
 	 *  working. Tracks are expected to be in playlist order (index starts at 1).
 	 */
-	writePlaylistM3u8: (destDir: string, playlistName: string, tracks: TrackSyncInfo[]) => typedError<null, string>(__TAURI_INVOKE("write_playlist_m3u8", { destDir, playlistName, tracks })),
+	writePlaylistM3u8: (destDir: string, playlistName: string, playlistId: string | null, tracks: TrackSyncInfo[]) => typedError<null, string>(__TAURI_INVOKE("write_playlist_m3u8", { destDir, playlistName, playlistId, tracks })),
 	/**
 	 *  Atomically renames files on the device from their old path to the new fixed-
 	 *  schema path. Intended for the migration flow when switching away from the
@@ -464,6 +483,7 @@ export const commands = {
 	coverCacheRenameServerBucket: (oldKey: string, newKey: string) => typedError<null, string>(__TAURI_INVOKE("cover_cache_rename_server_bucket", { oldKey, newKey })),
 	coverCacheStatsServer: (serverIndexKey: string) => typedError<CoverCacheStatsDto, string>(__TAURI_INVOKE("cover_cache_stats_server", { serverIndexKey })),
 	coverCacheGetPipelineQueueStats: () => typedError<CoverPipelineQueueStatsDto, string>(__TAURI_INVOKE("cover_cache_get_pipeline_queue_stats")),
+	coverCacheMigrateNavidromeIds: (generation: number, serverId: string, serverIndexKey: string) => typedError<CoverCacheNavidromeMigrationDto, string>(__TAURI_INVOKE("cover_cache_migrate_navidrome_ids", { generation, serverId, serverIndexKey })),
 	libraryCoverBackfillBatch: (serverIndexKey: string, libraryServerId: string, cursor: string | null, limit: number | null) => typedError<LibraryCoverBackfillBatchDto, string>(__TAURI_INVOKE("library_cover_backfill_batch", { serverIndexKey, libraryServerId, cursor, limit })),
 	libraryCoverProgress: (serverIndexKey: string, libraryServerId: string) => typedError<LibraryCoverProgressDto, string>(__TAURI_INVOKE("library_cover_progress", { serverIndexKey, libraryServerId })),
 	libraryCoverCatalogSize: (libraryServerId: string) => typedError<number, string>(__TAURI_INVOKE("library_cover_catalog_size", { libraryServerId })),
@@ -608,7 +628,15 @@ export const commands = {
 	serverHttpContextSync: (wire: ServerHttpContextSyncWire) => typedError<null, string>(__TAURI_INVOKE("server_http_context_sync", { wire })),
 	serverHttpContextSyncAll: (entries: ServerHttpContextSyncWire[]) => typedError<null, string>(__TAURI_INVOKE("server_http_context_sync_all", { entries })),
 	backupExportLibraryDb: (destinationPath: string) => typedError<null, string>(__TAURI_INVOKE("backup_export_library_db", { destinationPath })),
-	backupImportLibraryDb: (sourcePath: string) => typedError<null, string>(__TAURI_INVOKE("backup_import_library_db", { sourcePath })),
+	backupImportLibraryDb: (sourcePath: string, canonicalServerIds: string[], migrationGeneration: number, durableFullImportRecovery: boolean) => typedError<null, string>(__TAURI_INVOKE("backup_import_library_db", { sourcePath, canonicalServerIds, migrationGeneration, durableFullImportRecovery })),
+	backupRollbackImportedDatabases: (migrationGeneration: number) => typedError<null, string>(__TAURI_INVOKE("backup_rollback_imported_databases", { migrationGeneration })),
+	backupCommitImportedDatabases: () => typedError<null, string>(__TAURI_INVOKE("backup_commit_imported_databases")),
+	backupInspectFullImportRecovery: () => typedError<{
+	phase: FullImportRecoveryPhase,
+	migrationGeneration: number,
+} | null, string>(__TAURI_INVOKE("backup_inspect_full_import_recovery")),
+	backupRecoverFullImportDatabases: () => typedError<null, string>(__TAURI_INVOKE("backup_recover_full_import_databases")),
+	backupFinalizeFullImportRecovery: () => typedError<null, string>(__TAURI_INVOKE("backup_finalize_full_import_recovery")),
 	registerGlobalShortcut: (shortcut: string, action: string) => typedError<null, string>(__TAURI_INVOKE("register_global_shortcut", { shortcut, action })),
 	unregisterGlobalShortcut: (shortcut: string) => typedError<null, string>(__TAURI_INVOKE("unregister_global_shortcut", { shortcut })),
 	mprisSetMetadata: (title: string | null, artist: string | null, album: string | null, coverUrl: string | null, durationSecs: number | null) => typedError<null, string>(__TAURI_INVOKE("mpris_set_metadata", { title, artist, album, coverUrl, durationSecs })),
@@ -802,6 +830,33 @@ export type AnalysisFailedTrackDto = {
 	updatedAt: number,
 };
 
+export type AnalysisMigrationBatchDto = {
+	step: AnalysisMigrationStep,
+	cursorRowid: number,
+	upperRowid: number,
+	processed: number,
+	rewritten: number,
+	collisions: number,
+	done: boolean,
+};
+
+export type AnalysisMigrationBatchRequest = {
+	generation: number,
+	serverId: string,
+	step: AnalysisMigrationStep,
+	cursorRowid: number,
+	upperRowid: number,
+	limit: number | null,
+};
+
+export type AnalysisMigrationFinalizeDto = {
+	ownerlessAnalysisTracksRemoved: number,
+	ownerlessWaveformsRemoved: number,
+	ownerlessLoudnessRemoved: number,
+};
+
+export type AnalysisMigrationStep = "analysis-track" | "waveform-cache" | "loudness-cache";
+
 export type AnalysisPipelineQueueStatsDto = {
 	pipelineWorkers: number,
 	httpQueued: number,
@@ -952,6 +1007,12 @@ export type CoverCacheEnsureResult = {
 	tier: number,
 };
 
+export type CoverCacheNavidromeMigrationDto = {
+	directoriesScanned: number,
+	directoriesMoved: number,
+	directoriesMerged: number,
+};
+
 export type CoverCachePeekItem = {
 	serverIndexKey: string,
 	cacheKind: string,
@@ -1032,6 +1093,13 @@ export type FactInputDto = {
 	confidence?: number | null,
 	contentHash?: string | null,
 	expiresAt?: number | null,
+};
+
+export type FullImportRecoveryPhase = "prepared" | "databases-restored" | "committed";
+
+export type FullImportRecoveryStatusDto = {
+	phase: FullImportRecoveryPhase,
+	migrationGeneration: number,
 };
 
 /**  Per-genre album/track totals from the local track catalog (Genres cloud + browse). */
@@ -1155,6 +1223,15 @@ export type LibraryEntitySourceDto = {
 	sizeBytes: number | null,
 	starredAt: number | null,
 	userRating: number | null,
+};
+
+export type LibraryMigrationBindSessionRequest = {
+	generation: number,
+	serverId: string,
+	baseUrl: string,
+	username: string,
+	password: string,
+	libraryScope: string | null,
 };
 
 /**
@@ -1302,6 +1379,19 @@ export type LoudnessCachePayload = {
 	updatedAt: number,
 };
 
+export type MigrationBeginResultDto = {
+	generation: number,
+	created: boolean,
+	servers: MigrationBeginServerDto[],
+};
+
+export type MigrationBeginServerDto = {
+	serverId: string,
+	previousPhase: MigrationPhase | null,
+};
+
+export type MigrationGenerationSnapshotDto = { state: "inactive"; lastGeneration: number } | { state: "active"; generation: number; servers: MigrationServerSnapshotDto[] };
+
 export type MigrationInspectReport = {
 	needsMigration: boolean,
 	hasSkippedUnknownServerRows: boolean,
@@ -1312,6 +1402,8 @@ export type MigrationInspectReport = {
 	analysis: MigrationScopeInspect,
 	mappings: ServerIndexMapping[],
 };
+
+export type MigrationPhase = "pending" | "native" | "analysis" | "cover" | "frontend" | "cleanup" | "sync" | "retryable" | "blocked" | "legacy" | "not-applicable" | "ready";
 
 export type MigrationRunResult = {
 	library: MigrationRunScope,
@@ -1332,6 +1424,44 @@ export type MigrationScopeInspect = {
 	skippedUnknownServerRows: number,
 	tables: { [key in string]: number },
 };
+
+export type MigrationServerSnapshotDto = {
+	serverId: string,
+	phase: MigrationPhase,
+	error: string | null,
+};
+
+export type NavidromeFilesystemMigrationDto = {
+	offlineFilesScanned: number,
+	offlineFilesMoved: number,
+	offlineFilesMerged: number,
+	hotCacheFilesScanned: number,
+	hotCacheFilesMoved: number,
+	hotCacheFilesMerged: number,
+	offlinePathsRetargeted: number,
+};
+
+export type NavidromeNativeMigrationBatchDto = {
+	step: NavidromeNativeMigrationStep,
+	cursorRowid: number,
+	upperRowid: number,
+	processed: number,
+	moved: number,
+	merged: number,
+	done: boolean,
+};
+
+export type NavidromeNativeMigrationFinalizeDto = {
+	derivedRowsRemoved: number,
+};
+
+export type NavidromeNativeMigrationPreflightDto = {
+	artistsScanned: number,
+	albumsScanned: number,
+	tracksScanned: number,
+};
+
+export type NavidromeNativeMigrationStep = "artist" | "album" | "track";
 
 /**  Payload returned by Navidrome's `/auth/login`. */
 export type NdLoginResult = {
@@ -1638,6 +1768,8 @@ export type TrackSyncInfo = {
 	 *  on the device — once in the album tree, once in the playlist folder.
 	 */
 	playlistName?: string | null,
+	/**  Stable source identity used to disambiguate playlists with the same display name. */
+	playlistId?: string | null,
 	playlistIndex?: number | null,
 };
 

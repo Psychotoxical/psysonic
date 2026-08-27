@@ -12,6 +12,7 @@ fn track(builder: impl FnOnce(&mut TrackSyncInfo)) -> TrackSyncInfo {
         track_number: Some(1),
         duration: Some(180),
         playlist_name: None,
+        playlist_id: None,
         playlist_index: None,
     };
     builder(&mut track);
@@ -29,4 +30,5 @@ fn norm(path: String) -> String {
 mod download;
 mod manifest;
 mod paths;
+mod playlist;
 mod rename;

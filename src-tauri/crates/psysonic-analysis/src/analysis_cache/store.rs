@@ -1,16 +1,20 @@
 mod crud;
 mod lifecycle;
+mod migration;
 mod migrations;
 mod queries;
 mod schema;
 
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use rusqlite::Connection;
 
 #[allow(unused_imports)]
 pub(crate) use migrations::run_migrations_with;
+pub use migration::{
+    AnalysisMigrationBatchDto, AnalysisMigrationFinalizeDto, AnalysisMigrationStep,
+};
 
 pub(super) const WAVEFORM_ALGO_VERSION: i64 = 4;
 pub(super) const LOUDNESS_ALGO_VERSION: i64 = 1;
@@ -96,6 +100,47 @@ pub struct FailedTrackEntry {
 
 pub struct AnalysisCache {
     conn: Mutex<Connection>,
+    migration_write_barrier: Arc<psysonic_core::migration_write_barrier::MigrationWriteBarrier>,
+}
+
+impl AnalysisCache {
+    fn lock_write_conn(&self) -> Result<MutexGuard<'_, Connection>, String> {
+        self.migration_write_barrier.ensure_write_allowed()?;
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|_| "analysis_cache lock poisoned".to_string())?;
+        self.migration_write_barrier.ensure_write_allowed()?;
+        Ok(conn)
+    }
+
+    pub fn ensure_ordinary_write_allowed(&self) -> Result<(), String> {
+        self.migration_write_barrier.ensure_write_allowed()
+    }
+
+    pub fn drain_migration_writes(&self, generation: u64) -> Result<(), String> {
+        if self.migration_write_barrier.active_generation() != generation {
+            return Err(format!(
+                "analysis migration generation {generation} is not active"
+            ));
+        }
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|_| "analysis_cache lock poisoned".to_string())?;
+        drop(conn);
+        Ok(())
+    }
+
+    pub fn scope_migration_write_generation_sync<R>(
+        generation: u64,
+        operation: impl FnOnce() -> R,
+    ) -> R {
+        psysonic_core::migration_write_barrier::MigrationWriteBarrier::scope_sync(
+            generation,
+            operation,
+        )
+    }
 }
 
 /// Ranged HTTP seeding uses `stream:<subsonicId>` (see `playback_identity`); backfill
