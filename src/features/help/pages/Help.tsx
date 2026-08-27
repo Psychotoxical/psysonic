@@ -35,6 +35,7 @@ export default function Help() {
       items: [
         { id: 'q1', q: t('help.q1'), a: t('help.a1') },
         { id: 'q2', q: t('help.q2'), a: t('help.a2') },
+        { id: 'q46', q: t('help.q46'), a: t('help.a46') },
         { id: 'q3', q: t('help.q3'), a: t('help.a3') },
       ],
     },
@@ -48,6 +49,7 @@ export default function Help() {
         { id: 'q6', q: t('help.q6'), a: t('help.a6') },
         { id: 'q7', q: t('help.q7'), a: t('help.a7') },
         { id: 'q8', q: t('help.q8'), a: t('help.a8') },
+        { id: 'q47', q: t('help.q47'), a: t('help.a47') },
       ],
     },
     {
@@ -60,6 +62,7 @@ export default function Help() {
         { id: 'q11', q: t('help.q11'), a: t('help.a11') },
         { id: 'q12', q: t('help.q12'), a: t('help.a12') },
         { id: 'q13', q: t('help.q13'), a: t('help.a13') },
+        { id: 'q48', q: t('help.q48'), a: t('help.a48') },
       ],
     },
     {
@@ -73,6 +76,9 @@ export default function Help() {
         { id: 'q17', q: t('help.q17'), a: t('help.a17') },
         { id: 'q18', q: t('help.q18'), a: t('help.a18') },
         { id: 'q19', q: t('help.q19'), a: t('help.a19') },
+        { id: 'q49', q: t('help.q49'), a: t('help.a49') },
+        { id: 'q50', q: t('help.q50'), a: t('help.a50') },
+        { id: 'q51', q: t('help.q51'), a: t('help.a51') },
       ],
     },
     {
@@ -106,6 +112,9 @@ export default function Help() {
         { id: 'q29', q: t('help.q29'), a: t('help.a29') },
         { id: 'q30', q: t('help.q30'), a: t('help.a30') },
         { id: 'q31', q: t('help.q31'), a: t('help.a31') },
+        { id: 'q52', q: t('help.q52'), a: t('help.a52') },
+        { id: 'q53', q: t('help.q53'), a: t('help.a53') },
+        { id: 'q54', q: t('help.q54'), a: t('help.a54') },
       ],
     },
     {
