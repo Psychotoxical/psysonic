@@ -1,5 +1,7 @@
 export const NAVIDROME_CANONICAL_MIGRATION_CHECKPOINT_KEY =
   'psysonic-navidrome-canonical-id-migration-v1';
+export const NAVIDROME_CANONICAL_BOOTSTRAP_LOCK_KEY =
+  'psysonic-navidrome-canonical-bootstrap-active-v1';
 
 export type NavidromeCanonicalCheckpointStatus =
   | 'absent'
@@ -9,6 +11,31 @@ export type NavidromeCanonicalCheckpointStatus =
   | 'invalid';
 
 type CheckpointStorage = Pick<Storage, 'getItem'>;
+
+export function navidromeCanonicalBootstrapIsActive(
+  storage: CheckpointStorage = localStorage,
+): boolean {
+  return storage.getItem(NAVIDROME_CANONICAL_BOOTSTRAP_LOCK_KEY) !== null;
+}
+
+export function navidromeCanonicalBootstrapBlocksServer(
+  serverIndexKey: string,
+  storage: CheckpointStorage = localStorage,
+): boolean {
+  const lock = storage.getItem(NAVIDROME_CANONICAL_BOOTSTRAP_LOCK_KEY);
+  if (lock === null) return false;
+  if (!lock.startsWith('runtime:')) return true;
+  const separator = lock.indexOf(':', 'runtime:'.length);
+  if (separator < 0) return true;
+  const encodedOwner = lock.slice('runtime:'.length, separator);
+  const token = lock.slice(separator + 1);
+  if (!encodedOwner || !token || token.includes(':')) return true;
+  try {
+    return decodeURIComponent(encodedOwner) === serverIndexKey;
+  } catch {
+    return true;
+  }
+}
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);

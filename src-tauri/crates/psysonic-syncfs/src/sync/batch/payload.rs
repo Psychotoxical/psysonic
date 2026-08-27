@@ -8,7 +8,7 @@ use super::{
     SyncDeltaResult,
 };
 use crate::file_transfer::{apply_server_http_get, subsonic_http_client};
-use crate::sync::device::{build_track_path, get_removable_drives};
+use crate::sync::device::{build_track_path, get_removable_drives, playlist_collision_key};
 
 pub(super) fn device_sync_source_key(source: &DeviceSyncSourcePayload) -> String {
     serde_json::to_string(&(&source.server_index_key, &source.source_type, &source.id))
@@ -26,6 +26,31 @@ pub(super) fn validate_device_sync_source_owners(
         return Err("DEVICE_SYNC_SERVER_OWNER_MISMATCH".to_string());
     }
     Ok(())
+}
+
+pub(super) fn playlist_collision_source_keys(
+    sources: &[DeviceSyncSourcePayload],
+) -> std::collections::HashSet<String> {
+    let mut name_counts = std::collections::HashMap::new();
+    for source in sources {
+        if source.source_type == "playlist" {
+            *name_counts
+                .entry(playlist_collision_key(source.name.as_deref().unwrap_or("")))
+                .or_insert(0_u32) += 1;
+        }
+    }
+    sources
+        .iter()
+        .filter(|source| {
+            source.source_type == "playlist"
+                && name_counts
+                    .get(&playlist_collision_key(source.name.as_deref().unwrap_or("")))
+                    .copied()
+                    .unwrap_or_default()
+                    > 1
+        })
+        .map(device_sync_source_key)
+        .collect()
 }
 
 pub(super) async fn calculate_sync_payload_impl(
@@ -55,6 +80,7 @@ pub(super) async fn calculate_sync_payload_impl(
             add_sources.push(source);
         }
     }
+    let playlist_collision_sources = playlist_collision_source_keys(&add_sources);
 
     let mut handles: Vec<(
         DeviceSyncSourcePayload,
@@ -200,11 +226,17 @@ pub(super) async fn calculate_sync_payload_impl(
                     } else {
                         None
                     };
+                    let playlist_id = source.path_id.as_deref().or_else(|| {
+                        playlist_collision_sources
+                            .contains(&device_sync_source_key(&source))
+                            .then_some(source.id.as_str())
+                    });
 
                     let sync_info = track_sync_info_from_subsonic_json(
                         &track,
                         track_id,
                         playlist_name.as_deref(),
+                        playlist_id,
                         playlist_index,
                     );
                     let already_exists = {
@@ -219,6 +251,7 @@ pub(super) async fn calculate_sync_payload_impl(
                         inject_playlist_context(
                             &mut track_with_ctx,
                             playlist_name.as_deref(),
+                            playlist_id,
                             playlist_index,
                         );
                         sync_tracks.push(track_with_ctx);

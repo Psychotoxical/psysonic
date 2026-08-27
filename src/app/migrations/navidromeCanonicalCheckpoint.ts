@@ -1,8 +1,11 @@
-import { NAVIDROME_CANONICAL_MIGRATION_CHECKPOINT_KEY } from '@/lib/server/navidromeCanonicalCheckpointStatus';
+import {
+  NAVIDROME_CANONICAL_MIGRATION_CHECKPOINT_KEY,
+} from '@/lib/server/navidromeCanonicalCheckpointStatus';
 
-export { NAVIDROME_CANONICAL_MIGRATION_CHECKPOINT_KEY } from '@/lib/server/navidromeCanonicalCheckpointStatus';
-export const NAVIDROME_CANONICAL_BOOTSTRAP_LOCK_KEY =
-  'psysonic-navidrome-canonical-bootstrap-active-v1';
+export {
+  NAVIDROME_CANONICAL_BOOTSTRAP_LOCK_KEY,
+  NAVIDROME_CANONICAL_MIGRATION_CHECKPOINT_KEY,
+} from '@/lib/server/navidromeCanonicalCheckpointStatus';
 
 const CHECKPOINT_PHASES = [
   'legacy',

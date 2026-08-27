@@ -100,6 +100,7 @@ pub async fn library_migration_begin(
                 },
             )
             .await?;
+            crate::cli::clear_identity_cli_exchange_files();
             cover_hold_for_activation.store(true, Ordering::Release);
             crate::cover_cache::quiesce_for_migration(
                 app_for_activation,
@@ -175,6 +176,33 @@ pub async fn library_migration_release(
     }
     crate::cover_cache::release_migration_hold(&app);
     Ok(())
+}
+
+#[tauri::command]
+pub fn library_migration_write_device_manifest(
+    runtime: State<'_, psysonic_library::LibraryRuntime>,
+    generation: u64,
+    server_id: String,
+    dest_dir: String,
+    sources: serde_json::Value,
+) -> Result<bool, String> {
+    let server_id = server_id.trim();
+    runtime.ensure_migration_phase(
+        generation,
+        server_id,
+        psysonic_library::runtime::MigrationPhase::Frontend,
+    )?;
+    let target = std::path::Path::new(&dest_dir);
+    if !target.exists() || !psysonic_syncfs::sync::device::is_path_on_mounted_volume(target) {
+        return Ok(false);
+    }
+    psysonic_syncfs::sync::device::write_device_manifest_for_migration(
+        dest_dir,
+        server_id.to_string(),
+        sources,
+        Some(1),
+    )?;
+    Ok(true)
 }
 
 #[tauri::command]

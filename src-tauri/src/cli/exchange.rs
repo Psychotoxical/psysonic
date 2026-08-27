@@ -62,9 +62,22 @@ pub fn cli_benchmark_response_path() -> PathBuf {
     std::env::temp_dir().join("psysonic-cli-benchmark.json")
 }
 
+/** Remove identity-bearing snapshots/responses before an ID namespace migration. */
+pub fn clear_identity_cli_exchange_files() {
+    for path in [
+        cli_snapshot_path(),
+        cli_library_response_path(),
+        cli_search_response_path(),
+        cli_benchmark_response_path(),
+    ] {
+        let _ = std::fs::remove_file(path);
+    }
+}
+
 // ─── Snapshot writer ─────────────────────────────────────────────────────────
 
 pub fn write_cli_snapshot(payload: &Value) -> Result<(), String> {
+    let _filesystem_write_guard = psysonic_syncfs::filesystem_write_guard_now()?;
     let path = cli_snapshot_path();
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
@@ -111,6 +124,7 @@ pub(super) fn print_library_cli_stdout(text: &str, json_out: bool) {
 }
 
 pub fn write_library_cli_response(payload: &Value) -> Result<(), String> {
+    let _filesystem_write_guard = psysonic_syncfs::filesystem_write_guard_now()?;
     let path = cli_library_response_path();
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
@@ -135,6 +149,7 @@ pub fn write_server_list_cli_response(payload: &Value) -> Result<(), String> {
 }
 
 pub fn write_search_cli_response(payload: &Value) -> Result<(), String> {
+    let _filesystem_write_guard = psysonic_syncfs::filesystem_write_guard_now()?;
     let path = cli_search_response_path();
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
@@ -215,6 +230,7 @@ pub(super) fn print_search_cli_stdout(text: &str, json_out: bool) {
 }
 
 pub fn write_benchmark_cli_response(payload: &Value) -> Result<(), String> {
+    let _filesystem_write_guard = psysonic_syncfs::filesystem_write_guard_now()?;
     let path = cli_benchmark_response_path();
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;

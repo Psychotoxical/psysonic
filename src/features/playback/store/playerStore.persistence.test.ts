@@ -76,6 +76,7 @@ import { usePlayerStore } from '@/features/playback/store/playerStore';
 import { emitTauriEvent, onInvoke } from '@/test/mocks/tauri';
 import { resetPlayerStore, resetAuthStore } from '@/test/helpers/storeReset';
 import { makeTrack, makeTracks, seedQueue } from '@/test/helpers/factories';
+import { NAVIDROME_CANONICAL_BOOTSTRAP_LOCK_KEY } from '@/lib/server/navidromeCanonicalCheckpointStatus';
 
 function stubInvokes(): void {
   onInvoke('audio_play', () => undefined);
@@ -106,6 +107,21 @@ afterEach(() => {
   cleanupListeners = null;
   vi.runOnlyPendingTimers();
   vi.useRealTimers();
+  localStorage.removeItem(NAVIDROME_CANONICAL_BOOTSTRAP_LOCK_KEY);
+});
+
+describe('canonical migration persistence fence', () => {
+  it('blocks player-store writes while the bootstrap lock is active', async () => {
+    const storage = (usePlayerStore as unknown as {
+      persist: { getOptions(): { storage: { setItem: (name: string, value: unknown) => Promise<void> | void } } };
+    }).persist.getOptions().storage;
+    localStorage.removeItem('psysonic-player');
+    localStorage.setItem(NAVIDROME_CANONICAL_BOOTSTRAP_LOCK_KEY, '1');
+
+    await storage.setItem('psysonic-player', { state: { currentTrack: { id: 'legacy' } }, version: 0 });
+
+    expect(localStorage.getItem('psysonic-player')).toBeNull();
+  });
 });
 
 describe('flushPlayQueuePosition', () => {

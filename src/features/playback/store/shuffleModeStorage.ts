@@ -1,3 +1,5 @@
+import { navidromeCanonicalBootstrapIsActive } from '@/lib/server/navidromeCanonicalCheckpointStatus';
+
 /**
  * Persisted shuffle-mode state.
  *
@@ -43,6 +45,7 @@ export function readShuffleModeSnapshot(): ShuffleModeSnapshot {
 
 export function persistShuffleModeSnapshot(snapshot: ShuffleModeSnapshot): void {
   if (typeof window === 'undefined') return;
+  if (navidromeCanonicalBootstrapIsActive()) return;
   try {
     if (!snapshot.enabled) {
       window.localStorage.removeItem(STORAGE_KEY);

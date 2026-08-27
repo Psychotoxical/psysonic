@@ -2,7 +2,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import type { MigrationBeginResultDto } from '@/generated/bindings';
 import { serverAddressEndpoints } from '@/lib/server/serverAddress';
-import { profileProbeFingerprint } from '@/lib/server/serverEndpoint';
+import { profileProbeFingerprint } from '@/lib/server/serverProbeFingerprint';
 import {
   serverHttpContextWireForProbe,
   serverHttpContextWireForProfile,
@@ -96,6 +96,14 @@ type SyncIdle = {
   error?: string | null;
 };
 
+type DeviceSyncManifestSource = {
+  type: 'album' | 'playlist' | 'artist';
+  id: string;
+  name: string;
+  serverIndexKey: string;
+  artist?: string;
+};
+
 export type NavidromeCanonicalMigrationProgress = {
   serverId: string | null;
   phase: NavidromeCanonicalMigrationPhase | 'probing' | 'idle';
@@ -138,6 +146,26 @@ function clearBootstrapLock(storage: Storage): void {
   storage.removeItem(NAVIDROME_CANONICAL_BOOTSTRAP_LOCK_KEY);
   if (storage.getItem(NAVIDROME_CANONICAL_BOOTSTRAP_LOCK_KEY) !== null) {
     throw new Error('Could not clear canonical migration bootstrap lock');
+  }
+}
+
+function setRuntimeBootstrapLock(storage: Storage, serverId: string): string {
+  if (storage.getItem(NAVIDROME_CANONICAL_BOOTSTRAP_LOCK_KEY) !== null) {
+    throw new Error('Canonical migration bootstrap lock is already active');
+  }
+  const token = `runtime:${encodeURIComponent(serverId)}:${crypto.randomUUID()}`;
+  storage.setItem(NAVIDROME_CANONICAL_BOOTSTRAP_LOCK_KEY, token);
+  if (storage.getItem(NAVIDROME_CANONICAL_BOOTSTRAP_LOCK_KEY) !== token) {
+    throw new Error('Could not acquire canonical migration runtime bootstrap lock');
+  }
+  return token;
+}
+
+function clearRuntimeBootstrapLock(storage: Storage, token: string): void {
+  if (storage.getItem(NAVIDROME_CANONICAL_BOOTSTRAP_LOCK_KEY) !== token) return;
+  storage.removeItem(NAVIDROME_CANONICAL_BOOTSTRAP_LOCK_KEY);
+  if (storage.getItem(NAVIDROME_CANONICAL_BOOTSTRAP_LOCK_KEY) === token) {
+    throw new Error('Could not clear canonical migration runtime bootstrap lock');
   }
 }
 
@@ -515,8 +543,59 @@ async function beginMigrationAdmission(serverIds: string[]): Promise<MigrationBe
   return invoke<MigrationBeginResultDto>('library_migration_begin', { serverIds });
 }
 
+async function beginRuntimeMigrationAdmission(
+  storage: Storage,
+  serverIds: string[],
+  lockToken: string,
+): Promise<MigrationBeginResultDto> {
+  try {
+    return await beginMigrationAdmission(serverIds);
+  } catch (error) {
+    const backend = await inspectBackend().catch(() => null);
+    if (backend?.state === 'inactive') clearRuntimeBootstrapLock(storage, lockToken);
+    throw error;
+  }
+}
+
 async function discardCommittedImportBackups(): Promise<void> {
   await commitImportedBackupRecovery();
+}
+
+function mountedDeviceSyncManifest(
+  storage: Storage,
+  serverId: string,
+): { destDir: string; sources: DeviceSyncManifestSource[] } | null {
+  const raw = storage.getItem('psysonic_device_sync');
+  if (!raw) return null;
+  const root = JSON.parse(raw) as { state?: { targetDir?: unknown; sources?: unknown } };
+  const targetDir = root.state?.targetDir;
+  const rawSources = root.state?.sources;
+  if (typeof targetDir !== 'string' || !targetDir || !Array.isArray(rawSources)) return null;
+  const sources = rawSources.filter((value): value is DeviceSyncManifestSource => {
+    if (!value || typeof value !== 'object') return false;
+    const source = value as Partial<DeviceSyncManifestSource>;
+    return (source.type === 'album' || source.type === 'playlist' || source.type === 'artist')
+      && typeof source.id === 'string'
+      && typeof source.name === 'string'
+      && source.serverIndexKey === serverId;
+  });
+  if (sources.length !== rawSources.length || sources.length === 0) return null;
+  return { destDir: targetDir, sources };
+}
+
+async function rewriteMountedDeviceSyncManifest(args: {
+  generation: number;
+  serverId: string;
+  storage: Storage;
+}): Promise<void> {
+  const manifest = mountedDeviceSyncManifest(args.storage, args.serverId);
+  if (!manifest) return;
+  await invoke<boolean>('library_migration_write_device_manifest', {
+    generation: args.generation,
+    serverId: args.serverId,
+    destDir: manifest.destDir,
+    sources: manifest.sources,
+  });
 }
 
 async function verifyCanonicalInventory(args: {
@@ -558,6 +637,7 @@ async function observeNavidromeCanonicalSuccessfulPingNow(args: {
   ping: SuccessfulPingIdentity;
   storage?: Storage;
   isCurrent?: () => boolean;
+  beforeAdmission?: () => void | Promise<void>;
 }): Promise<boolean> {
   const storage = args.storage ?? localStorage;
   const admissionIsCurrent = () => {
@@ -574,6 +654,7 @@ async function observeNavidromeCanonicalSuccessfulPingNow(args: {
   const finishStaleAdmission = async (
     admission: MigrationBeginResultDto,
     serverId: string,
+    lockToken: string,
     blocked = false,
   ): Promise<never> => {
     const serverAdmission = admission.servers.find(server => server.serverId === serverId);
@@ -597,7 +678,8 @@ async function observeNavidromeCanonicalSuccessfulPingNow(args: {
       });
     }
     if (admission.created) {
-      await invoke('library_migration_release', { generation: admission.generation }).catch(() => {});
+      await invoke('library_migration_release', { generation: admission.generation });
+      clearRuntimeBootstrapLock(storage, lockToken);
     }
     throw staleAdmissionError();
   };
@@ -615,11 +697,12 @@ async function observeNavidromeCanonicalSuccessfulPingNow(args: {
   if (classification !== 'canonical') {
     if (checkpointHasCanonicalNamespace(saved)) {
       const message = `Navidrome canonical ID namespace for ${serverId} cannot be downgraded after ${saved?.checkedVersion}`;
-      const admission = await beginMigrationAdmission([serverId]);
-      if (!admissionIsCurrent()) return finishStaleAdmission(admission, serverId);
+      const lockToken = setRuntimeBootstrapLock(storage, serverId);
+      await args.beforeAdmission?.();
+      const admission = await beginRuntimeMigrationAdmission(storage, [serverId], lockToken);
+      if (!admissionIsCurrent()) return finishStaleAdmission(admission, serverId, lockToken);
       await invoke('library_migration_abort', { generation: admission.generation, serverId, error: message });
-      if (!admissionIsCurrent()) return finishStaleAdmission(admission, serverId, true);
-      setBootstrapLock(storage);
+      if (!admissionIsCurrent()) return finishStaleAdmission(admission, serverId, lockToken, true);
       write.set(serverId, sourceVersion, {
         phase: 'blocked',
         checkedVersion: saved?.checkedVersion ?? null,
@@ -651,9 +734,10 @@ async function observeNavidromeCanonicalSuccessfulPingNow(args: {
 
   if (saved?.phase === 'ready' && saved.checkedVersion === sourceVersion) return false;
 
-  const admission = await beginMigrationAdmission([serverId]);
-  if (!admissionIsCurrent()) return finishStaleAdmission(admission, serverId);
-  setBootstrapLock(storage);
+  const lockToken = setRuntimeBootstrapLock(storage, serverId);
+  await args.beforeAdmission?.();
+  const admission = await beginRuntimeMigrationAdmission(storage, [serverId], lockToken);
+  if (!admissionIsCurrent()) return finishStaleAdmission(admission, serverId, lockToken);
   write.set(serverId, sourceVersion, {
     phase: 'pending',
     checkedVersion: saved?.checkedVersion ?? null,
@@ -672,6 +756,7 @@ export function observeNavidromeCanonicalSuccessfulPing(args: {
   ping: SuccessfulPingIdentity;
   storage?: Storage;
   isCurrent?: () => boolean;
+  beforeAdmission?: () => void | Promise<void>;
 }): Promise<boolean> {
   const observation = runtimeObservationQueue.then(
     () => observeNavidromeCanonicalSuccessfulPingNow(args),
@@ -913,6 +998,7 @@ export async function runNavidromeCanonicalMigrationCoordinator(
         progress('frontend', 'raw-persistence');
         rewriteNavidromeCanonicalFrontendState(scope, storage);
         rewriteNavidromeCanonicalHistoryForScope(scope, storage);
+        await rewriteMountedDeviceSyncManifest({ generation, serverId, storage });
       }
 
       if (phase !== 'sync' && !write.get(serverId)?.syncCompletedAt) {

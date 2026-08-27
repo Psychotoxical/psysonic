@@ -385,7 +385,7 @@ export const commands = {
 	 *  playlist is self-contained — moving/copying the folder anywhere keeps it
 	 *  working. Tracks are expected to be in playlist order (index starts at 1).
 	 */
-	writePlaylistM3u8: (destDir: string, playlistName: string, tracks: TrackSyncInfo[]) => typedError<null, string>(__TAURI_INVOKE("write_playlist_m3u8", { destDir, playlistName, tracks })),
+	writePlaylistM3u8: (destDir: string, playlistName: string, playlistId: string | null, tracks: TrackSyncInfo[]) => typedError<null, string>(__TAURI_INVOKE("write_playlist_m3u8", { destDir, playlistName, playlistId, tracks })),
 	/**
 	 *  Atomically renames files on the device from their old path to the new fixed-
 	 *  schema path. Intended for the migration flow when switching away from the
@@ -1768,6 +1768,8 @@ export type TrackSyncInfo = {
 	 *  on the device — once in the album tree, once in the playlist folder.
 	 */
 	playlistName?: string | null,
+	/**  Stable source identity used to disambiguate playlists with the same display name. */
+	playlistId?: string | null,
 	playlistIndex?: number | null,
 };
 

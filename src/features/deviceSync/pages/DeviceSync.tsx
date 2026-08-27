@@ -32,6 +32,7 @@ import DeviceSyncPreSyncModal from '@/features/deviceSync/components/DeviceSyncP
 import DeviceSyncMigrationModal from '@/features/deviceSync/components/DeviceSyncMigrationModal';
 import DeviceSyncBrowserPanel from '@/features/deviceSync/components/DeviceSyncBrowserPanel';
 import DeviceSyncDevicePanel from '@/features/deviceSync/components/DeviceSyncDevicePanel';
+import DeviceSyncLegacyRecovery from '@/features/deviceSync/components/DeviceSyncLegacyRecovery';
 
 // ─── component ───────────────────────────────────────────────────────────────
 
@@ -99,7 +100,6 @@ export default function DeviceSync() {
     targetDir,
     sources.length,
     driveDetected,
-    browserServerIndexKey,
     t,
   );
 
@@ -164,7 +164,6 @@ export default function DeviceSync() {
 
   const handleChooseFolder = () => runDeviceSyncChooseFolder({
     t,
-    ownerServerIndexKey: browserServerIndexKey,
     setTargetDir,
     scanDevice,
   });
@@ -225,6 +224,8 @@ export default function DeviceSync() {
         handleChooseFolder={handleChooseFolder}
         startMigrationPreview={startMigrationPreview}
       />
+
+      <DeviceSyncLegacyRecovery />
 
       {/* ── Main ── */}
       <div className="device-sync-main">

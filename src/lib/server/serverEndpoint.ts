@@ -10,6 +10,7 @@ import {
   serverAddressEndpoints,
   type ServerEndpoint,
 } from '@/lib/server/serverAddress';
+import { profileProbeFingerprint } from '@/lib/server/serverProbeFingerprint';
 
 export {
   allNormalizedAddresses,
@@ -19,6 +20,7 @@ export {
   type ServerEndpoint,
   type ServerEndpointKind,
 } from '@/lib/server/serverAddress';
+export { profileProbeFingerprint } from '@/lib/server/serverProbeFingerprint';
 
 export type PickReachableResult =
   | {
@@ -107,16 +109,6 @@ interface ConnectCacheEntry {
 const connectCache = new Map<string, ConnectCacheEntry>();
 const currentProbeTokenByProfile = new Map<string, ProbeToken>();
 
-export function profileProbeFingerprint(profile: ServerProfile): string {
-  return JSON.stringify([
-    ...allNormalizedAddresses(profile),
-    profile.username,
-    profile.password,
-    profile.customHeaders ?? [],
-    profile.customHeadersApplyTo ?? '',
-  ]);
-}
-
 function currentProbeToken(profile: ServerProfile): ProbeToken {
   const fingerprint = profileProbeFingerprint(profile);
   const current = currentProbeTokenByProfile.get(profile.id);
@@ -173,6 +165,8 @@ const inFlightProbes = new Map<string, {
 }>();
 const inFlightAdmissions = new Map<string, {
   token: ProbeToken;
+  fingerprint: string;
+  superseded: boolean;
   promise: Promise<void>;
 }>();
 
@@ -359,18 +353,41 @@ async function observeSuccessfulProbe(
   result: SuccessfulPickReachableResult,
 ): Promise<void> {
   if (!successfulPingObserver || !probeIsCurrent(profile.id, token)) return;
+  const fingerprint = JSON.stringify([
+    result.baseUrl,
+    result.ping.type ?? null,
+    result.ping.serverVersion ?? null,
+    result.ping.openSubsonic ?? null,
+  ]);
   const existing = inFlightAdmissions.get(profile.id);
-  if (existing?.token === token) return existing.promise;
+  if (existing?.token === token && existing.fingerprint === fingerprint) {
+    await existing.promise;
+    if (existing.superseded) {
+      throw new Error(`Successful ping admission was superseded for ${profile.id}`);
+    }
+    return;
+  }
+  if (existing?.token === token) existing.superseded = true;
+  const previous = existing?.token === token
+    ? existing.promise.catch(() => undefined)
+    : Promise.resolve();
   const promise = (async () => {
+    await previous;
+    if (!probeIsCurrent(profile.id, token)) {
+      throw new Error(`Successful ping admission became stale for ${profile.id}`);
+    }
     await successfulPingObserver?.(profile, result, () => probeIsCurrent(profile.id, token));
     if (!probeIsCurrent(profile.id, token)) {
       throw new Error(`Successful ping admission became stale for ${profile.id}`);
     }
   })();
-  const flight = { token, promise };
+  const flight = { token, fingerprint, superseded: false, promise };
   inFlightAdmissions.set(profile.id, flight);
   try {
     await promise;
+    if (flight.superseded) {
+      throw new Error(`Successful ping admission was superseded for ${profile.id}`);
+    }
   } catch (error) {
     if (probeIsCurrent(profile.id, token)) {
       if (connectCache.delete(profile.id)) notifyConnectCacheChanged();
@@ -400,6 +417,28 @@ export async function ensureConnectUrlResolved(
   const token = currentProbeToken(profile);
   const result = await pickReachableBaseUrlRaw(profile);
   if (!result.ok) return result;
+  await observeSuccessfulProbe(profile, token, result);
+  publishSuccessfulProbe(profile, token, result);
+  return result;
+}
+
+/** Admit and publish a successful explicit-credential ping through the app gate. */
+export async function admitSuccessfulPingForProfile(
+  profile: ServerProfile,
+  baseUrl: string,
+  ping: PingWithCredentialsResult,
+): Promise<SuccessfulPickReachableResult> {
+  if (!ping.ok) throw new Error(`Cannot admit an unsuccessful ping for ${profile.id}`);
+  const normalizedBaseUrl = normalizeServerBaseUrl(baseUrl);
+  const endpoint = serverAddressEndpoints(profile).find(candidate => candidate.url === normalizedBaseUrl);
+  if (!endpoint) throw new Error(`Successful ping endpoint is not configured for ${profile.id}`);
+  const token = currentProbeToken(profile);
+  const result: SuccessfulPickReachableResult = {
+    ok: true,
+    baseUrl: normalizedBaseUrl,
+    endpoint,
+    ping,
+  };
   await observeSuccessfulProbe(profile, token, result);
   publishSuccessfulProbe(profile, token, result);
   return result;

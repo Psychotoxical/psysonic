@@ -20,7 +20,9 @@ pub use filesystem::prune_empty_parents;
 use filesystem::{delete_device_file_impl, delete_device_files_impl, list_device_dir_files_impl};
 use payload::calculate_sync_payload_impl;
 #[cfg(test)]
-use payload::{device_sync_source_key, validate_device_sync_source_owners};
+use payload::{
+    device_sync_source_key, playlist_collision_source_keys, validate_device_sync_source_owners,
+};
 
 #[tauri::command]
 #[specta::specta]
@@ -61,6 +63,8 @@ pub struct DeviceSyncSourcePayload {
     /// computing the playlist-folder path on the device.
     #[serde(default)]
     name: Option<String>,
+    #[serde(default)]
+    path_id: Option<String>,
     server_index_key: String,
 }
 
@@ -114,13 +118,14 @@ pub(crate) fn estimate_track_size_bytes(track: &serde_json::Value) -> u64 {
 }
 
 /// Build a [`TrackSyncInfo`] from a Subsonic song JSON object. Optional
-/// playlist context attaches `playlist_name` + `playlist_index` so playlist
+/// playlist context attaches playlist identity + position so playlist
 /// tracks land under the `Playlists/<name>/` tree on the device. The
 /// `albumArtist` field falls back to `artist` when missing or whitespace-only.
 pub(crate) fn track_sync_info_from_subsonic_json(
     track: &serde_json::Value,
     track_id: &str,
     playlist_name: Option<&str>,
+    playlist_id: Option<&str>,
     playlist_index: Option<u32>,
 ) -> TrackSyncInfo {
     let suffix = track
@@ -158,16 +163,18 @@ pub(crate) fn track_sync_info_from_subsonic_json(
             .and_then(|v| v.as_u64())
             .map(|n| n as u32),
         playlist_name: playlist_name.map(|s| s.to_string()),
+        playlist_id: playlist_id.map(|s| s.to_string()),
         playlist_index,
     }
 }
 
-/// Attach `_playlistName` / `_playlistIndex` keys to a Subsonic-track JSON so
+/// Attach playlist context keys to a Subsonic-track JSON so
 /// the frontend can re-send the track to `sync_batch_to_device` without
 /// re-deriving the playlist context. No-op when both args are `None`.
 pub(crate) fn inject_playlist_context(
     track: &mut serde_json::Value,
     playlist_name: Option<&str>,
+    playlist_id: Option<&str>,
     playlist_index: Option<u32>,
 ) {
     if let Some(obj) = track.as_object_mut() {
@@ -175,6 +182,12 @@ pub(crate) fn inject_playlist_context(
             obj.insert(
                 "_playlistName".to_string(),
                 serde_json::Value::String(name.to_string()),
+            );
+        }
+        if let Some(id) = playlist_id {
+            obj.insert(
+                "_playlistId".to_string(),
+                serde_json::Value::String(id.to_string()),
             );
         }
         if let Some(idx) = playlist_index {

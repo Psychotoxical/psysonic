@@ -2,21 +2,22 @@ import { invoke } from '@tauri-apps/api/core';
 import { open as openDialog } from '@tauri-apps/plugin-dialog';
 import type { TFunction } from 'i18next';
 import {
-  deviceSyncSourcesFromManifest,
+  deviceSyncManifestImport,
+  deviceSyncLegacySourcesFromManifest,
   useDeviceSyncStore,
   type DeviceSyncManifest,
 } from '@/features/deviceSync/store/deviceSyncStore';
 import { showToast } from '@/lib/dom/toast';
+import { writeDeviceSyncManifest } from '@/features/deviceSync/utils/deviceSyncManifest';
 
 export interface RunDeviceSyncChooseFolderDeps {
   t: TFunction;
-  ownerServerIndexKey: string | null;
   setTargetDir: (dir: string) => void;
   scanDevice: () => Promise<void>;
 }
 
 export async function runDeviceSyncChooseFolder(deps: RunDeviceSyncChooseFolderDeps): Promise<void> {
-  const { t, ownerServerIndexKey, setTargetDir, scanDevice } = deps;
+  const { t, setTargetDir, scanDevice } = deps;
   const sel = await openDialog({ directory: true, multiple: false, title: t('deviceSync.chooseFolder') });
   if (!sel) return;
 
@@ -29,11 +30,21 @@ export async function runDeviceSyncChooseFolder(deps: RunDeviceSyncChooseFolderD
       'read_device_manifest', { destDir: dir }
     );
     if (useDeviceSyncStore.getState().targetDir !== dir) return;
-    const manifestSources = deviceSyncSourcesFromManifest(manifest, ownerServerIndexKey);
-    if (manifestSources.length > 0) {
+    const legacySources = deviceSyncLegacySourcesFromManifest(manifest);
+    if (legacySources.length > 0) {
+      useDeviceSyncStore.getState().quarantineLegacySources(dir, legacySources);
+    }
+    const manifestImport = deviceSyncManifestImport(manifest);
+    if (manifestImport) {
+      await writeDeviceSyncManifest({
+        destDir: dir,
+        ownerServerIndexKey: manifestImport.ownerServerIndexKey,
+        sources: manifestImport.sources,
+      });
+      if (useDeviceSyncStore.getState().targetDir !== dir) return;
       useDeviceSyncStore.getState().clearSources();
-      manifestSources.forEach(s => useDeviceSyncStore.getState().addSource(s));
-      showToast(t('deviceSync.manifestImported', { count: manifestSources.length }), 4000, 'info');
+      manifestImport.sources.forEach(s => useDeviceSyncStore.getState().addSource(s));
+      showToast(t('deviceSync.manifestImported', { count: manifestImport.sources.length }), 4000, 'info');
     }
   } catch { /* no manifest, that's fine */ }
   // Trigger a device scan after folder change

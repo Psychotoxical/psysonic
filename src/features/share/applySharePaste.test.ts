@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { TFunction } from 'i18next';
+import { canonicalNavidromeId } from '@/lib/server/navidromeCanonicalId';
+import { NAVIDROME_CANONICAL_MIGRATION_CHECKPOINT_KEY } from '@/lib/server/navidromeCanonicalCheckpointStatus';
 
 const mocks = vi.hoisted(() => ({
   authState: {
@@ -95,6 +97,7 @@ const sharedSong = {
 describe('share paste resolution', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    localStorage.clear();
     mocks.authState.current = {
       servers: [activeServer, sharedServer],
       isLoggedIn: true,
@@ -187,5 +190,26 @@ describe('share paste resolution', () => {
 
     expect(mocks.authState.current.setActiveServer).not.toHaveBeenCalled();
     expect(mocks.playTrack).not.toHaveBeenCalled();
+  });
+
+  it('canonicalizes an old clipboard ID for a ready Navidrome owner', async () => {
+    const legacyId = '550e8400-e29b-41d4-a716-446655440000';
+    localStorage.setItem('psysonic-auth', JSON.stringify({
+      state: { servers: [activeServer, sharedServer] },
+    }));
+    localStorage.setItem(NAVIDROME_CANONICAL_MIGRATION_CHECKPOINT_KEY, JSON.stringify({
+      version: 1,
+      servers: {
+        'shared.example.com': { canonicalVersion: 1, phase: 'ready', checkedVersion: '0.64.0' },
+      },
+    }));
+
+    await applySharePastePayload(
+      { srv: sharedServer.url, k: 'track', id: legacyId },
+      vi.fn(),
+      t,
+    );
+
+    expect(mocks.getSongForServer).toHaveBeenCalledWith('shared', canonicalNavidromeId(legacyId));
   });
 });

@@ -130,6 +130,29 @@ pub async fn filesystem_write_guard() -> Result<tokio::sync::OwnedRwLockReadGuar
     Ok(guard)
 }
 
+pub fn filesystem_write_guard_now() -> Result<tokio::sync::OwnedRwLockReadGuard<()>, String> {
+    let barrier = filesystem_write_barrier();
+    let active = barrier.active_generation.load(Ordering::Acquire);
+    if active != 0 {
+        return Err(format!(
+            "migration generation {active} blocks ordinary filesystem writes"
+        ));
+    }
+    let guard = barrier
+        .lock
+        .clone()
+        .try_read_owned()
+        .map_err(|_| "filesystem migration blocks ordinary filesystem writes".to_string())?;
+    let active = barrier.active_generation.load(Ordering::Acquire);
+    if active != 0 {
+        drop(guard);
+        return Err(format!(
+            "migration generation {active} blocks ordinary filesystem writes"
+        ));
+    }
+    Ok(guard)
+}
+
 pub async fn activate_filesystem_migration_generation(generation: u64) -> Result<(), String> {
     filesystem_write_barrier().activate(generation).await
 }

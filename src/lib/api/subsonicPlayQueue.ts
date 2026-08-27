@@ -1,19 +1,69 @@
 import { api, apiForServer, apiPostFormForServer, isHttp414, serverSupportsFormPost } from '@/lib/api/subsonicClient';
 import type { SubsonicSong } from '@/lib/api/subsonicTypes';
+import {
+  navidromeCanonicalBootstrapBlocksServer,
+  navidromeCanonicalBootstrapIsActive,
+} from '@/lib/server/navidromeCanonicalCheckpointStatus';
+import {
+  activeServerIdForExternalIngress,
+  normalizeNavidromeExternalArtworkId,
+  normalizeNavidromeExternalId,
+} from '@/lib/server/navidromeCanonicalExternalId';
+import { resolveStorageServerIndexKey } from '@/lib/server/serverIndexKey';
 
 export type PlayQueueResult = { current?: string; position?: number; songs: SubsonicSong[] };
 
 function parsePlayQueueResponse(
   data: { playQueue?: { current?: string; position?: number; entry?: SubsonicSong[] } },
+  serverId?: string,
 ): PlayQueueResult {
   const pq = data.playQueue;
-  return { current: pq?.current, position: pq?.position, songs: pq?.entry ?? [] };
+  if (!serverId) return { current: pq?.current, position: pq?.position, songs: pq?.entry ?? [] };
+  const normalizeId = (id: string) => normalizeNavidromeExternalId(serverId, id);
+  const songs = (pq?.entry ?? []).map(song => ({
+    ...song,
+    id: normalizeId(song.id),
+    albumId: normalizeId(song.albumId),
+    ...(song.artistId ? { artistId: normalizeId(song.artistId) } : {}),
+    ...(song.coverArt
+      ? { coverArt: normalizeNavidromeExternalArtworkId(serverId, song.coverArt) }
+      : {}),
+    ...(song.artists
+      ? {
+          artists: song.artists.map(artist => (
+            artist.id ? { ...artist, id: normalizeId(artist.id) } : artist
+          )),
+        }
+      : {}),
+    ...(song.albumArtists
+      ? {
+          albumArtists: song.albumArtists.map(artist => (
+            artist.id ? { ...artist, id: normalizeId(artist.id) } : artist
+          )),
+        }
+      : {}),
+    ...(song.contributors
+      ? {
+          contributors: song.contributors.map(contributor => ({
+            ...contributor,
+            artist: contributor.artist.id
+              ? { ...contributor.artist, id: normalizeId(contributor.artist.id) }
+              : contributor.artist,
+          })),
+        }
+      : {}),
+  }));
+  return {
+    current: pq?.current ? normalizeId(pq.current) : undefined,
+    position: pq?.position,
+    songs,
+  };
 }
 
 export async function getPlayQueue(): Promise<PlayQueueResult> {
   try {
     const data = await api<{ playQueue: { current?: string; position?: number; entry?: SubsonicSong[] } }>('getPlayQueue.view');
-    return parsePlayQueueResponse(data);
+    return parsePlayQueueResponse(data, activeServerIdForExternalIngress() ?? undefined);
   } catch {
     return { songs: [] };
   }
@@ -35,7 +85,7 @@ export async function fetchPlayQueueForServer(serverId: string): Promise<PlayQue
     serverId,
     'getPlayQueue.view',
   );
-  return parsePlayQueueResponse(data);
+  return parsePlayQueueResponse(data, serverId);
 }
 
 /**
@@ -50,6 +100,13 @@ export async function savePlayQueue(
   serverId: string,
 ): Promise<void> {
   if (!serverId) return;
+  const serverIndexKey = resolveStorageServerIndexKey(serverId);
+  if (
+    navidromeCanonicalBootstrapIsActive() &&
+    (!serverIndexKey || navidromeCanonicalBootstrapBlocksServer(serverIndexKey))
+  ) {
+    throw new Error('canonical_migration_active');
+  }
   const params: Record<string, unknown> = {};
   if (songIds.length > 0) params.id = songIds;
   if (current !== undefined) params.current = current;

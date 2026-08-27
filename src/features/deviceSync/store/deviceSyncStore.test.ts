@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
+  deviceSyncLegacySourcesFromManifest,
+  deviceSyncManifestImport,
   deviceSyncOwnerKey,
   deviceSyncSourceKey,
   deviceSyncSourcesFromManifest,
@@ -30,6 +32,7 @@ describe('deviceSyncStore ownership', () => {
       targetDir: null,
       sources: [],
       legacySources: [],
+      legacyTargetDir: null,
       checkedIds: [],
       pendingDeletion: [],
       deviceFilePaths: [],
@@ -56,6 +59,7 @@ describe('deviceSyncStore ownership', () => {
   it('imports only owner-qualified manifests with a matching manifest owner', () => {
     expect(deviceSyncSourcesFromManifest({
       version: 3,
+      schema: 'fixed-v1',
       ownerServerIndexKey: sourceA.serverIndexKey,
       sources: [sourceA],
     })).toEqual([sourceA]);
@@ -65,20 +69,54 @@ describe('deviceSyncStore ownership', () => {
       sources: [{ type: 'album', id: 'legacy', name: 'Legacy' }],
     })).toEqual([]);
 
-    expect(deviceSyncSourcesFromManifest({
+    const ownerlessManifest = {
       version: 2,
       sources: [{ type: 'album', id: 'legacy', name: 'Legacy' }],
-    }, sourceA.serverIndexKey)).toEqual([{
-      type: 'album',
-      id: 'legacy',
-      name: 'Legacy',
-      serverIndexKey: sourceA.serverIndexKey,
-    }]);
+    };
+    expect(deviceSyncSourcesFromManifest(ownerlessManifest)).toEqual([]);
+    expect(deviceSyncLegacySourcesFromManifest(ownerlessManifest)).toEqual([
+      { type: 'album', id: 'legacy', name: 'Legacy' },
+    ]);
 
     expect(deviceSyncSourcesFromManifest({
       version: 3,
+      schema: 'fixed-v1',
       ownerServerIndexKey: sourceB.serverIndexKey,
       sources: [sourceA],
+    })).toEqual([]);
+  });
+
+  it('recognizes an explicitly owned empty manifest', () => {
+    expect(deviceSyncManifestImport({
+      version: 3,
+      schema: 'fixed-v1',
+      ownerServerIndexKey: sourceA.serverIndexKey,
+      sources: [],
+    })).toEqual({ ownerServerIndexKey: sourceA.serverIndexKey, sources: [] });
+  });
+
+  it('rejects a non-empty owned manifest with malformed sources instead of clearing state', () => {
+    expect(deviceSyncManifestImport({
+      version: 3,
+      schema: 'fixed-v1',
+      ownerServerIndexKey: sourceA.serverIndexKey,
+      sources: [{ type: 'future-type', id: 'future', name: 'Future' }],
+    })).toBeNull();
+  });
+
+  it('rejects future and partially understood manifests without dropping entries', () => {
+    expect(deviceSyncManifestImport({
+      version: 4,
+      schema: 'fixed-v2',
+      ownerServerIndexKey: sourceA.serverIndexKey,
+      sources: [sourceA],
+    })).toBeNull();
+    expect(deviceSyncLegacySourcesFromManifest({
+      version: 2,
+      sources: [
+        { type: 'album', id: 'legacy', name: 'Legacy' },
+        { type: 'future-type', id: 'future', name: 'Future' },
+      ],
     })).toEqual([]);
   });
 
@@ -87,6 +125,7 @@ describe('deviceSyncStore ownership', () => {
     const migrated = migrateDeviceSyncPersistedState({ sources: [legacy] });
     expect(migrated.sources).toEqual([]);
     expect(migrated.legacySources).toEqual([legacy]);
+    expect(migrated.legacyTargetDir).toBeNull();
 
     useDeviceSyncStore.setState(migrated);
     useDeviceSyncStore.getState().addSource(sourceA);
@@ -96,6 +135,36 @@ describe('deviceSyncStore ownership', () => {
 
     useDeviceSyncStore.getState().clearSources();
     expect(useDeviceSyncStore.getState().legacySources).toEqual([legacy]);
+  });
+
+  it('keeps quarantined legacy sources scoped to their originating device', () => {
+    const sourceOne = { type: 'album' as const, id: 'one', name: 'One' };
+    const sourceTwo = { type: 'album' as const, id: 'two', name: 'Two' };
+
+    useDeviceSyncStore.getState().quarantineLegacySources('/device-a', [sourceOne]);
+    useDeviceSyncStore.getState().quarantineLegacySources('/device-b', [sourceTwo]);
+
+    expect(useDeviceSyncStore.getState().legacyTargetDir).toBe('/device-b');
+    expect(useDeviceSyncStore.getState().legacySources).toEqual([sourceTwo]);
+  });
+
+  it('clears active sources when a different device enters legacy recovery', () => {
+    const legacy = { type: 'album' as const, id: 'legacy', name: 'Legacy' };
+    useDeviceSyncStore.setState({
+      sources: [sourceA],
+      checkedIds: [deviceSyncSourceKey(sourceA)],
+      pendingDeletion: [deviceSyncSourceKey(sourceA)],
+    });
+
+    useDeviceSyncStore.getState().quarantineLegacySources('/device-b', [legacy]);
+
+    expect(useDeviceSyncStore.getState()).toMatchObject({
+      sources: [],
+      checkedIds: [],
+      pendingDeletion: [],
+      legacySources: [legacy],
+      legacyTargetDir: '/device-b',
+    });
   });
 
   it('canonicalizes old manifest source IDs when the owner checkpoint is ready', () => {
@@ -113,8 +182,9 @@ describe('deviceSyncStore ownership', () => {
 
     expect(deviceSyncSourcesFromManifest({
       version: 2,
+      ownerServerIndexKey: sourceA.serverIndexKey,
       sources: [{ type: 'album', id: legacyId, name: 'Legacy' }],
-    }, sourceA.serverIndexKey)).toEqual([{
+    })).toEqual([{
       type: 'album',
       id: canonicalNavidromeId(legacyId),
       name: 'Legacy',
@@ -136,7 +206,79 @@ describe('deviceSyncStore ownership', () => {
 
     expect(deviceSyncSourcesFromManifest({
       version: 2,
+      ownerServerIndexKey: sourceA.serverIndexKey,
       sources: [{ type: 'album', id: 'legacy', name: 'Legacy' }],
-    }, sourceA.serverIndexKey)).toEqual([]);
+    })).toEqual([]);
+  });
+
+  it('recovers ownerless sources only after explicit owner selection', () => {
+    const legacyId = '123e4567-e89b-12d3-a456-426614174000';
+    localStorage.setItem(NAVIDROME_CANONICAL_MIGRATION_CHECKPOINT_KEY, JSON.stringify({
+      version: 1,
+      servers: {
+        [sourceA.serverIndexKey]: {
+          canonicalVersion: 1,
+          phase: 'ready',
+          checkedVersion: '0.64.0',
+        },
+      },
+    }));
+    useDeviceSyncStore.getState().setLegacySources([
+      { type: 'album', id: legacyId, name: 'Legacy' },
+    ]);
+
+    expect(useDeviceSyncStore.getState().recoverLegacySources(sourceA.serverIndexKey)).toBe('recovered');
+    expect(useDeviceSyncStore.getState().legacySources).toEqual([]);
+    expect(useDeviceSyncStore.getState().sources).toEqual([{
+      type: 'album',
+      id: canonicalNavidromeId(legacyId),
+      name: 'Legacy',
+      serverIndexKey: sourceA.serverIndexKey,
+    }]);
+  });
+
+  it('persists playlist path discriminators during legacy recovery', () => {
+    useDeviceSyncStore.getState().setLegacySources([
+      { type: 'playlist', id: 'one', name: 'Road/Trip' },
+      { type: 'playlist', id: 'two', name: 'Road:Trip' },
+    ]);
+
+    expect(useDeviceSyncStore.getState().recoverLegacySources(sourceA.serverIndexKey)).toBe('recovered');
+    expect(useDeviceSyncStore.getState().sources).toEqual([
+      {
+        type: 'playlist',
+        id: 'one',
+        name: 'Road/Trip',
+        serverIndexKey: sourceA.serverIndexKey,
+        pathId: 'one',
+      },
+      {
+        type: 'playlist',
+        id: 'two',
+        name: 'Road:Trip',
+        serverIndexKey: sourceA.serverIndexKey,
+        pathId: 'two',
+      },
+    ]);
+  });
+
+  it('refuses recovery while the selected owner checkpoint is pending', () => {
+    localStorage.setItem(NAVIDROME_CANONICAL_MIGRATION_CHECKPOINT_KEY, JSON.stringify({
+      version: 1,
+      servers: {
+        [sourceA.serverIndexKey]: {
+          canonicalVersion: 1,
+          phase: 'frontend',
+          checkedVersion: null,
+        },
+      },
+    }));
+    useDeviceSyncStore.getState().setLegacySources([
+      { type: 'album', id: 'legacy', name: 'Legacy' },
+    ]);
+
+    expect(useDeviceSyncStore.getState().recoverLegacySources(sourceA.serverIndexKey)).toBe('pending');
+    expect(useDeviceSyncStore.getState().legacySources).toHaveLength(1);
+    expect(useDeviceSyncStore.getState().sources).toEqual([]);
   });
 });

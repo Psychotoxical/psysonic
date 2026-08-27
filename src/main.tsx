@@ -1,14 +1,13 @@
 import { StrictMode } from 'react';
-import ReactDOM from 'react-dom/client';
+import ReactDOM, { type Root } from 'react-dom/client';
 import i18n from '@/lib/i18n';
 import { getWindowKind } from './app/windowKind';
 import {
-  NAVIDROME_CANONICAL_BOOTSTRAP_LOCK_KEY,
   observeNavidromeCanonicalSuccessfulPing,
   runNavidromeCanonicalMigrationCoordinator,
   type NavidromeCanonicalMigrationProgress,
 } from './app/migrations/navidromeCanonicalCoordinator';
-import { installSuccessfulPingObserver } from '@/lib/server/serverEndpoint';
+import { installNavidromeCanonicalWindowGate } from './app/migrations/navidromeCanonicalWindowGate';
 import {
   installImportedBackupCoordinator,
 } from '@/features/settings/utils/backup';
@@ -31,6 +30,7 @@ import './styles/components/index.css';
 import './styles/tracks/index.css';
 
 const rootElement = document.getElementById('root')!;
+let applicationRoot: Root | null = null;
 
 function escapeHtml(value: string): string {
   return value.replace(/[&<>'"]/g, character => ({
@@ -76,8 +76,31 @@ function renderMigrationShell(
   }
 }
 
+function freezeApplication(): void {
+  applicationRoot?.unmount();
+  applicationRoot = null;
+  renderMigrationShell({
+    serverId: null,
+    phase: 'pending',
+    step: null,
+    completed: 0,
+    total: 0,
+  });
+}
+
 async function mountApplication(): Promise<void> {
   const windowKind = getWindowKind();
+  const windowGate = installNavidromeCanonicalWindowGate({
+    onLock: () => {
+      const hadMountedApplication = applicationRoot !== null;
+      freezeApplication();
+      if (hadMountedApplication) window.location.reload();
+    },
+    onUnlock: () => {
+      if (applicationRoot === null) window.location.reload();
+    },
+  });
+  if (windowKind === 'mini' && windowGate.engageIfActive()) return;
   renderMigrationShell({ serverId: null, phase: 'probing', step: null, completed: 0, total: 0 });
   installImportedBackupCoordinator({
     arm: () => armNavidromeCanonicalBackupImport(),
@@ -101,28 +124,43 @@ async function mountApplication(): Promise<void> {
   rewriteNavidromeCanonicalHistoryForReadyServers();
   installNavidromeCanonicalHistoryNormalizer();
 
+  const { installSuccessfulPingObserver } = await import('@/lib/server/serverEndpoint');
   installSuccessfulPingObserver(async (profile, successfulProbe, isCurrent) => {
-    const reloadRequired = await observeNavidromeCanonicalSuccessfulPing({
-      profile,
-      ping: successfulProbe.ping,
-      isCurrent,
-    });
+    let reloadRequired: boolean;
+    try {
+      reloadRequired = await observeNavidromeCanonicalSuccessfulPing({
+        profile,
+        ping: successfulProbe.ping,
+        isCurrent,
+        beforeAdmission: async () => {
+          freezeApplication();
+          const [{ useOfflineJobStore }, { waitForAllOfflineTransfers }] = await Promise.all([
+            import('@/features/offline/store/offlineJobStore'),
+            import('@/features/offline/utils/offlineOperationCoordinator'),
+          ]);
+          useOfflineJobStore.getState().cancelAllDownloads();
+          await waitForAllOfflineTransfers();
+        },
+      });
+    } catch (error) {
+      if (applicationRoot === null) renderMigrationShell(undefined, error);
+      throw error;
+    }
     if (!reloadRequired) return;
     window.location.reload();
     await new Promise<void>(() => {});
   });
-  window.addEventListener('storage', event => {
-    if (event.key === NAVIDROME_CANONICAL_BOOTSTRAP_LOCK_KEY && event.newValue === '1') {
-      window.location.reload();
-    }
-  });
+  if (windowGate.engageIfActive()) return;
 
   const [{ runPreReactBootstrap }, { default: App }] = await Promise.all([
     import('./app/bootstrap'),
     import('./App'),
   ]);
+  if (windowGate.engageIfActive()) return;
   runPreReactBootstrap();
-  ReactDOM.createRoot(rootElement).render(
+  if (windowGate.engageIfActive()) return;
+  applicationRoot = ReactDOM.createRoot(rootElement);
+  applicationRoot.render(
     <StrictMode>
       <App />
     </StrictMode>,

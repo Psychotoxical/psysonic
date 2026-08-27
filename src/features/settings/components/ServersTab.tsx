@@ -20,10 +20,12 @@ import {
 } from '@/lib/server/syncServerHttpContext';
 import { type ServerMagicPayload } from '@/lib/server/serverMagicString';
 import {
+  admitSuccessfulPingForProfile,
   ensureConnectUrlResolved,
   invalidateReachableEndpointCache,
   profileProbeFingerprint,
 } from '@/lib/server/serverEndpoint';
+import { navidromeCanonicalBootstrapIsActive } from '@/lib/server/navidromeCanonicalCheckpointStatus';
 import {
   verifySameServerEndpoints,
   type VerifySameServerResult,
@@ -244,6 +246,7 @@ export function ServersTab({
     // failure can point the user at what's wrong (bad credentials, gate header,
     // unreachable) instead of silently closing with a tiny status dot.
     const tempId = '_new';
+    let addedId: string | null = null;
     setConnStatus(s => ({ ...s, [tempId]: 'testing' }));
     try {
       // Dual-address: confirm both addresses point at the same server
@@ -268,6 +271,10 @@ export function ServersTab({
       const ping = await pingWithCredentialsForProfile(data, data.url);
       if (ping.ok) {
         const id = auth.addServer(data);
+        addedId = id;
+        const added = useAuthStore.getState().servers.find(server => server.id === id);
+        if (!added) throw new Error('Added server profile was not persisted');
+        await admitSuccessfulPingForProfile(added, data.url, ping);
         const identity = {
           type: ping.type,
           serverVersion: ping.serverVersion,
@@ -281,11 +288,8 @@ export function ServersTab({
           useAuthStore.getState().activeServerId === id,
         );
         setConnStatus(s => ({ ...s, [id]: 'ok' }));
-        const added = useAuthStore.getState().servers.find(s => s.id === id);
-        if (added) {
-          void syncServerHttpContextForProfile(added);
-          void bootstrapIndexedServer(added);
-        }
+        void syncServerHttpContextForProfile(added);
+        void bootstrapIndexedServer(added);
         // Success only: close the form and clear any pasted invite.
         setShowAddForm(false);
         setPastedServerInvite(null);
@@ -300,6 +304,9 @@ export function ServersTab({
         );
       }
     } catch (err) {
+      // An active migration still needs the just-added profile to resolve its
+      // durable owner after reload. Roll back only pre-admission failures.
+      if (addedId && !navidromeCanonicalBootstrapIsActive()) auth.removeServer(addedId);
       setConnStatus(s => ({ ...s, [tempId]: 'error' }));
       showToast(
         err instanceof Error

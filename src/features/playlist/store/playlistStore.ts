@@ -11,6 +11,7 @@ import { isOfflineBrowseActive, fetchOfflineBrowsablePlaylists } from '@/feature
 import { usePlaylistMembershipStore } from '@/store/playlistMembershipStore';
 import { deriveEffectiveLibraryBrowseServerIds } from '@/lib/library/libraryBrowseScope';
 import { ownedEntityKey } from '@/lib/util/ownedEntityKey';
+import { createNavidromeCanonicalMigrationAwareJSONStorage } from '@/lib/util/safeStorage';
 
 interface PlaylistStore {
   recentIds: string[];
@@ -142,6 +143,7 @@ export const usePlaylistStore = create<PlaylistStore>()(
     }),
     {
       name: 'psysonic_playlists_recent',
+      storage: createNavidromeCanonicalMigrationAwareJSONStorage(),
       version: 1,
       migrate: migratePlaylistPersistedState,
       partialize: (state) => ({
