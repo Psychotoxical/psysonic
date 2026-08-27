@@ -153,6 +153,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * Album, artist, favourites and playlist tracklists now show and sort by the locally analysed BPM when it is available, instead of continuing to use the BPM embedded in the track tag.
 
+### Ukrainian settings notices no longer drop their warnings
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1467](https://github.com/Psysonic/psysonic/pull/1467)**
+
+* Nine settings descriptions in Ukrainian had been shortened to their first sentence, which silently removed the warnings the English text carries — that a settings backup stores passwords in plain text, that a Discord server cover exposes your server's public address, that external artwork is off by default and is provided by fanart.tv, and that playback-rate changes do not apply to radio, previews or Orbit.
+* The missing sentences are back; the rest of the Ukrainian wording is unchanged.
+* The README language list includes Ukrainian again.
+
 ## [1.51.0] - 2026-08-17
 
 ## Added
