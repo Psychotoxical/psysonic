@@ -1,5 +1,5 @@
 use std::sync::atomic::AtomicBool;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 use rusqlite::Connection;
 
@@ -59,6 +59,9 @@ pub struct LibraryStore {
     /// `swap_database_file` / `restore_database_backup` — fail fast instead of
     /// touching in-memory placeholder connections while the file is offline.
     swap_in_progress: AtomicBool,
+    /// Zero permits ordinary writes. A non-zero generation rejects every writer
+    /// except migration work explicitly scoped to the matching generation.
+    migration_write_barrier: Arc<psysonic_core::migration_write_barrier::MigrationWriteBarrier>,
 }
 
 #[cfg(test)]

@@ -1,13 +1,15 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { listDeviceDirFiles } from '@/lib/api/syncfs';
 import type { TFunction } from 'i18next';
 import {
-  deviceSyncSourcesFromManifest,
+  deviceSyncManifestImport,
+  deviceSyncLegacySourcesFromManifest,
   useDeviceSyncStore,
   type DeviceSyncManifest,
 } from '@/features/deviceSync/store/deviceSyncStore';
 import { showToast } from '@/lib/dom/toast';
+import { writeDeviceSyncManifest } from '@/features/deviceSync/utils/deviceSyncManifest';
 
 export interface DeviceSyncDeviceScanResult {
   scanDevice: () => Promise<void>;
@@ -17,12 +19,13 @@ export function useDeviceSyncDeviceScan(
   targetDir: string | null,
   sourcesLength: number,
   driveDetected: boolean,
-  ownerServerIndexKey: string | null,
   t: TFunction,
 ): DeviceSyncDeviceScanResult {
   const setDeviceFilePaths = useDeviceSyncStore.getState().setDeviceFilePaths;
   const setScanning        = useDeviceSyncStore.getState().setScanning;
   const scanRequestRef = useRef(0);
+  const manifestRetryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [manifestRetryTick, setManifestRetryTick] = useState(0);
 
   const scanDevice = useCallback(async () => {
     const requestId = ++scanRequestRef.current;
@@ -63,16 +66,39 @@ export function useDeviceSyncDeviceScan(
     manifestImportedTargetRef.current = requestTarget;
     invoke<DeviceSyncManifest | null>(
       'read_device_manifest', { destDir: targetDir }
-    ).then(manifest => {
+    ).then(async manifest => {
       if (useDeviceSyncStore.getState().targetDir !== requestTarget) return;
-      const manifestSources = deviceSyncSourcesFromManifest(manifest, ownerServerIndexKey);
-      if (manifestSources.length > 0) {
-        useDeviceSyncStore.getState().clearSources();
-        manifestSources.forEach(s => useDeviceSyncStore.getState().addSource(s));
-        showToast(t('deviceSync.manifestImported', { count: manifestSources.length }), 4000, 'info');
+      const legacySources = deviceSyncLegacySourcesFromManifest(manifest);
+      if (legacySources.length > 0) {
+        useDeviceSyncStore.getState().quarantineLegacySources(requestTarget, legacySources);
       }
-    }).catch(() => {});
-  }, [targetDir, driveDetected, ownerServerIndexKey, t]);
+      const manifestImport = deviceSyncManifestImport(manifest);
+      if (manifestImport) {
+        await writeDeviceSyncManifest({
+          destDir: requestTarget,
+          ownerServerIndexKey: manifestImport.ownerServerIndexKey,
+          sources: manifestImport.sources,
+        });
+        if (useDeviceSyncStore.getState().targetDir !== requestTarget) return;
+        useDeviceSyncStore.getState().clearSources();
+        manifestImport.sources.forEach(s => useDeviceSyncStore.getState().addSource(s));
+        showToast(t('deviceSync.manifestImported', { count: manifestImport.sources.length }), 4000, 'info');
+      }
+    }).catch(() => {
+      if (useDeviceSyncStore.getState().targetDir === requestTarget) {
+        manifestImportedTargetRef.current = null;
+        if (manifestRetryTimerRef.current) clearTimeout(manifestRetryTimerRef.current);
+        manifestRetryTimerRef.current = setTimeout(() => {
+          manifestRetryTimerRef.current = null;
+          setManifestRetryTick(tick => tick + 1);
+        }, 2000);
+      }
+    });
+  }, [targetDir, driveDetected, t, manifestRetryTick]);
+
+  useEffect(() => () => {
+    if (manifestRetryTimerRef.current) clearTimeout(manifestRetryTimerRef.current);
+  }, []);
 
   // Clear device file list and reset import flag when stick is unplugged
   useEffect(() => {

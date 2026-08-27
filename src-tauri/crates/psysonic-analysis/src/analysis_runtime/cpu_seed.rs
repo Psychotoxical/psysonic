@@ -7,6 +7,7 @@ use tauri::Emitter;
 use crate::analysis_cache;
 use crate::analysis_perf::emit_analysis_track_perf;
 
+use super::admission::{ordinary_queue_admission_guard_async, OrdinaryAdmissionGuard};
 use super::backfill_queue::ANALYSIS_BACKFILL;
 use super::enqueue::analysis_emits_ui_events;
 use super::trusted_revision::activate_trusted_identity;
@@ -402,6 +403,32 @@ pub fn prune_analysis_queues(
     Ok((http_removed, cpu_removed_jobs, cpu_removed_waiters))
 }
 
+pub async fn quiesce_analysis_for_migration(timeout: std::time::Duration) -> Result<(), String> {
+    let keep_track_ids = HashSet::new();
+    prune_analysis_queues(&keep_track_ids, None)?;
+    let deadline = tokio::time::Instant::now() + timeout;
+    loop {
+        let stats = analysis_pipeline_queue_stats();
+        if stats.http_queued == 0
+            && stats.http_download_active == 0
+            && stats.cpu_queued == 0
+            && stats.cpu_decode_active == 0
+        {
+            return Ok(());
+        }
+        if tokio::time::Instant::now() >= deadline {
+            return Err(format!(
+                "analysis pipeline did not drain before migration: http queued/active {}/{}, cpu queued/active {}/{}",
+                stats.http_queued,
+                stats.http_download_active,
+                stats.cpu_queued,
+                stats.cpu_decode_active
+            ));
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(25)).await;
+    }
+}
+
 /// Submit full-buffer analysis; serializes with other producers. Priority mirrors
 /// HTTP backfill tier ordering (high → middle → low).
 ///
@@ -421,6 +448,67 @@ pub(super) async fn submit_analysis_cpu_seed(
     cpu_admitted: Option<tokio::sync::oneshot::Sender<()>>,
 ) -> Result<analysis_cache::SeedFromBytesOutcome, String> {
     let shared = analysis_cpu_seed_shared(&app);
+    let rx = enqueue_analysis_cpu_seed_job(
+        &app,
+        &shared,
+        server_id,
+        track_id,
+        bytes,
+        format_hint,
+        trusted_revision,
+        priority,
+        fetch_ms,
+        cpu_admitted,
+    )
+    .await?;
+    let (outcome, _timings) = match rx.await {
+        Ok(res) => res?,
+        Err(_) => return Err("cpu-seed: result channel dropped".to_string()),
+    };
+    Ok(outcome)
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn enqueue_analysis_cpu_seed_job(
+    app: &tauri::AppHandle,
+    shared: &Arc<AnalysisCpuSeedShared>,
+    server_id: String,
+    track_id: String,
+    bytes: Vec<u8>,
+    format_hint: Option<String>,
+    trusted_revision: Option<TrustedAnalysisRevision>,
+    priority: AnalysisBackfillPriority,
+    fetch_ms: u64,
+    cpu_admitted: Option<tokio::sync::oneshot::Sender<()>>,
+) -> Result<SeedDoneReceiver, String> {
+    let admission = ordinary_queue_admission_guard_async(app).await?;
+    Ok(enqueue_analysis_cpu_seed_job_under_admission(
+        shared,
+        server_id,
+        track_id,
+        bytes,
+        format_hint,
+        trusted_revision,
+        priority,
+        fetch_ms,
+        cpu_admitted,
+        admission,
+    ))
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(super) fn enqueue_analysis_cpu_seed_job_under_admission(
+    shared: &Arc<AnalysisCpuSeedShared>,
+    server_id: String,
+    track_id: String,
+    bytes: Vec<u8>,
+    format_hint: Option<String>,
+    trusted_revision: Option<TrustedAnalysisRevision>,
+    priority: AnalysisBackfillPriority,
+    fetch_ms: u64,
+    cpu_admitted: Option<tokio::sync::oneshot::Sender<()>>,
+    admission: OrdinaryAdmissionGuard,
+) -> SeedDoneReceiver {
     let rx = {
         let mut st = shared.state.lock().unwrap_or_else(|e| e.into_inner());
         let (kind, rx) = st.enqueue(
@@ -433,16 +521,14 @@ pub(super) async fn submit_analysis_cpu_seed(
             fetch_ms,
         );
         crate::app_deprintln!("[analysis] cpu-seed submit: kind={kind:?} priority={priority:?}");
-        drop(st);
-        shared.ping_worker();
-        if let Some(admitted) = cpu_admitted {
-            let _ = admitted.send(());
-        }
         rx
     };
-    let (outcome, _timings) = match rx.await {
-        Ok(res) => res?,
-        Err(_) => return Err("cpu-seed: result channel dropped".to_string()),
-    };
-    Ok(outcome)
+    // Exclusive migration admission only needs to serialize queue mutation.
+    // The decode result may take minutes and must not retain an ordinary guard.
+    drop(admission);
+    shared.ping_worker();
+    if let Some(admitted) = cpu_admitted {
+        let _ = admitted.send(());
+    }
+    rx
 }

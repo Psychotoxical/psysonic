@@ -37,6 +37,7 @@ impl CoverCacheState {
         args: &CoverCacheEnsureArgs,
         http_sem_override: Option<Arc<Semaphore>>,
     ) -> Result<CoverCacheEnsureResult, String> {
+        super::ensure_migration_write_allowed(app)?;
         let this = state.lock().await;
         let dir = cover_dir_for_args(&this.root, args);
         if let Some(path) = ensure_peek(&dir, args.tier, args) {
@@ -148,6 +149,7 @@ impl CoverCacheState {
             match download_cover_payload(&dir, &client, &http_sem, args, http_registry).await {
                 Ok(bytes) => CoverSource::Bytes(bytes),
                 Err(err) => {
+                    super::ensure_migration_write_allowed(app)?;
                     log_cover_fetch_failure(app, args, &err);
                     let _ = std::fs::create_dir_all(&dir);
                     let _ = std::fs::write(dir.join(COVER_FETCH_FAIL_MARKER), b"1");
@@ -160,6 +162,8 @@ impl CoverCacheState {
             }
         };
 
+        super::ensure_migration_write_allowed(app)?;
+
         let dir_bg = dir.clone();
         let tiers_bg = tiers_now.clone();
         let cpu_permit = cover_cpu_sem
@@ -167,6 +171,7 @@ impl CoverCacheState {
             .acquire_owned()
             .await
             .map_err(|e| e.to_string())?;
+        super::ensure_migration_write_allowed(app)?;
         let (mut wrote_requested, fresh_tiers, derive_source) =
             tauri::async_runtime::spawn_blocking(move || -> EncodeTiersOutcome {
                 let _cpu_permit = cpu_permit;
@@ -369,6 +374,9 @@ fn spawn_derive_remaining_tiers(
         let Ok(cpu_permit) = cover_cpu_sem.clone().acquire_owned().await else {
             return;
         };
+        if super::ensure_migration_write_allowed(&app).is_err() {
+            return;
+        }
         let written = tauri::async_runtime::spawn_blocking(move || -> Vec<(u32, PathBuf)> {
             let _cpu_permit = cpu_permit;
             let mut fresh = Vec::new();

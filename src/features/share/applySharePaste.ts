@@ -14,6 +14,7 @@ import {
   buildComposerDetailPath,
 } from '@/lib/navigation/detailServerScope';
 import { activateShareServer, lookupShareServer } from '@/features/share/shareServerResolution';
+import { normalizeNavidromeExternalId } from '@/lib/server/navidromeCanonicalExternalId';
 
 const RESOLVE_QUEUE_CHUNK = 12;
 
@@ -58,7 +59,8 @@ export async function applySharePasteQueue(
   }
 
   try {
-    const result = await resolveSharePasteQueueSongs(lookup.serverId, payload.ids);
+    const ids = payload.ids.map(id => normalizeNavidromeExternalId(lookup.serverId, id));
+    const result = await resolveSharePasteQueueSongs(lookup.serverId, ids);
     if (!result) {
       showToast(t('sharePaste.queueAllUnavailable'), 6000, 'error');
       return false;
@@ -111,8 +113,11 @@ export async function applySharePastePayload(
   }
 
   try {
+    const id = payload.k === 'queue'
+      ? null
+      : normalizeNavidromeExternalId(lookup.serverId, payload.id);
     if (payload.k === 'track') {
-      const song = await getSongForServer(lookup.serverId, payload.id);
+      const song = await getSongForServer(lookup.serverId, id!);
       if (!song) {
         showToast(t('sharePaste.trackUnavailable'), 5000, 'error');
         return;
@@ -126,29 +131,29 @@ export async function applySharePastePayload(
     }
 
     if (payload.k === 'album') {
-      const albumResult = await resolveAlbum(lookup.serverId, payload.id);
+      const albumResult = await resolveAlbum(lookup.serverId, id!);
       if (!albumResult) {
         showToast(t('sharePaste.albumUnavailable'), 5000, 'error');
         return;
       }
       activateShareServer(lookup.serverId);
       if (location) {
-        navigateToAlbumDetail(navigate, location, payload.id, { serverId: lookup.serverId });
+        navigateToAlbumDetail(navigate, location, id!, { serverId: lookup.serverId });
       } else {
-        navigate(buildAlbumDetailPath(payload.id, { serverId: lookup.serverId }));
+        navigate(buildAlbumDetailPath(id!, { serverId: lookup.serverId }));
       }
       showToast(t('sharePaste.openedAlbum'), 3000, 'info');
       return;
     }
 
     if (payload.k === 'artist') {
-      const artistResult = await resolveArtist(lookup.serverId, payload.id);
+      const artistResult = await resolveArtist(lookup.serverId, id!);
       if (!artistResult) {
         showToast(t('sharePaste.artistUnavailable'), 5000, 'error');
         return;
       }
       activateShareServer(lookup.serverId);
-      navigate(buildArtistDetailPath(payload.id, { serverId: lookup.serverId }));
+      navigate(buildArtistDetailPath(id!, { serverId: lookup.serverId }));
       showToast(t('sharePaste.openedArtist'), 3000, 'info');
       return;
     }
@@ -157,13 +162,13 @@ export async function applySharePastePayload(
       // Same id space as artists (Subsonic / Navidrome use one id pool for
       // every participant role), so resolveArtist still validates the entity —
       // the difference is which view we navigate to.
-      const composerResult = await resolveArtist(lookup.serverId, payload.id);
+      const composerResult = await resolveArtist(lookup.serverId, id!);
       if (!composerResult) {
         showToast(t('sharePaste.composerUnavailable'), 5000, 'error');
         return;
       }
       activateShareServer(lookup.serverId);
-      navigate(buildComposerDetailPath(payload.id, { serverId: lookup.serverId }));
+      navigate(buildComposerDetailPath(id!, { serverId: lookup.serverId }));
       showToast(t('sharePaste.openedComposer'), 3000, 'info');
       return;
     }

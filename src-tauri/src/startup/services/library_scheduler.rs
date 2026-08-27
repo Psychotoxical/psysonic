@@ -89,6 +89,9 @@ pub(super) fn spawn(app_for_sched: tauri::AppHandle) {
                 let registry = Arc::clone(&registry);
                 let app_for_session = app_for_sched.clone();
                 async move {
+                    if runtime.ensure_ordinary_sync_activity_allowed().is_err() {
+                        return;
+                    }
                     let _sync_activity = runtime.sync_activity_guard().await;
                     if runtime.scheduler_cancel.load(Ordering::SeqCst)
                         || !scheduler_session_still_current(runtime, &session)

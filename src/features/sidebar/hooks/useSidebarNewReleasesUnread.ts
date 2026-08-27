@@ -13,6 +13,7 @@ import {
   mergeSeenNewReleaseIdsCap,
   newReleasesSeenStorageKey as buildNewReleasesSeenStorageKey,
 } from '@/features/sidebar/utils/sidebarHelpers';
+import { navidromeCanonicalBootstrapIsActive } from '@/lib/server/navidromeCanonicalCheckpointStatus';
 
 // Coalesce burst refreshes (mount + scope/page-mode change + StrictMode) into one.
 const NEW_RELEASES_UNREAD_DEBOUNCE_MS = 400;
@@ -66,7 +67,9 @@ export function useSidebarNewReleasesUnread({
 
   const writeSeenNewReleaseIds = useCallback((ids: string[]) => {
     const normalized = Array.from(new Set(ids.filter(Boolean))).slice(0, NEW_RELEASES_SEEN_MAX_IDS);
-    localStorage.setItem(scopedSeenStorageKey, JSON.stringify(normalized));
+    if (!navidromeCanonicalBootstrapIsActive()) {
+      localStorage.setItem(scopedSeenStorageKey, JSON.stringify(normalized));
+    }
   }, [scopedSeenStorageKey]);
 
   const refreshNewReleasesUnread = useCallback(async (seq: number, markAsSeen = false) => {

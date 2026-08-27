@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { makeInitialOrbitState } from '@/features/orbit/api/orbit';
+import { canonicalNavidromeId } from '@/lib/server/navidromeCanonicalId';
+import { NAVIDROME_CANONICAL_MIGRATION_CHECKPOINT_KEY } from '@/lib/server/navidromeCanonicalCheckpointStatus';
 
 const mocks = vi.hoisted(() => ({
   getPlaylist: vi.fn(),
@@ -20,6 +22,7 @@ import {
 
 beforeEach(() => {
   Object.values(mocks).forEach(mock => mock.mockReset());
+  localStorage.clear();
 });
 
 describe('Orbit remote owner routing', () => {
@@ -56,5 +59,33 @@ describe('Orbit remote owner routing', () => {
     );
     expect(mocks.getPlaylist).not.toHaveBeenCalled();
     expect(mocks.getPlaylists).not.toHaveBeenCalled();
+  });
+
+  it('normalizes track IDs from an old remote session for a ready owner', async () => {
+    const profileId = '123e4567-e89b-42d3-a456-426614174000';
+    const legacyId = '550e8400-e29b-41d4-a716-446655440000';
+    const state = makeInitialOrbitState({ sid: 'aaaa1111', host: 'host', name: 'Session' });
+    state.currentTrack = { trackId: legacyId, addedBy: 'host', addedAt: 1 };
+    state.queue = [{ trackId: legacyId, addedBy: 'guest', addedAt: 2 }];
+    state.playQueue = [{ trackId: legacyId, addedBy: 'host' }];
+    localStorage.setItem('psysonic-auth', JSON.stringify({
+      state: { servers: [{ id: profileId, url: 'https://music.test' }] },
+    }));
+    localStorage.setItem(NAVIDROME_CANONICAL_MIGRATION_CHECKPOINT_KEY, JSON.stringify({
+      version: 1,
+      servers: {
+        'music.test': { canonicalVersion: 1, phase: 'ready', checkedVersion: '0.64.0' },
+      },
+    }));
+    mocks.getPlaylistForServer.mockResolvedValue({
+      playlist: { comment: JSON.stringify(state) },
+      songs: [],
+    });
+
+    const result = await readOrbitState('session-pl', profileId);
+    const canonical = canonicalNavidromeId(legacyId);
+    expect(result?.currentTrack?.trackId).toBe(canonical);
+    expect(result?.queue[0]?.trackId).toBe(canonical);
+    expect(result?.playQueue?.[0]?.trackId).toBe(canonical);
   });
 });

@@ -1,5 +1,6 @@
 use std::io;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use std::{fs, mem};
 
 use rusqlite::Connection;
@@ -20,6 +21,15 @@ pub(super) enum SwapDatabaseStage {
 
 impl AnalysisCache {
     pub fn init<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> Result<Self, String> {
+        Self::init_with_migration_barrier(app, Arc::new(Default::default()))
+    }
+
+    pub fn init_with_migration_barrier<R: tauri::Runtime>(
+        app: &tauri::AppHandle<R>,
+        migration_write_barrier: Arc<
+            psysonic_core::migration_write_barrier::MigrationWriteBarrier,
+        >,
+    ) -> Result<Self, String> {
         let db_path = analysis_db_path(app)?;
         if let Some(parent) = db_path.parent() {
             std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
@@ -32,6 +42,20 @@ impl AnalysisCache {
         checkpoint_wal_conn(&conn, "open").map_err(|e| e.to_string())?;
         Ok(Self {
             conn: std::sync::Mutex::new(conn),
+            migration_write_barrier,
+        })
+    }
+
+    /// Open an imported analysis database for migration before activation.
+    pub fn open_staged_path(db_path: &Path) -> Result<Self, String> {
+        let mut conn = Connection::open(db_path).map_err(|error| error.to_string())?;
+        configure_connection(&conn).map_err(|error| error.to_string())?;
+        run_migrations(&mut conn).map_err(|error| error.to_string())?;
+        verify_operational_schema_conn(&conn)?;
+        checkpoint_wal_conn(&conn, "staged-import").map_err(|error| error.to_string())?;
+        Ok(Self {
+            conn: std::sync::Mutex::new(conn),
+            migration_write_barrier: Arc::new(Default::default()),
         })
     }
 
@@ -45,6 +69,14 @@ impl AnalysisCache {
     /// without a `test-support` Cargo feature dance. Production code does not
     /// use it.
     pub fn open_in_memory() -> Self {
+        Self::open_in_memory_with_migration_barrier(Arc::new(Default::default()))
+    }
+
+    pub fn open_in_memory_with_migration_barrier(
+        migration_write_barrier: Arc<
+            psysonic_core::migration_write_barrier::MigrationWriteBarrier,
+        >,
+    ) -> Self {
         let mut conn = Connection::open_in_memory().expect("in-memory connection");
         conn.pragma_update(None, "foreign_keys", "ON")
             .expect("pragma foreign_keys");
@@ -53,14 +85,12 @@ impl AnalysisCache {
         let _ = checkpoint_wal_conn(&conn, "open");
         Self {
             conn: std::sync::Mutex::new(conn),
+            migration_write_barrier,
         }
     }
 
     pub fn checkpoint_wal(&self, op: &'static str) -> Result<(), String> {
-        let conn = self
-            .conn
-            .lock()
-            .map_err(|_| "analysis_cache lock poisoned".to_string())?;
+        let conn = self.lock_write_conn()?;
         checkpoint_wal_conn(&conn, op).map_err(|e| e.to_string())
     }
 
@@ -83,10 +113,7 @@ impl AnalysisCache {
         if !destination_path.exists() {
             return Ok(None);
         }
-        let mut conn = self
-            .conn
-            .lock()
-            .map_err(|_| "analysis_cache lock poisoned".to_string())?;
+        let mut conn = self.lock_write_conn()?;
         let tmp = Connection::open_in_memory().map_err(|e| e.to_string())?;
         checkpoint_wal_conn(&conn, "pre-swap").map_err(|e| e.to_string())?;
         let old_conn = mem::replace(&mut *conn, tmp);
@@ -155,10 +182,7 @@ impl AnalysisCache {
         backup_path: &Path,
         active_path: &Path,
     ) -> Result<(), String> {
-        let mut conn = self
-            .conn
-            .lock()
-            .map_err(|_| "analysis_cache lock poisoned".to_string())?;
+        let mut conn = self.lock_write_conn()?;
         let tmp = Connection::open_in_memory().map_err(|e| e.to_string())?;
         let old_conn = mem::replace(&mut *conn, tmp);
         drop(old_conn);

@@ -2,6 +2,7 @@
 //! waveform / loudness / enrichment work (spec: Settings → Library).
 
 use psysonic_core::ports::TrackAnalysisNeedsWorkQuery;
+use psysonic_core::database_pair_admission::database_pair_read_scope;
 use tauri::{AppHandle, Manager};
 
 use crate::repos::TrackRepository;
@@ -87,6 +88,7 @@ pub fn collect_analysis_backfill_batch(
     cursor: Option<&str>,
     limit: Option<u32>,
 ) -> Result<(LibraryAnalysisBackfillBatchDto, AnalysisBackfillScanPhase), String> {
+    let _pair_scope = database_pair_read_scope();
     let want = limit.unwrap_or(DEFAULT_BATCH).min(MAX_BATCH) as usize;
     let needs_work = app
         .try_state::<TrackAnalysisNeedsWorkQuery>()
@@ -174,6 +176,7 @@ pub fn collect_analysis_progress(
     runtime: &LibraryRuntime,
     server_id: &str,
 ) -> Result<LibraryAnalysisProgressDto, String> {
+    let _pair_scope = database_pair_read_scope();
     let needs_work = app
         .try_state::<TrackAnalysisNeedsWorkQuery>()
         .ok_or_else(|| "TrackAnalysisNeedsWorkQuery not registered".to_string())?;

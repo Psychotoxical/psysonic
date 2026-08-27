@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { nextFolderOrder, type PlaylistFolder } from '@/features/playlist/utils/playlistFolders';
+import { createNavidromeCanonicalMigrationAwareJSONStorage } from '@/lib/util/safeStorage';
 
 /** Folder state for a single server (playlist ids are server-scoped). */
 export interface ServerPlaylistFolders {
@@ -93,7 +94,10 @@ export const usePlaylistFolderStore = create<PlaylistFolderState>()(
           })),
         })),
     }),
-    { name: 'psysonic_playlist_folders' },
+    {
+      name: 'psysonic_playlist_folders',
+      storage: createNavidromeCanonicalMigrationAwareJSONStorage(),
+    },
   ),
 );
 

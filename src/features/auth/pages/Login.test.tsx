@@ -21,11 +21,18 @@ vi.mock('@/lib/server/syncServerHttpContext', () => ({
   syncServerHttpContextForProfile: vi.fn(async () => undefined),
 }));
 
-import { pingWithCredentialsForProfile } from '@/lib/api/subsonic';
+vi.mock('@/lib/server/serverEndpoint', () => ({
+  admitSuccessfulPingForProfile: vi.fn(async () => ({ ok: true })),
+}));
+
+import { pingWithCredentialsForProfile, scheduleInstantMixProbeForServer } from '@/lib/api/subsonic';
+import { admitSuccessfulPingForProfile } from '@/lib/server/serverEndpoint';
 
 beforeEach(() => {
   resetAuthStore();
   vi.mocked(pingWithCredentialsForProfile).mockClear();
+  vi.mocked(admitSuccessfulPingForProfile).mockClear();
+  vi.mocked(scheduleInstantMixProbeForServer).mockClear();
 });
 
 afterEach(() => {
@@ -68,6 +75,11 @@ describe('Login — v2 magic string paste persistence', () => {
     expect(saved.alternateUrl).toBe('http://192.168.0.10:4533');
     expect(saved.shareUsesLocalUrl).toBe(true);
     expect(saved.username).toBe('tester');
+    expect(admitSuccessfulPingForProfile).toHaveBeenCalledWith(
+      expect.objectContaining({ id: saved.id, url: saved.url }),
+      saved.url,
+      expect.objectContaining({ ok: true, serverVersion: '0.55.0' }),
+    );
   });
 
   it('persists a v1 invite as a single-address profile (no alternateUrl)', async () => {
@@ -98,6 +110,27 @@ describe('Login — v2 magic string paste persistence', () => {
     // profile so localStorage doesn't carry dangling defaults.
     expect(saved.alternateUrl).toBeUndefined();
     expect(saved.shareUsesLocalUrl).toBeUndefined();
+  });
+
+  it('does not publish identity or start capability probes before admission succeeds', async () => {
+    vi.mocked(admitSuccessfulPingForProfile).mockRejectedValueOnce(new Error('migration blocked'));
+    const Login = (await import('@/features/auth/pages/Login')).default;
+    renderWithProviders(<Login />);
+    const user = userEvent.setup();
+    const allTextboxes = screen.getAllByRole('textbox');
+    const magicInput = allTextboxes[allTextboxes.length - 1]!;
+    await user.type(magicInput, encodeServerMagicString({
+      url: 'https://music.example.com',
+      username: 'tester',
+      password: 'pw',
+    }));
+
+    await user.click(screen.getByRole('button', { name: /connect/i }));
+    await waitFor(() => expect(admitSuccessfulPingForProfile).toHaveBeenCalledOnce());
+
+    const saved = useAuthStore.getState().servers[0]!;
+    expect(useAuthStore.getState().subsonicServerIdentityByServer[saved.id]).toBeUndefined();
+    expect(scheduleInstantMixProbeForServer).not.toHaveBeenCalled();
   });
 
   it('persists custom HTTP headers and probes with gate profile on first connect', async () => {

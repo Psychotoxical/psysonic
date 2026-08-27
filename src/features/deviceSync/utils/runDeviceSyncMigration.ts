@@ -7,6 +7,7 @@ import { applyLegacyTemplate } from '@/features/deviceSync/utils/deviceSyncLegac
 import { trackToSyncInfo } from '@/features/deviceSync/utils/deviceSyncHelpers';
 import { fetchTracksForSource } from '@/features/playback/utils/playback/fetchTracksForSource';
 import { IS_WINDOWS } from '@/lib/util/platform';
+import { writeDeviceSyncManifest } from '@/features/deviceSync/utils/deviceSyncManifest';
 
 export type MigrationPhase = 'closed' | 'loading' | 'preview' | 'executing' | 'done' | 'nothing';
 
@@ -146,7 +147,7 @@ export async function runDeviceSyncMigrationExecute(deps: RunMigrationExecuteDep
     setMigrationResult({ ok, failed, errors });
     const ownerServerIndexKey = deviceSyncOwnerKey(sources);
     if (ownerServerIndexKey) {
-      await invoke('write_device_manifest', { destDir: targetDir, ownerServerIndexKey, sources });
+      await writeDeviceSyncManifest({ destDir: targetDir, ownerServerIndexKey, sources });
     }
     await scanDevice();
     setMigrationPhase('done');

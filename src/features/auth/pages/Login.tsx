@@ -22,6 +22,7 @@ import {
 } from '@/lib/server/serverMagicString';
 import { shortHostFromServerUrl, serverListDisplayLabel } from '@/lib/server/serverDisplayName';
 import { scheduleStartupSplashDismiss } from '@/app/startupSplash';
+import { admitSuccessfulPingForProfile } from '@/lib/server/serverEndpoint';
 
 const PsysonicLogo = () => (
   <img src="/logo-psysonic.png" width="64" height="64" alt="Psysonic" style={{ borderRadius: 18 }} />
@@ -204,6 +205,21 @@ export default function Login() {
             : {}),
         });
       }
+      const saved = useAuthStore.getState().servers.find(s => s.id === serverId);
+      if (!saved) {
+        setStatus('error');
+        setConnectionError(t('login.error'));
+        setTestMessage(t('login.error'));
+        return;
+      }
+      try {
+        await admitSuccessfulPingForProfile(saved, urlTrimmed, ping);
+      } catch {
+        setStatus('error');
+        setConnectionError(t('login.error'));
+        setTestMessage(t('login.error'));
+        return;
+      }
       const identity = {
         type: ping.type,
         serverVersion: ping.serverVersion,
@@ -217,8 +233,7 @@ export default function Login() {
         profile.password,
         identity,
       );
-      const saved = useAuthStore.getState().servers.find(s => s.id === serverId);
-      if (saved) void syncServerHttpContextForProfile(saved);
+      void syncServerHttpContextForProfile(saved);
       setActiveServer(serverId);
       setLoggedIn(true);
       setStatus('ok');

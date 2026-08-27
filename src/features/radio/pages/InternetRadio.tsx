@@ -29,6 +29,7 @@ import { useAuthStore } from '@/store/authStore';
 import { deriveEffectiveLibraryBrowseServerIds } from '@/lib/library/libraryBrowseScope';
 import { getUnavailableServerIds, useUnavailableServerIds } from '@/lib/network/serverReachability';
 import { serverListDisplayLabel } from '@/lib/server/serverDisplayName';
+import { navidromeCanonicalBootstrapIsActive } from '@/lib/server/navidromeCanonicalCheckpointStatus';
 import {
   migrateRadioStationKeys,
   radioStationKey,
@@ -163,7 +164,9 @@ export default function InternetRadio() {
       const key = radioStationKey(s);
       if (!merged.includes(key)) merged.push(key);
     });
-    localStorage.setItem('psysonic_radio_order', JSON.stringify(merged));
+    if (!navidromeCanonicalBootstrapIsActive()) {
+      localStorage.setItem('psysonic_radio_order', JSON.stringify(merged));
+    }
     // React Compiler set-state-in-effect rule: local state synced with store/prop inputs when the effect’s dependencies change.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setManualOrder(merged);
@@ -175,7 +178,9 @@ export default function InternetRadio() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setFavorites(previous => {
       const migrated = new Set(migrateRadioStationKeys([...previous], stations));
-      localStorage.setItem('psysonic_radio_favorites', JSON.stringify([...migrated]));
+      if (!navidromeCanonicalBootstrapIsActive()) {
+        localStorage.setItem('psysonic_radio_favorites', JSON.stringify([...migrated]));
+      }
       return migrated;
     });
   }, [stations, activeServerId]);
@@ -185,7 +190,9 @@ export default function InternetRadio() {
     setFavorites(prev => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id); else next.add(id);
-      localStorage.setItem('psysonic_radio_favorites', JSON.stringify([...next]));
+      if (!navidromeCanonicalBootstrapIsActive()) {
+        localStorage.setItem('psysonic_radio_favorites', JSON.stringify([...next]));
+      }
       return next;
     });
   }, []);
@@ -200,7 +207,9 @@ export default function InternetRadio() {
       if (ti === -1) return prev;
       const insertAt = side === 'before' ? ti : ti + 1;
       order.splice(insertAt, 0, srcId);
-      localStorage.setItem('psysonic_radio_order', JSON.stringify(order));
+      if (!navidromeCanonicalBootstrapIsActive()) {
+        localStorage.setItem('psysonic_radio_order', JSON.stringify(order));
+      }
       return order;
     });
   }, []);

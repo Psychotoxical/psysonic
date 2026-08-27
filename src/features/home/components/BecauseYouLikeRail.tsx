@@ -28,6 +28,7 @@ import {
   browseScopeLibraryIdsForServer,
   type LibraryBrowseScopePair,
 } from '@/lib/library/libraryBrowseScope';
+import { navidromeCanonicalBootstrapIsActive } from '@/lib/server/navidromeCanonicalCheckpointStatus';
 
 const ANCHOR_HISTORY_KEY_PREFIX = 'psysonic_because_anchor_history:';
 const PICKS_HISTORY_KEY_PREFIX = 'psysonic_because_picks:';
@@ -520,8 +521,10 @@ export default function BecauseYouLikeRail({
         if (cancelled) return;
         // Advance rotation in localStorage now that these picks are being shown.
         try {
-          if (anchorHistKey) localStorage.setItem(anchorHistKey, JSON.stringify(reserved.nextAnchorHistory));
-          if (picksHistKey) localStorage.setItem(picksHistKey, JSON.stringify(reserved.nextPicksHistory));
+          if (!navidromeCanonicalBootstrapIsActive()) {
+            if (anchorHistKey) localStorage.setItem(anchorHistKey, JSON.stringify(reserved.nextAnchorHistory));
+            if (picksHistKey) localStorage.setItem(picksHistKey, JSON.stringify(reserved.nextPicksHistory));
+          }
         } catch { /* ignore */ }
         setAnchor(reserved.anchor);
         setRecs(reserved.recs);
@@ -580,8 +583,10 @@ export default function BecauseYouLikeRail({
         });
         if (cancelled) return;
         try {
-          if (anchorHistKey) localStorage.setItem(anchorHistKey, JSON.stringify(result.nextAnchorHistory));
-          if (picksHistKey) localStorage.setItem(picksHistKey, JSON.stringify(result.nextPicksHistory));
+          if (!navidromeCanonicalBootstrapIsActive()) {
+            if (anchorHistKey) localStorage.setItem(anchorHistKey, JSON.stringify(result.nextAnchorHistory));
+            if (picksHistKey) localStorage.setItem(picksHistKey, JSON.stringify(result.nextPicksHistory));
+          }
         } catch { /* ignore */ }
         setAnchor(result.anchor);
         setRecs(result.recs);

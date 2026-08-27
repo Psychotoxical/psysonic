@@ -1,11 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AxiosError } from 'axios';
+import { canonicalNavidromeId } from '@/lib/server/navidromeCanonicalId';
+import {
+  NAVIDROME_CANONICAL_BOOTSTRAP_LOCK_KEY,
+  NAVIDROME_CANONICAL_MIGRATION_CHECKPOINT_KEY,
+} from '@/lib/server/navidromeCanonicalCheckpointStatus';
 
 const { apiForServerMock, apiPostFormForServerMock, authState } = vi.hoisted(() => ({
   apiForServerMock: vi.fn(async (): Promise<unknown> => ({ status: 'ok' })),
   apiPostFormForServerMock: vi.fn(async () => ({ status: 'ok' })),
   authState: {
     openSubsonicExtensionsByServer: {} as Record<string, string[]>,
+    servers: [] as Array<{ id: string; url: string }>,
   },
 }));
 
@@ -37,6 +43,8 @@ beforeEach(() => {
   apiForServerMock.mockResolvedValue({ status: 'ok' });
   apiPostFormForServerMock.mockResolvedValue({ status: 'ok' });
   authState.openSubsonicExtensionsByServer = {};
+  authState.servers = [];
+  localStorage.clear();
 });
 
 describe('savePlayQueue transport', () => {
@@ -82,6 +90,73 @@ describe('savePlayQueue transport', () => {
     await expect(savePlayQueue(['a'], 'a', 0, 'srv-a')).rejects.toThrow('offline');
     expect(apiPostFormForServerMock).not.toHaveBeenCalled();
   });
+
+  it('refuses delayed queue writes while canonical migration is active', async () => {
+    localStorage.setItem(NAVIDROME_CANONICAL_BOOTSTRAP_LOCK_KEY, '1');
+    await expect(savePlayQueue(['a'], 'a', 0, 'srv-a')).rejects.toThrow('canonical_migration_active');
+    expect(apiForServerMock).not.toHaveBeenCalled();
+    expect(apiPostFormForServerMock).not.toHaveBeenCalled();
+  });
+
+  it('allows a queue write for an owner outside a scoped runtime migration', async () => {
+    localStorage.setItem(
+      NAVIDROME_CANONICAL_BOOTSTRAP_LOCK_KEY,
+      `runtime:${encodeURIComponent('srv-b')}:token`,
+    );
+
+    await expect(savePlayQueue(['a'], 'a', 0, 'srv-a')).resolves.toBeUndefined();
+    expect(apiForServerMock).toHaveBeenCalledWith('srv-a', 'savePlayQueue.view', {
+      id: ['a'],
+      current: 'a',
+      position: 0,
+    });
+  });
+
+  it('blocks a queue write for the owner under a scoped runtime migration', async () => {
+    localStorage.setItem(
+      NAVIDROME_CANONICAL_BOOTSTRAP_LOCK_KEY,
+      `runtime:${encodeURIComponent('srv-a')}:token`,
+    );
+
+    await expect(savePlayQueue(['a'], 'a', 0, 'srv-a'))
+      .rejects.toThrow('canonical_migration_active');
+    expect(apiForServerMock).not.toHaveBeenCalled();
+  });
+
+  it('resolves a profile UUID before checking a scoped runtime migration', async () => {
+    const profileId = '123e4567-e89b-42d3-a456-426614174000';
+    authState.servers = [{ id: profileId, url: 'https://music.test' }];
+    localStorage.setItem(
+      NAVIDROME_CANONICAL_BOOTSTRAP_LOCK_KEY,
+      `runtime:${encodeURIComponent('music.test')}:token`,
+    );
+
+    await expect(savePlayQueue(['a'], 'a', 0, profileId))
+      .rejects.toThrow('canonical_migration_active');
+    expect(apiForServerMock).not.toHaveBeenCalled();
+  });
+
+  it('fails closed for an unknown profile UUID while a scoped migration is active', async () => {
+    localStorage.setItem(
+      NAVIDROME_CANONICAL_BOOTSTRAP_LOCK_KEY,
+      `runtime:${encodeURIComponent('music.test')}:token`,
+    );
+
+    await expect(savePlayQueue(
+      ['a'],
+      'a',
+      0,
+      '123e4567-e89b-42d3-a456-426614174000',
+    )).rejects.toThrow('canonical_migration_active');
+    expect(apiForServerMock).not.toHaveBeenCalled();
+  });
+
+  it('fails closed for a malformed scoped runtime lock', async () => {
+    localStorage.setItem(NAVIDROME_CANONICAL_BOOTSTRAP_LOCK_KEY, 'runtime:srv-a');
+    await expect(savePlayQueue(['a'], 'a', 0, 'srv-b'))
+      .rejects.toThrow('canonical_migration_active');
+    expect(apiForServerMock).not.toHaveBeenCalled();
+  });
 });
 
 describe('play queue reads', () => {
@@ -101,5 +176,37 @@ describe('play queue reads', () => {
     await expect(fetchPlayQueueForServer('srv-a')).rejects.toThrow('offline');
     apiForServerMock.mockRejectedValueOnce(new Error('offline'));
     await expect(getPlayQueueForServer('srv-a')).resolves.toEqual({ songs: [] });
+  });
+
+  it('normalizes a stale remote queue after the owner reaches ready', async () => {
+    const profileId = '123e4567-e89b-42d3-a456-426614174000';
+    const legacyId = '550e8400-e29b-41d4-a716-446655440000';
+    localStorage.setItem('psysonic-auth', JSON.stringify({
+      state: { servers: [{ id: profileId, url: 'https://music.test' }] },
+    }));
+    localStorage.setItem(NAVIDROME_CANONICAL_MIGRATION_CHECKPOINT_KEY, JSON.stringify({
+      version: 1,
+      servers: {
+        'music.test': { canonicalVersion: 1, phase: 'ready', checkedVersion: '0.64.0' },
+      },
+    }));
+    apiForServerMock.mockResolvedValueOnce({
+      playQueue: {
+        current: legacyId,
+        entry: [{
+          id: legacyId,
+          title: 'Track',
+          artist: 'Artist',
+          album: 'Album',
+          albumId: legacyId,
+          duration: 10,
+        }],
+      },
+    });
+
+    const queue = await fetchPlayQueueForServer(profileId);
+    const canonical = canonicalNavidromeId(legacyId);
+    expect(queue.current).toBe(canonical);
+    expect(queue.songs[0]).toMatchObject({ id: canonical, albumId: canonical });
   });
 });

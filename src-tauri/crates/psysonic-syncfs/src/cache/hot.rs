@@ -19,6 +19,7 @@ pub async fn download_track_hot_cache(
     custom_dir: Option<String>,
     app: tauri::AppHandle,
 ) -> Result<HotCacheDownloadResult, String> {
+    let _filesystem_write_guard = crate::filesystem_write_guard().await?;
     let root = resolve_hot_cache_root(custom_dir, &app)?;
     let cache_dir = root.join(&server_id);
 
@@ -140,6 +141,7 @@ pub async fn promote_stream_cache_to_hot_cache(
     app: tauri::AppHandle,
     state: tauri::State<'_, audio::AudioEngine>,
 ) -> Result<Option<HotCacheDownloadResult>, String> {
+    let _filesystem_write_guard = crate::filesystem_write_guard().await?;
     let root = resolve_hot_cache_root(custom_dir, &app)?;
     let cache_dir = root.join(&server_id);
     tokio::fs::create_dir_all(&cache_dir)
@@ -260,6 +262,7 @@ pub async fn delete_hot_cache_track(
     custom_dir: Option<String>,
     app: tauri::AppHandle,
 ) -> Result<(), String> {
+    let _filesystem_write_guard = crate::filesystem_write_guard().await?;
     let file_path = std::path::PathBuf::from(&local_path);
     let existed = file_path.exists();
     if existed {
@@ -288,6 +291,7 @@ pub async fn delete_hot_cache_track(
 #[tauri::command]
 #[specta::specta]
 pub async fn purge_hot_cache(custom_dir: Option<String>, app: tauri::AppHandle) -> Result<(), String> {
+    let _filesystem_write_guard = crate::filesystem_write_guard().await?;
     let root = resolve_hot_cache_root(custom_dir, &app)?;
     if !root.exists() {
         return Ok(());

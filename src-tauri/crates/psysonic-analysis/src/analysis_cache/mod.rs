@@ -9,5 +9,6 @@ pub use compute::{
 };
 pub use store::{
     AnalysisCache, AnalysisDeleteServerReport, FailedTrackEntry, LoudnessEntry, TrackKey,
-    WaveformEntry, ANALYSIS_DB_SCHEMA_VERSION,
+    AnalysisMigrationBatchDto, AnalysisMigrationFinalizeDto, AnalysisMigrationStep, WaveformEntry,
+    ANALYSIS_DB_SCHEMA_VERSION,
 };

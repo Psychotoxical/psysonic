@@ -1,6 +1,7 @@
 use rusqlite::{params, OptionalExtension};
 
 use super::ingest::{sync_persisted_track_genre_rows, UPSERT_SQL};
+use super::retarget::retarget_track_references;
 use super::{RemapEntry, RemapStats, TrackRepository, TrackRow};
 
 impl TrackRepository<'_> {
@@ -144,7 +145,7 @@ impl TrackRepository<'_> {
                                 std::slice::from_ref(&old_id),
                             )?,
                         );
-                        remap_existing_to_new(
+                        retarget_track_references(
                             &tx,
                             &r.server_id,
                             &old_id,
@@ -304,58 +305,4 @@ fn detect_remap_target_cached(
     }
 
     Ok(None)
-}
-
-/// Run the §6.9 retarget half — UPDATE every FK-bound child to the
-/// new id, INSERT into `track_id_history`, DELETE the old `track` row.
-/// `track_offline` has no FK to `track` (spec §5.14) but still needs
-/// its row retargeted so the cached file resolves under the new id.
-fn remap_existing_to_new(
-    tx: &rusqlite::Transaction<'_>,
-    server_id: &str,
-    old_id: &str,
-    new_id: &str,
-    content_hash: Option<&str>,
-    server_path: Option<&str>,
-    remapped_at: i64,
-) -> rusqlite::Result<()> {
-    for table in [
-        "track_offline",
-        "track_extension",
-        "track_fact",
-        "track_artifact",
-        "track_canonical_link",
-        "play_session",
-    ] {
-        tx.execute(
-            &format!(
-                "UPDATE {table} SET track_id = ?1 \
-                 WHERE server_id = ?2 AND track_id = ?3"
-            ),
-            params![new_id, server_id, old_id],
-        )?;
-    }
-    tx.execute(
-        "INSERT INTO track_id_history \
-         (server_id, old_id, new_id, content_hash, server_path, remapped_at) \
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6) \
-         ON CONFLICT(server_id, old_id) DO UPDATE SET \
-           new_id = excluded.new_id, \
-           content_hash = excluded.content_hash, \
-           server_path = excluded.server_path, \
-           remapped_at = excluded.remapped_at",
-        params![
-            server_id,
-            old_id,
-            new_id,
-            content_hash,
-            server_path,
-            remapped_at
-        ],
-    )?;
-    tx.execute(
-        "DELETE FROM track WHERE server_id = ?1 AND id = ?2",
-        params![server_id, old_id],
-    )?;
-    Ok(())
 }

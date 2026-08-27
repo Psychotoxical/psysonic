@@ -11,11 +11,12 @@ import {
 } from '@/features/deviceSync/store/deviceSyncStore';
 import { useDeviceSyncJobStore, type DeviceSyncJobContext } from '@/features/deviceSync/store/deviceSyncJobStore';
 import { showToast } from '@/lib/dom/toast';
-import { trackToSyncInfo, uuid } from '@/features/deviceSync/utils/deviceSyncHelpers';
+import { playlistPathId, trackToSyncInfo, uuid } from '@/features/deviceSync/utils/deviceSyncHelpers';
 import { fetchTracksForSource } from '@/features/playback/utils/playback/fetchTracksForSource';
 import { connectBaseUrlForServer } from '@/lib/server/serverEndpoint';
 import { findServerByIdOrIndexKey } from '@/lib/server/serverLookup';
 import { getAuthParams, restBaseFromUrl } from '@/lib/api/subsonicClient';
+import { writeDeviceSyncManifest } from '@/features/deviceSync/utils/deviceSyncManifest';
 
 export interface SyncDelta {
   addBytes: number;
@@ -35,14 +36,6 @@ function deviceSyncAuth(serverIndexKey: string) {
     ...getAuthParams(server.username, server.password),
     serverId: server.id,
     serverIndexKey,
-  };
-}
-
-function manifestArgs(context: DeviceSyncJobContext) {
-  return {
-    destDir: context.targetDir,
-    ownerServerIndexKey: context.serverIndexKey,
-    sources: context.sources,
   };
 }
 
@@ -144,7 +137,11 @@ export async function runDeviceSyncExecute(deps: RunDeviceSyncExecuteDeps): Prom
         const paths = await computeSyncPaths({
           tracks: tracks.map((tr, idx) => trackToSyncInfo(
             tr, '',
-            source.type === 'playlist' ? { name: source.name, index: idx + 1 } : undefined,
+            source.type === 'playlist' ? {
+              id: playlistPathId(source, sources),
+              name: source.name,
+              index: idx + 1,
+            } : undefined,
           )),
           destDir: targetDir,
         });
@@ -155,9 +152,11 @@ export async function runDeviceSyncExecute(deps: RunDeviceSyncExecuteDeps): Prom
       removeSources(deletionSources.map(deviceSyncSourceKey));
       resultingSources = remainingSources;
       // Update manifest so it stays in sync after deletions
-      await invoke('write_device_manifest', manifestArgs({
-        targetDir, serverIndexKey, sources: remainingSources,
-      }));
+      await writeDeviceSyncManifest({
+        destDir: targetDir,
+        ownerServerIndexKey: serverIndexKey,
+        sources: remainingSources,
+      });
       showToast(
         t('deviceSync.deleteComplete', { count: deletionSources.length }),
         3000, 'info'
@@ -179,13 +178,24 @@ export async function runDeviceSyncExecute(deps: RunDeviceSyncExecuteDeps): Prom
           await invoke('write_playlist_m3u8', {
             destDir: targetDir,
             playlistName: playlist.name,
-            tracks: tracks.map((tr, idx) => trackToSyncInfo(tr, '', { name: playlist.name, index: idx + 1 })),
+            playlistId: playlistPathId(playlist, resultingSources),
+            tracks: tracks.map((tr, idx) => trackToSyncInfo(
+              tr,
+              '',
+              {
+                id: playlistPathId(playlist, resultingSources),
+                name: playlist.name,
+                index: idx + 1,
+              },
+            )),
           });
         } catch { /* non-fatal */ }
       }));
-      await invoke('write_device_manifest', manifestArgs({
-        targetDir, serverIndexKey, sources: resultingSources,
-      }));
+      await writeDeviceSyncManifest({
+        destDir: targetDir,
+        ownerServerIndexKey: serverIndexKey,
+        sources: resultingSources,
+      });
     }
     await scanDevice();
     return;

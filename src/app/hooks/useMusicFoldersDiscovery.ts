@@ -8,6 +8,25 @@ import {
   summarizeMusicFoldersByServer,
 } from '@/lib/library/multiServerDebug';
 import { useAuthStore } from '@/store/authStore';
+import { canonicalNavidromeId } from '@/lib/server/navidromeCanonicalId';
+import { serverIndexKeyForProfile } from '@/lib/server/serverIndexKey';
+import { navidromeCanonicalCheckpointStatus } from '@/lib/server/navidromeCanonicalCheckpointStatus';
+
+function canonicalizeDiscoveredMusicFolders(
+  canonicalIdsReady: boolean,
+  folders: Array<{ id: string; name: string }>,
+): Array<{ id: string; name: string }> {
+  if (!canonicalIdsReady) return folders;
+  const canonical = new Map<string, { id: string; name: string }>();
+  for (const folder of folders) {
+    const id = canonicalNavidromeId(folder.id);
+    const existing = canonical.get(id);
+    canonical.set(id, existing
+      ? { ...existing, ...folder, id, name: folder.name || existing.name }
+      : { ...folder, id });
+  }
+  return [...canonical.values()];
+}
 
 /** Refreshes folder lists for the configured Library scope or its active-server fallback. */
 export function useMusicFoldersDiscovery(): void {
@@ -22,6 +41,12 @@ export function useMusicFoldersDiscovery(): void {
     libraryBrowseServerIds: configuredServerIds,
   }), [activeServerId, configuredServerIds, servers]);
   const selectedKey = useMemo(() => selectedServerIds.join('\u0000'), [selectedServerIds]);
+  const canonicalReadyServerIds = useMemo(() => new Set(servers.flatMap(server => {
+    const serverIndexKey = serverIndexKeyForProfile(server);
+    return serverIndexKey && navidromeCanonicalCheckpointStatus(serverIndexKey) === 'ready'
+      ? [server.id]
+      : [];
+  })), [servers]);
 
   useEffect(() => {
     const stateAtStart = useAuthStore.getState();
@@ -63,7 +88,11 @@ export function useMusicFoldersDiscovery(): void {
         })[serverId],
       });
       void getMusicFoldersForServer(serverId)
-        .then(folders => {
+        .then(discoveredFolders => {
+          const folders = canonicalizeDiscoveredMusicFolders(
+            canonicalReadyServerIds.has(serverId),
+            discoveredFolders,
+          );
           if (cancelled) {
             emitMultiServerDebug('folders_discovery_request_stale', {
               serverId,
@@ -111,6 +140,7 @@ export function useMusicFoldersDiscovery(): void {
     };
   }, [
     activeServerId,
+    canonicalReadyServerIds,
     configuredServerIds,
     isLoggedIn,
     selectedKey,

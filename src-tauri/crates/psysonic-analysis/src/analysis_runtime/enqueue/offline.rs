@@ -4,6 +4,7 @@ use tauri::Manager;
 use crate::analysis_cache;
 use crate::analysis_perf::emit_analysis_track_perf;
 
+use super::super::admission::ordinary_queue_admission_guard_async;
 use super::super::cpu_seed::submit_analysis_cpu_seed;
 use super::super::trusted_revision::{
     activate_trusted_enrichment, activate_trusted_identity, begin_trusted_revision,
@@ -181,6 +182,9 @@ async fn enqueue_track_analysis_offline_library_with_plan(
             args.track_id,
             content_hash
         );
+        // Offline enrichment writes the same library/cache state as HTTP
+        // enrichment, so migration must drain it through the same admission gate.
+        let _admission = ordinary_queue_admission_guard_async(args.app).await?;
         let bpm_started = std::time::Instant::now();
         let trusted_guard = args
             .trusted_revision

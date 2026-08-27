@@ -17,7 +17,7 @@ const COVER_CPU_BACKFILL_CONCURRENCY: usize = 2;
 const COVER_CPU_BACKFILL_MAX: usize = 16;
 /// External providers (fanart.tv) get their own low-concurrency HTTP lane so
 /// they can never starve Navidrome cover / getArtistInfo2 fetches (§26).
-const FANART_HTTP_CONCURRENCY: usize = 4;
+pub(super) const FANART_HTTP_CONCURRENCY: usize = 4;
 
 pub struct CoverCacheState {
     pub root: PathBuf,

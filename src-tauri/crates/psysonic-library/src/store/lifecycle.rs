@@ -17,6 +17,7 @@ impl LibraryStore {
         active_path: &Path,
         destination_path: &Path,
     ) -> Result<Option<PathBuf>, String> {
+        self.ensure_write_generation_allowed()?;
         if !destination_path.exists() {
             return Ok(None);
         }
@@ -176,6 +177,7 @@ impl LibraryStore {
         backup_path: &Path,
         active_path: &Path,
     ) -> Result<(), String> {
+        self.ensure_write_generation_allowed()?;
         let mut swap_guard = SwapInProgressGuard::new(self);
         let mut write_conn = self
             .write_conn

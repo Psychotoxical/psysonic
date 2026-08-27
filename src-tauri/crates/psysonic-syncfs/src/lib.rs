@@ -6,7 +6,7 @@
 //! devices (`sync_*`).
 
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 
 // Re-export logging facade so submodules can keep `crate::app_eprintln!()`.
@@ -18,6 +18,167 @@ pub mod sync;
 
 /// Shared semaphore that caps simultaneous `download_track_offline` executions.
 pub type DownloadSemaphore = Arc<tokio::sync::Semaphore>;
+
+struct FilesystemWriteBarrier {
+    active_generation: AtomicU64,
+    lock: Arc<tokio::sync::RwLock<()>>,
+    activation: tokio::sync::Mutex<()>,
+    migration_guard: Mutex<Option<(u64, tokio::sync::OwnedRwLockWriteGuard<()>)>>,
+}
+
+impl FilesystemWriteBarrier {
+    fn new() -> Self {
+        Self {
+            active_generation: AtomicU64::new(0),
+            lock: Arc::new(tokio::sync::RwLock::new(())),
+            activation: tokio::sync::Mutex::new(()),
+            migration_guard: Mutex::new(None),
+        }
+    }
+
+    async fn activate(&self, generation: u64) -> Result<(), String> {
+        if generation == 0 {
+            return Err("filesystem migration generation must be non-zero".to_string());
+        }
+        let _activation = self.activation.lock().await;
+        match self.active_generation.compare_exchange(
+            0,
+            generation,
+            Ordering::AcqRel,
+            Ordering::Acquire,
+        ) {
+            Ok(_) => {}
+            Err(active) if active == generation => {
+                let slot = self
+                    .migration_guard
+                    .lock()
+                    .map_err(|_| "filesystem migration guard lock poisoned".to_string())?;
+                return if matches!(slot.as_ref(), Some((active, _)) if *active == generation) {
+                    Ok(())
+                } else {
+                    Err(format!(
+                        "filesystem migration generation {generation} is marked active without an acquired writer"
+                    ))
+                };
+            }
+            Err(active) => {
+                return Err(format!(
+                    "filesystem writers are already blocked by migration generation {active}"
+                ));
+            }
+        }
+
+        let mut rollback = FilesystemActivationRollback {
+            barrier: self,
+            generation,
+            armed: true,
+        };
+        let guard = self.lock.clone().write_owned().await;
+        let mut slot = self
+            .migration_guard
+            .lock()
+            .map_err(|_| "filesystem migration guard lock poisoned".to_string())?;
+        if slot.is_some() {
+            return Err("filesystem migration writer slot is already occupied".to_string());
+        }
+        *slot = Some((generation, guard));
+        rollback.armed = false;
+        Ok(())
+    }
+}
+
+struct FilesystemActivationRollback<'a> {
+    barrier: &'a FilesystemWriteBarrier,
+    generation: u64,
+    armed: bool,
+}
+
+impl Drop for FilesystemActivationRollback<'_> {
+    fn drop(&mut self) {
+        if self.armed {
+            let _ = self.barrier.active_generation.compare_exchange(
+                self.generation,
+                0,
+                Ordering::AcqRel,
+                Ordering::Acquire,
+            );
+        }
+    }
+}
+
+fn filesystem_write_barrier() -> &'static FilesystemWriteBarrier {
+    static BARRIER: OnceLock<FilesystemWriteBarrier> = OnceLock::new();
+    BARRIER.get_or_init(FilesystemWriteBarrier::new)
+}
+
+pub async fn filesystem_write_guard() -> Result<tokio::sync::OwnedRwLockReadGuard<()>, String> {
+    let barrier = filesystem_write_barrier();
+    let active = barrier.active_generation.load(Ordering::Acquire);
+    if active != 0 {
+        return Err(format!(
+            "migration generation {active} blocks ordinary filesystem writes"
+        ));
+    }
+    let guard = barrier.lock.clone().read_owned().await;
+    let active = barrier.active_generation.load(Ordering::Acquire);
+    if active != 0 {
+        drop(guard);
+        return Err(format!(
+            "migration generation {active} blocks ordinary filesystem writes"
+        ));
+    }
+    Ok(guard)
+}
+
+pub fn filesystem_write_guard_now() -> Result<tokio::sync::OwnedRwLockReadGuard<()>, String> {
+    let barrier = filesystem_write_barrier();
+    let active = barrier.active_generation.load(Ordering::Acquire);
+    if active != 0 {
+        return Err(format!(
+            "migration generation {active} blocks ordinary filesystem writes"
+        ));
+    }
+    let guard = barrier
+        .lock
+        .clone()
+        .try_read_owned()
+        .map_err(|_| "filesystem migration blocks ordinary filesystem writes".to_string())?;
+    let active = barrier.active_generation.load(Ordering::Acquire);
+    if active != 0 {
+        drop(guard);
+        return Err(format!(
+            "migration generation {active} blocks ordinary filesystem writes"
+        ));
+    }
+    Ok(guard)
+}
+
+pub async fn activate_filesystem_migration_generation(generation: u64) -> Result<(), String> {
+    filesystem_write_barrier().activate(generation).await
+}
+
+pub fn deactivate_filesystem_migration_generation(generation: u64) -> Result<(), String> {
+    let barrier = filesystem_write_barrier();
+    let mut slot = barrier
+        .migration_guard
+        .lock()
+        .map_err(|_| "filesystem migration guard lock poisoned".to_string())?;
+    if !matches!(slot.as_ref(), Some((active, _)) if *active == generation) {
+        return Err(format!(
+            "cannot release filesystem migration generation {generation}"
+        ));
+    }
+    slot.take();
+    barrier
+        .active_generation
+        .compare_exchange(generation, 0, Ordering::AcqRel, Ordering::Acquire)
+        .map(|_| ())
+        .map_err(|active| {
+            format!(
+                "cannot release filesystem migration generation {generation}; active generation is {active}"
+            )
+        })
+}
 
 /// Per-job cancellation flags for `sync_batch_to_device`.
 /// Each running sync registers an `Arc<AtomicBool>` here; `cancel_device_sync`
@@ -90,4 +251,43 @@ pub(crate) fn clear_offline_download_cancellation(download_id: &str) {
         .lock()
         .unwrap_or_else(|error| error.into_inner())
         .remove(download_id);
+}
+
+#[cfg(test)]
+mod migration_barrier_tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn activation_failure_after_generation_cas_clears_active_generation() {
+        let barrier = Arc::new(FilesystemWriteBarrier::new());
+        let barrier_to_poison = Arc::clone(&barrier);
+        let _ = std::thread::spawn(move || {
+            let _guard = barrier_to_poison.migration_guard.lock().unwrap();
+            panic!("poison filesystem migration guard");
+        })
+        .join();
+
+        let error = barrier.activate(7).await.unwrap_err();
+        assert!(error.contains("lock poisoned"));
+        assert_eq!(barrier.active_generation.load(Ordering::Acquire), 0);
+        assert!(barrier.lock.clone().try_write_owned().is_ok());
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn cancelled_activation_clears_active_generation() {
+        let barrier = Arc::new(FilesystemWriteBarrier::new());
+        let reader = barrier.lock.clone().read_owned().await;
+        let barrier_for_activation = Arc::clone(&barrier);
+        let activation = tokio::spawn(async move { barrier_for_activation.activate(9).await });
+
+        while barrier.active_generation.load(Ordering::Acquire) != 9 {
+            tokio::task::yield_now().await;
+        }
+        activation.abort();
+        let _ = activation.await;
+
+        assert_eq!(barrier.active_generation.load(Ordering::Acquire), 0);
+        drop(reader);
+        assert!(barrier.lock.clone().try_write_owned().is_ok());
+    }
 }

@@ -9,6 +9,7 @@ import {
 import { useDeviceSyncJobStore } from '@/features/deviceSync/store/deviceSyncJobStore';
 import { useDeviceSyncStore, type DeviceSyncSource } from '@/features/deviceSync/store/deviceSyncStore';
 import { useDeviceSyncJobEvents } from './useDeviceSyncJobEvents';
+import { NAVIDROME_CANONICAL_BOOTSTRAP_LOCK_KEY } from '@/lib/server/navidromeCanonicalCheckpointStatus';
 
 describe('useDeviceSyncJobEvents ownership', () => {
   beforeEach(() => {
@@ -16,6 +17,8 @@ describe('useDeviceSyncJobEvents ownership', () => {
     useDeviceSyncStore.setState({
       targetDir: null,
       sources: [],
+      legacySources: [],
+      legacyTargetDir: null,
       checkedIds: [],
       pendingDeletion: [],
       deviceFilePaths: [],
@@ -50,7 +53,27 @@ describe('useDeviceSyncJobEvents ownership', () => {
       destDir: '/old-device',
       ownerServerIndexKey: 'owner.test',
       sources: [source],
+      canonicalIdVersion: null,
     }));
     expect(scanDevice).not.toHaveBeenCalled();
+  });
+
+  it('does not write completion metadata after migration locks the window', async () => {
+    const source: DeviceSyncSource = {
+      type: 'album', id: 'album-1', name: 'Album', serverIndexKey: 'owner.test',
+    };
+    useDeviceSyncJobStore.getState().startSync('job-1', 1, {
+      targetDir: '/device', serverIndexKey: source.serverIndexKey, sources: [source],
+    });
+    localStorage.setItem(NAVIDROME_CANONICAL_BOOTSTRAP_LOCK_KEY, '1');
+
+    renderHook(() => useDeviceSyncJobEvents(((key: string) => key) as never, vi.fn()));
+    await waitFor(() => expect(tauriMockListenerCount('device:sync:complete')).toBe(1));
+    emitTauriEvent('device:sync:complete', {
+      jobId: 'job-1', done: 1, skipped: 0, failed: 0, total: 1,
+    });
+
+    await waitFor(() => expect(useDeviceSyncJobStore.getState().status).toBe('done'));
+    expect(invokeMock).not.toHaveBeenCalledWith('write_device_manifest', expect.anything());
   });
 });

@@ -6,10 +6,13 @@
 
 pub mod server_http;
 pub mod cover_cache_layout;
+pub mod database_pair_admission;
 pub mod icy;
 pub mod log_sanitize;
 pub mod media_layout;
 pub mod logging;
+pub mod migration_write_barrier;
+pub mod navidrome_id_codec;
 pub mod ports;
 pub mod track_analysis;
 pub mod track_enrichment;

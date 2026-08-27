@@ -7,7 +7,7 @@
 //! a long-lived cancellation flag for the background-scheduler task
 //! the top crate spawns in `setup()`.
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -76,6 +76,82 @@ pub struct SyncDrainBarrier {
     _scheduler: OwnedRwLockWriteGuard<()>,
 }
 
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize, serde::Serialize, specta::Type,
+)]
+#[serde(rename_all = "kebab-case")]
+pub enum MigrationPhase {
+    Pending,
+    Native,
+    Analysis,
+    Cover,
+    Frontend,
+    Cleanup,
+    Sync,
+    Retryable,
+    Blocked,
+    Legacy,
+    NotApplicable,
+    Ready,
+}
+
+impl MigrationPhase {
+    pub fn is_terminal(self) -> bool {
+        matches!(self, Self::Legacy | Self::NotApplicable | Self::Ready)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct MigrationServerSnapshotDto {
+    pub server_id: String,
+    pub phase: MigrationPhase,
+    pub error: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, specta::Type)]
+#[serde(tag = "state", rename_all = "kebab-case", rename_all_fields = "camelCase")]
+pub enum MigrationGenerationSnapshotDto {
+    Inactive { last_generation: u64 },
+    Active {
+        generation: u64,
+        servers: Vec<MigrationServerSnapshotDto>,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct MigrationBeginServerDto {
+    pub server_id: String,
+    pub previous_phase: Option<MigrationPhase>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct MigrationBeginResultDto {
+    pub generation: u64,
+    pub created: bool,
+    pub servers: Vec<MigrationBeginServerDto>,
+}
+
+#[derive(Debug, Clone)]
+struct MigrationServerState {
+    phase: MigrationPhase,
+    error: Option<String>,
+}
+
+#[derive(Debug)]
+struct ActiveMigrationGeneration {
+    generation: u64,
+    servers: BTreeMap<String, MigrationServerState>,
+}
+
+#[derive(Debug)]
+enum MigrationGenerationState {
+    Inactive { last_generation: u64 },
+    Active(ActiveMigrationGeneration),
+}
+
 pub struct LibraryRuntime {
     pub store: Arc<LibraryStore>,
     /// Per-`server_id` sync session. Mutex over a `HashMap` — single
@@ -101,6 +177,10 @@ pub struct LibraryRuntime {
     live_search_epoch: AtomicU64,
     /// Cached analysis progress snapshots keyed by server id.
     analysis_progress_cache: Mutex<HashMap<String, AnalysisProgressCacheEntry>>,
+    /// Long-lived global writer block for a connection migration generation.
+    migration_generation: Mutex<MigrationGenerationState>,
+    /// Serializes cross-store migration activation, rollback, and release.
+    migration_admission: Arc<AsyncMutex<()>>,
 }
 
 impl LibraryRuntime {
@@ -115,6 +195,10 @@ impl LibraryRuntime {
             scheduler_cancel: Arc::new(AtomicBool::new(false)),
             live_search_epoch: AtomicU64::new(0),
             analysis_progress_cache: Mutex::new(HashMap::new()),
+            migration_generation: Mutex::new(MigrationGenerationState::Inactive {
+                last_generation: 0,
+            }),
+            migration_admission: Arc::new(AsyncMutex::new(())),
         }
     }
 
@@ -125,6 +209,432 @@ impl LibraryRuntime {
 
     pub fn live_search_still_current(&self, epoch: u64) -> bool {
         self.live_search_epoch.load(Ordering::Acquire) == epoch
+    }
+
+    /// Gate non-SQL native writers (cover/offline filesystem work) on the same
+    /// migration generation that protects the library and analysis databases.
+    pub fn ensure_external_write_allowed(&self) -> Result<(), String> {
+        self.store.ensure_write_generation_allowed()
+    }
+
+    /// Hold across the complete library/analysis/filesystem barrier transition.
+    /// Synchronous migration state locks must only be acquired after this guard.
+    pub async fn migration_admission_guard(&self) -> OwnedMutexGuard<()> {
+        Arc::clone(&self.migration_admission).lock_owned().await
+    }
+
+    /// Start or extend the one active connection migration generation.
+    /// Canonical callers hold [`Self::migration_admission_guard`] until every
+    /// external barrier has activated or the new generation has rolled back.
+    pub async fn begin_migration_generation<I, S>(
+        &self,
+        server_ids: I,
+    ) -> Result<MigrationBeginResultDto, String>
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        let mut admitted = BTreeSet::new();
+        for server_id in server_ids {
+            let server_id = server_id.into();
+            if server_id.trim().is_empty() {
+                return Err("migration server id must not be empty".to_string());
+            }
+            admitted.insert(server_id);
+        }
+
+        let result = {
+            let mut state = self
+                .migration_generation
+                .lock()
+                .map_err(|_| "library migration generation lock poisoned".to_string())?;
+            match &mut *state {
+                MigrationGenerationState::Active(active) => {
+                    let mut servers = Vec::with_capacity(admitted.len());
+                    for server_id in admitted {
+                        let previous_phase = active
+                            .servers
+                            .get(&server_id)
+                            .map(|server| server.phase);
+                        servers.push(MigrationBeginServerDto {
+                            server_id: server_id.clone(),
+                            previous_phase,
+                        });
+                        match active.servers.entry(server_id) {
+                            std::collections::btree_map::Entry::Vacant(entry) => {
+                                entry.insert(MigrationServerState {
+                                    phase: MigrationPhase::Pending,
+                                    error: None,
+                                });
+                            }
+                            std::collections::btree_map::Entry::Occupied(mut entry)
+                                if entry.get().phase.is_terminal() =>
+                            {
+                                entry.insert(MigrationServerState {
+                                    phase: MigrationPhase::Pending,
+                                    error: None,
+                                });
+                            }
+                            std::collections::btree_map::Entry::Occupied(_) => {}
+                        }
+                    }
+                    MigrationBeginResultDto {
+                        generation: active.generation,
+                        created: false,
+                        servers,
+                    }
+                }
+                MigrationGenerationState::Inactive { last_generation } => {
+                    let generation = last_generation.checked_add(1).ok_or_else(|| {
+                        "library migration generation counter exhausted".to_string()
+                    })?;
+                    let begin_servers = admitted
+                        .iter()
+                        .map(|server_id| MigrationBeginServerDto {
+                            server_id: server_id.clone(),
+                            previous_phase: None,
+                        })
+                        .collect();
+                    let servers = admitted
+                        .into_iter()
+                        .map(|server_id| {
+                            (
+                                server_id,
+                                MigrationServerState {
+                                    phase: MigrationPhase::Pending,
+                                    error: None,
+                                },
+                            )
+                        })
+                        .collect();
+                    *state = MigrationGenerationState::Active(ActiveMigrationGeneration {
+                        generation,
+                        servers,
+                    });
+                    MigrationBeginResultDto {
+                        generation,
+                        created: true,
+                        servers: begin_servers,
+                    }
+                }
+            }
+        };
+
+        if !result.created {
+            return Ok(result);
+        }
+
+        let generation = result.generation;
+        let activation = async {
+            let barrier = self.cancel_and_drain_sync(None, None).await?;
+            self.store.activate_migration_write_generation(generation)?;
+            drop(barrier);
+            Ok::<(), String>(())
+        }
+        .await;
+        if let Err(error) = activation {
+            let _ = self.store.deactivate_migration_write_generation(generation);
+            if let Ok(mut state) = self.migration_generation.lock() {
+                if matches!(
+                    &*state,
+                    MigrationGenerationState::Active(active) if active.generation == generation
+                ) {
+                    *state = MigrationGenerationState::Inactive {
+                        last_generation: generation,
+                    };
+                }
+            }
+            return Err(error);
+        }
+        Ok(result)
+    }
+
+    pub fn inspect_migration_generation(
+        &self,
+    ) -> Result<MigrationGenerationSnapshotDto, String> {
+        let state = self
+            .migration_generation
+            .lock()
+            .map_err(|_| "library migration generation lock poisoned".to_string())?;
+        Ok(match &*state {
+            MigrationGenerationState::Inactive { last_generation } => {
+                MigrationGenerationSnapshotDto::Inactive {
+                    last_generation: *last_generation,
+                }
+            }
+            MigrationGenerationState::Active(active) => {
+                MigrationGenerationSnapshotDto::Active {
+                    generation: active.generation,
+                    servers: active
+                        .servers
+                        .iter()
+                        .map(|(server_id, server)| MigrationServerSnapshotDto {
+                            server_id: server_id.clone(),
+                            phase: server.phase,
+                            error: server.error.clone(),
+                        })
+                        .collect(),
+                }
+            }
+        })
+    }
+
+    pub fn ensure_ordinary_sync_activity_allowed(&self) -> Result<(), String> {
+        let state = self
+            .migration_generation
+            .lock()
+            .map_err(|_| "library migration generation lock poisoned".to_string())?;
+        match &*state {
+            MigrationGenerationState::Inactive { .. } => Ok(()),
+            MigrationGenerationState::Active(active) => Err(format!(
+                "library migration generation {} blocks ordinary sync activity",
+                active.generation
+            )),
+        }
+    }
+
+    pub fn ensure_migration_server_allowed(
+        &self,
+        generation: u64,
+        server_id: &str,
+    ) -> Result<(), String> {
+        let state = self
+            .migration_generation
+            .lock()
+            .map_err(|_| "library migration generation lock poisoned".to_string())?;
+        let MigrationGenerationState::Active(active) = &*state else {
+            return Err("no active library migration generation".to_string());
+        };
+        if active.generation != generation {
+            return Err(format!(
+                "stale library migration generation {generation}; active generation is {}",
+                active.generation
+            ));
+        }
+        let server = active.servers.get(server_id).ok_or_else(|| {
+            format!(
+                "server `{server_id}` is not admitted to library migration generation {generation}"
+            )
+        })?;
+        if server.phase == MigrationPhase::Blocked || server.phase.is_terminal() {
+            return Err(format!(
+                "server `{server_id}` cannot perform migration work in phase {:?}",
+                server.phase
+            ));
+        }
+        Ok(())
+    }
+
+    pub fn ensure_migration_full_sync_allowed(
+        &self,
+        generation: u64,
+        server_id: &str,
+    ) -> Result<(), String> {
+        self.ensure_migration_server_allowed(generation, server_id)?;
+        let state = self
+            .migration_generation
+            .lock()
+            .map_err(|_| "library migration generation lock poisoned".to_string())?;
+        let MigrationGenerationState::Active(active) = &*state else {
+            return Err("no active library migration generation".to_string());
+        };
+        let server = active.servers.get(server_id).expect("admission checked above");
+        if server.phase != MigrationPhase::Sync {
+            return Err(format!(
+                "server `{server_id}` is in migration phase {:?}, not sync",
+                server.phase
+            ));
+        }
+        Ok(())
+    }
+
+    pub fn ensure_migration_phase(
+        &self,
+        generation: u64,
+        server_id: &str,
+        expected: MigrationPhase,
+    ) -> Result<(), String> {
+        self.ensure_migration_server_allowed(generation, server_id)?;
+        let state = self
+            .migration_generation
+            .lock()
+            .map_err(|_| "library migration generation lock poisoned".to_string())?;
+        let MigrationGenerationState::Active(active) = &*state else {
+            return Err("no active library migration generation".to_string());
+        };
+        let server = active.servers.get(server_id).expect("admission checked above");
+        if server.phase != expected {
+            return Err(format!(
+                "server `{server_id}` is in migration phase {:?}, not {expected:?}",
+                server.phase
+            ));
+        }
+        Ok(())
+    }
+
+    pub fn update_migration_phase(
+        &self,
+        generation: u64,
+        server_id: &str,
+        phase: MigrationPhase,
+    ) -> Result<(), String> {
+        if phase == MigrationPhase::Blocked || phase.is_terminal() {
+            return Err(format!(
+                "migration phase {phase:?} requires abort_migration_server or finish_migration_server"
+            ));
+        }
+        let mut state = self
+            .migration_generation
+            .lock()
+            .map_err(|_| "library migration generation lock poisoned".to_string())?;
+        let active = active_migration_generation_mut(&mut state, generation)?;
+        let server = admitted_migration_server_mut(active, server_id)?;
+        if server.phase == MigrationPhase::Blocked || server.phase.is_terminal() {
+            return Err(format!(
+                "server `{server_id}` cannot advance from migration phase {:?}",
+                server.phase
+            ));
+        }
+        server.phase = phase;
+        server.error = None;
+        Ok(())
+    }
+
+    pub fn finish_migration_server(
+        &self,
+        generation: u64,
+        server_id: &str,
+        phase: MigrationPhase,
+    ) -> Result<(), String> {
+        if !phase.is_terminal() {
+            return Err(format!("migration phase {phase:?} is not terminal"));
+        }
+        let mut state = self
+            .migration_generation
+            .lock()
+            .map_err(|_| "library migration generation lock poisoned".to_string())?;
+        let active = active_migration_generation_mut(&mut state, generation)?;
+        let server = admitted_migration_server_mut(active, server_id)?;
+        if server.phase == MigrationPhase::Blocked {
+            return Err(format!(
+                "server `{server_id}` is blocked and must be retried before it can finish"
+            ));
+        }
+        if server.phase.is_terminal() && server.phase != phase {
+            return Err(format!(
+                "server `{server_id}` already finished migration in phase {:?}",
+                server.phase
+            ));
+        }
+        server.phase = phase;
+        server.error = None;
+        Ok(())
+    }
+
+    pub fn abort_migration_server(
+        &self,
+        generation: u64,
+        server_id: &str,
+        error: impl Into<String>,
+    ) -> Result<(), String> {
+        let error = error.into();
+        if error.trim().is_empty() {
+            return Err("migration abort error must not be empty".to_string());
+        }
+        let mut state = self
+            .migration_generation
+            .lock()
+            .map_err(|_| "library migration generation lock poisoned".to_string())?;
+        let active = active_migration_generation_mut(&mut state, generation)?;
+        let server = admitted_migration_server_mut(active, server_id)?;
+        if server.phase.is_terminal() {
+            return Err(format!(
+                "server `{server_id}` already finished migration in phase {:?}",
+                server.phase
+            ));
+        }
+        server.phase = MigrationPhase::Blocked;
+        server.error = Some(error);
+        Ok(())
+    }
+
+    pub fn retry_migration_server(
+        &self,
+        generation: u64,
+        server_id: &str,
+    ) -> Result<(), String> {
+        let mut state = self
+            .migration_generation
+            .lock()
+            .map_err(|_| "library migration generation lock poisoned".to_string())?;
+        let active = active_migration_generation_mut(&mut state, generation)?;
+        let server = admitted_migration_server_mut(active, server_id)?;
+        if server.phase != MigrationPhase::Blocked {
+            return Err(format!(
+                "server `{server_id}` is in migration phase {:?}, not blocked",
+                server.phase
+            ));
+        }
+        server.phase = MigrationPhase::Pending;
+        server.error = None;
+        Ok(())
+    }
+
+    pub fn release_migration_generation(&self, generation: u64) -> Result<(), String> {
+        let mut state = self
+            .migration_generation
+            .lock()
+            .map_err(|_| "library migration generation lock poisoned".to_string())?;
+        let active = active_migration_generation_mut(&mut state, generation)?;
+        ensure_active_migration_releasable(active)?;
+        self.store
+            .deactivate_migration_write_generation(generation)?;
+        *state = MigrationGenerationState::Inactive {
+            last_generation: generation,
+        };
+        Ok(())
+    }
+
+    pub fn ensure_migration_generation_releasable(&self, generation: u64) -> Result<(), String> {
+        let state = self
+            .migration_generation
+            .lock()
+            .map_err(|_| "library migration generation lock poisoned".to_string())?;
+        let MigrationGenerationState::Active(active) = &*state else {
+            return Err("no active library migration generation".to_string());
+        };
+        if active.generation != generation {
+            return Err(format!(
+                "stale library migration generation {generation}; active generation is {}",
+                active.generation
+            ));
+        }
+        ensure_active_migration_releasable(active)
+    }
+
+    /// Undo a generation whose external writer barriers failed to activate.
+    /// This is valid only before any admitted server leaves `Pending`.
+    pub fn rollback_migration_generation_start(&self, generation: u64) -> Result<(), String> {
+        let mut state = self
+            .migration_generation
+            .lock()
+            .map_err(|_| "library migration generation lock poisoned".to_string())?;
+        let active = active_migration_generation_mut(&mut state, generation)?;
+        if active
+            .servers
+            .values()
+            .any(|server| server.phase != MigrationPhase::Pending)
+        {
+            return Err(format!(
+                "library migration generation {generation} already started durable work"
+            ));
+        }
+        self.store
+            .deactivate_migration_write_generation(generation)?;
+        *state = MigrationGenerationState::Inactive {
+            last_generation: generation,
+        };
+        Ok(())
     }
 
     pub fn install_current_job(&self, job: CurrentJob) -> Result<(), String> {
@@ -352,6 +862,49 @@ impl LibraryRuntime {
             }
         }
     }
+}
+
+fn active_migration_generation_mut(
+    state: &mut MigrationGenerationState,
+    generation: u64,
+) -> Result<&mut ActiveMigrationGeneration, String> {
+    let MigrationGenerationState::Active(active) = state else {
+        return Err("no active library migration generation".to_string());
+    };
+    if active.generation != generation {
+        return Err(format!(
+            "stale library migration generation {generation}; active generation is {}",
+            active.generation
+        ));
+    }
+    Ok(active)
+}
+
+fn admitted_migration_server_mut<'a>(
+    active: &'a mut ActiveMigrationGeneration,
+    server_id: &str,
+) -> Result<&'a mut MigrationServerState, String> {
+    let generation = active.generation;
+    active.servers.get_mut(server_id).ok_or_else(|| {
+        format!("server `{server_id}` is not admitted to library migration generation {generation}")
+    })
+}
+
+fn ensure_active_migration_releasable(active: &ActiveMigrationGeneration) -> Result<(), String> {
+    let unfinished = active
+        .servers
+        .iter()
+        .filter(|(_, server)| !server.phase.is_terminal())
+        .map(|(server_id, server)| format!("{server_id} ({:?})", server.phase))
+        .collect::<Vec<_>>();
+    if unfinished.is_empty() {
+        return Ok(());
+    }
+    Err(format!(
+        "library migration generation {} cannot release; unfinished servers: {}",
+        active.generation,
+        unfinished.join(", ")
+    ))
 }
 
 #[cfg(test)]

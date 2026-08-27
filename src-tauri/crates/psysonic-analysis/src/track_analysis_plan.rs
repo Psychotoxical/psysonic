@@ -3,6 +3,7 @@
 //! All byte-backed enqueue paths should call [`crate::analysis_runtime::enqueue_track_analysis`],
 //! which uses this module to decide full CPU seed vs enrichment-only vs no-op.
 
+use psysonic_core::database_pair_admission::database_pair_read_scope;
 use psysonic_core::track_analysis::TrackAnalysisPlan;
 use psysonic_core::track_enrichment::TrackEnrichmentPort;
 use tauri::{AppHandle, Manager, Runtime};
@@ -21,6 +22,23 @@ pub fn plan_track_analysis<R: Runtime>(
 /// Offline/library download: waveform cache and enrichment facts may live under the
 /// playback index key while library rows use the UUID — try every scope before seeding.
 pub fn plan_track_analysis_offline_library<R: Runtime>(
+    app: &AppHandle<R>,
+    cache_server_ids: &[&str],
+    enrichment_server_id: &str,
+    track_id: &str,
+    content_hash: &str,
+) -> TrackAnalysisPlan {
+    let _pair_scope = database_pair_read_scope();
+    plan_track_analysis_offline_library_within_pair_scope(
+        app,
+        cache_server_ids,
+        enrichment_server_id,
+        track_id,
+        content_hash,
+    )
+}
+
+fn plan_track_analysis_offline_library_within_pair_scope<R: Runtime>(
     app: &AppHandle<R>,
     cache_server_ids: &[&str],
     _enrichment_server_id: &str,
@@ -43,6 +61,15 @@ pub fn plan_track_analysis_from_cache<R: Runtime>(
     server_id: &str,
     track_id: &str,
 ) -> Result<TrackAnalysisPlan, String> {
+    let _pair_scope = database_pair_read_scope();
+    plan_track_analysis_from_cache_within_pair_scope(app, server_id, track_id)
+}
+
+fn plan_track_analysis_from_cache_within_pair_scope<R: Runtime>(
+    app: &AppHandle<R>,
+    server_id: &str,
+    track_id: &str,
+) -> Result<TrackAnalysisPlan, String> {
     let Some(cache) = app.try_state::<AnalysisCache>() else {
         return Ok(TrackAnalysisPlan {
             need_waveform: true,
@@ -57,10 +84,25 @@ pub fn plan_track_analysis_from_cache<R: Runtime>(
             enrichment: Default::default(),
         });
     };
-    Ok(plan_track_analysis(app, server_id, track_id, &md5))
+    Ok(plan_track_analysis_offline_library_within_pair_scope(
+        app,
+        &[server_id],
+        server_id,
+        track_id,
+        &md5,
+    ))
 }
 
 pub fn track_analysis_needs_work<R: Runtime>(
+    app: &AppHandle<R>,
+    server_id: &str,
+    track_id: &str,
+) -> Result<bool, String> {
+    let _pair_scope = database_pair_read_scope();
+    track_analysis_needs_work_within_pair_scope(app, server_id, track_id)
+}
+
+fn track_analysis_needs_work_within_pair_scope<R: Runtime>(
     app: &AppHandle<R>,
     server_id: &str,
     track_id: &str,
@@ -73,7 +115,7 @@ pub fn track_analysis_needs_work<R: Runtime>(
         {
             return Ok(false);
         }
-        let plan = plan_track_analysis_from_cache(app, server_id, track_id)?;
+        let plan = plan_track_analysis_from_cache_within_pair_scope(app, server_id, track_id)?;
         if !plan.any() {
             return Ok(false);
         }
@@ -99,7 +141,7 @@ pub fn track_analysis_needs_work<R: Runtime>(
         }
         return Ok(plan.any());
     }
-    Ok(plan_track_analysis_from_cache(app, server_id, track_id)?.any())
+    Ok(plan_track_analysis_from_cache_within_pair_scope(app, server_id, track_id)?.any())
 }
 
 fn cache_gaps<R: Runtime>(

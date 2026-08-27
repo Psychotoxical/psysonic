@@ -5,8 +5,9 @@ import type { TFunction } from 'i18next';
 import { useDeviceSyncJobStore } from '@/features/deviceSync/store/deviceSyncJobStore';
 import { useDeviceSyncStore } from '@/features/deviceSync/store/deviceSyncStore';
 import { showToast } from '@/lib/dom/toast';
-import { trackToSyncInfo } from '@/features/deviceSync/utils/deviceSyncHelpers';
+import { playlistPathId, trackToSyncInfo } from '@/features/deviceSync/utils/deviceSyncHelpers';
 import { fetchTracksForSource } from '@/features/playback/utils/playback/fetchTracksForSource';
+import { writeDeviceSyncManifest } from '@/features/deviceSync/utils/deviceSyncManifest';
 
 export function useDeviceSyncJobEvents(
   t: TFunction,
@@ -46,7 +47,7 @@ export function useDeviceSyncJobEvents(
           const context = current.context;
           if (context) {
             const { targetDir: dir, sources: srcs, serverIndexKey } = context;
-            invoke('write_device_manifest', {
+            writeDeviceSyncManifest({
               destDir: dir,
               ownerServerIndexKey: serverIndexKey,
               sources: srcs,
@@ -61,7 +62,16 @@ export function useDeviceSyncJobEvents(
                 await invoke('write_playlist_m3u8', {
                   destDir: dir,
                   playlistName: playlist.name,
-                  tracks: tracks.map((tr, idx) => trackToSyncInfo(tr, '', { name: playlist.name, index: idx + 1 })),
+                  playlistId: playlistPathId(playlist, srcs),
+                  tracks: tracks.map((tr, idx) => trackToSyncInfo(
+                    tr,
+                    '',
+                    {
+                      id: playlistPathId(playlist, srcs),
+                      name: playlist.name,
+                      index: idx + 1,
+                    },
+                  )),
                 });
               } catch { /* m3u8 failure is non-fatal — skip silently */ }
             });

@@ -1,4 +1,5 @@
 import { createJSONStorage, type PersistStorage, type StateStorage } from 'zustand/middleware';
+import { navidromeCanonicalBootstrapIsActive } from '@/lib/server/navidromeCanonicalCheckpointStatus';
 
 /**
  * `localStorage` wrapped so a failed write never throws.
@@ -70,10 +71,21 @@ export function createHydrationGatedStorage<S>(
   if (!base) return undefined;
   return {
     getItem: base.getItem.bind(base),
-    removeItem: base.removeItem.bind(base),
+    removeItem: (name) => {
+      if (!isWriteAllowed()) return;
+      return base.removeItem(name);
+    },
     setItem: (name, value) => {
       if (!isWriteAllowed()) return;
       return base.setItem(name, value);
     },
   };
 }
+
+/** Persist storage that cannot rewrite identity-bearing state during canonical-ID migration. */
+export const createNavidromeCanonicalMigrationAwareJSONStorage = <S>() => (
+  createHydrationGatedStorage(
+    createJSONStorage<S>(() => safeLocalStorage),
+    () => !navidromeCanonicalBootstrapIsActive(),
+  )
+);

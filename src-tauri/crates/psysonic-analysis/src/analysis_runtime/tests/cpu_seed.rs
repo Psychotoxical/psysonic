@@ -2,6 +2,7 @@ use super::super::cpu_seed::*;
 use super::super::types::*;
 use crate::analysis_cache;
 use std::collections::HashSet;
+use std::sync::atomic::AtomicUsize;
 use std::sync::{Arc, Mutex};
 
 fn trusted_revision(md5_16kb: &str, generation: u64) -> Option<TrustedAnalysisRevision> {
@@ -366,4 +367,40 @@ fn cpu_seed_prune_sends_err_to_dropped_waiters() {
         .blocking_recv()
         .expect("sender side should have closed cleanly");
     assert!(result.is_err(), "pruned job must yield Err, got {result:?}");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn cpu_queue_insertion_releases_admission_before_result_wait() {
+    let _serial = super::super::admission::admission_test_guard().await;
+    let (wake_tx, _wake_rx) = tokio::sync::mpsc::unbounded_channel();
+    let shared = Arc::new(AnalysisCpuSeedShared {
+        state: Mutex::new(AnalysisCpuSeedQueueState::default()),
+        wake_tx,
+        max_parallel: AtomicUsize::new(1),
+    });
+
+    let admission = super::super::admission::ordinary_admission_guard_for_test();
+    let mut result = enqueue_analysis_cpu_seed_job_under_admission(
+        &shared,
+        "server".into(),
+        "track".into(),
+        vec![1, 2, 3],
+        None,
+        None,
+        AnalysisBackfillPriority::Low,
+        0,
+        None,
+        admission,
+    );
+    assert!(matches!(
+        result.try_recv(),
+        Err(tokio::sync::oneshot::error::TryRecvError::Empty)
+    ));
+
+    let migration = super::super::admission::analysis_migration_admission_guard(
+        std::time::Duration::from_secs(1),
+    )
+    .await
+    .unwrap();
+    drop(migration);
 }

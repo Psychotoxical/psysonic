@@ -13,18 +13,21 @@ mod fetch;
 #[cfg(test)]
 mod layout_tests;
 mod metrics;
+mod migration;
 mod peek;
 #[cfg(test)]
 mod test_support;
 
 use bucket::{purge_external_files, rename_bucket_inner, reset_cover_cache_for_index_key_layout};
 use cache_state::state;
+use cache_state::{COVER_CPU_UI_CONCURRENCY, COVER_HTTP_CONCURRENCY, FANART_HTTP_CONCURRENCY};
 pub use cache_state::CoverCacheState;
 use disk::cover_dir;
 pub use dto::{
     CoverCacheEnsureArgs, CoverCacheEnsureResult, CoverCachePeekItem, CoverCacheStatsDto,
     CoverPipelineQueueStatsDto,
 };
+pub use migration::CoverCacheNavidromeMigrationDto;
 use ensure::decode_image_bytes;
 use metrics::{
     cached_dir_usage_for_server, clear_dir_usage_cache, cover_pipeline_queue_stats,
@@ -43,6 +46,95 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tauri::{AppHandle, Emitter, Manager};
 use tokio::sync::Mutex;
+
+fn ensure_migration_write_allowed(app: &AppHandle) -> Result<(), String> {
+    if let Some(runtime) = app.try_state::<LibraryRuntime>() {
+        runtime.ensure_external_write_allowed()?;
+    }
+    Ok(())
+}
+
+pub async fn quiesce_for_migration(
+    app: &AppHandle,
+    timeout: std::time::Duration,
+) -> Result<(), String> {
+    let worker = app
+        .try_state::<Arc<CoverBackfillWorker>>()
+        .ok_or_else(|| "cover backfill worker not initialized".to_string())?;
+    worker.set_migration_hold(true);
+    let started = std::time::Instant::now();
+    loop {
+        let cache = state(app)?;
+        let guard = cache.lock().await;
+        let cover_idle = guard.http_sem.available_permits() == COVER_HTTP_CONCURRENCY
+            && guard.cover_cpu_ui_sem.available_permits() == COVER_CPU_UI_CONCURRENCY
+            && guard.cover_cpu_backfill_sem.available_permits()
+                == guard.cover_backfill_cpu_parallel()
+            && guard.fanart_http_sem.available_permits() == FANART_HTTP_CONCURRENCY
+            && guard.musicbrainz_sem.available_permits() == 1;
+        drop(guard);
+        let (_, backfill_active, pass_running) = worker.pipeline_http_stats();
+        if cover_idle && backfill_active == 0 && !pass_running {
+            return Ok(());
+        }
+        if started.elapsed() >= timeout {
+            return Err("timed out draining cover-cache writers for migration".to_string());
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(25)).await;
+    }
+}
+
+pub fn release_migration_hold(app: &AppHandle) {
+    if let Some(worker) = app.try_state::<Arc<CoverBackfillWorker>>() {
+        worker.set_migration_hold(false);
+    }
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn cover_cache_migrate_navidrome_ids(
+    app: AppHandle,
+    runtime: tauri::State<'_, LibraryRuntime>,
+    generation: u64,
+    server_id: String,
+    server_index_key: String,
+) -> Result<CoverCacheNavidromeMigrationDto, String> {
+    let server_id = server_id.trim();
+    runtime.ensure_migration_phase(
+        generation,
+        server_id,
+        psysonic_library::runtime::MigrationPhase::Cover,
+    )?;
+    let cache = state(&app)?;
+    let root = cache.lock().await.root.clone();
+    let key = server_index_key.trim().to_string();
+    let result = psysonic_core::migration_write_barrier::MigrationWriteBarrier::scope(
+        generation,
+        tauri::async_runtime::spawn_blocking(move || {
+            migration::migrate_server_cover_ids(&root, &key)
+        }),
+    )
+    .await
+    .map_err(|error| error.to_string())??;
+    invalidate_dir_usage_cache(server_index_key.trim());
+    let _ = app.emit(
+        "cover:ids-migrated",
+        serde_json::json!({ "serverIndexKey": server_index_key }),
+    );
+    Ok(result)
+}
+
+pub async fn verify_navidrome_cover_ids(
+    app: &AppHandle,
+    server_index_key: &str,
+) -> Result<(), String> {
+    let cache = state(app)?;
+    let root = cache.lock().await.root.clone();
+    let key = server_index_key.trim().to_string();
+    tauri::async_runtime::spawn_blocking(move || migration::verify_server_cover_ids(&root, &key))
+        .await
+        .map_err(|error| error.to_string())?
+}
 
 pub use backfill_worker::{
     pulse_backfill, setup_library_sync_idle_listener, try_schedule_full_pass,

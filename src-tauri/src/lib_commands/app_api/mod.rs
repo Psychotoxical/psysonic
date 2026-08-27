@@ -11,7 +11,10 @@ pub(crate) mod platform;
 
 // Tauri commands re-exported for the lib.rs invoke_handler.
 pub(crate) use backup::{
-    backup_export_full, backup_export_library_db, backup_import_full, backup_import_library_db,
+    backup_commit_imported_databases, backup_export_full, backup_export_library_db,
+    backup_finalize_full_import_recovery, backup_import_full, backup_import_library_db,
+    backup_inspect_full_import_recovery, backup_recover_full_import_databases,
+    backup_rollback_imported_databases,
 };
 pub(crate) use cli_bridge::{
     cli_publish_library_list, cli_publish_player_snapshot, cli_publish_search_results,

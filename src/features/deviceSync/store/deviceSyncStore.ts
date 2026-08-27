@@ -1,12 +1,18 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { resolveStorageServerIndexKey } from '@/lib/server/serverIndexKey';
+import { canonicalNavidromeId } from '@/lib/server/navidromeCanonicalId';
+import { navidromeCanonicalCheckpointStatus } from '@/lib/server/navidromeCanonicalCheckpointStatus';
+import { createNavidromeCanonicalMigrationAwareJSONStorage } from '@/lib/util/safeStorage';
+import { withPlaylistPathIds } from '@/features/deviceSync/utils/deviceSyncHelpers';
 
 export interface DeviceSyncSource {
   type: 'album' | 'playlist' | 'artist';
   id: string;
   name: string;
   serverIndexKey: string;
+  /** Stable folder discriminator assigned when playlist display names collide. */
+  pathId?: string;
   /** Album artist — only set when type === 'album'. Shown as a subtitle in the device list. */
   artist?: string;
 }
@@ -15,6 +21,8 @@ export type LegacyDeviceSyncSource = Omit<DeviceSyncSource, 'serverIndexKey'>;
 
 export type DeviceSyncManifest = {
   version?: number;
+  schema?: string;
+  canonicalIdVersion?: number;
   ownerServerIndexKey?: string;
   sources?: unknown[];
 };
@@ -36,7 +44,8 @@ function isDeviceSyncSource(value: unknown): value is DeviceSyncSource {
     (source.type === 'album' || source.type === 'playlist' || source.type === 'artist') &&
     typeof source.id === 'string' && source.id.length > 0 &&
     typeof source.name === 'string' &&
-    typeof source.serverIndexKey === 'string' && source.serverIndexKey.length > 0
+    typeof source.serverIndexKey === 'string' && source.serverIndexKey.length > 0 &&
+    (source.pathId === undefined || (typeof source.pathId === 'string' && source.pathId.length > 0))
   );
 }
 
@@ -51,51 +60,126 @@ function isLegacyDeviceSyncSource(value: unknown): value is LegacyDeviceSyncSour
   );
 }
 
+function isSupportedDeviceSyncManifest(manifest: DeviceSyncManifest): boolean {
+  if (manifest.version !== undefined
+    && (!Number.isInteger(manifest.version) || manifest.version < 1 || manifest.version > 3)) return false;
+  if (manifest.schema !== undefined && manifest.schema !== 'fixed-v1') return false;
+  if (manifest.version === 3 && manifest.schema !== 'fixed-v1') return false;
+  if (manifest.canonicalIdVersion !== undefined && manifest.canonicalIdVersion !== 1) return false;
+  return true;
+}
+
 export function deviceSyncSourcesFromManifest(
   manifest: DeviceSyncManifest | null,
-  fallbackOwnerServerIndexKey?: string | null,
 ): DeviceSyncSource[] {
-  if (!manifest || !Array.isArray(manifest.sources)) return [];
-  const fallbackOwner = fallbackOwnerServerIndexKey
-    ? resolveStorageServerIndexKey(fallbackOwnerServerIndexKey)
-    : null;
+  return deviceSyncManifestImport(manifest)?.sources ?? [];
+}
+
+export function deviceSyncManifestImport(
+  manifest: DeviceSyncManifest | null,
+): { ownerServerIndexKey: string; sources: DeviceSyncSource[] } | null {
+  if (!manifest || !isSupportedDeviceSyncManifest(manifest) || !Array.isArray(manifest.sources)) return null;
   const manifestOwner = manifest.ownerServerIndexKey
     ? resolveStorageServerIndexKey(manifest.ownerServerIndexKey)
     : null;
-  const sources = manifest.sources.flatMap(source => {
+  const sources: DeviceSyncSource[] = [];
+  for (const source of manifest.sources) {
     if (isDeviceSyncSource(source)) {
       const serverIndexKey = resolveStorageServerIndexKey(source.serverIndexKey);
-      return serverIndexKey ? [{ ...source, serverIndexKey }] : [];
+      if (!serverIndexKey) return null;
+      sources.push({ ...source, serverIndexKey });
+      continue;
     }
-    return isLegacyDeviceSyncSource(source) && fallbackOwner
-      ? [{ ...source, serverIndexKey: fallbackOwner }]
-      : [];
-  });
+    if (isLegacyDeviceSyncSource(source) && manifestOwner) {
+      sources.push({ ...source, serverIndexKey: manifestOwner });
+      continue;
+    }
+    return null;
+  }
   const owner = deviceSyncOwnerKey(sources);
-  if (!owner || (manifestOwner ? manifestOwner !== owner : fallbackOwner !== owner)) return [];
-  return sources;
+  if ((!owner && sources.length > 0) || (owner && manifestOwner && manifestOwner !== owner)) return null;
+  const ownerServerIndexKey = owner ?? manifestOwner;
+  if (!ownerServerIndexKey) return null;
+  const checkpointStatus = navidromeCanonicalCheckpointStatus(ownerServerIndexKey);
+  if (checkpointStatus === 'invalid' || checkpointStatus === 'pending') return null;
+  const normalized = new Map<string, DeviceSyncSource>();
+  for (const source of sources) {
+    const next = checkpointStatus === 'ready'
+      ? { ...source, id: canonicalNavidromeId(source.id) }
+      : source;
+    normalized.set(deviceSyncSourceKey(next), next);
+  }
+  return { ownerServerIndexKey, sources: withPlaylistPathIds([...normalized.values()]) };
+}
+
+export function deviceSyncLegacySourcesFromManifest(
+  manifest: DeviceSyncManifest | null,
+): LegacyDeviceSyncSource[] {
+  if (!manifest
+    || !isSupportedDeviceSyncManifest(manifest)
+    || manifest.ownerServerIndexKey
+    || !Array.isArray(manifest.sources)) return [];
+  const legacy = new Map<string, LegacyDeviceSyncSource>();
+  for (const source of manifest.sources) {
+    if (!isLegacyDeviceSyncSource(source)) return [];
+    legacy.set(JSON.stringify([source.type, source.id]), source);
+  }
+  return [...legacy.values()];
 }
 
 export function migrateDeviceSyncPersistedState(persisted: unknown): Partial<DeviceSyncState> {
   const state = persisted as Partial<DeviceSyncState> | undefined;
   const persistedSources = Array.isArray(state?.sources) ? state.sources : [];
   const persistedLegacySources = Array.isArray(state?.legacySources) ? state.legacySources : [];
+  const legacySources = [
+    ...persistedLegacySources.filter(isLegacyDeviceSyncSource),
+    ...persistedSources.filter(isLegacyDeviceSyncSource),
+  ];
   return {
     ...state,
-    sources: persistedSources.filter(isDeviceSyncSource),
-    legacySources: [
-      ...persistedLegacySources.filter(isLegacyDeviceSyncSource),
-      ...persistedSources.filter(isLegacyDeviceSyncSource),
-    ],
+    sources: withPlaylistPathIds(persistedSources.filter(isDeviceSyncSource)),
+    legacySources,
+    legacyTargetDir: legacySources.length > 0
+      ? (typeof state?.legacyTargetDir === 'string' ? state.legacyTargetDir : state?.targetDir ?? null)
+      : null,
     checkedIds: [],
     pendingDeletion: [],
   };
+}
+
+export type DeviceSyncLegacyRecovery =
+  | { result: 'recovered'; sources: DeviceSyncSource[] }
+  | { result: 'pending' | 'owner-conflict' };
+
+export function prepareDeviceSyncLegacyRecovery(args: {
+  sources: readonly DeviceSyncSource[];
+  legacySources: readonly LegacyDeviceSyncSource[];
+  serverIndexKey: string;
+}): DeviceSyncLegacyRecovery {
+  const serverIndexKey = resolveStorageServerIndexKey(args.serverIndexKey);
+  const checkpointStatus = serverIndexKey
+    ? navidromeCanonicalCheckpointStatus(serverIndexKey)
+    : 'invalid';
+  if (!serverIndexKey || checkpointStatus === 'invalid' || checkpointStatus === 'pending') {
+    return { result: 'pending' };
+  }
+  const currentOwner = deviceSyncOwnerKey(args.sources);
+  if (currentOwner && currentOwner !== serverIndexKey) return { result: 'owner-conflict' };
+  const recovered = args.legacySources.map(source => ({
+    ...source,
+    id: checkpointStatus === 'ready' ? canonicalNavidromeId(source.id) : source.id,
+    serverIndexKey,
+  }));
+  const merged = new Map(args.sources.map(source => [deviceSyncSourceKey(source), source]));
+  recovered.forEach(source => merged.set(deviceSyncSourceKey(source), source));
+  return { result: 'recovered', sources: withPlaylistPathIds([...merged.values()]) };
 }
 
 interface DeviceSyncState {
   targetDir: string | null;
   sources: DeviceSyncSource[];        // persistent device content list
   legacySources: LegacyDeviceSyncSource[]; // ownerless v0 selections awaiting explicit recovery
+  legacyTargetDir: string | null;     // device the quarantined ownerless sources came from
   checkedIds: string[];               // currently checked for bulk actions (not persisted)
   pendingDeletion: string[];          // source IDs marked for deletion (not persisted)
   deviceFilePaths: string[];          // actual file paths found on the device (not persisted)
@@ -105,7 +189,10 @@ interface DeviceSyncState {
   addSource: (source: DeviceSyncSource) => void;
   removeSource: (id: string) => void;
   clearSources: () => void;
-  setLegacySources: (sources: LegacyDeviceSyncSource[]) => void;
+  setLegacySources: (sources: LegacyDeviceSyncSource[], targetDir?: string | null) => void;
+  quarantineLegacySources: (targetDir: string, sources: LegacyDeviceSyncSource[]) => void;
+  recoverLegacySources: (serverIndexKey: string) => 'recovered' | 'pending' | 'owner-conflict';
+  discardLegacySources: () => void;
   toggleChecked: (id: string) => void;
   setCheckedIds: (ids: string[]) => void;
   markForDeletion: (ids: string[]) => void;
@@ -118,10 +205,11 @@ interface DeviceSyncState {
 
 export const useDeviceSyncStore = create<DeviceSyncState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       targetDir: null,
       sources: [],
       legacySources: [],
+      legacyTargetDir: null,
       checkedIds: [],
       pendingDeletion: [],
       deviceFilePaths: [],
@@ -134,16 +222,10 @@ export const useDeviceSyncStore = create<DeviceSyncState>()(
           const owner = deviceSyncOwnerKey(s.sources);
           const key = deviceSyncSourceKey(source);
           if (!source.serverIndexKey || (owner && owner !== source.serverIndexKey)) return s;
-          const recovered = s.legacySources.map(legacy => ({
-            ...legacy,
-            serverIndexKey: owner ?? source.serverIndexKey,
-          }));
-          const nextSources = [...s.sources, ...recovered];
           return {
-            sources: nextSources.some((x) => deviceSyncSourceKey(x) === key)
-              ? nextSources
-              : [...nextSources, source],
-            legacySources: [],
+            sources: s.sources.some((x) => deviceSyncSourceKey(x) === key)
+              ? s.sources
+              : withPlaylistPathIds([...s.sources, source]),
           };
         }),
 
@@ -154,8 +236,34 @@ export const useDeviceSyncStore = create<DeviceSyncState>()(
           pendingDeletion: s.pendingDeletion.filter((x) => x !== id),
         })),
 
-      clearSources: () => set({ sources: [], legacySources: [], checkedIds: [], pendingDeletion: [] }),
-      setLegacySources: (legacySources) => set({ legacySources }),
+      clearSources: () => set({ sources: [], checkedIds: [], pendingDeletion: [] }),
+      setLegacySources: (legacySources, legacyTargetDir = null) => set({ legacySources, legacyTargetDir }),
+      quarantineLegacySources: (legacyTargetDir, legacySources) => set(state => {
+        const merged = new Map<string, LegacyDeviceSyncSource>();
+        const existing = state.legacyTargetDir === legacyTargetDir ? state.legacySources : [];
+        for (const source of [...existing, ...legacySources]) {
+          merged.set(JSON.stringify([source.type, source.id]), source);
+        }
+        return {
+          sources: [],
+          checkedIds: [],
+          pendingDeletion: [],
+          legacySources: [...merged.values()],
+          legacyTargetDir,
+        };
+      }),
+      recoverLegacySources: (candidateOwner) => {
+        const state = get();
+        const recovery = prepareDeviceSyncLegacyRecovery({
+          sources: state.sources,
+          legacySources: state.legacySources,
+          serverIndexKey: candidateOwner,
+        });
+        if (recovery.result !== 'recovered') return recovery.result;
+        set({ sources: recovery.sources, legacySources: [], legacyTargetDir: null });
+        return recovery.result;
+      },
+      discardLegacySources: () => set({ legacySources: [], legacyTargetDir: null }),
 
       toggleChecked: (id) =>
         set((s) => ({
@@ -191,12 +299,14 @@ export const useDeviceSyncStore = create<DeviceSyncState>()(
     }),
     {
       name: 'psysonic_device_sync',
-      version: 2,
+      storage: createNavidromeCanonicalMigrationAwareJSONStorage(),
+      version: 3,
       migrate: (persisted) => migrateDeviceSyncPersistedState(persisted) as DeviceSyncState,
       partialize: (s) => ({
         targetDir: s.targetDir,
         sources: s.sources,
         legacySources: s.legacySources,
+        legacyTargetDir: s.legacyTargetDir,
       }),
     }
   )

@@ -239,7 +239,7 @@ impl TrackRepository<'_> {
     }
 }
 
-pub(super) const UPSERT_SQL: &str = r#"
+pub(crate) const UPSERT_SQL: &str = r#"
 INSERT INTO track (
   server_id, id, title, title_sort, artist, artist_id, album, album_id,
   album_artist, duration_sec, track_number, disc_number, year, genre, suffix,

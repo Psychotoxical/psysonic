@@ -15,6 +15,7 @@ import {
   dequeueOfflinePin,
 } from '@/features/offline/utils/offlinePinQueue';
 import { runOfflineTrackCleanup } from '@/features/offline/utils/offlineOperationCoordinator';
+import { NAVIDROME_CANONICAL_BOOTSTRAP_LOCK_KEY } from '@/lib/server/navidromeCanonicalCheckpointStatus';
 
 const mocks = vi.hoisted(() => ({
   buildOriginalStreamUrlForServer: vi.fn(
@@ -81,6 +82,7 @@ function downloadResult(trackId: string) {
 }
 
 beforeEach(() => {
+  localStorage.removeItem(NAVIDROME_CANONICAL_BOOTSTRAP_LOCK_KEY);
   resetAuthStore();
   clearOfflinePinTasks();
   cancelledDownloads.clear();
@@ -153,6 +155,27 @@ describe('offlineStore download producer', () => {
     expect(new Set(downloadIds).size).toBe(2);
     consoleError.mockRestore();
     now.mockRestore();
+  });
+
+  it('removes a completed native download instead of orphaning it after migration locks storage', async () => {
+    let resolveDownload!: (value: ReturnType<typeof downloadResult>) => void;
+    onInvoke('download_track_local', () => new Promise(resolve => {
+      resolveDownload = resolve;
+    }));
+
+    const download = useOfflineStore.getState().downloadAlbum(
+      'album-1', 'Album', 'Artist', undefined, undefined, [SONG], 'srv-a',
+    );
+    await waitFor(() => expect(resolveDownload).toBeTypeOf('function'));
+    localStorage.setItem(NAVIDROME_CANONICAL_BOOTSTRAP_LOCK_KEY, '1');
+    resolveDownload(downloadResult('track-1'));
+    await download;
+
+    await waitFor(() => expect(useLocalPlaybackStore.getState().entries).toEqual({}));
+    await waitFor(() => expect(invokeMock).toHaveBeenCalledWith('delete_media_file', {
+      localPath: '/media/library/a.test/track-1.flac',
+      mediaDir: null,
+    }));
   });
 
   it('refreshes an unverified legacy Navidrome pin and persists native verification', async () => {
