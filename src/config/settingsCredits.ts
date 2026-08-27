@@ -554,6 +554,13 @@ const CONTRIBUTOR_ENTRIES = [
       'Navidrome delta sync preserves structured multi-artist credits (PR #1449)',
     ],
   },
+  {
+    github: 'albedych',
+    since: '1.52.0',
+    contributions: [
+      'Ukrainian translation, with Ukrainian Cyrillic folding in library identity keys (PR #1465)',
+    ],
+  },
 ] as const;
 
 // PR number of a contributor's first listed contribution, used as the
