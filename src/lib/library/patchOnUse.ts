@@ -5,15 +5,11 @@ type TrackPatch = {
   /** ms epoch when starred, or `null` to clear (unstar). */
   starredAt?: number | null;
   userRating?: number | null;
-  playCount?: number | null;
   /**
-   * How much to add to the stored count — one, after a play.
-   *
-   * Relative because a play knows only that one more has happened: the caller
-   * sits in the player, which never carries the running total. Applied after
-   * `playCount` when a patch holds both, and clamped at zero.
+   * The server's own tally, never a locally derived one — a count that mixes
+   * units cannot be reconciled once stored (see `scrobbleSong`).
    */
-  playCountDelta?: number;
+  playCount?: number | null;
   /** ms epoch of the last play. */
   playedAt?: number | null;
 };

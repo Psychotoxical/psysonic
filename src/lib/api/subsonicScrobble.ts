@@ -25,6 +25,36 @@ async function scrobbleOnServer(
   return true;
 }
 
+/**
+ * The server's play statistics for one track, read straight back after it
+ * accepted a scrobble.
+ *
+ * Deliberately not `getSongForServer` from `subsonicLibrary`, for two reasons
+ * that both matter here. That module reaches the network guard, which reaches
+ * the playback stores, which reach back into this one — a static import closes
+ * that ring and `dep:check` rejects it (a dynamic one is counted just the same).
+ * And its guard call names the track, which suppresses the request for anything
+ * the app can already play locally: right for a byte fetch, wrong for a stats
+ * read, because a hot-cached or offline track still scrobbles and its count
+ * still moves. The guard below is the same one, asked the way this call needs.
+ */
+async function readServerPlayStats(
+  serverId: string,
+  id: string,
+): Promise<{ playCount?: number; played?: string } | null> {
+  if (!shouldAttemptSubsonicForServer(serverId)) return null;
+  try {
+    const data = await apiForServer<{ song?: { playCount?: number; played?: string } }>(
+      serverId,
+      'getSong.view',
+      { id },
+    );
+    return data.song ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export async function scrobbleSong(id: string, time: number, serverId: string): Promise<void> {
   if (!serverId) return;
   let reachedServer = false;
@@ -37,21 +67,31 @@ export async function scrobbleSong(id: string, time: number, serverId: string): 
   }
 
   // Patch-on-use (§6.5 / F3): reflect the play in the local index so the played
-  // surfaces aren't stale. The count goes up by one rather than being set: the
-  // base lives in the row, not here, and nothing re-reads the row after a play
-  // — measured on a real library, a finished track left the count untouched
-  // through eight minutes of deltas, an album page opened twice, and a full
-  // navigation away and back.
+  // surfaces aren't stale. The timestamp is a local truth — the listener did
+  // play it, whether or not the server took the scrobble — so it is written
+  // either way, and any resync overwrites it.
+  patchLibraryTrackOnUse(serverId, id, { playedAt: time });
+
+  // The count is the server's own tally, and only the server can say what it is
+  // now. Counting locally cannot work: the row holds a server total, a local
+  // increment is measured in a different unit, and the two are indistinguishable
+  // once stored — a sync landing between the two writes then either loses the
+  // play or counts it twice. So the count is not derived here at all; it is read
+  // back from the server that just accepted the scrobble.
   //
-  // The two halves part company when the server never took it. The timestamp is
-  // a local truth: the listener did play it, and any resync overwrites it. The
-  // count mirrors the server's own tally and accumulates — adding to it for a
-  // play the server never saw drifts the two apart with nothing left to pull
-  // them back together. Both ways of not taking it count: the reachability
-  // guard's silent skip and an outright refusal.
-  patchLibraryTrackOnUse(serverId, id, reachedServer
-    ? { playedAt: time, playCountDelta: 1 }
-    : { playedAt: time });
+  // Only when the scrobble actually arrived. A refused or skipped one leaves the
+  // server tally untouched, and re-reading it would just rewrite the value the
+  // row already has.
+  if (!reachedServer) return;
+  const refreshed = await readServerPlayStats(serverId, id);
+  if (refreshed?.playCount == null) return;
+  const playedAt = refreshed.played != null ? Date.parse(refreshed.played) : NaN;
+  patchLibraryTrackOnUse(serverId, id, {
+    playCount: refreshed.playCount,
+    // The server's own timestamp for the same play, once it has one. Falls back
+    // to the local time written above rather than clearing it.
+    ...(Number.isFinite(playedAt) ? { playedAt } : {}),
+  });
 }
 
 export async function reportNowPlaying(id: string, serverId: string): Promise<void> {

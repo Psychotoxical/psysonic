@@ -18,6 +18,13 @@ const { apiForServerMock, patchTrackMock } = vi.hoisted(() => ({
   patchTrackMock: vi.fn(),
 }));
 
+/** Answer `getSong.view` with these stats, everything else with an empty body. */
+const serverReportsSong = (song: { playCount?: number; played?: string } | null) => {
+  apiForServerMock.mockImplementation(async (_serverId, endpoint) =>
+    endpoint === 'getSong.view' ? { song } : {},
+  );
+};
+
 vi.mock('@/lib/api/subsonicClient', () => ({
   api: vi.fn(),
   apiForServer: apiForServerMock,
@@ -59,7 +66,9 @@ describe('subsonicScrobble', () => {
     );
   });
 
-  it('reportNowPlaying and scrobbleSong use the presence guard without trackId', async () => {
+  it('reports, scrobbles and reads stats back through the guard without trackId', async () => {
+    // All three are about a play, not about fetching bytes, so none of them may
+    // be suppressed for a track the app happens to hold locally.
     vi.mocked(shouldAttemptSubsonicForServer).mockImplementation(
       (_serverId: string, trackId?: string) => trackId === undefined,
     );
@@ -69,7 +78,7 @@ describe('subsonicScrobble', () => {
 
     expect(shouldAttemptSubsonicForServer).toHaveBeenCalledWith('a');
     expect(shouldAttemptSubsonicForServer).not.toHaveBeenCalledWith('a', expect.anything());
-    expect(apiForServerMock).toHaveBeenCalledTimes(2);
+    expect(apiForServerMock).toHaveBeenCalledTimes(3);
     expect(apiForServerMock).toHaveBeenNthCalledWith(
       1,
       'a',
@@ -82,6 +91,7 @@ describe('subsonicScrobble', () => {
       'scrobble.view',
       expect.objectContaining({ id: 't-local', submission: true }),
     );
+    expect(apiForServerMock).toHaveBeenNthCalledWith(3, 'a', 'getSong.view', { id: 't-local' });
   });
 
   it('annotates now-playing entries with their owning server', async () => {
@@ -111,15 +121,61 @@ describe('subsonicScrobble', () => {
    * is not shown at all.
    */
   describe('mirroring the play locally', () => {
-    it('counts the play by one rather than setting a total', async () => {
-      // The running total lives in the row; this caller never sees it.
+    it('stores the count the server reports after taking the scrobble', async () => {
+      // Deriving it locally cannot work: the row holds a server total, so a
+      // local increment lands in a different unit and a sync arriving between
+      // the two writes is indistinguishable from a lost or doubled play.
+      serverReportsSong({ playCount: 7 });
+
       await scrobbleSong('t1', 1_700_000_000_000, 'a');
 
       expect(patchTrackMock).toHaveBeenCalledWith(
         'a',
         't1',
-        expect.objectContaining({ playCountDelta: 1 }),
+        expect.objectContaining({ playCount: 7 }),
       );
+    });
+
+    it('reads the count back even for a track playing from a local copy', async () => {
+      // The reachability guard suppresses a call that names a track the app can
+      // play locally. That is right for a byte fetch and wrong here — an offline
+      // or hot-cached track still scrobbles, so its count still moves. Naming
+      // the track in the guard call would lose exactly those tracks.
+      serverReportsSong({ playCount: 7 });
+      vi.mocked(shouldAttemptSubsonicForServer).mockImplementation(
+        (_serverId, trackId) => trackId == null,
+      );
+
+      await scrobbleSong('t1', 1_700_000_000_000, 'a');
+
+      expect(apiForServerMock).toHaveBeenCalledWith('a', 'getSong.view', { id: 't1' });
+      expect(patchTrackMock).toHaveBeenCalledWith(
+        'a',
+        't1',
+        expect.objectContaining({ playCount: 7 }),
+      );
+    });
+
+    it("prefers the server's own play date over the local one", async () => {
+      serverReportsSong({ playCount: 7, played: '2026-08-25T20:55:58.000Z' });
+
+      await scrobbleSong('t1', 1_700_000_000_000, 'a');
+
+      expect(patchTrackMock).toHaveBeenLastCalledWith(
+        'a',
+        't1',
+        { playCount: 7, playedAt: Date.parse('2026-08-25T20:55:58.000Z') },
+      );
+    });
+
+    it('keeps the local timestamp when the server reports no play date', async () => {
+      // Clearing it would be worse than a slightly different clock: the play
+      // demonstrably happened.
+      serverReportsSong({ playCount: 7 });
+
+      await scrobbleSong('t1', 1_700_000_000_000, 'a');
+
+      expect(patchTrackMock).toHaveBeenLastCalledWith('a', 't1', { playCount: 7 });
     });
 
     it('records when it was played', async () => {
@@ -132,17 +188,18 @@ describe('subsonicScrobble', () => {
       );
     });
 
-    it('counts nothing when the server rejected the scrobble', async () => {
-      // Counting a play the server rejected would drift the two apart with
-      // nothing left to correct it.
+    it('reads no count back when the server rejected the scrobble', async () => {
+      // A rejected scrobble left the server tally untouched, so re-reading it
+      // would only rewrite the value the row already holds.
       apiForServerMock.mockRejectedValue(new Error('server error'));
 
       await scrobbleSong('t1', 1_700_000_000_000, 'a');
 
+      expect(apiForServerMock).not.toHaveBeenCalledWith('a', 'getSong.view', expect.anything());
       expect(patchTrackMock).not.toHaveBeenCalledWith(
         'a',
         't1',
-        expect.objectContaining({ playCountDelta: expect.anything() }),
+        expect.objectContaining({ playCount: expect.anything() }),
       );
     });
 
@@ -161,7 +218,7 @@ describe('subsonicScrobble', () => {
       );
     });
 
-    it('counts nothing when the reachability guard skipped the call', async () => {
+    it('reads no count back when the reachability guard skipped the call', async () => {
       // The guard is the ordinary offline path and far more common than a
       // rejection — and it returns without a word, so a caller that only awaits
       // the call cannot tell it apart from success.
@@ -173,7 +230,7 @@ describe('subsonicScrobble', () => {
       expect(patchTrackMock).not.toHaveBeenCalledWith(
         'a',
         't1',
-        expect.objectContaining({ playCountDelta: expect.anything() }),
+        expect.objectContaining({ playCount: expect.anything() }),
       );
     });
 

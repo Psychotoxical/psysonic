@@ -73,13 +73,23 @@ export function trackToSong(t: LibraryTrackDto): SubsonicSong {
   // only changes when the row is synced again — so the column is never older.
   // Letting the snapshot through meant the app showed nothing while holding the
   // very timestamp the server was showing.
-  // The larger of the two, not simply the column: a sparse ingest keeps the old
-  // snapshot by patching it while overwriting the column with what the payload
-  // did not carry, and the column would then be a local `+1` standing next to a
-  // server total it knows nothing about. Taking it at its word would count a
-  // play and show a smaller number than before it.
-  if (t.playCount != null) merged.playCount = Math.max(t.playCount, merged.playCount ?? 0);
-  if (t.playedAt != null) merged.played = new Date(t.playedAt).toISOString();
+  // Both columns carry a server-authoritative number: the sync writes what the
+  // server reported, and a finished play refreshes them from the server rather
+  // than counting locally (`scrobbleSong`). There is therefore no local tally
+  // that could stand next to a server total in a unit of its own.
+  if (t.playCount != null) merged.playCount = t.playCount;
+  if (t.playedAt != null) {
+    merged.played = new Date(t.playedAt).toISOString();
+  } else if (merged.played == null) {
+    // Navidrome's native API calls this `playDate`, and rows ingested before the
+    // mapper learned that name kept the date only inside `rawJson`, with
+    // `played_at` left NULL. Nothing revisits them on its own: a play does not
+    // move `updatedAt`, so the delta sync never offers the row again. Reading
+    // the snapshot here is what makes those rows show a date at all.
+    const playDate = (raw as { playDate?: unknown }).playDate;
+    const parsed = typeof playDate === 'string' ? Date.parse(playDate) : NaN;
+    if (Number.isFinite(parsed)) merged.played = new Date(parsed).toISOString();
+  }
   if (t.serverId) merged.serverId = t.serverId;
   const hotAlbumId = base.albumId?.trim();
   if (hotAlbumId && !merged.albumId?.trim()) {

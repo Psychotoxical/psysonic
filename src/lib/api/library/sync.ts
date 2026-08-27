@@ -84,8 +84,6 @@ export function libraryPatchTrack(args: {
     starredAt?: number | null;
     userRating?: number | null;
     playCount?: number | null;
-    /** Relative sibling of `playCount` — a play adds one without knowing the total. */
-    playCountDelta?: number;
     playedAt?: number | null;
     /** E2: playback-derived `md5_16kb` content fingerprint. Normally written
      *  by the Rust analysis bridge; exposed here for contract completeness. */
