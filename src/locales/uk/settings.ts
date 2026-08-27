@@ -615,7 +615,8 @@ export const settings = {
   ratingsSkipStarDesc: 'Після кількох пропусків поспіль автоматично встановлювати оцінку 1★ для неоцінених треків.',
   ratingsSkipStarThresholdLabel: 'Пропуски',
   ratingsMixFilterTitle: 'Фільтр за оцінкою',
-  ratingsMixFilterDesc: 'Фільтрувати низькооцінені треки та альбоми в міксах.',
+  ratingsMixFilterDesc:
+    'Фільтрувати низькооцінені елементи в «{{mix}}» та «{{albums}}». Натисніть на вибрану зірку ще раз, щоб вимкнути поріг.',
   ratingsMixMinSong: 'Пісні',
   ratingsMixMinAlbum: 'Альбоми',
   ratingsMixMinArtist: 'Виконавці',
