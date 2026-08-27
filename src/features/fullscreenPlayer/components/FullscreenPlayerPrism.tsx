@@ -67,7 +67,11 @@ export default function FullscreenPlayerPrism({ onClose }: { onClose: () => void
   const albumRef =
     useAlbumCoverRef(currentTrack?.albumId, undefined, undefined, { libraryResolve: false }) ?? undefined;
   const cover = usePlaybackCoverArt(albumRef, 300, {
-    ensureOpts: { artistName: currentTrack?.artist ?? '', albumTitle: currentTrack?.album ?? '' },
+    ensureOpts: {
+      artistName: currentTrack?.artist ?? '',
+      albumTitle: currentTrack?.album ?? '',
+      allowExternalAlbum: true,
+    },
   });
   const dynamicAccent = useFsDynamicAccent(currentTrack?.directCoverArtUrl ?? cover.src, cover.cacheKey);
 

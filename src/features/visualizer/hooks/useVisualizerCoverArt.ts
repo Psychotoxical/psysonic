@@ -13,7 +13,17 @@ import { usePlayerStore } from '@/features/playback';
 export function useVisualizerCoverArt(): { artUrl: string; artKey: string } {
   const albumId = usePlayerStore(s => s.currentTrack?.albumId);
   const directCover = usePlayerStore(s => s.currentTrack?.directCoverArtUrl);
+  const artist = usePlayerStore(s => s.currentTrack?.artist ?? '');
+  const album = usePlayerStore(s => s.currentTrack?.album ?? '');
   const coverRef = useAlbumCoverRef(albumId, undefined, undefined, { libraryResolve: false }) ?? undefined;
-  const cover = usePlaybackCoverArt(coverRef, 160);
+  const cover = usePlaybackCoverArt(coverRef, 160, {
+    // Palette source should see real art when it exists: arm the chain so a
+    // never-opened album resolves instead of sampling the vinyl placeholder.
+    ensureOpts: {
+      artistName: artist,
+      albumTitle: album,
+      allowExternalAlbum: true,
+    },
+  });
   return { artUrl: directCover ?? cover.src, artKey: cover.cacheKey };
 }

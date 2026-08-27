@@ -121,7 +121,11 @@ export function PlayerTrackInfo({
             displayCssPx={128}
             surface="sparse"
             ensurePriority="high"
-            ensureOpts={{ artistName: currentTrack?.artist ?? '', albumTitle: currentTrack?.album ?? '' }}
+            ensureOpts={{
+              artistName: currentTrack?.artist ?? '',
+              albumTitle: currentTrack?.album ?? '',
+              allowExternalAlbum: true,
+            }}
             alt={showPreviewMeta ? `${previewingTrack!.title} Cover` : `${currentTrack?.album ?? ''} Cover`}
           />
           ) : (

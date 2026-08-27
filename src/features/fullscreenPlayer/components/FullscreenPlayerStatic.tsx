@@ -96,7 +96,15 @@ export default function FullscreenPlayerStatic({ onClose }: Props) {
   // background source (see below).
   const cover = usePlaybackCoverArt(playbackCoverRef, 2000, {
     fullRes: true,
-    ensureOpts: { artistName: currentTrack?.artist ?? '', albumTitle: currentTrack?.album ?? '' },
+    // Playback must arm the chain: an album playing without ever being opened
+    // on its page has only the backfill vinyl ladder on disk, and this tier-2000
+    // ensure is the one flight that can resolve real art before the fullscreen
+    // player falls back to it.
+    ensureOpts: {
+      artistName: currentTrack?.artist ?? '',
+      albumTitle: currentTrack?.album ?? '',
+      allowExternalAlbum: true,
+    },
   });
   const coverUrl = useCachedUrl(cover.src, cover.cacheKey, true);
   const thumbUrl = currentTrack?.directCoverArtUrl ?? coverUrl;
