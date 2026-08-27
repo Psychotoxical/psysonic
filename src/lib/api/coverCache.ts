@@ -23,8 +23,11 @@ export function coverCacheRestHost(serverUrl: string): string {
 
 export type CoverCacheEnsureResult = {
   hit: boolean;
+  /** Absolute tier path; carries `|mtimeVersion` on hits (cache-bust suffix). */
   path: string;
   tier: CoverArtTier;
+  /** mtime (epoch secs) of the tier file; 0 on miss. Rides inside `path`. */
+  pathVersion: number;
 };
 
 export type CoverCacheStats = {

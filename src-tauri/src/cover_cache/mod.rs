@@ -22,7 +22,7 @@ use bucket::{purge_external_files, rename_bucket_inner, reset_cover_cache_for_in
 use cache_state::state;
 use cache_state::{COVER_CPU_UI_CONCURRENCY, COVER_HTTP_CONCURRENCY, FANART_HTTP_CONCURRENCY};
 pub use cache_state::CoverCacheState;
-use disk::cover_dir;
+use disk::{cover_dir, tier_version};
 pub use dto::{
     CoverCacheEnsureArgs, CoverCacheEnsureResult, CoverCachePeekItem, CoverCacheStatsDto,
     CoverPipelineQueueStatsDto,
@@ -303,9 +303,13 @@ pub async fn cover_cache_peek_batch(
         );
         // Plain-cover peek (no surface in the batch DTO): full-res is exact-only,
         // so a 2000 request never returns a smaller tier to seed the grid cache.
+        // Value format `path|mtimeVersion` — the webview's image cache keys on the
+        // full URL, so the version suffix busts stale bytes after an in-place
+        // tier overwrite (chain art replacing backfill vinyl).
         let path = peek_plain_cover_tier(&dir, item.tier);
         if let Some(p) = path {
-            out.insert(item.storage_key, p.to_string_lossy().into_owned());
+            let entry = format!("{}|{}", p.to_string_lossy(), tier_version(&p));
+            out.insert(item.storage_key, entry);
         }
     }
     Ok(out)

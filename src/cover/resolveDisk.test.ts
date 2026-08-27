@@ -27,6 +27,7 @@ describe('ensureCoverTierDiskSrc — full-res exact-tier guard', () => {
     // request — the lightbox must treat that as a miss so it can fetch full-res.
     vi.mocked(coverCacheEnsure).mockResolvedValue({
       hit: true,
+      pathVersion: 1787826019,
       path: 'C:/cc/srv/album/al-1/512.webp',
       tier: 2000,
     });
@@ -36,6 +37,7 @@ describe('ensureCoverTierDiskSrc — full-res exact-tier guard', () => {
   it('accepts an exact-tier hit on either path separator', async () => {
     vi.mocked(coverCacheEnsure).mockResolvedValue({
       hit: true,
+      pathVersion: 1787826019,
       path: 'C:\\cc\\srv\\album\\al-1\\2000.webp',
       tier: 2000,
     });
@@ -67,6 +69,7 @@ describe('ensureCoverTierDiskSrc — chain ladder serve (coverless _0 album)', (
     // placeholder. The serve is real art; take it.
     vi.mocked(coverCacheEnsure).mockResolvedValue({
       hit: true,
+      pathVersion: 1787826019,
       path: '/cc/srv/album/al-2/800.webp',
       tier: 2000,
     });
@@ -80,6 +83,7 @@ describe('ensureCoverTierDiskSrc — chain ladder serve (coverless _0 album)', (
     // 256 file is still a downgrade, not a chain serve.
     vi.mocked(coverCacheEnsure).mockResolvedValue({
       hit: true,
+      pathVersion: 1787826019,
       path: '/cc/srv/album/al-2/256.webp',
       tier: 512,
     });
@@ -91,6 +95,7 @@ describe('ensureCoverTierDiskSrc — chain ladder serve (coverless _0 album)', (
     // serve is a downgrade and must stay rejected.
     vi.mocked(coverCacheEnsure).mockResolvedValue({
       hit: true,
+      pathVersion: 1787826019,
       path: '/cc/srv/album/al-1/800.webp',
       tier: 2000,
     });

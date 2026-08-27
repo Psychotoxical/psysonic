@@ -4,6 +4,11 @@ import type { CoverArtRef } from '../types';
 
 function fileUrlFromDiskPath(path: string): string {
   if (!path) return '';
+  // Ensure results carry `path|mtimeVersion`; strip it for a bare file:// URL.
+  const sep = path.lastIndexOf('|');
+  if (sep >= 0 && /^\d+$/.test(path.slice(sep + 1))) {
+    path = path.slice(0, sep);
+  }
   if (path.startsWith('file://')) return path;
   return `file://${path}`;
 }

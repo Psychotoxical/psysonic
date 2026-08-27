@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { Cast, Heart, Maximize2, Music } from 'lucide-react';
 import type { TFunction } from 'i18next';
 import { queueSongRating } from '@/features/playback/store/pendingStarSync';
@@ -68,6 +69,16 @@ export function PlayerTrackInfo({
   const playbackCoverRef = usePlaybackTrackCoverRef(
     showPreviewMeta ? null : currentTrack ?? undefined,
   );
+  // Stable identity: an inline literal here re-fired the cover ensure effect on
+  // every playback-tick re-render of the player bar (observed as flashing).
+  const coverEnsureOpts = useMemo(
+    () => ({
+      artistName: currentTrack?.artist ?? '',
+      albumTitle: currentTrack?.album ?? '',
+      allowExternalAlbum: true as const,
+    }),
+    [currentTrack?.artist, currentTrack?.album],
+  );
   const previewCoverRef = useAlbumCoverRef(
     showPreviewMeta ? coverArtId : null,
     showPreviewMeta ? coverArtId : null,
@@ -121,11 +132,7 @@ export function PlayerTrackInfo({
             displayCssPx={128}
             surface="sparse"
             ensurePriority="high"
-            ensureOpts={{
-              artistName: currentTrack?.artist ?? '',
-              albumTitle: currentTrack?.album ?? '',
-              allowExternalAlbum: true,
-            }}
+            ensureOpts={coverEnsureOpts}
             alt={showPreviewMeta ? `${previewingTrack!.title} Cover` : `${currentTrack?.album ?? ''} Cover`}
           />
           ) : (

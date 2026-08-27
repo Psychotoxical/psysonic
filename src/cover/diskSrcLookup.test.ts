@@ -54,6 +54,26 @@ describe('rememberDiskSrcLadder', () => {
     expect(keys).toContain('srv:cover:album:al-1:128');
     expect(keys).toContain('srv:cover:album:al-1:800');
   });
+
+  it('seeds the versioned URL from the `path|version` wire format', () => {
+    const hit = rememberDiskSrcLadder(
+      'srv',
+      { cacheKind: 'album', cacheEntityId: 'al-1' },
+      128,
+      '/data/800.webp|1787826019',
+    );
+    expect(hit).toBe(true);
+    const calls = vi.mocked(rememberDiskSrc).mock.calls;
+    expect(calls.some(([k, v]) => k === 'srv:cover:album:al-1:128' && v === '/data/800.webp|1787826019')).toBe(true);
+  });
+
+  it('applies full-res seed guards to versioned paths too', () => {
+    const ref = albumCoverRef('al-1', 'al-1');
+    rememberGridDiskSrc(ref, 2000, '/data/512.webp|1787826019');
+    const keys = vi.mocked(rememberDiskSrc).mock.calls.map(c => c[0]);
+    expect(keys.some(k => k.endsWith(':2000'))).toBe(false);
+    expect(keys.some(k => k.endsWith(':512'))).toBe(true);
+  });
 });
 
 describe('full-res (2000) seed guard', () => {

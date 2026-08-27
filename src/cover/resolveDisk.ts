@@ -33,7 +33,14 @@ export async function ensureCoverTierDiskSrc(
   if (cached) return cached;
 
   const result = await coverCacheEnsure(ref, tier, 'high');
-  const exactTier = new RegExp(`[\\\\/]${tier}\\.webp$`).test(result.path);
+  // Results carry `path|mtimeVersion` (cache-bust wire format); test the tier
+  // against the bare path.
+  const sep = result.path.lastIndexOf('|');
+  const barePath =
+    sep >= 0 && /^\d+$/.test(result.path.slice(sep + 1))
+      ? result.path.slice(0, sep)
+      : result.path;
+  const exactTier = new RegExp(`[\\\\/]${tier}\\.webp$`).test(barePath);
   // Chain-hit coverless albums (Navidrome `_0` sentinel) never have a real
   // 2000.webp — the chain writes only display tiers, and the vinyl guard
   // forbids downloading a replacement. For full-res requests the backend

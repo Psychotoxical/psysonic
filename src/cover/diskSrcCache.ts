@@ -61,18 +61,26 @@ function isRawFsPath(url: string, fsPath: string): boolean {
 /**
  * Turn a Rust disk path into a webview-loadable URL.
  * Returns empty when not in Tauri or path is outside asset scope (never put raw paths in `<img src>`).
+ *
+ * Callers may pass `fsPath` as `path|version` (mtime epoch secs). The version is
+ * appended as `?v=`: the webview image cache keys on the full URL, so a tier file
+ * overwritten IN PLACE (external chain art replacing backfill vinyl) must get a
+ * new URL or the old bytes keep winning — the observed queue/playbar flash.
  */
 function tryCoverDiskUrl(fsPath: string): string {
-  const paths = fsPath.includes('\\')
-    ? [normalizePathForConvert(fsPath), fsPath]
-    : [fsPath, normalizePathForConvert(fsPath)];
+  const sep = fsPath.lastIndexOf('|');
+  const version = sep >= 0 && /^\d+$/.test(fsPath.slice(sep + 1)) ? fsPath.slice(sep + 1) : '';
+  const rawPath = version ? fsPath.slice(0, sep) : fsPath;
+  const paths = rawPath.includes('\\')
+    ? [normalizePathForConvert(rawPath), rawPath]
+    : [rawPath, normalizePathForConvert(rawPath)];
   const seen = new Set<string>();
   for (const p of paths) {
     if (!p || seen.has(p)) continue;
     seen.add(p);
     const src = convertFileSrc(p);
-    if (!src || isRawFsPath(src, p) || isRawFsPath(src, fsPath)) continue;
-    return src;
+    if (!src || isRawFsPath(src, p) || isRawFsPath(src, rawPath)) continue;
+    return version ? `${src}?v=${version}` : src;
   }
   return '';
 }

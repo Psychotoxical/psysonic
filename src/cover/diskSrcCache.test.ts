@@ -48,6 +48,38 @@ describe('coverDiskUrl', () => {
     vi.mocked(convertFileSrc).mockReturnValue('asset://localhost/home/u/.../128.webp');
     expect(coverDiskUrl(fsPath)).toBe('asset://localhost/home/u/.../128.webp');
   });
+
+  it('appends the mtime version from `path|version` as a cache-busting query', () => {
+    const fsPath = '/cache/srv/al-1/128.webp|1787826019';
+    vi.mocked(convertFileSrc).mockImplementation(
+      (p: string) => `asset://localhost/${encodeURIComponent(p)}`,
+    );
+    const url = coverDiskUrl(fsPath);
+    expect(convertFileSrc).toHaveBeenCalledWith('/cache/srv/al-1/128.webp');
+    expect(url).toBe(
+      `asset://localhost/${encodeURIComponent('/cache/srv/al-1/128.webp')}?v=1787826019`,
+    );
+  });
+
+  it('ignores a non-numeric pipe suffix (treats the whole string as a path)', () => {
+    const fsPath = '/cache/srv/al-1/128.webp|notaversion';
+    vi.mocked(convertFileSrc).mockImplementation(
+      (p: string) => `asset://localhost/${encodeURIComponent(p)}`,
+    );
+    const url = coverDiskUrl(fsPath);
+    expect(convertFileSrc).toHaveBeenCalledWith(fsPath);
+    expect(url).not.toContain('?v=');
+  });
+
+  it('produces a different URL when the version changes (in-place overwrite)', () => {
+    vi.mocked(convertFileSrc).mockImplementation(
+      (p: string) => `asset://localhost/${encodeURIComponent(p)}`,
+    );
+    const old = coverDiskUrl('/cache/srv/al-1/800.webp|1000');
+    const fresh = coverDiskUrl('/cache/srv/al-1/800.webp|2000');
+    expect(old).not.toBe(fresh);
+    expect(fresh.endsWith('?v=2000')).toBe(true);
+  });
 });
 
 describe('rememberDiskSrc', () => {

@@ -1022,6 +1022,12 @@ export type CoverCacheEnsureResult = {
 	hit: boolean,
 	path: string,
 	tier: number,
+	/**
+	 *  mtime (epoch secs) of the returned tier file — the webview appends it as
+	 *  `?v=` to the asset URL so overwritten tiers bust the webview image
+	 *  cache. `0` on miss / unreadable file (versioning degrades gracefully).
+	 */
+	pathVersion?: number,
 };
 
 export type CoverCacheNavidromeMigrationDto = {

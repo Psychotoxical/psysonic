@@ -1,5 +1,5 @@
 use super::cache_state::CoverCacheState;
-use super::disk::{self, cover_dir, tier_exists, tier_path, DERIVE_TIERS};
+use super::disk::{self, cover_dir, tier_exists, tier_path, tier_version, DERIVE_TIERS};
 use super::dto::{CoverCacheEnsureArgs, CoverCacheEnsureResult};
 use super::encode::write_webp_tier;
 use super::fetch::build_cover_art_url;
@@ -205,21 +205,13 @@ impl CoverCacheState {
         // exact-2000 peek below (hard rule).
         match chain_hit_fullres_redirect(args, &dir) {
             FullresRedirect::Serve(path) => {
-                return Ok(CoverCacheEnsureResult {
-                    hit: true,
-                    path: path.to_string_lossy().into_owned(),
-                    tier: args.tier,
-                });
+                return Ok(CoverCacheEnsureResult::hit_at(args.tier, &path));
             }
             // Marker present but the chain ladder is gone: serve a miss rather
             // than falling through to the exact-2000 peek (stale vinyl) or the
             // network (that download is the placeholder).
             FullresRedirect::Miss => {
-                return Ok(CoverCacheEnsureResult {
-                    hit: false,
-                    path: String::new(),
-                    tier: args.tier,
-                });
+                return Ok(CoverCacheEnsureResult::miss(args.tier));
             }
             FullresRedirect::None => {}
         }
@@ -245,28 +237,16 @@ impl CoverCacheState {
 
         if !(ext_gate_ok && album_is_coverless && !album_already_hit) {
             if let Some(path) = ensure_peek(&dir, args.tier, args) {
-                return Ok(CoverCacheEnsureResult {
-                    hit: true,
-                    path: path.to_string_lossy().into_owned(),
-                    tier: args.tier,
-                });
+                return Ok(CoverCacheEnsureResult::hit_at(args.tier, &path));
             }
         }
 
         if !auto_dl && args.tier != 2000 {
-            return Ok(CoverCacheEnsureResult {
-                hit: false,
-                path: String::new(),
-                tier: args.tier,
-            });
+            return Ok(CoverCacheEnsureResult::miss(args.tier));
         }
 
         if cover_fetch_recently_failed(&dir) {
-            return Ok(CoverCacheEnsureResult {
-                hit: false,
-                path: String::new(),
-                tier: args.tier,
-            });
+            return Ok(CoverCacheEnsureResult::miss(args.tier));
         }
 
         // For an external artist surface (`fanart` 16:9 background or `banner`
@@ -286,16 +266,8 @@ impl CoverCacheState {
                 )
                 .await;
                 return Ok(match external {
-                    Some(path) => CoverCacheEnsureResult {
-                        hit: true,
-                        path: path.to_string_lossy().into_owned(),
-                        tier: args.tier,
-                    },
-                    None => CoverCacheEnsureResult {
-                        hit: false,
-                        path: String::new(),
-                        tier: args.tier,
-                    },
+                    Some(path) => CoverCacheEnsureResult::hit_at(args.tier, &path),
+                    None => CoverCacheEnsureResult::miss(args.tier),
                 });
             }
         }
@@ -322,11 +294,7 @@ impl CoverCacheState {
                 // path is keyed to the album ref, so nothing leaks into the artist
                 // cover (unlike the fanart `{tier}-{surface}.webp` case).
                 emit_tier_ready(app, args, args.tier, &path);
-                return Ok(CoverCacheEnsureResult {
-                    hit: true,
-                    path: path.to_string_lossy().into_owned(),
-                    tier: args.tier,
-                });
+                return Ok(CoverCacheEnsureResult::hit_at(args.tier, &path));
             }
         }
 
@@ -347,18 +315,10 @@ impl CoverCacheState {
         match chain_ladder_vinyl_guard(args, &dir) {
             VinylGuardDecision::Proceed => {}
             VinylGuardDecision::Serve(path) => {
-                return Ok(CoverCacheEnsureResult {
-                    hit: true,
-                    path: path.to_string_lossy().into_owned(),
-                    tier: args.tier,
-                });
+                return Ok(CoverCacheEnsureResult::hit_at(args.tier, &path));
             }
             VinylGuardDecision::Miss => {
-                return Ok(CoverCacheEnsureResult {
-                    hit: false,
-                    path: String::new(),
-                    tier: args.tier,
-                });
+                return Ok(CoverCacheEnsureResult::miss(args.tier));
             }
         }
 
@@ -426,11 +386,7 @@ impl CoverCacheState {
                         )
                         .await
                         {
-                            return Ok(CoverCacheEnsureResult {
-                                hit: true,
-                                path: path.to_string_lossy().into_owned(),
-                                tier: args.tier,
-                            });
+                            return Ok(CoverCacheEnsureResult::hit_at(args.tier, &path));
                         }
                     }
                     // Only write the fail marker when the external album chain was
@@ -443,11 +399,7 @@ impl CoverCacheState {
                         let _ = std::fs::create_dir_all(&dir);
                         let _ = std::fs::write(dir.join(COVER_FETCH_FAIL_MARKER), b"1");
                     }
-                    return Ok(CoverCacheEnsureResult {
-                        hit: false,
-                        path: String::new(),
-                        tier: args.tier,
-                    });
+                    return Ok(CoverCacheEnsureResult::miss(args.tier));
                 }
             }
         };
@@ -524,18 +476,10 @@ impl CoverCacheState {
                     );
                 }
             }
-            return Ok(CoverCacheEnsureResult {
-                hit: true,
-                path: out_path.to_string_lossy().into_owned(),
-                tier: requested,
-            });
+            return Ok(CoverCacheEnsureResult::hit_at(requested, &out_path));
         }
 
-        Ok(CoverCacheEnsureResult {
-            hit: false,
-            path: String::new(),
-            tier: requested,
-        })
+        Ok(CoverCacheEnsureResult::miss(requested))
     }
 }
 
@@ -586,6 +530,7 @@ fn emit_tier_ready(app: &AppHandle, args: &CoverCacheEnsureArgs, tier: u32, path
             "cacheEntityId": args.cache_entity_id,
             "tier": tier,
             "path": path.to_string_lossy(),
+            "pathVersion": tier_version(path),
         }),
     );
 }
@@ -723,7 +668,7 @@ mod tests {
     };
     use crate::cover_cache::disk::tier_path;
     use crate::cover_cache::test_support::fresh_tmpdir;
-    use crate::cover_cache::CoverCacheEnsureArgs;
+    use crate::cover_cache::{CoverCacheEnsureArgs, CoverCacheEnsureResult};
     use image::{ImageBuffer, ImageFormat, Rgba};
     use std::collections::HashMap;
     use std::io::Cursor;
@@ -761,6 +706,28 @@ mod tests {
         let decoded = decode_image_bytes(buf.get_ref()).expect("png decode");
         assert_eq!(decoded.width(), 2);
         assert_eq!(decoded.height(), 2);
+    }
+
+    /// Wire-version stamping: a hit on a real file carries its mtime, a miss
+    /// carries 0 — the webview's `?v=` cache-bust depends on this.
+    #[test]
+    fn ensure_result_stamps_path_version() {
+        let root = fresh_tmpdir("ensure-result-version");
+        let dir = root.join("album").join("al-1");
+        fs::create_dir_all(&dir).unwrap();
+        let p = tier_path(&dir, 800);
+        fs::write(&p, b"art").unwrap();
+
+        let hit = CoverCacheEnsureResult::hit_at(800, &p);
+        assert!(hit.hit);
+        assert!(hit.path_version > 0, "real file must stamp its mtime");
+
+        let miss = CoverCacheEnsureResult::miss(800);
+        assert!(!miss.hit);
+        assert_eq!(miss.path_version, 0);
+        assert!(miss.path.is_empty());
+
+        let _ = fs::remove_dir_all(&root);
     }
 
     /// Chain-hit coverless album + tier 2000 + a real-art ladder on disk → the
