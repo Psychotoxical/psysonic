@@ -70,6 +70,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * The full list is ordered by album, disc and track number, and can be sorted by any column. Which columns are shown is up to you: title, album and duration to begin with, and artist, genre, year, format, plays, last played and BPM available from the column menu.
 * It is loaded the moment you open the tab, straight from the local index, so the artist page itself stays as quick to open as before.
 
+### Ukrainian translation
+
+**By [@albedych](https://github.com/albedych), PR [#1465](https://github.com/Psysonic/psysonic/pull/1465)**
+
+* Full Ukrainian (Українська) UI translation — selectable from the language picker on the Settings and Login screens.
+* Counts read naturally in Ukrainian: the one, few and many plural forms are all translated, so quantities such as 1, 2 and 5 items no longer fall back to English.
+* Library identity keys now fold Ukrainian Cyrillic (ї → і) the way Russian and Bulgarian already do, so the same release still merges into a single entry across servers. The keys are rebuilt once after updating, which takes a few seconds on a large library.
+
 ## Changed
 
 ### Rust internals — smaller focused modules with the same behaviour
