@@ -77,6 +77,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * When a future Navidrome release switches albums, artists and tracks to canonical IDs, Psysonic pauses startup while it safely updates the local library, analysis results, offline downloads, cached covers and saved app state, then verifies everything with a full sync.
 * The migration resumes after an interruption and protects normal playback, sync, imports and background work from seeing a half-converted library. Navidrome 0.63.2 and older servers, and other Subsonic servers, continue without migration.
 
+### Ukrainian translation
+
+**By [@albedych](https://github.com/albedych), PR [#1465](https://github.com/Psysonic/psysonic/pull/1465)**
+
+* Full Ukrainian (Українська) UI translation — selectable from the language picker on the Settings and Login screens.
+* Counts read naturally in Ukrainian: the one, few and many plural forms are all translated, so quantities such as 1, 2 and 5 items no longer fall back to English.
+* Library identity keys now fold Ukrainian Cyrillic (ї → і) the way Russian and Bulgarian already do, so the same release still merges into a single entry across servers. The keys are rebuilt once after updating, which takes a few seconds on a large library.
+
 ## Changed
 
 ### Rust internals — smaller focused modules with the same behaviour
@@ -151,6 +159,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 **By [@cucadmuh](https://github.com/cucadmuh), PR [#1461](https://github.com/Psysonic/psysonic/pull/1461)**
 
 * Album, artist, favourites and playlist tracklists now show and sort by the locally analysed BPM when it is available, instead of continuing to use the BPM embedded in the track tag.
+
+### Ukrainian settings notices no longer drop their warnings
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1467](https://github.com/Psysonic/psysonic/pull/1467)**
+
+* Nine settings descriptions in Ukrainian had been shortened to their first sentence, which silently removed the warnings the English text carries — that a settings backup stores passwords in plain text, that a Discord server cover exposes your server's public address, that external artwork is off by default and is provided by fanart.tv, and that playback-rate changes do not apply to radio, previews or Orbit.
+* The missing sentences are back; the rest of the Ukrainian wording is unchanged.
+* The README language list includes Ukrainian again.
 
 ## [1.51.0] - 2026-08-17
 

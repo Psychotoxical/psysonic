@@ -7,7 +7,7 @@
 //! so it must be kept in step with the languages the app actually ships as UI
 //! locales (`src/locales/*`). The table currently covers the Latin scripts
 //! (incl. German ß→ss, Norwegian/Danish æ→ae, French œ→oe, Romanian comma-below
-//! ș/ț) and the Cyrillic folds (ru/bg: ё→е, й→и). CJK locales (ja, zh) are left
+//! ș/ț) and the Cyrillic folds (ru/bg/uk: ё→е, й→и, ї→і). CJK locales (ja, zh) are left
 //! intact on purpose — Han/Kana are kept verbatim and Japanese dakuten are
 //! phonemic, so they must NOT be stripped.
 //!
@@ -27,7 +27,8 @@ pub(crate) const KEY_SEP: char = '\u{001f}';
 /// v6: an album's uniform performing credit is a fallback when artist-id
 ///     uniformity cannot derive a key, so a correctly tagged guest track no
 ///     longer costs the album its identity.
-pub const NORM_VERSION: &str = "6";
+/// v7: Ukrainian Cyrillic folding (ї→і).
+pub const NORM_VERSION: &str = "7";
 
 /// Normalize one identity field. Returns `None` when input is empty/whitespace-only
 /// or when normalization strips everything (punctuation-only, etc.).
@@ -207,11 +208,12 @@ fn canonical_decomposition(c: char) -> Option<Vec<char>> {
         // cedilla forms above (U+0326 is dropped as a combining mark).
         0x0218 | 0x0219 => ('S', '\u{0326}'),
         0x021A | 0x021B => ('T', '\u{0326}'),
-        // Cyrillic (ru, bg) canonical decompositions: Ё→Е (+diaeresis), Й→И
-        // (+breve). The mark is dropped, so ё/е and й/и fold together — the
-        // same diacritic-folding contract the Latin rows above provide.
+        // Cyrillic (ru, bg, uk) canonical decompositions: Ё→Е (+diaeresis), Й→И
+        // (+breve), Ї→І (+diaeresis). The mark is dropped, so ё/е, й/и and ї/і
+        // fold together — the same diacritic-folding contract the Latin rows provide.
         0x0401 | 0x0451 => ('\u{0415}', '\u{0308}'),
         0x0419 | 0x0439 => ('\u{0418}', '\u{0306}'),
+        0x0407 | 0x0457 => ('\u{0406}', '\u{0308}'),
         _ => return None,
     };
     let base_out = if c.is_uppercase() {
@@ -250,10 +252,12 @@ mod tests {
 
     #[test]
     fn norm_folds_cyrillic_diacritics_but_keeps_base_letters() {
-        // ё/й fold to е/и; other Cyrillic letters survive as lowercase.
+        // ё/й/ї fold to е/и/і; other Cyrillic letters survive as lowercase.
         assert_eq!(norm_part("Фёдор"), norm_part("Федор"));
         assert_eq!(norm_part("Фёдор"), Some("федор".into()));
         assert_eq!(norm_part("Й"), Some("и".into()));
+        assert_eq!(norm_part("Київ"), norm_part("Киів"));
+        assert_eq!(norm_part("Київ"), Some("киів".into()));
         assert_eq!(norm_part("Пётр Ильич"), Some("петрильич".into()));
     }
 
