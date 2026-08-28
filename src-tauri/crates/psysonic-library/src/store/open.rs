@@ -254,18 +254,6 @@ fn register_sql_functions(conn: &Connection) -> rusqlite::Result<()> {
             let name: String = ctx.get(0)?;
             Ok(name.trim().to_lowercase())
         },
-    )?;
-    conn.create_scalar_function(
-        "psysonic_parse_iso_ms",
-        1,
-        FunctionFlags::SQLITE_UTF8 | FunctionFlags::SQLITE_DETERMINISTIC,
-        |ctx| {
-            let timestamp = match ctx.get_raw(0) {
-                rusqlite::types::ValueRef::Text(value) => std::str::from_utf8(value).ok(),
-                _ => None,
-            };
-            Ok(timestamp.and_then(crate::sync::mapping::parse_iso_ms_str))
-        },
     )
 }
 

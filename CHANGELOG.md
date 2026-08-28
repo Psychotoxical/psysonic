@@ -188,7 +188,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 **By [@cucadmuh](https://github.com/cucadmuh), PR [#1470](https://github.com/Psysonic/psysonic/pull/1470)**
 
-* Navidrome timestamps with negative UTC offsets no longer disappear from the local index, so New Releases, favourites and last played dates populate correctly. Existing libraries are repaired once at startup without requiring a full resync.
+* Navidrome timestamps with negative UTC offsets no longer disappear from the local index, so New Releases, favourites and last played dates populate correctly during sync. Existing library creation dates are repaired once at startup without requiring a full resync or overwriting newer favourite/play state.
 
 ## [1.51.0] - 2026-08-17
 

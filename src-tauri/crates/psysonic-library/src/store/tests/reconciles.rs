@@ -6,8 +6,9 @@ use super::super::reconciles::{
     maybe_reconcile_orphan_browse_rows, maybe_reconcile_track_timestamp_backfill,
     ARTIST_NAME_FOLD_RECONCILE_ID, ARTIST_NAME_SORT_RECONCILE_ID,
     DURATION_SEC_BACKFILL_RECONCILE_ID, LIBRARY_ID_BACKFILL_RECONCILE_ID,
-    ORPHAN_BROWSE_RECONCILE_ID, TRACK_TIMESTAMP_BACKFILL_RECONCILE_ID,
+    ORPHAN_BROWSE_RECONCILE_ID,
 };
+use super::super::track_timestamp_reconcile::TRACK_TIMESTAMP_BACKFILL_RECONCILE_ID;
 use super::super::LibraryStore;
 
 #[test]
@@ -329,20 +330,52 @@ fn track_timestamp_backfill_restores_offset_dates_once() {
                 "INSERT INTO track (server_id, id, title, album, duration_sec, deleted, synced_at, \
                    raw_json, server_created_at, server_updated_at, starred_at, played_at) \
                  VALUES ('s1', 'repair', 'Repair', 'Al', 1, 0, 1, \
-                   '{\"createdAt\":\"2026-08-26T22:04:58.676898-07:00\",\
-                      \"updatedAt\":\"2026-08-26T22:04:58.676898-07:00\",\
-                      \"starred\":true,\
-                      \"starredAt\":\"2026-08-26T22:04:58.676898-07:00\",\
-                      \"playDate\":\"2026-08-26T22:04:58.676898-07:00\"}', \
-                   NULL, NULL, NULL, NULL)",
+                    '{\"createdAt\":\"2026-08-26T22:04:58.676898-07:00\",\
+                       \"updatedAt\":\"2024-01-01T00:00:00+02:00\",\
+                       \"starred\":true,\
+                       \"starredAt\":\"2026-08-26T22:04:58.676898-07:00\",\
+                       \"playDate\":\"2026-08-26T22:04:58.676898-07:00\"}', \
+                    NULL, NULL, 777, 888)",
                 [],
             )?;
             conn.execute(
                 "INSERT INTO track (server_id, id, title, album, duration_sec, deleted, synced_at, \
                    raw_json, server_created_at, server_updated_at, starred_at, played_at) \
                  VALUES ('s1', 'invalid', 'Invalid', 'Al', 1, 0, 1, \
-                   '{\"createdAt\":\"not-a-date\"}', 42, 42, 42, 42)",
+                    '{\"createdAt\":\"not-a-date\"}', 42, 42, 42, 42)",
                 [],
+            )?;
+            conn.execute(
+                "INSERT INTO track (server_id, id, title, album, duration_sec, deleted, synced_at, \
+                   raw_json, server_created_at, server_updated_at) \
+                 VALUES ('s1', 'positive', 'Positive', 'Al', 1, 0, 1, \
+                   '{\"createdAt\":\"2024-01-01T00:00:00+02:00\"}', \
+                   1704067200000, NULL)",
+                [],
+            )?;
+            conn.execute(
+                "INSERT INTO track (server_id, id, title, album, duration_sec, deleted, synced_at, \
+                   raw_json, server_created_at, server_updated_at) \
+                 VALUES ('s1', 'authoritative', 'Authoritative', 'Al', 1, 0, 1, \
+                   '{\"createdAt\":\"2026-08-26T22:04:58.676898-07:00\",\
+                      \"updatedAt\":\"2024-01-01T00:00:00+02:00\"}', 100, 200)",
+                [],
+            )?;
+            conn.execute(
+                "INSERT INTO track (server_id, id, title, album, duration_sec, deleted, synced_at, \
+                   raw_json, server_created_at, server_updated_at) \
+                 VALUES ('s1', 'stale-alias', 'Stale alias', 'Al', 1, 0, 1, \
+                   '{\"createdAt\":null,\"created\":\"2026-08-26T22:04:58.676898-07:00\"}', \
+                   NULL, NULL)",
+                [],
+            )?;
+            conn.execute_batch(
+                "CREATE TABLE timestamp_update_audit (track_id TEXT NOT NULL); \
+                 CREATE TRIGGER audit_timestamp_update \
+                 AFTER UPDATE OF server_created_at, server_updated_at ON track \
+                 BEGIN \
+                   INSERT INTO timestamp_update_audit (track_id) VALUES (NEW.id); \
+                 END;",
             )?;
             Ok(())
         })
@@ -376,15 +409,30 @@ fn track_timestamp_backfill_restores_offset_dates_once() {
     assert_eq!(
         timestamps,
         vec![
+            ("authoritative".into(), Some(100), Some(200), None, None),
             ("invalid".into(), Some(42), Some(42), Some(42), Some(42)),
+            ("positive".into(), Some(1_704_060_000_000), None, None, None),
             (
                 "repair".into(),
                 Some(1_787_807_098_000),
-                Some(1_787_807_098_000),
-                Some(1_787_807_098_000),
-                Some(1_787_807_098_000),
+                Some(1_704_060_000_000),
+                Some(777),
+                Some(888),
             ),
+            ("stale-alias".into(), None, None, None, None),
         ]
+    );
+    let updated_ids: Vec<String> = store
+        .with_read_conn(|conn| {
+            conn.prepare("SELECT track_id FROM timestamp_update_audit ORDER BY track_id")?
+                .query_map([], |row| row.get(0))?
+                .collect()
+        })
+        .expect("timestamp update audit");
+    assert_eq!(
+        updated_ids,
+        vec!["positive".to_string(), "repair".to_string()],
+        "the reconcile must not rewrite unaffected or authoritative rows"
     );
 
     store

@@ -129,6 +129,8 @@ fn sparse_remap_merges_from_resolved_old_row_before_deleting_it() {
     let repo = TrackRepository::new(&store);
 
     let mut old = row_with_id_hash("s1", "tr_old", "deadbeef", "/path/x.flac");
+    old.server_updated_at = Some(1_700_000_123_000);
+    old.server_created_at = Some(1_699_000_123_000);
     old.raw_json = json!({
         "id": "tr_old",
         "artist": "FOVOS, Max Cardona",
@@ -146,6 +148,8 @@ fn sparse_remap_merges_from_resolved_old_row_before_deleting_it() {
     repo.upsert_batch(&[old]).unwrap();
 
     let mut incoming = row_with_id_hash("s1", "tr_new", "deadbeef", "/path/x.flac");
+    incoming.server_updated_at = None;
+    incoming.server_created_at = None;
     incoming.raw_json = json!({
         "id": "tr_new",
         "artist": "FOVOS, Someone Else",
@@ -190,6 +194,57 @@ fn sparse_remap_merges_from_resolved_old_row_before_deleting_it() {
             { "id": "max-cardona", "name": "Max Cardona" }
         ])
     );
+    let timestamps: (Option<i64>, Option<i64>) = store
+        .with_conn("misc", |c| {
+            c.query_row(
+                "SELECT server_updated_at, server_created_at FROM track \
+                 WHERE server_id = 's1' AND id = 'tr_new'",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+        })
+        .unwrap();
+    assert_eq!(
+        timestamps,
+        (Some(1_700_000_123_000), Some(1_699_000_123_000)),
+        "timestamps omitted by the sparse remap payload survive the old-id deletion"
+    );
+}
+
+#[test]
+fn sparse_remap_explicit_null_timestamps_clear_old_values() {
+    let store = LibraryStore::open_in_memory();
+    let repo = TrackRepository::new(&store);
+
+    let mut old = row_with_id_hash("s1", "tr_old", "deadbeef", "/path/x.flac");
+    old.server_updated_at = Some(1_700_000_123_000);
+    old.server_created_at = Some(1_699_000_123_000);
+    repo.upsert_batch(&[old]).unwrap();
+
+    let mut incoming = row_with_id_hash("s1", "tr_new", "deadbeef", "/path/x.flac");
+    incoming.server_updated_at = None;
+    incoming.server_created_at = None;
+    incoming.raw_json = json!({
+        "id": "tr_new",
+        "updatedAt": null,
+        "createdAt": null
+    })
+    .to_string();
+
+    repo.upsert_sparse_batch_with_remap(&[incoming], true)
+        .unwrap();
+
+    let timestamps: (Option<i64>, Option<i64>) = store
+        .with_conn("misc", |c| {
+            c.query_row(
+                "SELECT server_updated_at, server_created_at FROM track \
+                 WHERE server_id = 's1' AND id = 'tr_new'",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+        })
+        .unwrap();
+    assert_eq!(timestamps, (None, None));
 }
 
 #[test]

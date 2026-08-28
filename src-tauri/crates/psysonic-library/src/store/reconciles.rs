@@ -20,10 +20,7 @@ pub(crate) const ORPHAN_BROWSE_RECONCILE_ID: &str = "orphan_browse_rows_reconcil
 pub(crate) const DURATION_SEC_BACKFILL_RECONCILE_ID: &str = "duration_sec_decimal_backfill_v1";
 const DURATION_SEC_BACKFILL_BATCH_SIZE: i64 = 1_000;
 
-/// One-time repair of timestamp columns lost when negative UTC offsets failed
-/// to parse, or shifted when positive offsets were treated as UTC wall time.
-pub(crate) const TRACK_TIMESTAMP_BACKFILL_RECONCILE_ID: &str = "track_timestamp_backfill_v1";
-const TRACK_TIMESTAMP_BACKFILL_BATCH_SIZE: i64 = 1_000;
+pub(super) use super::track_timestamp_reconcile::maybe_reconcile_track_timestamp_backfill;
 
 pub(super) fn reconcile_ready_rows_with_ingest_cursors(conn: &Connection) -> rusqlite::Result<()> {
     let candidates = {
@@ -350,94 +347,6 @@ pub(super) fn maybe_reconcile_library_id_backfill(conn: &Connection) -> rusqlite
     repair_library_id_from_raw_json(conn)?;
     mark_library_id_backfill_reconcile_completed(conn)?;
     Ok(())
-}
-
-fn track_timestamp_backfill_completed(conn: &Connection) -> rusqlite::Result<bool> {
-    let completed: Option<Option<i64>> = conn
-        .query_row(
-            "SELECT completed_at FROM library_data_migration WHERE id = ?1",
-            params![TRACK_TIMESTAMP_BACKFILL_RECONCILE_ID],
-            |row| row.get(0),
-        )
-        .optional()?;
-    Ok(completed.flatten().is_some())
-}
-
-/// Restore timestamp columns from stored payloads in bounded transactions.
-/// The registered scalar function uses the same parser as live sync. Existing
-/// values are retained when no usable raw timestamp exists.
-pub(super) fn maybe_reconcile_track_timestamp_backfill(conn: &Connection) -> rusqlite::Result<()> {
-    if track_timestamp_backfill_completed(conn)? {
-        return Ok(());
-    }
-    conn.execute(
-        "INSERT INTO library_data_migration (id, cursor_rowid, started_at) \
-         VALUES (?1, 0, strftime('%s','now')) \
-         ON CONFLICT(id) DO UPDATE SET \
-           started_at = COALESCE(library_data_migration.started_at, excluded.started_at)",
-        params![TRACK_TIMESTAMP_BACKFILL_RECONCILE_ID],
-    )?;
-
-    loop {
-        let cursor: i64 = conn.query_row(
-            "SELECT cursor_rowid FROM library_data_migration WHERE id = ?1",
-            params![TRACK_TIMESTAMP_BACKFILL_RECONCILE_ID],
-            |row| row.get(0),
-        )?;
-        let last_rowid: Option<i64> = conn.query_row(
-            "SELECT MAX(rowid) FROM ( \
-               SELECT rowid FROM track \
-               WHERE rowid > ?1 AND json_valid(raw_json) \
-                 AND (psysonic_parse_iso_ms(json_extract(raw_json, '$.created')) IS NOT NULL \
-                   OR psysonic_parse_iso_ms(json_extract(raw_json, '$.createdAt')) IS NOT NULL \
-                   OR psysonic_parse_iso_ms(json_extract(raw_json, '$.updatedAt')) IS NOT NULL \
-                   OR psysonic_parse_iso_ms(json_extract(raw_json, '$.starred')) IS NOT NULL \
-                   OR psysonic_parse_iso_ms(json_extract(raw_json, '$.starredAt')) IS NOT NULL \
-                   OR psysonic_parse_iso_ms(json_extract(raw_json, '$.playDate')) IS NOT NULL \
-                   OR psysonic_parse_iso_ms(json_extract(raw_json, '$.played')) IS NOT NULL \
-                   OR psysonic_parse_iso_ms(json_extract(raw_json, '$.playedAt')) IS NOT NULL) \
-               ORDER BY rowid LIMIT ?2 \
-             )",
-            params![cursor, TRACK_TIMESTAMP_BACKFILL_BATCH_SIZE],
-            |row| row.get(0),
-        )?;
-        let Some(last_rowid) = last_rowid else {
-            conn.execute(
-                "UPDATE library_data_migration \
-                 SET completed_at = strftime('%s','now') WHERE id = ?1",
-                params![TRACK_TIMESTAMP_BACKFILL_RECONCILE_ID],
-            )?;
-            return Ok(());
-        };
-
-        let tx = conn.unchecked_transaction()?;
-        tx.execute(
-            "UPDATE track SET \
-               server_created_at = COALESCE( \
-                 psysonic_parse_iso_ms(json_extract(raw_json, '$.created')), \
-                 psysonic_parse_iso_ms(json_extract(raw_json, '$.createdAt')), \
-                 server_created_at), \
-               server_updated_at = COALESCE( \
-                 psysonic_parse_iso_ms(json_extract(raw_json, '$.updatedAt')), \
-                 server_updated_at), \
-               starred_at = COALESCE( \
-                 psysonic_parse_iso_ms(json_extract(raw_json, '$.starred')), \
-                 psysonic_parse_iso_ms(json_extract(raw_json, '$.starredAt')), \
-                 starred_at), \
-               played_at = COALESCE( \
-                 psysonic_parse_iso_ms(json_extract(raw_json, '$.playDate')), \
-                 psysonic_parse_iso_ms(json_extract(raw_json, '$.played')), \
-                 psysonic_parse_iso_ms(json_extract(raw_json, '$.playedAt')), \
-                 played_at) \
-             WHERE rowid > ?1 AND rowid <= ?2 AND json_valid(raw_json)",
-            params![cursor, last_rowid],
-        )?;
-        tx.execute(
-            "UPDATE library_data_migration SET cursor_rowid = ?2 WHERE id = ?1",
-            params![TRACK_TIMESTAMP_BACKFILL_RECONCILE_ID, last_rowid],
-        )?;
-        tx.commit()?;
-    }
 }
 
 fn duration_sec_backfill_completed(conn: &Connection) -> rusqlite::Result<bool> {

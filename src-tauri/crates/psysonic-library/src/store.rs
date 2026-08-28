@@ -9,6 +9,7 @@ mod lifecycle;
 mod migrations;
 mod open;
 mod reconciles;
+mod track_timestamp_reconcile;
 
 pub use connection::WriteOpTiming;
 #[allow(unused_imports)]
