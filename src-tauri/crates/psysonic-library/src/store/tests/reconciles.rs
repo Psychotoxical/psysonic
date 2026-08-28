@@ -9,7 +9,7 @@ use super::super::reconciles::{
     ORPHAN_BROWSE_RECONCILE_ID,
 };
 use super::super::track_timestamp_reconcile::TRACK_TIMESTAMP_BACKFILL_RECONCILE_ID;
-use super::super::LibraryStore;
+use super::super::{LibraryStore, TrackTimestampBackfillStep};
 
 #[test]
 fn migration_022_backfills_unicode_artist_name_fold() {
@@ -459,6 +459,91 @@ fn track_timestamp_backfill_restores_offset_dates_once() {
         })
         .expect("created timestamp after guarded re-run");
     assert_eq!(created_after, None);
+}
+
+#[test]
+fn track_timestamp_backfill_is_not_part_of_database_open() {
+    let store = LibraryStore::open_in_memory();
+    let marker_count: i64 = store
+        .with_read_conn(|conn| {
+            conn.query_row(
+                "SELECT COUNT(*) FROM library_data_migration WHERE id = ?1",
+                params![TRACK_TIMESTAMP_BACKFILL_RECONCILE_ID],
+                |row| row.get(0),
+            )
+        })
+        .expect("timestamp marker count");
+    assert_eq!(marker_count, 0);
+}
+
+#[test]
+fn track_timestamp_backfill_processes_one_resumable_batch() {
+    let store = LibraryStore::open_in_memory();
+    store.set_bulk_ingest_active(true);
+    assert_eq!(
+        store.run_track_timestamp_backfill_batch().unwrap(),
+        TrackTimestampBackfillStep::Deferred
+    );
+    store.set_bulk_ingest_active(false);
+
+    store
+        .with_conn_mut("test.seed_timestamp_batches", |conn| {
+            let tx = conn.transaction()?;
+            for index in 0..1_001 {
+                tx.execute(
+                    "INSERT INTO track (server_id, id, title, album, duration_sec, deleted, synced_at, raw_json) \
+                     VALUES ('s1', ?1, 'Track', 'Album', 1, 0, 1, '{}')",
+                    [format!("track-{index}")],
+                )?;
+            }
+            tx.commit()
+        })
+        .expect("seed timestamp batches");
+
+    assert_eq!(
+        store.run_track_timestamp_backfill_batch().unwrap(),
+        TrackTimestampBackfillStep::Pending
+    );
+    let first_cursor: (i64, Option<i64>) = store
+        .with_read_conn(|conn| {
+            conn.query_row(
+                "SELECT cursor_rowid, completed_at FROM library_data_migration WHERE id = ?1",
+                params![TRACK_TIMESTAMP_BACKFILL_RECONCILE_ID],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+        })
+        .expect("first timestamp cursor");
+    assert_eq!(first_cursor, (1_000, None));
+
+    assert_eq!(
+        store.run_track_timestamp_backfill_batch().unwrap(),
+        TrackTimestampBackfillStep::Pending
+    );
+    let second_cursor: (i64, Option<i64>) = store
+        .with_read_conn(|conn| {
+            conn.query_row(
+                "SELECT cursor_rowid, completed_at FROM library_data_migration WHERE id = ?1",
+                params![TRACK_TIMESTAMP_BACKFILL_RECONCILE_ID],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+        })
+        .expect("second timestamp cursor");
+    assert_eq!(second_cursor, (1_001, None));
+
+    assert_eq!(
+        store.run_track_timestamp_backfill_batch().unwrap(),
+        TrackTimestampBackfillStep::Complete
+    );
+    let completed_at: Option<i64> = store
+        .with_read_conn(|conn| {
+            conn.query_row(
+                "SELECT completed_at FROM library_data_migration WHERE id = ?1",
+                params![TRACK_TIMESTAMP_BACKFILL_RECONCILE_ID],
+                |row| row.get(0),
+            )
+        })
+        .expect("completed timestamp marker");
+    assert!(completed_at.is_some());
 }
 
 #[test]

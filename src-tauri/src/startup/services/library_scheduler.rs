@@ -8,6 +8,47 @@ use tauri::{Emitter, Manager};
 const MAX_BACKGROUND_SCHEDULER_CONCURRENCY: usize = 2;
 const BACKGROUND_SCHEDULER_TICK_TIMEOUT: Duration = Duration::from_secs(120);
 
+fn timestamp_repair_is_allowed(runtime: &psysonic_library::LibraryRuntime) -> bool {
+    use psysonic_library::sync::bandwidth::PlaybackHint;
+    use std::sync::atomic::Ordering;
+
+    !runtime.scheduler_cancel.load(Ordering::SeqCst)
+        && runtime.current_playback_hint() == PlaybackHint::Idle
+        && runtime.current_job().is_none()
+        && runtime.ensure_ordinary_sync_activity_allowed().is_ok()
+}
+
+async fn run_timestamp_repair_batch_if_idle(runtime: &psysonic_library::LibraryRuntime) {
+    use psysonic_library::store::TrackTimestampBackfillStep;
+
+    if !timestamp_repair_is_allowed(runtime) {
+        return;
+    }
+
+    let store = Arc::clone(&runtime.store);
+    match tokio::task::spawn_blocking(move || store.run_track_timestamp_backfill_batch()).await {
+        Ok(Ok(TrackTimestampBackfillStep::Deferred | TrackTimestampBackfillStep::Pending)) => {}
+        Ok(Ok(TrackTimestampBackfillStep::Complete)) => {}
+        Ok(Err(error)) => {
+            crate::app_eprintln!("[library-db] background timestamp repair failed: {error}");
+        }
+        Err(error) => {
+            crate::app_eprintln!("[library-db] background timestamp repair task failed: {error}");
+        }
+    }
+}
+
+async fn run_timestamp_repair_after_startup_grace(
+    runtime: &psysonic_library::LibraryRuntime,
+    startup_deferred: &mut bool,
+) {
+    if *startup_deferred {
+        *startup_deferred = false;
+    } else {
+        run_timestamp_repair_batch_if_idle(runtime).await;
+    }
+}
+
 async fn run_bounded_scheduler_sessions<I, F, Fut>(sessions: I, run: F)
 where
     I: IntoIterator,
@@ -62,6 +103,7 @@ pub(super) fn spawn(app_for_sched: tauri::AppHandle) {
 
         let mut interval = tokio::time::interval(Duration::from_secs(30));
         interval.set_missed_tick_behavior(MissedTickBehavior::Skip);
+        let mut timestamp_repair_startup_deferred = true;
         loop {
             interval.tick().await;
             let Some(state) = app_for_sched.try_state::<psysonic_library::LibraryRuntime>() else {
@@ -72,6 +114,11 @@ pub(super) fn spawn(app_for_sched: tauri::AppHandle) {
             }
             let sessions = state.snapshot_sessions();
             if sessions.is_empty() {
+                run_timestamp_repair_after_startup_grace(
+                    &state,
+                    &mut timestamp_repair_startup_deferred,
+                )
+                .await;
                 continue;
             }
             let hint = state.current_playback_hint();
@@ -198,6 +245,11 @@ pub(super) fn spawn(app_for_sched: tauri::AppHandle) {
                 }
             })
             .await;
+            run_timestamp_repair_after_startup_grace(
+                &state,
+                &mut timestamp_repair_startup_deferred,
+            )
+            .await;
         }
     });
 }
@@ -229,6 +281,31 @@ mod tests {
         assert!(foreground_blocks_scheduler_session(Some(&delta), "s1"));
         assert!(!foreground_blocks_scheduler_session(Some(&delta), "s2"));
         assert!(!foreground_blocks_scheduler_session(None, "s1"));
+    }
+
+    #[test]
+    fn timestamp_repair_yields_to_playback_foreground_sync_and_shutdown() {
+        use psysonic_library::sync::bandwidth::PlaybackHint;
+
+        let runtime = psysonic_library::LibraryRuntime::new(Arc::new(
+            psysonic_library::LibraryStore::open_in_memory(),
+        ));
+        assert!(timestamp_repair_is_allowed(&runtime));
+
+        runtime.set_playback_hint(PlaybackHint::Playing);
+        assert!(!timestamp_repair_is_allowed(&runtime));
+        runtime.set_playback_hint(PlaybackHint::PrefetchActive);
+        assert!(!timestamp_repair_is_allowed(&runtime));
+        runtime.set_playback_hint(PlaybackHint::Idle);
+
+        runtime
+            .install_current_job(foreground_job("s1", "delta_sync"))
+            .unwrap();
+        assert!(!timestamp_repair_is_allowed(&runtime));
+        runtime.clear_current_job_if_matches("s1-delta_sync");
+
+        runtime.scheduler_cancel.store(true, Ordering::SeqCst);
+        assert!(!timestamp_repair_is_allowed(&runtime));
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

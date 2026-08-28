@@ -20,6 +20,7 @@ pub(crate) const ORPHAN_BROWSE_RECONCILE_ID: &str = "orphan_browse_rows_reconcil
 pub(crate) const DURATION_SEC_BACKFILL_RECONCILE_ID: &str = "duration_sec_decimal_backfill_v1";
 const DURATION_SEC_BACKFILL_BATCH_SIZE: i64 = 1_000;
 
+#[cfg(test)]
 pub(super) use super::track_timestamp_reconcile::maybe_reconcile_track_timestamp_backfill;
 
 pub(super) fn reconcile_ready_rows_with_ingest_cursors(conn: &Connection) -> rusqlite::Result<()> {

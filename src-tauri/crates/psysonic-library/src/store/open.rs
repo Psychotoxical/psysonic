@@ -15,7 +15,7 @@ use super::reconciles::{
     maybe_reconcile_artist_name_fold, maybe_reconcile_artist_name_sort,
     maybe_reconcile_duration_sec_backfill, maybe_reconcile_library_id_backfill,
     maybe_reconcile_orphan_browse_rows, maybe_reconcile_replay_gain_peak,
-    maybe_reconcile_track_timestamp_backfill, reconcile_ready_rows_with_ingest_cursors,
+    reconcile_ready_rows_with_ingest_cursors,
 };
 use super::LibraryStore;
 
@@ -322,7 +322,6 @@ fn prepare_write_connection_for_open(conn: &Connection) -> rusqlite::Result<()> 
     maybe_reconcile_artist_name_fold(conn)?;
     maybe_reconcile_replay_gain_peak(conn)?;
     maybe_reconcile_library_id_backfill(conn)?;
-    maybe_reconcile_track_timestamp_backfill(conn)?;
     maybe_reconcile_duration_sec_backfill(conn)?;
     maybe_reconcile_orphan_browse_rows(conn)?;
     ensure_genre_tags_schema(conn)?;
