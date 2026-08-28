@@ -1,5 +1,7 @@
 use rusqlite::params;
+use serde_json::json;
 
+use crate::repos::TrackRepository;
 use super::super::reconciles::{
     maybe_reconcile_artist_name_fold, maybe_reconcile_artist_name_sort,
     maybe_reconcile_duration_sec_backfill, maybe_reconcile_library_id_backfill,
@@ -349,7 +351,7 @@ fn track_timestamp_backfill_restores_offset_dates_once() {
                 "INSERT INTO track (server_id, id, title, album, duration_sec, deleted, synced_at, \
                    raw_json, server_created_at, server_updated_at) \
                  VALUES ('s1', 'positive', 'Positive', 'Al', 1, 0, 1, \
-                   '{\"createdAt\":\"2024-01-01T00:00:00+02:00\"}', \
+                   '{\"created\":\"2024-01-01T00:00:00+02:00\"}', \
                    1704067200000, NULL)",
                 [],
             )?;
@@ -474,6 +476,68 @@ fn track_timestamp_backfill_is_not_part_of_database_open() {
         })
         .expect("timestamp marker count");
     assert_eq!(marker_count, 0);
+}
+
+#[test]
+fn sparse_created_clear_is_not_repaired_from_a_retained_legacy_alias() {
+    let store = LibraryStore::open_in_memory();
+    store
+        .with_conn_mut("test.seed_sparse_created_clear", |conn| {
+            conn.execute(
+                "DELETE FROM library_data_migration WHERE id = ?1",
+                params![TRACK_TIMESTAMP_BACKFILL_RECONCILE_ID],
+            )?;
+            conn.execute(
+                "INSERT INTO track (server_id, id, title, album, duration_sec, deleted, synced_at, \
+                   raw_json, server_created_at) \
+                 VALUES ('s1', 't1', 'Track', 'Album', 1, 0, 1, \
+                   '{\"id\":\"t1\",\"created\":\"2026-08-26T22:04:58.676898-07:00\"}', NULL)",
+                [],
+            )?;
+            Ok(())
+        })
+        .expect("seed sparse created clear");
+
+    let incoming = crate::sync::mapping::navidrome_song_to_track_row(
+        "s1",
+        &json!({ "id": "t1", "title": "Track", "createdAt": null }),
+        2,
+        None,
+    )
+    .unwrap();
+    TrackRepository::new(&store)
+        .upsert_sparse_batch_with_remap(&[incoming], false)
+        .expect("sparse timestamp clear");
+
+    let stored_raw: serde_json::Value = store
+        .with_read_conn(|conn| {
+            conn.query_row(
+                "SELECT raw_json FROM track WHERE server_id = 's1' AND id = 't1'",
+                [],
+                |row| row.get::<_, String>(0),
+            )
+        })
+        .map(|raw| serde_json::from_str(&raw).unwrap())
+        .expect("stored sparse JSON");
+    assert!(stored_raw.get("createdAt").is_none());
+    assert!(stored_raw.get("created").is_some());
+
+    store
+        .with_conn(
+            "test.timestamp_backfill_after_sparse_clear",
+            maybe_reconcile_track_timestamp_backfill,
+        )
+        .expect("timestamp backfill after sparse clear");
+    let created_at: Option<i64> = store
+        .with_read_conn(|conn| {
+            conn.query_row(
+                "SELECT server_created_at FROM track WHERE server_id = 's1' AND id = 't1'",
+                [],
+                |row| row.get(0),
+            )
+        })
+        .expect("created timestamp after sparse clear");
+    assert_eq!(created_at, None);
 }
 
 #[test]

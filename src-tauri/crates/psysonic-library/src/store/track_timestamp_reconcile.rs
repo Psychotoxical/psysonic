@@ -66,6 +66,27 @@ fn repaired_offset_timestamp(current: Option<i64>, timestamp: Option<&str>) -> O
     Some(corrected)
 }
 
+fn repaired_created_timestamp(
+    current: Option<i64>,
+    raw: &serde_json::Value,
+) -> Option<i64> {
+    if let Some(created_at) = raw.get("createdAt") {
+        return repaired_offset_timestamp(current, created_at.as_str());
+    }
+
+    // A sparse `createdAt: null` patch removes that key from stored JSON and
+    // may leave an older `created` alias behind. With a NULL hot column those
+    // shapes are indistinguishable from a pre-fix parse failure, so only use
+    // the legacy alias when the old positive-offset parser value proves it is
+    // the source of the currently stored value.
+    current.and_then(|current| {
+        repaired_offset_timestamp(
+            Some(current),
+            raw.get("created").and_then(|value| value.as_str()),
+        )
+    })
+}
+
 fn reconcile_track_timestamp_backfill_batch(
     conn: &Connection,
 ) -> rusqlite::Result<TrackTimestampBackfillStep> {
@@ -119,13 +140,7 @@ fn reconcile_track_timestamp_backfill_batch(
         let Ok(raw) = serde_json::from_str::<serde_json::Value>(&raw_json) else {
             continue;
         };
-        // `createdAt` is the current Navidrome field. If it is present but
-        // empty/null, do not fall back to an older `created` alias retained
-        // by a prior sparse JSON merge.
-        let repaired_created = repaired_offset_timestamp(
-            server_created_at,
-            timestamp_field(&raw, &["createdAt", "created"]),
-        );
+        let repaired_created = repaired_created_timestamp(server_created_at, &raw);
         let repaired_updated =
             repaired_offset_timestamp(server_updated_at, timestamp_field(&raw, &["updatedAt"]));
         if repaired_created.is_some() || repaired_updated.is_some() {

@@ -18,15 +18,50 @@ fn timestamp_repair_is_allowed(runtime: &psysonic_library::LibraryRuntime) -> bo
         && runtime.ensure_ordinary_sync_activity_allowed().is_ok()
 }
 
-async fn run_timestamp_repair_batch_if_idle(runtime: &psysonic_library::LibraryRuntime) {
+async fn run_timestamp_repair_batch_if_idle_with<F>(
+    runtime: &psysonic_library::LibraryRuntime,
+    run_batch: F,
+) where
+    F: FnOnce(
+            Arc<psysonic_library::LibraryStore>,
+        ) -> Result<psysonic_library::store::TrackTimestampBackfillStep, String>
+        + Send
+        + 'static,
+{
+    if !timestamp_repair_is_allowed(runtime) {
+        return;
+    }
+
+    run_timestamp_repair_batch_after_initial_check(runtime, run_batch).await;
+}
+
+async fn run_timestamp_repair_batch_after_initial_check<F>(
+    runtime: &psysonic_library::LibraryRuntime,
+    run_batch: F,
+) where
+    F: FnOnce(
+            Arc<psysonic_library::LibraryStore>,
+        ) -> Result<psysonic_library::store::TrackTimestampBackfillStep, String>
+        + Send
+        + 'static,
+{
     use psysonic_library::store::TrackTimestampBackfillStep;
 
+    let sync_activity = runtime.sync_activity_guard().await;
     if !timestamp_repair_is_allowed(runtime) {
         return;
     }
 
     let store = Arc::clone(&runtime.store);
-    match tokio::task::spawn_blocking(move || store.run_track_timestamp_backfill_batch()).await {
+    match tokio::task::spawn_blocking(move || {
+        // A dropped async wrapper does not abort blocking work. Keep the
+        // activity guard inside the closure so database swaps still wait for
+        // the write to finish after task cancellation.
+        let _sync_activity = sync_activity;
+        run_batch(store)
+    })
+    .await
+    {
         Ok(Ok(TrackTimestampBackfillStep::Deferred | TrackTimestampBackfillStep::Pending)) => {}
         Ok(Ok(TrackTimestampBackfillStep::Complete)) => {}
         Ok(Err(error)) => {
@@ -36,6 +71,13 @@ async fn run_timestamp_repair_batch_if_idle(runtime: &psysonic_library::LibraryR
             crate::app_eprintln!("[library-db] background timestamp repair task failed: {error}");
         }
     }
+}
+
+async fn run_timestamp_repair_batch_if_idle(runtime: &psysonic_library::LibraryRuntime) {
+    run_timestamp_repair_batch_if_idle_with(runtime, |store| {
+        store.run_track_timestamp_backfill_batch()
+    })
+    .await;
 }
 
 async fn run_timestamp_repair_after_startup_grace(
@@ -306,6 +348,83 @@ mod tests {
 
         runtime.scheduler_cancel.store(true, Ordering::SeqCst);
         assert!(!timestamp_repair_is_allowed(&runtime));
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn timestamp_repair_holds_sync_activity_until_the_batch_finishes() {
+        use psysonic_library::store::TrackTimestampBackfillStep;
+        use std::sync::mpsc;
+
+        let runtime = Arc::new(psysonic_library::LibraryRuntime::new(Arc::new(
+            psysonic_library::LibraryStore::open_in_memory(),
+        )));
+        let (started_tx, started_rx) = mpsc::channel();
+        let (release_tx, release_rx) = mpsc::channel();
+        let runtime_for_repair = Arc::clone(&runtime);
+        let repair = tokio::spawn(async move {
+            run_timestamp_repair_batch_if_idle_with(&runtime_for_repair, move |_| {
+                started_tx.send(()).unwrap();
+                release_rx.recv().unwrap();
+                Ok(TrackTimestampBackfillStep::Complete)
+            })
+            .await;
+        });
+
+        tokio::task::spawn_blocking(move || {
+            started_rx
+                .recv_timeout(Duration::from_secs(1))
+                .expect("timestamp repair did not start")
+        })
+        .await
+        .unwrap();
+        repair.abort();
+        assert!(repair.await.unwrap_err().is_cancelled());
+
+        let drain = runtime.cancel_and_drain_sync(None, None);
+        tokio::pin!(drain);
+        tokio::select! {
+            biased;
+            _ = &mut drain => panic!(
+                "cancelled wrapper released activity before blocking repair finished"
+            ),
+            _ = tokio::task::yield_now() => {}
+        }
+
+        release_tx.send(()).unwrap();
+        let guard = tokio::time::timeout(Duration::from_secs(1), &mut drain)
+            .await
+            .expect("sync drain did not finish after repair")
+            .unwrap();
+        drop(guard);
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn queued_timestamp_repair_rechecks_shutdown_after_the_activity_guard() {
+        use psysonic_library::store::TrackTimestampBackfillStep;
+
+        let runtime = Arc::new(psysonic_library::LibraryRuntime::new(Arc::new(
+            psysonic_library::LibraryStore::open_in_memory(),
+        )));
+        let barrier = runtime.cancel_and_drain_sync(None, None).await.unwrap();
+        let batch_called = Arc::new(AtomicBool::new(false));
+        let batch_called_for_task = Arc::clone(&batch_called);
+        let repair = run_timestamp_repair_batch_after_initial_check(&runtime, move |_| {
+            batch_called_for_task.store(true, Ordering::SeqCst);
+            Ok(TrackTimestampBackfillStep::Complete)
+        });
+        tokio::pin!(repair);
+
+        tokio::select! {
+            biased;
+            () = &mut repair => panic!("timestamp repair completed while activity was blocked"),
+            _ = tokio::task::yield_now() => {}
+        }
+        runtime.scheduler_cancel.store(true, Ordering::SeqCst);
+        drop(barrier);
+        tokio::time::timeout(Duration::from_secs(1), &mut repair)
+            .await
+            .expect("queued timestamp repair did not finish");
+        assert!(!batch_called.load(Ordering::SeqCst));
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
