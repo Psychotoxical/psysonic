@@ -3,11 +3,16 @@ use serde_json::json;
 
 #[test]
 fn merge_album_open_subsonic_track_raw_copies_album_flags() {
-    let album = json!({ "compilation": true, "releaseTypes": ["Compilation"] });
+    let album = json!({
+        "compilation": true,
+        "releaseTypes": ["Compilation"],
+        "version": "Deluxe Edition",
+    });
     let mut song = json!({ "id": "tr_1", "title": "A" });
     merge_album_open_subsonic_track_raw(&album, &mut song);
     assert_eq!(song.get("compilation"), Some(&json!(true)));
     assert_eq!(song.get("releaseTypes"), Some(&json!(["Compilation"])));
+    assert_eq!(song.get("albumVersion"), Some(&json!("Deluxe Edition")));
 }
 
 #[test]

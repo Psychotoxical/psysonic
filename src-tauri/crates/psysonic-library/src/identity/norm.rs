@@ -28,7 +28,8 @@ pub(crate) const KEY_SEP: char = '\u{001f}';
 ///     uniformity cannot derive a key, so a correctly tagged guest track no
 ///     longer costs the album its identity.
 /// v7: Ukrainian Cyrillic folding (ї→і).
-pub const NORM_VERSION: &str = "7";
+/// v8: album identity includes the OpenSubsonic/Navidrome album version when present.
+pub const NORM_VERSION: &str = "8";
 
 /// Normalize one identity field. Returns `None` when input is empty/whitespace-only
 /// or when normalization strips everything (punctuation-only, etc.).

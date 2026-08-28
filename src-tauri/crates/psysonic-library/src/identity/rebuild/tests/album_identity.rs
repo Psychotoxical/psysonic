@@ -149,6 +149,64 @@ fn rebuild_keys_an_album_with_a_guest_track_by_its_own_credit() {
     );
 }
 
+#[test]
+fn rebuild_uses_saved_album_version_to_split_physical_releases() {
+    let store = LibraryStore::open_in_memory();
+    let standard = physical_album_track_row(
+        "s1",
+        "standard-track",
+        "Opening",
+        "Artist",
+        "artist-1",
+        "Album",
+        "album-standard",
+        "Artist",
+        "lib",
+    );
+    let mut deluxe = physical_album_track_row(
+        "s1",
+        "deluxe-track",
+        "Bonus",
+        "Artist",
+        "artist-1",
+        "Album",
+        "album-deluxe",
+        "Artist",
+        "lib",
+    );
+    deluxe.raw_json = r#"{"tags":{"albumversion":["Deluxe Edition"]}}"#.into();
+    TrackRepository::new(&store)
+        .upsert_batch(&[standard, deluxe])
+        .unwrap();
+    store
+        .with_conn_mut("test.seed_album_versions", |conn| {
+            conn.execute(
+                "INSERT INTO artist (server_id, id, name, synced_at) \
+                 VALUES ('s1', 'artist-1', 'Artist', 1)",
+                [],
+            )?;
+            conn.execute(
+                "INSERT INTO album (server_id, id, name, synced_at, raw_json) VALUES \
+                   ('s1', 'album-standard', 'Album', 1, '{\"version\":\"Standard\"}'), \
+                   ('s1', 'album-deluxe', 'Album', 1, '{}')",
+                [],
+            )?;
+            Ok(())
+        })
+        .unwrap();
+
+    rebuild_cluster_keys(&store, None).unwrap();
+    let (standard_key, deluxe_key) = store
+        .with_read_conn(|conn| {
+            Ok((
+                read_cluster_row(conn, "s1", "standard-track")?.unwrap().1,
+                read_cluster_row(conn, "s1", "deluxe-track")?.unwrap().1,
+            ))
+        })
+        .unwrap();
+    assert_ne!(standard_key, deluxe_key);
+}
+
 /// The credit-matches-a-performer test is not enough on its own: plenty of
 /// libraries tag compilation tracks with the label as the track artist too.
 /// Then the label matches, and two unrelated compilations sharing a title

@@ -5,7 +5,10 @@ use super::ranks::{
     recompute_all_occurrence_ranks, reset_affected_rank_partitions,
 };
 use super::{concrete_physical_album_key, dirty_meta_key, set_cluster_meta, DIRTY_META_PREFIX};
-use crate::identity::keys::{build_album_key, build_track_cluster_keys};
+use crate::identity::keys::{
+    build_album_key_with_version, build_track_cluster_key_with_version,
+    build_track_cluster_keys,
+};
 use crate::identity::norm::norm_part;
 
 const UPSERT_CLUSTER_KEY_SQL: &str = "
@@ -37,8 +40,33 @@ type SourceTrackRow = (
     Option<String>,
     Option<String>,
     Option<String>,
+    Option<String>,
     i64,
 );
+
+fn json_text_expr(json_column: &str, path: &str) -> String {
+    format!(
+        "CASE WHEN json_valid({json_column}) THEN \
+           CASE WHEN json_type({json_column}, '{path}') = 'text' \
+                THEN NULLIF(TRIM(json_extract({json_column}, '{path}')), '') END \
+         END"
+    )
+}
+
+fn canonical_album_version_expr(album_json: &str, track_json: &str) -> String {
+    let album_version = json_text_expr(album_json, "$.version");
+    let album_tag_version = json_text_expr(album_json, "$.tags.albumversion[0]");
+    let track_album_version = json_text_expr(track_json, "$.albumVersion");
+    let track_version = json_text_expr(track_json, "$.version");
+    let track_tag_version = json_text_expr(track_json, "$.tags.albumversion[0]");
+    let track_value = format!(
+        "COALESCE({track_album_version}, {track_version}, {track_tag_version})"
+    );
+    format!(
+        "COALESCE(MAX({album_version}), MAX({album_tag_version}), \
+           CASE WHEN COUNT(DISTINCT {track_value}) = 1 THEN MAX({track_value}) END)"
+    )
+}
 
 fn upsert_source_track(
     source: SourceTrackRow,
@@ -56,10 +84,19 @@ fn upsert_source_track(
         album_id,
         canonical_album_artist,
         canonical_album,
+        canonical_album_version,
         duration_sec,
     ) = source;
     let mut keys =
         build_track_cluster_keys(artist.as_deref(), &title, &album, album_artist.as_deref());
+    if canonical_album_version.is_some() {
+        keys.cluster_key = build_track_cluster_key_with_version(
+            artist.as_deref(),
+            &title,
+            canonical_album.as_deref().unwrap_or(&album),
+            canonical_album_version.as_deref(),
+        );
+    }
     keys.artist_key = canonical_artist
         .as_deref()
         .filter(|name| !name.trim().is_empty())
@@ -70,7 +107,11 @@ fn upsert_source_track(
             .as_deref()
             .filter(|name| !name.trim().is_empty())
             .and_then(|name| {
-                build_album_key(Some(name), canonical_album.as_deref().unwrap_or(&album))
+                build_album_key_with_version(
+                    Some(name),
+                    canonical_album.as_deref().unwrap_or(&album),
+                    canonical_album_version.as_deref(),
+                )
             })
             .or_else(|| Some(concrete_physical_album_key(&server_id, album_id)));
     }
@@ -106,6 +147,7 @@ pub(super) fn rebuild_cluster_keys_on_conn(
     // out too, not just the one spelling the filter happens to match.
     let va_credit =
         crate::album_compilation_filter::collection_credit_sql("MAX(source.album_artist)");
+    let album_version = canonical_album_version_expr("album_meta.raw_json", "source.raw_json");
     let select = format!(
         "WITH physical_album AS MATERIALIZED ( \
            SELECT source.server_id, source.album_id, \
@@ -134,17 +176,21 @@ pub(super) fn rebuild_cluster_keys_on_conn(
                                         THEN 1 ELSE 0 END) > 0 \
                          THEN MAX(NULLIF(TRIM(source.album_artist), '')) END \
                   ) AS canonical_album_artist, \
-                  MAX(source.album) AS canonical_album \
-           FROM track source \
-           LEFT JOIN artist ar_source \
-             ON ar_source.server_id = source.server_id AND ar_source.id = source.artist_id \
+                   MAX(source.album) AS canonical_album, \
+                   {album_version} AS canonical_album_version \
+            FROM track source \
+            LEFT JOIN artist ar_source \
+              ON ar_source.server_id = source.server_id AND ar_source.id = source.artist_id \
+            LEFT JOIN album album_meta \
+              ON album_meta.server_id = source.server_id AND album_meta.id = source.album_id \
            WHERE source.deleted = 0 \
              AND source.album_id IS NOT NULL AND source.album_id != ''{album_server_filter} \
            GROUP BY source.server_id, source.album_id \
          ) \
          SELECT t.server_id, COALESCE(t.library_id, ''), t.id, t.artist, ar.name, t.title, \
-                t.album_artist, t.album, t.album_id, physical_album.canonical_album_artist, \
-                physical_album.canonical_album, t.duration_sec \
+                 t.album_artist, t.album, t.album_id, physical_album.canonical_album_artist, \
+                 physical_album.canonical_album, physical_album.canonical_album_version, \
+                 t.duration_sec \
          FROM track t \
          LEFT JOIN artist ar ON ar.server_id = t.server_id AND ar.id = t.artist_id \
          LEFT JOIN physical_album \
@@ -227,6 +273,7 @@ pub(super) fn apply_identity_invalidations_on_conn(
     // pass ran last.
     let va_credit =
         crate::album_compilation_filter::collection_credit_sql("MAX(source.album_artist)");
+    let album_version = canonical_album_version_expr("album_meta.raw_json", "source.raw_json");
     let select = &format!(
         "WITH invalidated_artist AS MATERIALIZED ( \
                     SELECT entity_id FROM identity_invalidation \
@@ -269,20 +316,24 @@ pub(super) fn apply_identity_invalidations_on_conn(
                                                  THEN 1 ELSE 0 END) > 0 \
                                   THEN MAX(NULLIF(TRIM(source.album_artist), '')) END \
                            ) AS canonical_album_artist, \
-                           MAX(source.album) AS canonical_album \
-                    FROM invalidated_album ia \
-                    CROSS JOIN track source INDEXED BY idx_track_album \
-                    LEFT JOIN artist ar_source \
-                      ON ar_source.server_id = source.server_id \
-                     AND ar_source.id = source.artist_id \
+                            MAX(source.album) AS canonical_album, \
+                            {album_version} AS canonical_album_version \
+                     FROM invalidated_album ia \
+                     CROSS JOIN track source INDEXED BY idx_track_album \
+                     LEFT JOIN artist ar_source \
+                       ON ar_source.server_id = source.server_id \
+                      AND ar_source.id = source.artist_id \
+                     LEFT JOIN album album_meta \
+                       ON album_meta.server_id = source.server_id \
+                      AND album_meta.id = source.album_id \
                     WHERE source.server_id = ?1 AND source.album_id = ia.entity_id \
                       AND source.deleted = 0 \
                     GROUP BY source.server_id, source.album_id \
                   ) \
                   SELECT t.server_id, COALESCE(t.library_id, ''), t.id, t.artist, ar.name, \
-                         t.title, t.album_artist, t.album, t.album_id, \
-                         physical_album.canonical_album_artist, physical_album.canonical_album, \
-                         t.duration_sec \
+                          t.title, t.album_artist, t.album, t.album_id, \
+                          physical_album.canonical_album_artist, physical_album.canonical_album, \
+                          physical_album.canonical_album_version, t.duration_sec \
                   FROM candidate_track candidate \
                   CROSS JOIN track t INDEXED BY sqlite_autoindex_track_1 \
                   LEFT JOIN artist ar \
@@ -348,5 +399,6 @@ fn map_source_track_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<SourceTrack
         row.get(9)?,
         row.get(10)?,
         row.get(11)?,
+        row.get(12)?,
     ))
 }

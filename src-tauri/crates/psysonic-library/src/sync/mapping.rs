@@ -22,6 +22,7 @@ const ALBUM_TO_TRACK_RAW_KEYS: &[(&str, &str)] = &[
     ("compilation", "compilation"),
     ("isCompilation", "isCompilation"),
     ("releaseTypes", "releaseTypes"),
+    ("version", "albumVersion"),
     ("artists", "albumArtists"),
     ("albumArtists", "albumArtists"),
     ("displayArtist", "displayAlbumArtist"),

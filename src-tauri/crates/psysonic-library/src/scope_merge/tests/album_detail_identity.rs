@@ -215,3 +215,156 @@ fn ambiguous_physical_albums_stay_separate_but_open_all_tracks() {
     assert_eq!(detail.tracks.len(), 2);
     assert!(detail.tracks.iter().all(|track| track.server_id == "s1"));
 }
+
+#[test]
+fn album_versions_stay_separate_in_artist_and_album_detail() {
+    let store = LibraryStore::open_in_memory();
+    let mut standard = track(
+        "s1",
+        "standard-track",
+        "Opening",
+        Some("Artist"),
+        "Album",
+        "album-standard",
+        Some("artist-1"),
+        200,
+        "lib",
+        Some(2020),
+        None,
+        None,
+    );
+    standard.raw_json = r#"{"albumVersion":"Standard"}"#.into();
+    let mut deluxe = track(
+        "s1",
+        "deluxe-track",
+        "Bonus",
+        Some("Artist"),
+        "Album",
+        "album-deluxe",
+        Some("artist-1"),
+        240,
+        "lib",
+        Some(2020),
+        None,
+        None,
+    );
+    deluxe.raw_json = r#"{"albumVersion":"Deluxe Edition"}"#.into();
+    seed_and_rebuild(&store, &[standard, deluxe]);
+
+    let scopes = vec![scope_pair("s1", "lib")];
+    let artist = artist_detail(
+        &store,
+        &LibraryScopeArtistDetailRequest {
+            scopes: scopes.clone(),
+            artist_id: "artist-1".into(),
+            server_id: "s1".into(),
+            include_tracks: false,
+            top_tracks_limit: None,
+        },
+    )
+    .unwrap();
+    assert_eq!(artist.albums.len(), 2);
+
+    let standard_detail = album_detail(
+        &store,
+        &LibraryScopeAlbumDetailRequest {
+            scopes: scopes.clone(),
+            album_id: "album-standard".into(),
+            server_id: "s1".into(),
+        },
+    )
+    .unwrap();
+    assert_eq!(standard_detail.tracks.len(), 1);
+    assert_eq!(standard_detail.tracks[0].id, "standard-track");
+
+    let deluxe_detail = album_detail(
+        &store,
+        &LibraryScopeAlbumDetailRequest {
+            scopes,
+            album_id: "album-deluxe".into(),
+            server_id: "s1".into(),
+        },
+    )
+    .unwrap();
+    assert_eq!(deluxe_detail.tracks.len(), 1);
+    assert_eq!(deluxe_detail.tracks[0].id, "deluxe-track");
+}
+
+#[test]
+fn the_same_album_version_still_merges_across_servers() {
+    let store = LibraryStore::open_in_memory();
+    let mut primary = track(
+        "s1",
+        "s1-shared",
+        "Shared",
+        Some("Artist"),
+        "Album",
+        "s1-album",
+        Some("s1-artist"),
+        200,
+        "lib-a",
+        Some(2020),
+        None,
+        None,
+    );
+    primary.raw_json = r#"{"albumVersion":"Deluxe Edition"}"#.into();
+    let mut secondary_shared = track(
+        "s2",
+        "s2-shared",
+        "Shared",
+        Some("Artist"),
+        "Album (Deluxe Edition)",
+        "s2-album",
+        Some("s2-artist"),
+        200,
+        "lib-b",
+        Some(2020),
+        None,
+        None,
+    );
+    secondary_shared.raw_json = r#"{"albumVersion":"Deluxe Edition"}"#.into();
+    let mut secondary_bonus = track(
+        "s2",
+        "s2-bonus",
+        "Bonus",
+        Some("Artist"),
+        "Album (Deluxe Edition)",
+        "s2-album",
+        Some("s2-artist"),
+        240,
+        "lib-b",
+        Some(2020),
+        None,
+        None,
+    );
+    secondary_bonus.raw_json = r#"{"albumVersion":"Deluxe Edition"}"#.into();
+    seed_and_rebuild(&store, &[primary, secondary_shared, secondary_bonus]);
+
+    let scopes = vec![scope_pair("s1", "lib-a"), scope_pair("s2", "lib-b")];
+    let detail = album_detail(
+        &store,
+        &LibraryScopeAlbumDetailRequest {
+            scopes: scopes.clone(),
+            album_id: "s1-album".into(),
+            server_id: "s1".into(),
+        },
+    )
+    .unwrap();
+    assert_eq!(detail.tracks.len(), 2);
+    assert!(detail.tracks.iter().any(|track| track.id == "s1-shared"));
+    assert!(detail.tracks.iter().any(|track| track.id == "s2-bonus"));
+
+    let artist = artist_detail(
+        &store,
+        &LibraryScopeArtistDetailRequest {
+            scopes,
+            artist_id: "s1-artist".into(),
+            server_id: "s1".into(),
+            include_tracks: false,
+            top_tracks_limit: None,
+        },
+    )
+    .unwrap();
+    assert_eq!(artist.albums.len(), 1);
+    assert_eq!(artist.albums[0].song_count, Some(2));
+}

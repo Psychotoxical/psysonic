@@ -21,6 +21,60 @@ pub(crate) fn build_album_key(artist: Option<&str>, album: &str) -> Option<Strin
     join_norm_parts([norm_part(artist.unwrap_or("")), norm_part(album)])
 }
 
+fn album_name_without_appended_version<'a>(album: &'a str, version: &str) -> &'a str {
+    let album = album.trim();
+    let suffix = format!(" ({})", version.trim());
+    if album.len() > suffix.len() {
+        let (base, candidate) = album.split_at(album.len() - suffix.len());
+        if candidate.eq_ignore_ascii_case(&suffix) {
+            return base.trim_end();
+        }
+    }
+    album
+}
+
+pub(crate) fn build_album_key_with_version(
+    artist: Option<&str>,
+    album: &str,
+    version: Option<&str>,
+) -> Option<String> {
+    let version = version.map(str::trim).filter(|value| !value.is_empty());
+    let normalized_version = version.and_then(norm_part);
+    let Some(normalized_version) = normalized_version else {
+        return build_album_key(artist, album);
+    };
+    let album = album_name_without_appended_version(album, version.unwrap_or_default());
+    join_norm_parts([
+        norm_part(artist.unwrap_or("")),
+        norm_part(album),
+        Some(normalized_version),
+    ])
+}
+
+pub(crate) fn build_track_cluster_key_with_version(
+    artist: Option<&str>,
+    title: &str,
+    album: &str,
+    version: Option<&str>,
+) -> Option<String> {
+    let version = version.map(str::trim).filter(|value| !value.is_empty());
+    let normalized_version = version.and_then(norm_part);
+    let Some(normalized_version) = normalized_version else {
+        return join_norm_parts([
+            norm_part(artist.unwrap_or("")),
+            norm_part(title),
+            norm_part(album),
+        ]);
+    };
+    let album = album_name_without_appended_version(album, version.unwrap_or_default());
+    join_norm_parts([
+        norm_part(artist.unwrap_or("")),
+        norm_part(title),
+        norm_part(album),
+        Some(normalized_version),
+    ])
+}
+
 pub fn build_track_cluster_keys(
     artist: Option<&str>,
     title: &str,
@@ -87,5 +141,39 @@ mod tests {
             keys.album_key,
             Some(format!("compartist{}greatesthits", sep))
         );
+    }
+
+    #[test]
+    fn album_version_distinguishes_releases() {
+        let standard = build_album_key_with_version(Some("Artist"), "Album", Some("Standard"));
+        let deluxe =
+            build_album_key_with_version(Some("Artist"), "Album", Some("Deluxe Edition"));
+        assert_ne!(standard, deluxe);
+    }
+
+    #[test]
+    fn appended_album_version_matches_the_plain_album_name() {
+        let plain =
+            build_album_key_with_version(Some("Artist"), "Album", Some("Deluxe Edition"));
+        let appended = build_album_key_with_version(
+            Some("Artist"),
+            "Album (Deluxe Edition)",
+            Some("Deluxe Edition"),
+        );
+        assert_eq!(plain, appended);
+
+        let plain_track = build_track_cluster_key_with_version(
+            Some("Artist"),
+            "Song",
+            "Album",
+            Some("Deluxe Edition"),
+        );
+        let appended_track = build_track_cluster_key_with_version(
+            Some("Artist"),
+            "Song",
+            "Album (Deluxe Edition)",
+            Some("Deluxe Edition"),
+        );
+        assert_eq!(plain_track, appended_track);
     }
 }
