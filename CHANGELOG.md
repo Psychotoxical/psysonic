@@ -190,6 +190,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * Navidrome timestamps with negative UTC offsets no longer disappear from the local index, so New Releases, favourites and last played dates populate correctly during sync. Existing creation dates with safely identifiable old values are repaired gradually in the background; ambiguous cleared legacy values wait for a later sync rather than risk restoring stale data.
 
+### Different album versions stay separate
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1471](https://github.com/Psysonic/psysonic/pull/1471)**
+
+* Standard, deluxe, remastered and other physical versions of the same album no longer collapse into one release in combined libraries, artist discographies or Album Detail. Matching copies of the same version still merge across servers.
+* Existing libraries rebuild their derived identity keys once after updating; the library database and user state are unchanged.
+
 ## [1.51.0] - 2026-08-17
 
 ## Added
