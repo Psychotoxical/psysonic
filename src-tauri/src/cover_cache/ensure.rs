@@ -23,15 +23,11 @@ use tokio::sync::{Mutex, Semaphore};
 type EncodeTiersOutcome = Result<(bool, Vec<(u32, PathBuf)>, Option<DynamicImage>), String>;
 
 /// §5 full-res redirect for a chain-hit coverless album: a tier-≥2000 request
-/// must be answered from the chain's on-disk ladder (best tier ≤ 800), never
-/// from the network. The chain only writes `{128..800} + requested`; with no
-/// UI full-res surface carrying `allowExternalAlbum`, `requested` is never 2000
-/// in practice — so a `2000.webp` for such an album can only be Navidrome's
-/// vinyl placeholder (the lightbox's full-res download writes exactly that,
-/// because its ensure carries no external context). Serving the ladder here
-/// both closes the full-res coverage gap (the lightbox shows the chain's real
-/// art instead of vinyl) and stops new placeholder `2000.webp` writes at the
-/// source. Keyed off the `.album-ext-hit` marker alone — NOT `ext_gate_ok`,
+/// is served from the chain's on-disk ladder (best tier ≤ 800), never from the
+/// network. The redirect serves the 800-and-below ladder even when a
+/// chain-written `2000.webp` exists on disk, because it cannot distinguish it
+/// from stale pre-fix vinyl without re-decoding (deliberate anti-vinyl
+/// trade-off). Keyed off the `.album-ext-hit` marker alone — NOT `ext_gate_ok`,
 /// which is false for the very requests (lightbox, fullscreen player) that
 /// create the poison.
 ///
@@ -76,12 +72,30 @@ fn cover_dir_for_args(root: &Path, args: &CoverCacheEnsureArgs) -> PathBuf {
     )
 }
 
+/// Chain armed for a coverless album: not bulk, cache kind is album, and at
+/// least one external album source is configured.
+fn ext_album_chain_armed(args: &CoverCacheEnsureArgs) -> bool {
+    !args.library_bulk
+        && args.cache_kind == "album"
+        && args
+            .external_album_sources
+            .as_ref()
+            .is_some_and(|s| !s.is_empty())
+}
+
 /// One-flight-per-dir registry: every `ensure_inner` for the same cover dir
 /// shares this mutex for its whole flight, so a quiet opts-less ensure
 /// (library backfill, background hook) can never interleave its
 /// check-then-write with an in-flight external chain. Entries are `Weak` and
 /// evaporate once the last flight drops them, keeping the map bounded by the
 /// number of dirs concurrently in flight.
+///
+/// The derive task inherits the parent's guard, so its writes cannot
+/// interleave with the parent flight either. A flight already queued behind
+/// the parent may still slip in before the derive's first lock acquisition,
+/// but that is content-harmless: derive only runs on marker-absent dirs and
+/// its writes are `tier_exists`-guarded, so the two writers produce the same
+/// bytes.
 fn inflight_dir_flight(
     map: &std::sync::Mutex<HashMap<PathBuf, std::sync::Weak<Mutex<()>>>>,
     dir: &Path,
@@ -143,7 +157,7 @@ impl CoverCacheState {
         let (
             dir,
             client,
-            root,
+            _root,
             http_sem,
             cover_cpu_sem,
             fanart_sem,
@@ -181,18 +195,9 @@ impl CoverCacheState {
             )
         };
 
-        // Phase B write-race fix: per-album flight serialization. Every ensure
-        // for one cover dir runs under this per-dir mutex for its whole flight,
-        // so a quiet opts-less flight (library backfill, background hook) can
-        // never interleave its check-then-write with an in-flight external
-        // chain. The redirect/peek below therefore sees the first flight's
-        // writes. The derive task inherits the guard (see
-        // `spawn_derive_remaining_tiers`) so its writes cannot interleave with
-        // the parent flight either; a flight already queued behind the parent
-        // may still slip in before the derive's first lock acquisition, but
-        // that is content-harmless (derive only runs on marker-absent dirs and
-        // its writes are `tier_exists`-guarded, so the two writers produce the
-        // same bytes).
+        // Phase B write-race fix: per-album flight serialization for the whole
+        // flight, so the redirect/peek below sees the first flight's writes
+        // (queued-flight-slip rationale: see `inflight_dir_flight`).
         let _flight_guard = flight.lock().await;
 
         // §5 full-res redirect: for a chain-hit coverless album a tier-≥2000
@@ -224,12 +229,7 @@ impl CoverCacheState {
         // silently bypass the external chain. So when the chain is armed AND the
         // album is coverless, skip the cached-placeholder peek and let the
         // external chain run first (below). OFF during `library_bulk`.
-        let ext_gate_ok = !args.library_bulk
-            && args.cache_kind == "album"
-            && args
-                .external_album_sources
-                .as_ref()
-                .is_some_and(|s| !s.is_empty());
+        let ext_gate_ok = ext_album_chain_armed(args);
         let album_is_coverless =
             args.cache_kind == "album" && args.cover_art_id.ends_with("_0");
         let album_already_hit =
@@ -305,13 +305,9 @@ impl CoverCacheState {
         // "no art" state when the providers have nothing better, so it is
         // cached and shown rather than blanked.
         // b1 invariant (Phase B write-race fix): a marker-present coverless
-        // album must never get Navidrome tiers written over its chain ladder.
-        // The peek above already serves an intact ladder; this guard fires for
-        // the pathological wiped-tiers-but-marker state and returns a miss
-        // instead of downloading vinyl, which would also poison the
-        // `load_image_from_disk` derive source used below. It applies to every
-        // writer, including `library_bulk`, and never deletes the marker nor
-        // re-runs the chain.
+        // album must never get Navidrome tiers written over its chain ladder —
+        // see `chain_ladder_vinyl_guard` (the miss also keeps vinyl out of the
+        // `load_image_from_disk` derive source used below).
         match chain_ladder_vinyl_guard(args, &dir) {
             VinylGuardDecision::Proceed => {}
             VinylGuardDecision::Serve(path) => {
@@ -324,13 +320,7 @@ impl CoverCacheState {
 
         let requested = args.tier;
         let quiet = args.library_bulk;
-        let tiers_now: Vec<u32> = if args.library_bulk {
-            DERIVE_TIERS
-                .iter()
-                .copied()
-                .filter(|t| *t <= requested)
-                .collect()
-        } else if requested == 2000 {
+        let tiers_now: Vec<u32> = if !args.library_bulk && requested == 2000 {
             vec![2000]
         } else {
             DERIVE_TIERS
@@ -360,23 +350,15 @@ impl CoverCacheState {
             let http_registry = app
                 .try_state::<Arc<psysonic_core::server_http::ServerHttpRegistry>>()
                 .map(|s| Arc::clone(&*s));
-            match download_cover_payload(&dir, &client, &http_sem, args, http_registry).await {
+            match download_cover_payload(&client, &http_sem, args, http_registry).await {
                 Ok(bytes) => CoverSource::Bytes(bytes),
                 Err(err) => {
                     super::ensure_migration_write_allowed(app)?;
                     log_cover_fetch_failure(app, args, &err);
-                    // Album external fallback (§5, cover provider chain): the
-                    // server had no art, but the user enabled an external album
-                    // chain — try apple/lastfm before recording a miss. Keys off
-                    // `external_album_sources` non-empty (NOT `external_artwork_enabled`,
-                    // which is the fanart master toggle). OFF during library_bulk.
-                    let ext_gate_ok = !args.library_bulk
-                        && args.cache_kind == "album"
-                        && args
-                            .external_album_sources
-                            .as_ref()
-                            .is_some_and(|s| !s.is_empty());
-                    if ext_gate_ok {
+                    // Album external fallback (§5): the server had no art but an
+                    // external album chain is armed — try apple/lastfm before
+                    // recording a miss (OFF during library_bulk).
+                    if ext_album_chain_armed(args) {
                         if let Some(path) = external_ensure::try_external_album_cover(
                             args,
                             &dir,
@@ -389,12 +371,12 @@ impl CoverCacheState {
                             return Ok(CoverCacheEnsureResult::hit_at(args.tier, &path));
                         }
                     }
-                    // Only write the fail marker when the external album chain was
-                    // actually consulted (`ext_gate_ok`). A browse thumb (grid/table/
-                    // disc header) that can't use the chain must NOT poison the dir,
-                    // or it would suppress the album-page chain when the user later
-                    // opens the album. Non-album kinds keep the previous behavior.
-                    let write_marker = args.cache_kind != "album" || ext_gate_ok;
+                    // Marker-vs-poison rule: only write the fail marker when the
+                    // chain was actually consulted. A browse thumb (grid/table/
+                    // disc header) that can't use the chain must NOT poison the
+                    // dir, or it would suppress the album-page chain later.
+                    // Non-album kinds keep the previous behavior.
+                    let write_marker = args.cache_kind != "album" || ext_album_chain_armed(args);
                     if write_marker {
                         let _ = std::fs::create_dir_all(&dir);
                         let _ = std::fs::write(dir.join(COVER_FETCH_FAIL_MARKER), b"1");
@@ -414,7 +396,7 @@ impl CoverCacheState {
             .await
             .map_err(|e| e.to_string())?;
         super::ensure_migration_write_allowed(app)?;
-        let (mut wrote_requested, fresh_tiers, derive_source) =
+        let (wrote_requested, fresh_tiers, derive_source) =
             tauri::async_runtime::spawn_blocking(move || -> EncodeTiersOutcome {
                 let _cpu_permit = cpu_permit;
                 let img = match source {
@@ -456,10 +438,6 @@ impl CoverCacheState {
             }
         }
 
-        if !wrote_requested && tier_exists(&dir, requested).is_some() {
-            wrote_requested = true;
-        }
-
         let out_path = tier_path(&dir, requested);
         if wrote_requested || out_path.is_file() {
             metrics::note_ui_cover_produced(args);
@@ -468,7 +446,6 @@ impl CoverCacheState {
                     spawn_derive_remaining_tiers(
                         app.clone(),
                         state.clone(),
-                        root,
                         args.clone(),
                         img,
                         requested,
@@ -555,7 +532,6 @@ fn load_image_from_disk(dir: &Path) -> Option<DynamicImage> {
 }
 
 async fn download_cover_payload(
-    _dir: &Path,
     client: &Client,
     http_sem: &Semaphore,
     args: &CoverCacheEnsureArgs,
@@ -593,15 +569,11 @@ async fn download_cover_payload(
 fn spawn_derive_remaining_tiers(
     app: AppHandle,
     state: Arc<Mutex<CoverCacheState>>,
-    _root: PathBuf,
     args: CoverCacheEnsureArgs,
     img: DynamicImage,
     requested: u32,
-    // The parent flight's per-dir guard. Held from this task's first lock
-    // acquisition until its writes land, so the derive writes cannot
-    // interleave with the parent flight. A flight already queued behind the
-    // parent may slip into the gap before the derive's first lock
-    // acquisition; harmless — see the caller's comment.
+    // The parent flight's per-dir guard, held until this task's writes land —
+    // prevents interleaving with the parent flight (see `inflight_dir_flight`).
     flight: Arc<Mutex<()>>,
 ) {
     let tiers_bg: Vec<u32> = if requested == 2000 {
@@ -617,13 +589,9 @@ fn spawn_derive_remaining_tiers(
         return;
     }
     tauri::async_runtime::spawn(async move {
-        // Hold the per-dir flight guard until these derive writes land: the
-        // parent flight drops its own guard when ensure_inner returns, and
-        // this task runs afterwards. A second ensure for this dir would
-        // otherwise slip into that gap. (A flight already queued behind the
-        // parent can still slip in before this first lock acquisition; the
-        // tier_exists guard below makes the two writers byte-identical, and
-        // derive only ever runs on marker-absent dirs.)
+        // Hold the per-dir guard until these derive writes land; the parent
+        // dropped its own when ensure_inner returned, so without this a
+        // second ensure would slip into that gap (see `inflight_dir_flight`).
         let _derive_guard = flight.lock().await;
         let (dir, cover_cpu_sem) = {
             let guard = state.lock().await;

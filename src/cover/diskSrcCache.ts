@@ -68,9 +68,7 @@ function isRawFsPath(url: string, fsPath: string): boolean {
  * new URL or the old bytes keep winning — the observed queue/playbar flash.
  */
 function tryCoverDiskUrl(fsPath: string): string {
-  const sep = fsPath.lastIndexOf('|');
-  const version = sep >= 0 && /^\d+$/.test(fsPath.slice(sep + 1)) ? fsPath.slice(sep + 1) : '';
-  const rawPath = version ? fsPath.slice(0, sep) : fsPath;
+  const { path: rawPath, version } = splitPathVersion(fsPath);
   const paths = rawPath.includes('\\')
     ? [normalizePathForConvert(rawPath), rawPath]
     : [rawPath, normalizePathForConvert(rawPath)];
@@ -83,6 +81,21 @@ function tryCoverDiskUrl(fsPath: string): string {
     return version ? `${src}?v=${version}` : src;
   }
   return '';
+}
+
+/**
+ * Split a Rust `path|mtimeVersion` wire value (ensure results, peek batch
+ * values, `cover:tier-ready` payloads). Single owner for the wire format:
+ * every seeder imports this so the versioned URL survives to the webview
+ * (the image cache keys on the full URL and must never serve stale bytes
+ * for a tier overwritten in place).
+ */
+export function splitPathVersion(fsPath: string): { path: string; version: string } {
+  const sep = fsPath.lastIndexOf('|');
+  if (sep < 0 || !/^\d+$/.test(fsPath.slice(sep + 1))) {
+    return { path: fsPath, version: '' };
+  }
+  return { path: fsPath.slice(0, sep), version: fsPath.slice(sep + 1) };
 }
 
 export function coverDiskUrl(fsPath: string): string {

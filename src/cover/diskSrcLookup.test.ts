@@ -4,6 +4,13 @@ import { albumCoverRef } from './ref';
 vi.mock('./diskSrcCache', () => ({
   rememberDiskSrc: vi.fn(() => 'asset://cover.webp'),
   getDiskSrc: vi.fn(() => ''),
+  splitPathVersion: (fsPath: string) => {
+    const sep = fsPath.lastIndexOf('|');
+    if (sep < 0 || !/^\d+$/.test(fsPath.slice(sep + 1))) {
+      return { path: fsPath, version: '' };
+    }
+    return { path: fsPath.slice(0, sep), version: fsPath.slice(sep + 1) };
+  },
 }));
 
 vi.mock('./diskHandoff', () => ({

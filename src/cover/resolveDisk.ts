@@ -1,7 +1,7 @@
 import { isTauri } from '@tauri-apps/api/core';
 import { coverCacheEnsure } from '@/lib/api/coverCache';
 import { invalidateCacheKey } from './imageCache';
-import { getDiskSrc, rememberDiskSrc } from './diskSrcCache';
+import { getDiskSrc, rememberDiskSrc, splitPathVersion } from './diskSrcCache';
 import { coverStorageKeyFromRef } from './storageKeys';
 import type { CoverArtRef, CoverArtTier } from './types';
 
@@ -35,11 +35,7 @@ export async function ensureCoverTierDiskSrc(
   const result = await coverCacheEnsure(ref, tier, 'high');
   // Results carry `path|mtimeVersion` (cache-bust wire format); test the tier
   // against the bare path.
-  const sep = result.path.lastIndexOf('|');
-  const barePath =
-    sep >= 0 && /^\d+$/.test(result.path.slice(sep + 1))
-      ? result.path.slice(0, sep)
-      : result.path;
+  const { path: barePath } = splitPathVersion(result.path);
   const exactTier = new RegExp(`[\\\\/]${tier}\\.webp$`).test(barePath);
   // Chain-hit coverless albums (Navidrome `_0` sentinel) never have a real
   // 2000.webp — the chain writes only display tiers, and the vinyl guard

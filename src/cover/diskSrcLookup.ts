@@ -1,4 +1,4 @@
-import { getDiskSrc, rememberDiskSrc } from './diskSrcCache';
+import { getDiskSrc, rememberDiskSrc, splitPathVersion } from './diskSrcCache';
 import { hasCoverDiskReadyListeners, notifyCoverDiskReady } from './diskHandoff';
 import { coverStorageKeyFromRef } from './storageKeys';
 import type { CoverArtRef, CoverArtTier } from './types';
@@ -7,20 +7,6 @@ import type { CoverArtRef, CoverArtTier } from './types';
 function coverPathTier(fsPath: string): number | null {
   const m = /(\d+)(?:-[a-z0-9]+)?\.webp$/i.exec(fsPath);
   return m ? Number(m[1]) : null;
-}
-
-/**
- * Rust paths arrive as `path|mtimeVersion` (ensure results, peek batch values,
- * `cover:tier-ready` payloads). Split once, here, so every seeder remembers the
- * versioned URL: the webview image cache keys on the full URL and must never
- * serve stale bytes for a tier that was overwritten in place.
- */
-function splitPathVersion(fsPath: string): { path: string; version: string } {
-  const sep = fsPath.lastIndexOf('|');
-  if (sep < 0 || !/^\d+$/.test(fsPath.slice(sep + 1))) {
-    return { path: fsPath, version: '' };
-  }
-  return { path: fsPath.slice(0, sep), version: fsPath.slice(sep + 1) };
 }
 
 /** Re-join a (possibly version-stripped) path back into the wire format. */
@@ -81,19 +67,32 @@ export function getDiskSrcForGrid(ref: CoverArtRef, wantTier: CoverArtTier): str
   return '';
 }
 
-/** Seed lookup-order tier keys (512 + 800 fallback path, etc.) — no subscriber wakeups. */
-export function seedGridDiskSrcCache(ref: CoverArtRef, wantTier: CoverArtTier, fsPath: string): boolean {
-  if (!fsPath) return false;
+/**
+ * Seed every grid lookup-order key for a path. A full-res (≥2000) file seeds
+ * ONLY its own key (see isFullResSeedFile) — a tier-2000 path must never
+ * poison display keys. Shared by the peek/ensure seeder and the
+ * `cover:tier-ready` seeder, which differ only in how keys are built.
+ */
+function seedLadderKeys(
+  wantTier: CoverArtTier,
+  fsPath: string,
+  keyFor: (tier: CoverArtTier) => string,
+): boolean {
   const { path, version } = splitPathVersion(fsPath);
-  // A full-res (≥2000) file seeds ONLY its own key (see isFullResSeedFile).
   const fullResFile = isFullResSeedFile(fsPath);
   let hit = false;
   for (const tier of gridDiskSrcLookupOrder(wantTier)) {
     if (fullResFile && tier < 2000) continue;
     if (skipFullResSeedTier(tier, fsPath)) continue;
-    if (rememberDiskSrc(coverStorageKeyFromRef(ref, tier), joinPathVersion(path, version))) hit = true;
+    if (rememberDiskSrc(keyFor(tier), joinPathVersion(path, version))) hit = true;
   }
   return hit;
+}
+
+/** Seed lookup-order tier keys (512 + 800 fallback path, etc.) — no subscriber wakeups. */
+export function seedGridDiskSrcCache(ref: CoverArtRef, wantTier: CoverArtTier, fsPath: string): boolean {
+  if (!fsPath) return false;
+  return seedLadderKeys(wantTier, fsPath, (tier) => coverStorageKeyFromRef(ref, tier));
 }
 
 /**
@@ -117,16 +116,7 @@ export function rememberDiskSrcLadder(
   fsPath: string,
 ): boolean {
   if (!serverIndexKey || !ref.cacheEntityId || !fsPath) return false;
-  const { path, version } = splitPathVersion(fsPath);
-  // A full-res (≥2000) file seeds ONLY its own key (see isFullResSeedFile) —
-  // `cover:tier-ready` tier=2000 events must never poison display keys.
-  const fullResFile = isFullResSeedFile(fsPath);
-  let hit = false;
-  for (const tier of gridDiskSrcLookupOrder(wantTier)) {
-    if (fullResFile && tier < 2000) continue;
-    if (skipFullResSeedTier(tier, fsPath)) continue;
-    const key = `${serverIndexKey}:cover:${ref.cacheKind}:${ref.cacheEntityId}:${tier}`;
-    if (rememberDiskSrc(key, joinPathVersion(path, version))) hit = true;
-  }
-  return hit;
+  return seedLadderKeys(wantTier, fsPath, (tier) =>
+    `${serverIndexKey}:cover:${ref.cacheKind}:${ref.cacheEntityId}:${tier}`,
+  );
 }

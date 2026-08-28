@@ -7,6 +7,13 @@ vi.mock('./imageCache', () => ({ invalidateCacheKey: vi.fn() }));
 vi.mock('./diskSrcCache', () => ({
   getDiskSrc: vi.fn(() => ''),
   rememberDiskSrc: vi.fn((_key: string, path: string) => `asset://${path}`),
+  splitPathVersion: (fsPath: string) => {
+    const sep = fsPath.lastIndexOf('|');
+    if (sep < 0 || !/^\d+$/.test(fsPath.slice(sep + 1))) {
+      return { path: fsPath, version: '' };
+    }
+    return { path: fsPath.slice(0, sep), version: fsPath.slice(sep + 1) };
+  },
 }));
 
 import { ensureCoverTierDiskSrc } from './resolveDisk';
