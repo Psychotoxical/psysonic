@@ -138,6 +138,11 @@ pub(crate) fn greet(name: &str) -> String {
 #[tauri::command]
 #[specta::specta]
 pub(crate) fn exit_app(app_handle: tauri::AppHandle) {
+    if let Some(runtime) = app_handle.try_state::<psysonic_library::LibraryRuntime>() {
+        runtime
+            .scheduler_cancel
+            .store(true, std::sync::atomic::Ordering::SeqCst);
+    }
     if let Some(cache) = app_handle.try_state::<analysis_cache::AnalysisCache>() {
         let _ = cache.checkpoint_wal("exit");
     }

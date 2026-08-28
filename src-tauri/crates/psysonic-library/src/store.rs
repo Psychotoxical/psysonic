@@ -9,6 +9,7 @@ mod lifecycle;
 mod migrations;
 mod open;
 mod reconciles;
+mod track_timestamp_reconcile;
 
 pub use connection::WriteOpTiming;
 #[allow(unused_imports)]
@@ -27,6 +28,7 @@ pub(crate) use migrations::{
     MIGRATION_025_IDENTITY_INVALIDATION, MIGRATION_026_LIBRARY_TAG_CURSOR,
 };
 pub use migrations::{LIBRARY_DB_MIN_COMPATIBLE_VERSION, LIBRARY_DB_SCHEMA_VERSION};
+pub use track_timestamp_reconcile::TrackTimestampBackfillStep;
 #[allow(unused_imports)]
 pub(crate) use reconciles::{
     ARTIST_NAME_FOLD_RECONCILE_ID, ARTIST_NAME_SORT_RECONCILE_ID,

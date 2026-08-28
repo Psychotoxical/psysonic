@@ -15,7 +15,13 @@ fn parse_iso_handles_zulu_suffix() {
 #[test]
 fn parse_iso_handles_fractional_and_offset() {
     let ms = parse_iso_ms_str("2024-01-01T00:00:00.123+02:00").unwrap();
-    assert_eq!(ms, 1_704_067_200_000);
+    assert_eq!(ms, 1_704_060_000_000);
+}
+
+#[test]
+fn parse_iso_handles_fractional_and_negative_offset() {
+    let ms = parse_iso_ms_str("2026-08-26T22:04:58.676898-07:00").unwrap();
+    assert_eq!(ms, 1_787_807_098_000);
 }
 
 #[test]
@@ -23,4 +29,5 @@ fn parse_iso_rejects_garbage() {
     assert!(parse_iso_ms_str("").is_none());
     assert!(parse_iso_ms_str("not-a-date").is_none());
     assert!(parse_iso_ms_str("9999-99-99").is_none());
+    assert!(parse_iso_ms_str("2024-01-01T00:00:00+24:00").is_none());
 }

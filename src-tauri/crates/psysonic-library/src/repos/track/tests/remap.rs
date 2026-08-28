@@ -129,6 +129,8 @@ fn sparse_remap_merges_from_resolved_old_row_before_deleting_it() {
     let repo = TrackRepository::new(&store);
 
     let mut old = row_with_id_hash("s1", "tr_old", "deadbeef", "/path/x.flac");
+    old.server_updated_at = Some(1_700_000_123_000);
+    old.server_created_at = Some(1_699_000_123_000);
     old.raw_json = json!({
         "id": "tr_old",
         "artist": "FOVOS, Max Cardona",
@@ -146,6 +148,8 @@ fn sparse_remap_merges_from_resolved_old_row_before_deleting_it() {
     repo.upsert_batch(&[old]).unwrap();
 
     let mut incoming = row_with_id_hash("s1", "tr_new", "deadbeef", "/path/x.flac");
+    incoming.server_updated_at = None;
+    incoming.server_created_at = None;
     incoming.raw_json = json!({
         "id": "tr_new",
         "artist": "FOVOS, Someone Else",
@@ -190,6 +194,137 @@ fn sparse_remap_merges_from_resolved_old_row_before_deleting_it() {
             { "id": "max-cardona", "name": "Max Cardona" }
         ])
     );
+    let timestamps: (Option<i64>, Option<i64>) = store
+        .with_conn("misc", |c| {
+            c.query_row(
+                "SELECT server_updated_at, server_created_at FROM track \
+                 WHERE server_id = 's1' AND id = 'tr_new'",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+        })
+        .unwrap();
+    assert_eq!(
+        timestamps,
+        (Some(1_700_000_123_000), Some(1_699_000_123_000)),
+        "timestamps omitted by the sparse remap payload survive the old-id deletion"
+    );
+}
+
+#[test]
+fn sparse_remap_keeps_newer_timestamps_on_an_existing_destination() {
+    let store = LibraryStore::open_in_memory();
+    let repo = TrackRepository::new(&store);
+
+    let mut old = row_with_id_hash("s1", "tr_old", "deadbeef", "/path/x.flac");
+    old.server_updated_at = Some(100);
+    old.server_created_at = Some(200);
+    let mut destination = row_with_id_hash("s1", "tr_new", "deadbeef", "/path/x.flac");
+    destination.server_updated_at = Some(300);
+    destination.server_created_at = Some(400);
+    repo.upsert_batch(&[old, destination]).unwrap();
+
+    let mut incoming = row_with_id_hash("s1", "tr_new", "deadbeef", "/path/x.flac");
+    incoming.server_updated_at = None;
+    incoming.server_created_at = None;
+    incoming.raw_json = json!({ "id": "tr_new", "title": "Current" }).to_string();
+
+    let stats = repo
+        .upsert_sparse_batch_with_remap(&[incoming], true)
+        .unwrap();
+    assert_eq!(stats.remapped.len(), 1);
+    assert_eq!(stats.remapped[0].old_id, "tr_old");
+    assert_eq!(stats.remapped[0].new_id, "tr_new");
+
+    let timestamps: (Option<i64>, Option<i64>) = store
+        .with_conn("test.existing_remap_destination", |conn| {
+            conn.query_row(
+                "SELECT server_updated_at, server_created_at FROM track \
+                 WHERE server_id = 's1' AND id = 'tr_new'",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+        })
+        .unwrap();
+    assert_eq!(timestamps, (Some(300), Some(400)));
+}
+
+#[test]
+fn sparse_remap_does_not_resurrect_cleared_destination_timestamps() {
+    let store = LibraryStore::open_in_memory();
+    let repo = TrackRepository::new(&store);
+
+    let mut old = row_with_id_hash("s1", "tr_old", "deadbeef", "/path/x.flac");
+    old.server_updated_at = Some(100);
+    old.server_created_at = Some(200);
+    old.raw_json = json!({
+        "id": "tr_old",
+        "artists": [{ "id": "ar_old", "name": "Old artist" }],
+        "created": "2024-01-01T00:00:00+02:00"
+    })
+    .to_string();
+    let mut destination = row_with_id_hash("s1", "tr_new", "deadbeef", "/path/x.flac");
+    destination.server_updated_at = None;
+    destination.server_created_at = None;
+    repo.upsert_batch(&[old, destination]).unwrap();
+
+    let mut incoming = row_with_id_hash("s1", "tr_new", "deadbeef", "/path/x.flac");
+    incoming.server_updated_at = None;
+    incoming.server_created_at = None;
+    incoming.raw_json = json!({ "id": "tr_new", "title": "Current" }).to_string();
+    repo.upsert_sparse_batch_with_remap(&[incoming], true)
+        .unwrap();
+
+    let (updated_at, created_at, raw_json): (Option<i64>, Option<i64>, String) = store
+        .with_conn("test.cleared_remap_destination", |conn| {
+            conn.query_row(
+                "SELECT server_updated_at, server_created_at, raw_json FROM track \
+                 WHERE server_id = 's1' AND id = 'tr_new'",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )
+        })
+        .unwrap();
+    assert_eq!((updated_at, created_at), (None, None));
+    let raw: serde_json::Value = serde_json::from_str(&raw_json).unwrap();
+    assert!(raw.get("artists").is_none());
+    assert!(raw.get("created").is_none());
+}
+
+#[test]
+fn sparse_remap_explicit_null_timestamps_clear_old_values() {
+    let store = LibraryStore::open_in_memory();
+    let repo = TrackRepository::new(&store);
+
+    let mut old = row_with_id_hash("s1", "tr_old", "deadbeef", "/path/x.flac");
+    old.server_updated_at = Some(1_700_000_123_000);
+    old.server_created_at = Some(1_699_000_123_000);
+    repo.upsert_batch(&[old]).unwrap();
+
+    let mut incoming = row_with_id_hash("s1", "tr_new", "deadbeef", "/path/x.flac");
+    incoming.server_updated_at = None;
+    incoming.server_created_at = None;
+    incoming.raw_json = json!({
+        "id": "tr_new",
+        "updatedAt": null,
+        "createdAt": null
+    })
+    .to_string();
+
+    repo.upsert_sparse_batch_with_remap(&[incoming], true)
+        .unwrap();
+
+    let timestamps: (Option<i64>, Option<i64>) = store
+        .with_conn("misc", |c| {
+            c.query_row(
+                "SELECT server_updated_at, server_created_at FROM track \
+                 WHERE server_id = 's1' AND id = 'tr_new'",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+        })
+        .unwrap();
+    assert_eq!(timestamps, (None, None));
 }
 
 #[test]

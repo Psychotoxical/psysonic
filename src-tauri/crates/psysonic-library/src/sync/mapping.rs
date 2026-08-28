@@ -189,15 +189,8 @@ pub fn subsonic_song_to_track_row(
             .and_then(|rg| rg.get("trackPeak"))
             .and_then(|v| v.as_f64()),
         content_hash: None,
-        server_updated_at: raw_value
-            .get("updatedAt")
-            .and_then(Value::as_str)
-            .and_then(parse_iso_ms_str),
-        server_created_at: raw_value
-            .get("created")
-            .or_else(|| raw_value.get("createdAt"))
-            .and_then(|v| v.as_str())
-            .and_then(parse_iso_ms_str),
+        server_updated_at: parse_raw_iso_ms(raw_value, &["updatedAt"]),
+        server_created_at: parse_raw_iso_ms(raw_value, &["created", "createdAt"]),
         deleted: false,
         synced_at,
         raw_json: raw_value.to_string(),
@@ -277,10 +270,7 @@ pub fn navidrome_song_to_track_row(
         .and_then(|v| v.as_str())
         .unwrap_or_default()
         .to_string();
-    let server_updated_at = raw
-        .get("updatedAt")
-        .and_then(|v| v.as_str())
-        .and_then(parse_iso_ms_str);
+    let server_updated_at = parse_raw_iso_ms(raw, &["updatedAt"]);
     let library_id = json_string_field(raw, "libraryId")
         .or_else(|| json_string_field(raw, "library_id"))
         .or_else(|| json_string_field(raw, "musicFolderId"))
@@ -306,10 +296,7 @@ pub fn navidrome_song_to_track_row(
         bit_rate: raw.get("bitRate").and_then(|v| v.as_i64()),
         size_bytes: raw.get("size").and_then(|v| v.as_i64()),
         cover_art_id: string_field(raw, "coverArtId").or_else(|| string_field(raw, "coverArt")),
-        starred_at: raw
-            .get("starredAt")
-            .and_then(|v| v.as_str())
-            .and_then(parse_iso_ms_str),
+        starred_at: parse_raw_iso_ms(raw, &["starredAt"]),
         user_rating: raw.get("rating").and_then(|v| v.as_i64()),
         play_count: raw.get("playCount").and_then(|v| v.as_i64()),
         // Navidrome's own API calls this `playDate`; `playedAt` was never one of
@@ -326,13 +313,7 @@ pub fn navidrome_song_to_track_row(
         // key that merely holds a string would settle on an empty `playDate` —
         // which Navidrome has been seen to send for never-played rows — and
         // never look at a usable `played` beside it.
-        played_at: ["playDate", "played", "playedAt"]
-            .iter()
-            .find_map(|key| {
-                raw.get(*key)
-                    .and_then(|v| v.as_str())
-                    .and_then(parse_iso_ms_str)
-            }),
+        played_at: parse_raw_iso_ms(raw, &["playDate", "played", "playedAt"]),
         server_path: string_field(raw, "path"),
         library_id,
         isrc: string_field(raw, "isrc"),
@@ -344,10 +325,7 @@ pub fn navidrome_song_to_track_row(
         replay_gain_peak: raw.get("rgTrackPeak").and_then(|v| v.as_f64()),
         content_hash: None,
         server_updated_at,
-        server_created_at: raw
-            .get("createdAt")
-            .and_then(|v| v.as_str())
-            .and_then(parse_iso_ms_str),
+        server_created_at: parse_raw_iso_ms(raw, &["createdAt"]),
         deleted: false,
         synced_at,
         raw_json: raw.to_string(),
@@ -383,31 +361,42 @@ fn parse_iso_ms(s: Option<&str>) -> Option<i64> {
     s.and_then(parse_iso_ms_str)
 }
 
+fn parse_raw_iso_ms(raw: &Value, keys: &[&str]) -> Option<i64> {
+    keys.iter().find_map(|key| {
+        raw.get(*key)
+            .and_then(Value::as_str)
+            .and_then(parse_iso_ms_str)
+    })
+}
+
 /// Lightweight ISO-8601 → epoch-ms parser. Supports the Navidrome /
 /// OpenSubsonic shape (`2024-06-01T12:00:00Z` or
 /// `2024-06-01T12:00:00.123+02:00`). Falls back to `None` on parse
 /// failure — sync code never panics on a bad timestamp.
 pub(crate) fn parse_iso_ms_str(s: &str) -> Option<i64> {
-    // Strip fractional + timezone before doing the manual parse —
-    // SQLite stores starred_at / played_at as integer ms, so we only
-    // need second precision rounded up from the offset.
+    // Strip fractional seconds before doing the manual parse. The schema keeps
+    // millisecond integers, but sync ordering only requires second precision.
     let trimmed = s.trim();
     if trimmed.is_empty() {
         return None;
     }
-    // Accept either `Z`, `+HH:MM`, or no suffix. Reduce to a flat
-    // `YYYY-MM-DDTHH:MM:SS` core for parsing — server-side timestamps
-    // are already in UTC for Navidrome, and we don't track timezone
-    // in the schema column.
-    let core = trimmed
-        .find(|c: char| {
-            c == '.'
-                || c == 'Z'
-                || c == '+'
-                || (c == '-' && trimmed.find('T').is_some_and(|t| trimmed[t..].contains(c)))
-        })
-        .map(|i| &trimmed[..i])
-        .unwrap_or(trimmed);
+    // Search for a timezone sign only after `T`. Searching the whole string
+    // mistakes the first date separator in `2026-08-26...-07:00` for the offset.
+    let timezone_index = trimmed.find('T').and_then(|time_index| {
+        trimmed[time_index + 1..]
+            .find(['Z', '+', '-'])
+            .map(|offset| time_index + 1 + offset)
+    });
+    let core_end = [trimmed.find('.'), timezone_index]
+        .into_iter()
+        .flatten()
+        .min()
+        .unwrap_or(trimmed.len());
+    let core = &trimmed[..core_end];
+    let timezone_offset_seconds = match timezone_index {
+        Some(index) => parse_timezone_offset_seconds(&trimmed[index..])?,
+        None => 0,
+    };
     let mut parts = core.split(['T', '-', ':']);
     let year: i64 = parts.next()?.parse().ok()?;
     let month: i64 = parts.next()?.parse().ok()?;
@@ -432,8 +421,29 @@ pub(crate) fn parse_iso_ms_str(s: &str) -> Option<i64> {
     let doy = (153 * m + 2) / 5 + day - 1;
     let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
     let days = era * 146_097 + doe - 719_468;
-    let seconds = days * 86_400 + hour * 3600 + minute * 60 + second;
+    let seconds = days * 86_400 + hour * 3600 + minute * 60 + second - timezone_offset_seconds;
     Some(seconds.saturating_mul(1000))
+}
+
+fn parse_timezone_offset_seconds(suffix: &str) -> Option<i64> {
+    if suffix == "Z" {
+        return Some(0);
+    }
+    let (sign, offset) = match suffix.as_bytes().first()? {
+        b'+' => (1, &suffix[1..]),
+        b'-' => (-1, &suffix[1..]),
+        _ => return None,
+    };
+    let (hours, minutes) = offset.split_once(':')?;
+    if hours.len() != 2 || minutes.len() != 2 {
+        return None;
+    }
+    let hours: i64 = hours.parse().ok()?;
+    let minutes: i64 = minutes.parse().ok()?;
+    if hours > 23 || minutes > 59 {
+        return None;
+    }
+    Some(sign * (hours * 3_600 + minutes * 60))
 }
 
 /// UTC ISO-8601 with `Z` suffix for Subsonic `starred` payloads.

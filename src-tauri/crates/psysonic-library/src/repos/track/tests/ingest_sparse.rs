@@ -326,37 +326,41 @@ fn explicit_nulls_clear_preserved_sparse_fields() {
     assert_eq!(values, (None, None, None));
 }
 
-/// `MAX(server_updated_at)` is where the native delta resumes reading. A
-/// bulk pass that does not carry the timestamp must not erase it, on either
-/// upsert shape — a resync that blanks it strands the delta.
+/// `MAX(server_updated_at)` is where the native delta resumes reading, while
+/// `server_created_at` drives New Releases. A bulk pass that carries neither
+/// timestamp must not erase either one on either upsert shape.
 #[test]
-fn a_bulk_pass_does_not_erase_the_delta_watermark() {
+fn a_bulk_pass_does_not_erase_sync_timestamps() {
     let store = LibraryStore::open_in_memory();
     let repo = TrackRepository::new(&store);
     repo.upsert_batch(&[enriched_row("t1")]).unwrap();
 
     let mut bulk = bulk_row_without_credit("t1");
     bulk.server_updated_at = None;
+    bulk.server_created_at = None;
     repo.upsert_sparse_batch_initial_ingest_timed(&[bulk.clone()], None)
         .unwrap();
-    assert_eq!(delta_watermark(&store, "t1"), Some(1_700_000_000));
+    assert_eq!(
+        sync_timestamps(&store, "t1"),
+        (Some(1_700_000_000), Some(1_699_000_000))
+    );
 
     repo.upsert_sparse_batch_initial_ingest_timed(&[bulk], Some(2))
         .unwrap();
     assert_eq!(
-        delta_watermark(&store, "t1"),
-        Some(1_700_000_000),
+        sync_timestamps(&store, "t1"),
+        (Some(1_700_000_000), Some(1_699_000_000)),
         "the resync path must preserve it too"
     );
 }
 
-fn delta_watermark(store: &LibraryStore, id: &str) -> Option<i64> {
+fn sync_timestamps(store: &LibraryStore, id: &str) -> (Option<i64>, Option<i64>) {
     store
         .with_conn("misc", |c| {
             c.query_row(
-                "SELECT server_updated_at FROM track WHERE id = ?1",
+                "SELECT server_updated_at, server_created_at FROM track WHERE id = ?1",
                 params![id],
-                |r| r.get(0),
+                |r| Ok((r.get(0)?, r.get(1)?)),
             )
         })
         .unwrap()

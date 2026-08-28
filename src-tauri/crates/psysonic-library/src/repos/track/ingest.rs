@@ -331,7 +331,14 @@ ON CONFLICT(server_id, id) DO UPDATE SET
     WHEN excluded.server_updated_at IS NOT NULL THEN excluded.server_updated_at
     ELSE track.server_updated_at
   END,
-  server_created_at    = excluded.server_created_at,
+  server_created_at    = CASE
+    WHEN json_valid(excluded.raw_json)
+     AND (json_type(excluded.raw_json, '$.created') IS NOT NULL
+       OR json_type(excluded.raw_json, '$.createdAt') IS NOT NULL)
+      THEN excluded.server_created_at
+    WHEN excluded.server_created_at IS NOT NULL THEN excluded.server_created_at
+    ELSE track.server_created_at
+  END,
   deleted              = excluded.deleted,
   synced_at            = excluded.synced_at,
   raw_json             = CASE
@@ -422,7 +429,14 @@ ON CONFLICT(server_id, id) DO UPDATE SET
     WHEN excluded.server_updated_at IS NOT NULL THEN excluded.server_updated_at
     ELSE track.server_updated_at
   END,
-  server_created_at    = excluded.server_created_at,
+  server_created_at    = CASE
+    WHEN json_valid(excluded.raw_json)
+     AND (json_type(excluded.raw_json, '$.created') IS NOT NULL
+       OR json_type(excluded.raw_json, '$.createdAt') IS NOT NULL)
+      THEN excluded.server_created_at
+    WHEN excluded.server_created_at IS NOT NULL THEN excluded.server_created_at
+    ELSE track.server_created_at
+  END,
   deleted              = 0,
   synced_at            = excluded.synced_at,
   raw_json             = CASE

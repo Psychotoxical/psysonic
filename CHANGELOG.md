@@ -184,6 +184,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Nine topics that were never covered are now there: browsing several servers at once, the timeline queue view with Play from Here, capping the streaming bitrate per server address, the table view on the album pages, telling your own playlists from shared ones, the Composers page, the audio visualizer, the theme store and the background sources.
 * All of it in every language the app ships in.
 
+### Navidrome dates with UTC offsets populate New Releases again
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1470](https://github.com/Psysonic/psysonic/pull/1470)**
+
+* Navidrome timestamps with negative UTC offsets no longer disappear from the local index, so New Releases, favourites and last played dates populate correctly during sync. Existing creation dates with safely identifiable old values are repaired gradually in the background; ambiguous cleared legacy values wait for a later sync rather than risk restoring stale data.
+
 ## [1.51.0] - 2026-08-17
 
 ## Added

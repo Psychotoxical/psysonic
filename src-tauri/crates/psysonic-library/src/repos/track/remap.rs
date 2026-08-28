@@ -80,7 +80,18 @@ impl TrackRepository<'_> {
                     // that resolved source before inserting the new id, otherwise the
                     // later old-row deletion would discard the very fields sparse ingest
                     // is meant to preserve.
-                    let remap_merged_raw = if sparse_payload {
+                    let destination_exists = if sparse_payload && detected_old.is_some() {
+                        track_exists(&tx, &r.server_id, &r.id)?
+                    } else {
+                        false
+                    };
+                    // Missing destination fields may be explicit clears whose
+                    // JSON nulls were removed by SQLite `json_patch`. Once a
+                    // destination exists it must win completely; filling gaps
+                    // from the old source could resurrect cleared metadata.
+                    let preserve_remap_source =
+                        sparse_payload && detected_old.is_some() && !destination_exists;
+                    let remap_merged_raw = if preserve_remap_source {
                         detected_old
                             .as_deref()
                             .map(|old_id| {
@@ -96,6 +107,27 @@ impl TrackRepository<'_> {
                         None
                     };
                     let raw_json = remap_merged_raw.as_deref().unwrap_or(r.raw_json.as_str());
+                    let remap_source_timestamps = if preserve_remap_source {
+                        detected_old
+                            .as_deref()
+                            .map(|old_id| load_remap_source_timestamps(&tx, &r.server_id, old_id))
+                            .transpose()?
+                            .flatten()
+                    } else {
+                        None
+                    };
+                    let server_updated_at = sparse_remap_timestamp(
+                        r.server_updated_at,
+                        &r.raw_json,
+                        &["updatedAt"],
+                        remap_source_timestamps.and_then(|timestamps| timestamps.0),
+                    );
+                    let server_created_at = sparse_remap_timestamp(
+                        r.server_created_at,
+                        &r.raw_json,
+                        &["created", "createdAt"],
+                        remap_source_timestamps.and_then(|timestamps| timestamps.1),
+                    );
 
                     upsert.execute(params![
                         r.server_id,
@@ -129,8 +161,8 @@ impl TrackRepository<'_> {
                         r.replay_gain_album_db,
                         r.replay_gain_peak,
                         r.content_hash,
-                        r.server_updated_at,
-                        r.server_created_at,
+                        server_updated_at,
+                        server_created_at,
                         if r.deleted { 1_i64 } else { 0 },
                         r.synced_at,
                         raw_json,
@@ -202,6 +234,53 @@ impl TrackRepository<'_> {
                 Ok(RemapStats { remapped })
             })
     }
+}
+
+fn load_remap_source_timestamps(
+    tx: &rusqlite::Transaction<'_>,
+    server_id: &str,
+    old_id: &str,
+) -> rusqlite::Result<Option<(Option<i64>, Option<i64>)>> {
+    tx.query_row(
+        "SELECT server_updated_at, server_created_at FROM track \
+         WHERE server_id = ?1 AND id = ?2",
+        params![server_id, old_id],
+        |row| Ok((row.get(0)?, row.get(1)?)),
+    )
+    .optional()
+}
+
+fn sparse_remap_timestamp(
+    incoming: Option<i64>,
+    incoming_raw: &str,
+    keys: &[&str],
+    remap_source: Option<i64>,
+) -> Option<i64> {
+    let field_is_present = serde_json::from_str::<serde_json::Value>(incoming_raw)
+        .ok()
+        .is_some_and(|raw| {
+            raw.as_object()
+                .is_some_and(|raw| keys.iter().any(|key| raw.contains_key(*key)))
+        });
+    if field_is_present {
+        incoming
+    } else {
+        incoming.or(remap_source)
+    }
+}
+
+fn track_exists(
+    tx: &rusqlite::Transaction<'_>,
+    server_id: &str,
+    track_id: &str,
+) -> rusqlite::Result<bool> {
+    tx.query_row(
+        "SELECT 1 FROM track WHERE server_id = ?1 AND id = ?2",
+        params![server_id, track_id],
+        |_| Ok(()),
+    )
+    .optional()
+    .map(|row| row.is_some())
 }
 
 /// Merge a sparse incoming row against the rich row that was selected as the
