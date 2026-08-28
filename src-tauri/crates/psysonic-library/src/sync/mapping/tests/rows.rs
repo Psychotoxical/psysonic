@@ -63,6 +63,25 @@ fn navidrome_song_maps_native_field_shape() {
 }
 
 #[test]
+fn navidrome_song_maps_negative_offset_timestamps() {
+    let raw = json!({
+        "id": "tr_1",
+        "title": "Hello",
+        "createdAt": "2026-08-26T22:04:58.676898-07:00",
+        "updatedAt": "2026-08-26T22:04:58.676898-07:00",
+        "starredAt": "2026-08-26T22:04:58.676898-07:00",
+        "playDate": "2026-08-26T22:04:58.676898-07:00"
+    });
+
+    let row = navidrome_song_to_track_row("s1", &raw, 1, None).unwrap();
+
+    assert_eq!(row.server_created_at, Some(1_787_807_098_000));
+    assert_eq!(row.server_updated_at, Some(1_787_807_098_000));
+    assert_eq!(row.starred_at, Some(1_787_807_098_000));
+    assert_eq!(row.played_at, Some(1_787_807_098_000));
+}
+
+#[test]
 fn navidrome_song_normalizes_current_participants_into_structured_artist_refs() {
     let raw = json!({
         "id": "tr_1",

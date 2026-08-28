@@ -15,7 +15,7 @@ use super::reconciles::{
     maybe_reconcile_artist_name_fold, maybe_reconcile_artist_name_sort,
     maybe_reconcile_duration_sec_backfill, maybe_reconcile_library_id_backfill,
     maybe_reconcile_orphan_browse_rows, maybe_reconcile_replay_gain_peak,
-    reconcile_ready_rows_with_ingest_cursors,
+    maybe_reconcile_track_timestamp_backfill, reconcile_ready_rows_with_ingest_cursors,
 };
 use super::LibraryStore;
 
@@ -254,6 +254,18 @@ fn register_sql_functions(conn: &Connection) -> rusqlite::Result<()> {
             let name: String = ctx.get(0)?;
             Ok(name.trim().to_lowercase())
         },
+    )?;
+    conn.create_scalar_function(
+        "psysonic_parse_iso_ms",
+        1,
+        FunctionFlags::SQLITE_UTF8 | FunctionFlags::SQLITE_DETERMINISTIC,
+        |ctx| {
+            let timestamp = match ctx.get_raw(0) {
+                rusqlite::types::ValueRef::Text(value) => std::str::from_utf8(value).ok(),
+                _ => None,
+            };
+            Ok(timestamp.and_then(crate::sync::mapping::parse_iso_ms_str))
+        },
     )
 }
 
@@ -322,6 +334,7 @@ fn prepare_write_connection_for_open(conn: &Connection) -> rusqlite::Result<()> 
     maybe_reconcile_artist_name_fold(conn)?;
     maybe_reconcile_replay_gain_peak(conn)?;
     maybe_reconcile_library_id_backfill(conn)?;
+    maybe_reconcile_track_timestamp_backfill(conn)?;
     maybe_reconcile_duration_sec_backfill(conn)?;
     maybe_reconcile_orphan_browse_rows(conn)?;
     ensure_genre_tags_schema(conn)?;

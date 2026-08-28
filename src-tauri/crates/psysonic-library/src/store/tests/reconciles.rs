@@ -3,9 +3,10 @@ use rusqlite::params;
 use super::super::reconciles::{
     maybe_reconcile_artist_name_fold, maybe_reconcile_artist_name_sort,
     maybe_reconcile_duration_sec_backfill, maybe_reconcile_library_id_backfill,
-    maybe_reconcile_orphan_browse_rows, ARTIST_NAME_FOLD_RECONCILE_ID,
-    ARTIST_NAME_SORT_RECONCILE_ID, DURATION_SEC_BACKFILL_RECONCILE_ID,
-    LIBRARY_ID_BACKFILL_RECONCILE_ID, ORPHAN_BROWSE_RECONCILE_ID,
+    maybe_reconcile_orphan_browse_rows, maybe_reconcile_track_timestamp_backfill,
+    ARTIST_NAME_FOLD_RECONCILE_ID, ARTIST_NAME_SORT_RECONCILE_ID,
+    DURATION_SEC_BACKFILL_RECONCILE_ID, LIBRARY_ID_BACKFILL_RECONCILE_ID,
+    ORPHAN_BROWSE_RECONCILE_ID, TRACK_TIMESTAMP_BACKFILL_RECONCILE_ID,
 };
 use super::super::LibraryStore;
 
@@ -311,6 +312,105 @@ fn library_id_backfill_reconcile_is_idempotent() {
         })
         .expect("library_id after second reconcile");
     assert_eq!(library_id_after, "");
+}
+
+#[test]
+fn track_timestamp_backfill_restores_offset_dates_once() {
+    type TimestampRow = (String, Option<i64>, Option<i64>, Option<i64>, Option<i64>);
+
+    let store = LibraryStore::open_in_memory();
+    store
+        .with_conn_mut("test.seed_timestamp_backfill", |conn| {
+            conn.execute(
+                "DELETE FROM library_data_migration WHERE id = ?1",
+                params![TRACK_TIMESTAMP_BACKFILL_RECONCILE_ID],
+            )?;
+            conn.execute(
+                "INSERT INTO track (server_id, id, title, album, duration_sec, deleted, synced_at, \
+                   raw_json, server_created_at, server_updated_at, starred_at, played_at) \
+                 VALUES ('s1', 'repair', 'Repair', 'Al', 1, 0, 1, \
+                   '{\"createdAt\":\"2026-08-26T22:04:58.676898-07:00\",\
+                      \"updatedAt\":\"2026-08-26T22:04:58.676898-07:00\",\
+                      \"starred\":true,\
+                      \"starredAt\":\"2026-08-26T22:04:58.676898-07:00\",\
+                      \"playDate\":\"2026-08-26T22:04:58.676898-07:00\"}', \
+                   NULL, NULL, NULL, NULL)",
+                [],
+            )?;
+            conn.execute(
+                "INSERT INTO track (server_id, id, title, album, duration_sec, deleted, synced_at, \
+                   raw_json, server_created_at, server_updated_at, starred_at, played_at) \
+                 VALUES ('s1', 'invalid', 'Invalid', 'Al', 1, 0, 1, \
+                   '{\"createdAt\":\"not-a-date\"}', 42, 42, 42, 42)",
+                [],
+            )?;
+            Ok(())
+        })
+        .expect("seed tracks");
+
+    store
+        .with_conn(
+            "test.timestamp_backfill",
+            maybe_reconcile_track_timestamp_backfill,
+        )
+        .expect("timestamp backfill");
+
+    let timestamps: Vec<TimestampRow> = store
+        .with_read_conn(|conn| {
+            conn.prepare(
+                "SELECT id, server_created_at, server_updated_at, starred_at, played_at \
+                 FROM track WHERE server_id = 's1' ORDER BY id",
+            )?
+            .query_map([], |row| {
+                Ok((
+                    row.get(0)?,
+                    row.get(1)?,
+                    row.get(2)?,
+                    row.get(3)?,
+                    row.get(4)?,
+                ))
+            })?
+            .collect()
+        })
+        .expect("backfilled timestamps");
+    assert_eq!(
+        timestamps,
+        vec![
+            ("invalid".into(), Some(42), Some(42), Some(42), Some(42)),
+            (
+                "repair".into(),
+                Some(1_787_807_098_000),
+                Some(1_787_807_098_000),
+                Some(1_787_807_098_000),
+                Some(1_787_807_098_000),
+            ),
+        ]
+    );
+
+    store
+        .with_conn_mut("test.clear_repaired_timestamp", |conn| {
+            conn.execute(
+                "UPDATE track SET server_created_at = NULL WHERE id = 'repair'",
+                [],
+            )
+        })
+        .expect("clear repaired timestamp");
+    store
+        .with_conn(
+            "test.timestamp_backfill_again",
+            maybe_reconcile_track_timestamp_backfill,
+        )
+        .expect("guarded timestamp backfill");
+    let created_after: Option<i64> = store
+        .with_read_conn(|conn| {
+            conn.query_row(
+                "SELECT server_created_at FROM track WHERE id = 'repair'",
+                [],
+                |row| row.get(0),
+            )
+        })
+        .expect("created timestamp after guarded re-run");
+    assert_eq!(created_after, None);
 }
 
 #[test]
