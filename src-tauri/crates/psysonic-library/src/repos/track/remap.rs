@@ -1,6 +1,9 @@
 use rusqlite::{params, OptionalExtension};
 
-use super::ingest::{sync_persisted_track_genre_rows, UPSERT_SQL};
+use super::ingest::{
+    invalidate_album_list_completion, normalize_sparse_album_version_provenance,
+    sync_persisted_track_genre_rows, UPSERT_SQL,
+};
 use super::retarget::retarget_track_references;
 use super::{RemapEntry, RemapStats, TrackRepository, TrackRow};
 
@@ -208,6 +211,17 @@ impl TrackRepository<'_> {
 
                 drop(upsert);
                 drop(remap_lookup);
+                if sparse_payload {
+                    for row in rows {
+                        normalize_sparse_album_version_provenance(
+                            &tx,
+                            &row.server_id,
+                            &row.id,
+                            &row.raw_json,
+                        )?;
+                    }
+                    invalidate_album_list_completion(&tx, rows)?;
+                }
                 sync_persisted_track_genre_rows(&tx, rows)?;
                 crate::identity::record_tracks(
                     &tx,
@@ -306,7 +320,31 @@ fn merge_sparse_raw_from_remap_source(
 
     tx.query_row(
         "SELECT CASE \
-           WHEN json_valid(?1) AND json_valid(?2) THEN json_patch(?1, ?2) \
+           WHEN json_valid(?1) AND json_valid(?2) THEN CASE \
+             WHEN json_type(?2, '$.albumVersion') IS NOT NULL THEN json_remove( \
+               json_patch(?1, ?2), \
+               '$.tags.albumversion', \
+               '$._psysonicAlbumVersionFromList', \
+               '$._psysonicAlbumVersionNeedsListRefresh' \
+             ) \
+             WHEN json_type(?2, '$.tags.albumversion') IS NOT NULL THEN json_remove( \
+               json_patch(?1, ?2), \
+               '$.albumVersion', \
+               '$._psysonicAlbumVersionFromList', \
+               '$._psysonicAlbumVersionNeedsListRefresh' \
+             ) \
+             WHEN ( \
+               NULLIF(TRIM(json_extract(?1, '$.albumVersion')), '') IS NOT NULL \
+               OR NULLIF(TRIM(json_extract(?1, '$.tags.albumversion[0]')), '') IS NOT NULL \
+             ) AND NOT COALESCE( \
+               json_extract(?1, '$._psysonicAlbumVersionFromList') = 1, 0 \
+             ) THEN json_set( \
+               json_patch(?1, ?2), \
+               '$._psysonicAlbumVersionNeedsListRefresh', \
+               json('true') \
+             ) \
+             ELSE json_patch(?1, ?2) \
+           END \
            ELSE ?2 \
          END",
         params![old_raw, incoming_raw],

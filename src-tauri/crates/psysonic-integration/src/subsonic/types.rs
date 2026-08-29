@@ -24,6 +24,36 @@ where
     })
 }
 
+fn de_string_vec_flexible<'de, D>(deserializer: D) -> Result<Vec<String>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let value = Option::<serde_json::Value>::deserialize(deserializer)?;
+    Ok(match value {
+        Some(serde_json::Value::String(value)) => vec![value],
+        Some(serde_json::Value::Array(values)) => values
+            .into_iter()
+            .filter_map(|value| value.as_str().map(str::to_string))
+            .collect(),
+        _ => Vec::new(),
+    })
+}
+
+fn de_optional_album_summary_tags<'de, D>(
+    deserializer: D,
+) -> Result<Option<AlbumSummaryTags>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let value = Option::<serde_json::Value>::deserialize(deserializer)?;
+    Ok(match value {
+        Some(serde_json::Value::Object(object)) => {
+            serde_json::from_value(serde_json::Value::Object(object)).ok()
+        }
+        _ => None,
+    })
+}
+
 /// Navidrome often ships library ids as JSON numbers; Subsonic uses strings.
 fn de_string_or_number<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
 where
@@ -162,9 +192,19 @@ pub struct MusicFolder {
 
 /// `#getAlbumList2` — page of album summaries (no song list).
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
+pub struct AlbumSummaryTags {
+    #[serde(default, deserialize_with = "de_string_vec_flexible")]
+    pub albumversion: Vec<String>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 pub struct AlbumSummary {
     pub id: String,
     pub name: String,
+    #[serde(default)]
+    pub version: Option<String>,
+    #[serde(default, deserialize_with = "de_optional_album_summary_tags")]
+    pub tags: Option<AlbumSummaryTags>,
     #[serde(default)]
     pub artist: Option<String>,
     #[serde(rename = "artistId", default)]
@@ -400,6 +440,38 @@ mod tests {
         let legacy: Song =
             serde_json::from_str(r#"{"id":"a","title":"t","isrc":"USRC17607839"}"#).unwrap();
         assert_eq!(legacy.isrc.as_deref(), Some("USRC17607839"));
+    }
+
+    #[test]
+    fn album_summary_tolerates_optional_albumversion_shapes() {
+        let scalar: AlbumSummary = serde_json::from_str(
+            r#"{"id":"a","name":"Album","tags":{"albumversion":"Deluxe"}}"#,
+        )
+        .unwrap();
+        assert_eq!(
+            scalar.tags.unwrap().albumversion,
+            vec!["Deluxe".to_string()]
+        );
+
+        let mixed: AlbumSummary = serde_json::from_str(
+            r#"{"id":"a","name":"Album","tags":{"albumversion":[null,"",7,"Deluxe"]}}"#,
+        )
+        .unwrap();
+        assert_eq!(
+            mixed.tags.unwrap().albumversion,
+            vec!["".to_string(), "Deluxe".to_string()]
+        );
+
+        for malformed in [
+            r#"{"id":"a","name":"Album","tags":null}"#,
+            r#"{"id":"a","name":"Album","tags":"unexpected"}"#,
+            r#"{"id":"a","name":"Album","tags":{"albumversion":null}}"#,
+        ] {
+            let summary: AlbumSummary = serde_json::from_str(malformed).unwrap();
+            assert!(summary
+                .tags
+                .is_none_or(|tags| tags.albumversion.is_empty()));
+        }
     }
 
     #[test]

@@ -41,6 +41,13 @@ pub(crate) fn record_tracks<'a>(
     record(tx, TRACK_KIND, tracks)
 }
 
+pub(crate) fn record_albums<'a>(
+    tx: &Transaction<'_>,
+    albums: impl IntoIterator<Item = (&'a str, &'a str)>,
+) -> rusqlite::Result<()> {
+    record(tx, ALBUM_KIND, albums)
+}
+
 pub(crate) fn record_album_scopes(
     tx: &Transaction<'_>,
     scopes: &HashSet<AlbumScope>,

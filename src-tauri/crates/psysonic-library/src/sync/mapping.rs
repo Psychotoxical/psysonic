@@ -22,11 +22,46 @@ const ALBUM_TO_TRACK_RAW_KEYS: &[(&str, &str)] = &[
     ("compilation", "compilation"),
     ("isCompilation", "isCompilation"),
     ("releaseTypes", "releaseTypes"),
+    ("version", "albumVersion"),
     ("artists", "albumArtists"),
     ("albumArtists", "albumArtists"),
     ("displayArtist", "displayAlbumArtist"),
     ("displayAlbumArtist", "displayAlbumArtist"),
 ];
+
+pub(crate) fn album_version_from_tags(raw: &Value) -> Option<&str> {
+    match raw.pointer("/tags/albumversion") {
+        Some(Value::String(version)) => {
+            Some(str::trim(version.as_str())).filter(|version| !version.is_empty())
+        }
+        Some(Value::Array(versions)) => versions.iter().find_map(|version| {
+            version
+                .as_str()
+                .map(str::trim)
+                .filter(|version| !version.is_empty())
+        }),
+        _ => None,
+    }
+}
+
+fn track_raw_json(raw: &Value) -> String {
+    let needs_normalized_version = raw
+        .as_object()
+        .is_some_and(|object| !object.contains_key("albumVersion"));
+    if needs_normalized_version {
+        if let Some(version) = album_version_from_tags(raw) {
+            let mut normalized = raw.clone();
+            if let Some(object) = normalized.as_object_mut() {
+                object.insert(
+                    "albumVersion".to_string(),
+                    Value::String(version.to_string()),
+                );
+            }
+            return normalized.to_string();
+        }
+    }
+    raw.to_string()
+}
 
 /// Copy album-level OpenSubsonic fields onto each track `raw_json` during S2/getAlbum
 /// ingest, so track-grouped album browse can filter compilations and the album header
@@ -43,9 +78,18 @@ const ALBUM_TO_TRACK_RAW_KEYS: &[(&str, &str)] = &[
 /// authoritative ids sitting in the same `getAlbum` response and push the UI back onto
 /// name matching.
 pub fn merge_album_open_subsonic_track_raw(raw_album: &Value, raw_song: &mut Value) {
+    let track_tag_version = album_version_from_tags(raw_song).map(str::to_string);
     let Some(obj) = raw_song.as_object_mut() else {
         return;
     };
+    if !obj
+        .get("albumVersion")
+        .is_some_and(is_usable_participant_value)
+    {
+        if let Some(version) = track_tag_version {
+            obj.insert("albumVersion".to_string(), Value::String(version));
+        }
+    }
     for (album_key, track_key) in ALBUM_TO_TRACK_RAW_KEYS {
         if obj.get(*track_key).is_some_and(is_usable_participant_value) {
             continue;
@@ -54,6 +98,17 @@ pub fn merge_album_open_subsonic_track_raw(raw_album: &Value, raw_song: &mut Val
             if is_usable_participant_value(v) {
                 obj.insert((*track_key).to_string(), v.clone());
             }
+        }
+    }
+    if !obj
+        .get("albumVersion")
+        .is_some_and(is_usable_participant_value)
+    {
+        if let Some(version) = album_version_from_tags(raw_album) {
+            obj.insert(
+                "albumVersion".to_string(),
+                Value::String(version.to_string()),
+            );
         }
     }
 }
@@ -193,7 +248,7 @@ pub fn subsonic_song_to_track_row(
         server_created_at: parse_raw_iso_ms(raw_value, &["created", "createdAt"]),
         deleted: false,
         synced_at,
-        raw_json: raw_value.to_string(),
+        raw_json: track_raw_json(raw_value),
     }
 }
 
@@ -328,7 +383,7 @@ pub fn navidrome_song_to_track_row(
         server_created_at: parse_raw_iso_ms(raw, &["createdAt"]),
         deleted: false,
         synced_at,
-        raw_json: raw.to_string(),
+        raw_json: track_raw_json(raw),
     })
 }
 

@@ -770,6 +770,8 @@ pub struct LibraryAlbumOverlayCandidateDto {
     pub id: String,
     pub name: String,
     pub artist: Option<String>,
+    #[serde(default)]
+    pub version: Option<String>,
 }
 
 /// Resolve a bounded network overlay batch against one ordered browse scope.

@@ -4,16 +4,36 @@
 //! from the server on visit. Track ingest still mirrors per-song fields.
 
 use psysonic_integration::subsonic::Album;
-use rusqlite::params;
+use rusqlite::{params, OptionalExtension};
 use serde_json::Value;
 
 use super::error::SyncError;
-use super::mapping::parse_iso_ms_str;
+use super::mapping::{album_version_from_tags, parse_iso_ms_str};
 use crate::store::LibraryStore;
 
 fn album_starred_at_from_raw(raw_album: &Value) -> Option<Option<i64>> {
     let starred = raw_album.get("starred")?;
     Some(starred.as_str().and_then(parse_iso_ms_str))
+}
+
+fn album_identity_version(raw_album: &Value) -> Option<String> {
+    raw_album
+        .get("version")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|version| !version.is_empty())
+        .or_else(|| album_version_from_tags(raw_album))
+        .map(str::to_string)
+}
+
+fn album_identity_state(raw_album: &Value) -> (Option<String>, bool) {
+    (
+        album_identity_version(raw_album),
+        raw_album
+            .get("_psysonicAlbumVersionFromList")
+            .and_then(Value::as_bool)
+            .unwrap_or(false),
+    )
 }
 
 /// Upsert `album` row metadata from a `#getAlbum` response. When `starred` is
@@ -33,13 +53,38 @@ pub(crate) fn upsert_album_from_get_album(
 ) -> Result<(), SyncError> {
     let starred_at = album_starred_at_from_raw(raw_album);
     let starred_flag = i64::from(starred_at.is_some());
-    let raw_json = raw_album.to_string();
+    let incoming_identity_version = album_identity_version(raw_album);
+    let mut stored_raw_album = raw_album.clone();
+    if let Some(object) = stored_raw_album.as_object_mut() {
+        object.remove("_psysonicAlbumVersionFromList");
+        let has_version = object
+            .get("version")
+            .and_then(Value::as_str)
+            .is_some_and(|version| !version.trim().is_empty());
+        if !has_version {
+            if let Some(version) = incoming_identity_version.as_ref() {
+                object.insert("version".to_string(), Value::String(version.clone()));
+            }
+        }
+    }
+    let raw_json = stored_raw_album.to_string();
     let song_count = album
         .song_count
         .or(Some(album.song.len() as i64));
     store
         .with_conn_mut("sync.upsert_album_metadata", |conn| {
-            conn.execute(
+            let tx = conn.transaction()?;
+            let previous_identity_version = tx
+                .query_row(
+                    "SELECT raw_json FROM album WHERE server_id = ?1 AND id = ?2",
+                    params![server_id, album.id],
+                    |row| row.get::<_, Option<String>>(0),
+                )
+                .optional()?
+                .flatten()
+                .and_then(|raw| serde_json::from_str::<Value>(&raw).ok())
+                .map(|raw| album_identity_state(&raw));
+            tx.execute(
                 "INSERT INTO album (
                    server_id, id, name, artist, artist_id, song_count, duration_sec,
                    year, genre, cover_art_id, starred_at, synced_at, raw_json
@@ -73,6 +118,17 @@ pub(crate) fn upsert_album_from_get_album(
                     starred_flag,
                 ],
             )?;
+            let identity_changed = previous_identity_version.map_or_else(
+                || incoming_identity_version.is_some(),
+                |(previous_version, previous_from_list)| {
+                    previous_version.as_deref() != incoming_identity_version.as_deref()
+                        || previous_from_list
+                },
+            );
+            if identity_changed {
+                crate::identity::record_albums(&tx, [(server_id, album.id.as_str())])?;
+            }
+            tx.commit()?;
             Ok(())
         })
         .map_err(SyncError::Storage)
@@ -198,5 +254,167 @@ mod tests {
             artist_id.is_none(),
             "stale artist_id must not persist when getAlbum omits it"
         );
+    }
+
+    #[test]
+    fn upsert_records_album_identity_invalidation() {
+        let store = LibraryStore::open_in_memory();
+        let album = get_album_with_artist(Some("Artist"), Some("ar1"));
+        let raw = serde_json::json!({
+            "id": "al1",
+            "name": "Album",
+            "version": "Deluxe Edition"
+        });
+
+        upsert_album_from_get_album(&store, "s1", &album, &raw, 2).unwrap();
+
+        let pending: i64 = store
+            .with_read_conn(|conn| {
+                conn.query_row(
+                    "SELECT COUNT(*) FROM identity_invalidation \
+                     WHERE server_id = 's1' AND kind = 'album' AND entity_id = 'al1'",
+                    [],
+                    |row| row.get(0),
+                )
+            })
+            .unwrap();
+        assert_eq!(pending, 1);
+    }
+
+    #[test]
+    fn upsert_accepts_a_legacy_null_raw_json() {
+        let store = LibraryStore::open_in_memory();
+        store
+            .with_conn_mut("seed", |conn| {
+                conn.execute(
+                    "INSERT INTO album (server_id, id, name, synced_at, raw_json) \
+                     VALUES ('s1', 'al1', 'Old', 1, NULL)",
+                    [],
+                )
+            })
+            .unwrap();
+        let album = get_album_with_artist(Some("Artist"), Some("ar1"));
+        let raw = serde_json::json!({
+            "id": "al1",
+            "name": "Album",
+            "version": "Deluxe Edition"
+        });
+
+        upsert_album_from_get_album(&store, "s1", &album, &raw, 2).unwrap();
+
+        let stored: String = store
+            .with_read_conn(|conn| {
+                conn.query_row(
+                    "SELECT raw_json FROM album WHERE server_id = 's1' AND id = 'al1'",
+                    [],
+                    |row| row.get(0),
+                )
+            })
+            .unwrap();
+        assert_eq!(
+            serde_json::from_str::<Value>(&stored).unwrap()["version"],
+            serde_json::json!("Deluxe Edition")
+        );
+    }
+
+    #[test]
+    fn upsert_rolls_back_when_album_invalidation_fails() {
+        let store = LibraryStore::open_in_memory();
+        seed_album_with_artist(&store, "Old", "ar_old");
+        store
+            .with_conn_mut("test.abort_album_invalidation", |conn| {
+                conn.execute_batch(
+                    "CREATE TRIGGER abort_album_invalidation \
+                     BEFORE INSERT ON identity_invalidation \
+                     WHEN NEW.kind = 'album' \
+                     BEGIN SELECT RAISE(ABORT, 'stop'); END;",
+                )
+            })
+            .unwrap();
+        let album = get_album_with_artist(Some("New"), Some("ar_new"));
+        let raw = serde_json::json!({ "id": "al1", "name": "Album", "version": "Deluxe" });
+
+        assert!(upsert_album_from_get_album(&store, "s1", &album, &raw, 2).is_err());
+
+        let (artist, artist_id) = album_artist(&store);
+        assert_eq!(artist.as_deref(), Some("Old"));
+        assert_eq!(artist_id.as_deref(), Some("ar_old"));
+    }
+
+    #[test]
+    fn upsert_skips_identity_invalidation_when_version_is_unchanged() {
+        let store = LibraryStore::open_in_memory();
+        let album = get_album_with_artist(Some("Artist"), Some("ar1"));
+        let raw = serde_json::json!({
+            "id": "al1",
+            "name": "Album",
+            "version": "Deluxe Edition"
+        });
+        upsert_album_from_get_album(&store, "s1", &album, &raw, 1).unwrap();
+        store
+            .with_conn_mut("test.clear_invalidation", |conn| {
+                conn.execute("DELETE FROM identity_invalidation", [])
+            })
+            .unwrap();
+
+        upsert_album_from_get_album(&store, "s1", &album, &raw, 2).unwrap();
+
+        let pending: i64 = store
+            .with_read_conn(|conn| {
+                conn.query_row("SELECT COUNT(*) FROM identity_invalidation", [], |row| {
+                    row.get(0)
+                })
+            })
+            .unwrap();
+        assert_eq!(pending, 0);
+    }
+
+    #[test]
+    fn upsert_invalidates_when_same_version_becomes_authoritative() {
+        let store = LibraryStore::open_in_memory();
+        store
+            .with_conn_mut("seed", |conn| {
+                conn.execute(
+                    "INSERT INTO album (server_id, id, name, synced_at, raw_json) \
+                     VALUES ( \
+                       's1', 'al1', 'Album', 1, \
+                       '{\"version\":\"Deluxe Edition\",\
+                         \"_psysonicAlbumVersionFromList\":true}' \
+                     )",
+                    [],
+                )
+            })
+            .unwrap();
+        let album = get_album_with_artist(Some("Artist"), Some("ar1"));
+        let raw = serde_json::json!({
+            "id": "al1",
+            "name": "Album",
+            "version": "Deluxe Edition"
+        });
+
+        upsert_album_from_get_album(&store, "s1", &album, &raw, 2).unwrap();
+
+        let (pending, stored): (i64, String) = store
+            .with_read_conn(|conn| {
+                Ok((
+                    conn.query_row(
+                        "SELECT COUNT(*) FROM identity_invalidation \
+                         WHERE server_id = 's1' AND kind = 'album' AND entity_id = 'al1'",
+                        [],
+                        |row| row.get(0),
+                    )?,
+                    conn.query_row(
+                        "SELECT raw_json FROM album WHERE server_id = 's1' AND id = 'al1'",
+                        [],
+                        |row| row.get(0),
+                    )?,
+                ))
+            })
+            .unwrap();
+        assert_eq!(pending, 1);
+        assert!(serde_json::from_str::<Value>(&stored)
+            .unwrap()
+            .get("_psysonicAlbumVersionFromList")
+            .is_none());
     }
 }

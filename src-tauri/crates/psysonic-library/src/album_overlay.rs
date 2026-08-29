@@ -148,7 +148,13 @@ pub fn resolve_album_overlay(
                     .map(str::trim)
                     .filter(|value| !value.is_empty());
                 let normalized_key = (!exists)
-                    .then(|| crate::identity::build_album_key(artist, name))
+                    .then(|| {
+                        crate::identity::build_album_key_with_version(
+                            artist,
+                            name,
+                            album.version.as_deref(),
+                        )
+                    })
                     .flatten();
                 let identity_key = indexed_key
                     .clone()
@@ -279,12 +285,14 @@ mod tests {
                         id: "z-alternate".into(),
                         name: "Shared".into(),
                         artist: Some("Artist".into()),
+                        version: None,
                     },
                     LibraryAlbumOverlayCandidateDto {
                         server_id: "s2".into(),
                         id: "b-second".into(),
                         name: "Shared".into(),
                         artist: Some("Artist".into()),
+                        version: None,
                     },
                 ],
             },
@@ -369,12 +377,14 @@ mod tests {
                         id: "fresh-a".into(),
                         name: "My Arms, Your Hearse".into(),
                         artist: Some("Opeth".into()),
+                        version: None,
                     },
                     LibraryAlbumOverlayCandidateDto {
                         server_id: "s2".into(),
                         id: "fresh-b".into(),
                         name: "My Arms Your Hearse".into(),
                         artist: Some("Opeth".into()),
+                        version: None,
                     },
                 ],
             },
@@ -385,6 +395,36 @@ mod tests {
         assert!(resolutions.iter().all(|resolution| {
             resolution.representative_server_id.is_none() && resolution.representative_id.is_none()
         }));
+    }
+
+    #[test]
+    fn keeps_unindexed_album_versions_in_separate_groups() {
+        let store = LibraryStore::open_in_memory();
+        let resolutions = resolve_album_overlay(
+            &store,
+            &LibraryResolveAlbumOverlayRequest {
+                scopes: vec![scope("s1", "l1")],
+                albums: vec![
+                    LibraryAlbumOverlayCandidateDto {
+                        server_id: "s1".into(),
+                        id: "standard".into(),
+                        name: "Album".into(),
+                        artist: Some("Artist".into()),
+                        version: Some("Standard".into()),
+                    },
+                    LibraryAlbumOverlayCandidateDto {
+                        server_id: "s1".into(),
+                        id: "deluxe".into(),
+                        name: "Album [Deluxe Edition]".into(),
+                        artist: Some("Artist".into()),
+                        version: Some("Deluxe Edition".into()),
+                    },
+                ],
+            },
+        )
+        .unwrap();
+
+        assert_ne!(resolutions[0].group, resolutions[1].group);
     }
 
     #[test]
@@ -402,6 +442,7 @@ mod tests {
                     id: "fresh-copy".into(),
                     name: "Shared".into(),
                     artist: Some("Artist".into()),
+                    version: None,
                 }],
             },
         )

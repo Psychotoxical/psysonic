@@ -27,6 +27,10 @@ export interface SubsonicAlbum {
   isCompilation?: boolean;
   /** OpenSubsonic: release types from MusicBrainz tags (e.g. "Album", "EP", "Single", "Compilation", "Live"). */
   releaseTypes?: string[];
+  /** OpenSubsonic album edition label (e.g. "Deluxe Edition"). */
+  version?: string;
+  /** Raw Navidrome tag projection; servers vary between scalar, array, and null shapes. */
+  tags?: unknown;
   /** OpenSubsonic: structured album-artist credits (e.g. featured guests on the album). */
   artists?: SubsonicOpenArtistRef[];
   /** OpenSubsonic: single-string album-artist for display (mirrors `artists` joined). */
