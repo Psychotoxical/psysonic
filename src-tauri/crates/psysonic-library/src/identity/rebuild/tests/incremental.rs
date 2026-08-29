@@ -93,6 +93,41 @@ fn incremental_album_version_change_refreshes_album_and_track_identity() {
 }
 
 #[test]
+fn incremental_album_version_change_refreshes_track_without_album_id() {
+    let store = LibraryStore::open_in_memory();
+    let mut row = track_row(
+        "s1",
+        "t1",
+        "Track",
+        Some("Artist"),
+        "Album",
+        Some("Artist"),
+        200,
+        "lib",
+    );
+    row.raw_json = r#"{"albumVersion":"Standard"}"#.into();
+    TrackRepository::new(&store)
+        .upsert_batch(&[row.clone()])
+        .unwrap();
+    rebuild_cluster_keys(&store, Some("s1")).unwrap();
+    let before = store
+        .with_read_conn(|conn| read_cluster_row(conn, "s1", "t1"))
+        .unwrap()
+        .unwrap();
+
+    row.raw_json = r#"{"albumVersion":"Deluxe Edition"}"#.into();
+    TrackRepository::new(&store).upsert_batch(&[row]).unwrap();
+    assert_eq!(ensure_cluster_keys_built(&store, "s1").unwrap(), 1);
+
+    let after = store
+        .with_read_conn(|conn| read_cluster_row(conn, "s1", "t1"))
+        .unwrap()
+        .unwrap();
+    assert_ne!(before.0, after.0);
+    assert_ne!(before.1, after.1);
+}
+
+#[test]
 fn incremental_tombstone_recomputes_remaining_album_identity() {
     let store = LibraryStore::open_in_memory();
     store

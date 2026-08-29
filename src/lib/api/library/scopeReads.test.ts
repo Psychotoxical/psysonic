@@ -304,6 +304,7 @@ describe('libraryResolveAlbumOverlay', () => {
         id: 'physical-album',
         name: 'Album',
         artist: 'Artist',
+        version: 'Deluxe Edition',
       }],
     });
 
@@ -318,6 +319,7 @@ describe('libraryResolveAlbumOverlay', () => {
           id: 'physical-album',
           name: 'Album',
           artist: 'Artist',
+          version: 'Deluxe Edition',
         }],
       },
     });

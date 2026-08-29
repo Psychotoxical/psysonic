@@ -29,7 +29,9 @@ pub(crate) const KEY_SEP: char = '\u{001f}';
 ///     longer costs the album its identity.
 /// v7: Ukrainian Cyrillic folding (ї→і).
 /// v8: album identity includes the OpenSubsonic/Navidrome album version when present.
-pub const NORM_VERSION: &str = "8";
+/// v9: version suffix stripping uses identity normalization and album-level
+///     list metadata no longer outranks an authoritative track version.
+pub const NORM_VERSION: &str = "9";
 
 /// Normalize one identity field. Returns `None` when input is empty/whitespace-only
 /// or when normalization strips everything (punctuation-only, etc.).

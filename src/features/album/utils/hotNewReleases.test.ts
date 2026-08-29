@@ -73,11 +73,16 @@ describe('hot New Releases overlay', () => {
 
   it('requests each selected library and keeps only recent valid dates', async () => {
     const now = Date.parse('2026-07-16T12:00:00Z');
-    getAlbumListForServer.mockImplementation(async (serverId: string) => [
-      album(`${serverId}-fresh`, '2026-07-16T11:00:00Z', serverId),
-      album(`${serverId}-old`, '2026-07-12T11:00:00Z', serverId),
-      album(`${serverId}-invalid`, 'not-a-date', serverId),
-    ]);
+    getAlbumListForServer.mockImplementation(async (serverId: string) => {
+      const fresh = album(`${serverId}-fresh`, '2026-07-16T11:00:00Z', serverId);
+      if (serverId === 's1') fresh.version = 'Deluxe Edition';
+      else fresh.tags = { albumversion: ['[Remaster]'] };
+      return [
+        fresh,
+        album(`${serverId}-old`, '2026-07-12T11:00:00Z', serverId),
+        album(`${serverId}-invalid`, 'not-a-date', serverId),
+      ];
+    });
     libraryResolveAlbumOverlay.mockImplementation(async ({ albums }: { albums: SubsonicAlbum[] }) => (
       albums.map((_item, group) => ({
         group,
@@ -103,10 +108,48 @@ describe('hot New Releases overlay', () => {
         { serverId: 's2', libraryId: 'l2' },
       ],
       albums: [
-        { serverId: 's1', id: 's1-fresh', name: 's1-fresh', artist: 'Artist' },
-        { serverId: 's2', id: 's2-fresh', name: 's2-fresh', artist: 'Artist' },
+        {
+          serverId: 's1',
+          id: 's1-fresh',
+          name: 's1-fresh',
+          artist: 'Artist',
+          version: 'Deluxe Edition',
+        },
+        {
+          serverId: 's2', id: 's2-fresh', name: 's2-fresh', artist: 'Artist', version: '[Remaster]',
+        },
       ],
     });
     expect(result.map(item => item.album.id).sort()).toEqual(['s1-fresh', 's2-fresh']);
+  });
+
+  it('normalizes scalar and mixed albumversion tags without dropping the overlay', async () => {
+    const now = Date.parse('2026-07-16T12:00:00Z');
+    const variants = [
+      { id: 'scalar', tags: { albumversion: 'Deluxe' }, expected: 'Deluxe' },
+      { id: 'mixed', tags: { albumversion: [null, 7, '', 'Remaster'] }, expected: 'Remaster' },
+      { id: 'null', tags: { albumversion: null }, expected: null },
+      { id: 'malformed', tags: 'unexpected', expected: null },
+    ];
+    getAlbumListForServer.mockResolvedValue(variants.map(({ id, tags }) => ({
+      ...album(id, '2026-07-16T11:00:00Z'),
+      tags,
+    })));
+    libraryResolveAlbumOverlay.mockImplementation(async ({ albums }: { albums: Array<{ version: string | null }> }) => (
+      albums.map((_item, group) => ({ group, representativeServerId: null, representativeId: null }))
+    ));
+
+    await fetchHotNewReleases([{ serverId: 's1', libraryId: 'l1' }], now);
+
+    expect(libraryResolveAlbumOverlay).toHaveBeenCalledWith({
+      scopes: [{ serverId: 's1', libraryId: 'l1' }],
+      albums: variants.map(({ id, expected }) => ({
+        serverId: 's1',
+        id,
+        name: id,
+        artist: 'Artist',
+        version: expected,
+      })),
+    });
   });
 });

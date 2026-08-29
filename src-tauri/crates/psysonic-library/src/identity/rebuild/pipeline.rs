@@ -53,17 +53,58 @@ fn json_text_expr(json_column: &str, path: &str) -> String {
     )
 }
 
+fn json_string_or_first_array_text_expr(json_column: &str, path: &str) -> String {
+    let scalar = json_text_expr(json_column, path);
+    format!(
+        "COALESCE({scalar}, ( \
+           SELECT NULLIF(TRIM(tag.value), '') \
+           FROM json_each( \
+             CASE WHEN json_valid({json_column}) THEN \
+               CASE WHEN json_type({json_column}, '{path}') = 'array' \
+                    THEN {json_column} ELSE '{{}}' END \
+             ELSE '{{}}' END, \
+             '{path}' \
+           ) AS tag \
+           WHERE tag.type = 'text' AND NULLIF(TRIM(tag.value), '') IS NOT NULL \
+           LIMIT 1 \
+         ))"
+    )
+}
+
+fn track_album_version_expr(track_json: &str) -> String {
+    let track_album_version = json_text_expr(track_json, "$.albumVersion");
+    let track_tag_version =
+        json_string_or_first_array_text_expr(track_json, "$.tags.albumversion");
+    format!("COALESCE({track_album_version}, {track_tag_version})")
+}
+
+fn json_true_expr(json_column: &str, path: &str) -> String {
+    format!(
+        "COALESCE(CASE WHEN json_valid({json_column}) \
+         THEN json_extract({json_column}, '{path}') = 1 END, 0)"
+    )
+}
+
 fn canonical_album_version_expr(album_json: &str, track_json: &str) -> String {
     let album_version = json_text_expr(album_json, "$.version");
-    let album_tag_version = json_text_expr(album_json, "$.tags.albumversion[0]");
-    let track_album_version = json_text_expr(track_json, "$.albumVersion");
-    let track_version = json_text_expr(track_json, "$.version");
-    let track_tag_version = json_text_expr(track_json, "$.tags.albumversion[0]");
-    let track_value = format!(
-        "COALESCE({track_album_version}, {track_version}, {track_tag_version})"
+    let album_tag_version =
+        json_string_or_first_array_text_expr(album_json, "$.tags.albumversion");
+    let album_value = format!("COALESCE({album_version}, {album_tag_version})");
+    let album_from_list = json_true_expr(album_json, "$._psysonicAlbumVersionFromList");
+    let track_value = track_album_version_expr(track_json);
+    let track_from_list = json_true_expr(track_json, "$._psysonicAlbumVersionFromList");
+    let track_needs_refresh =
+        json_true_expr(track_json, "$._psysonicAlbumVersionNeedsListRefresh");
+    let authoritative_track = format!(
+        "CASE WHEN NOT ({track_from_list}) AND NOT ({track_needs_refresh}) \
+         THEN {track_value} END"
     );
     format!(
-        "COALESCE(MAX({album_version}), MAX({album_tag_version}), \
+        "COALESCE( \
+           MAX(CASE WHEN NOT ({album_from_list}) THEN {album_value} END), \
+           CASE WHEN COUNT(DISTINCT {authoritative_track}) = 1 \
+                THEN MAX({authoritative_track}) END, \
+           MAX({album_value}), \
            CASE WHEN COUNT(DISTINCT {track_value}) = 1 THEN MAX({track_value}) END)"
     )
 }
@@ -96,6 +137,17 @@ fn upsert_source_track(
             canonical_album.as_deref().unwrap_or(&album),
             canonical_album_version.as_deref(),
         );
+        if album_id.as_deref().is_none_or(|id| id.trim().is_empty()) {
+            let album_identity_artist = album_artist
+                .as_deref()
+                .filter(|name| !name.trim().is_empty())
+                .or(artist.as_deref());
+            keys.album_key = build_album_key_with_version(
+                album_identity_artist,
+                canonical_album.as_deref().unwrap_or(&album),
+                canonical_album_version.as_deref(),
+            );
+        }
     }
     keys.artist_key = canonical_artist
         .as_deref()
@@ -148,6 +200,7 @@ pub(super) fn rebuild_cluster_keys_on_conn(
     let va_credit =
         crate::album_compilation_filter::collection_credit_sql("MAX(source.album_artist)");
     let album_version = canonical_album_version_expr("album_meta.raw_json", "source.raw_json");
+    let track_album_version = track_album_version_expr("t.raw_json");
     let select = format!(
         "WITH physical_album AS MATERIALIZED ( \
            SELECT source.server_id, source.album_id, \
@@ -189,8 +242,11 @@ pub(super) fn rebuild_cluster_keys_on_conn(
          ) \
          SELECT t.server_id, COALESCE(t.library_id, ''), t.id, t.artist, ar.name, t.title, \
                  t.album_artist, t.album, t.album_id, physical_album.canonical_album_artist, \
-                 physical_album.canonical_album, physical_album.canonical_album_version, \
-                 t.duration_sec \
+                  physical_album.canonical_album, \
+                  CASE WHEN NULLIF(TRIM(t.album_id), '') IS NULL \
+                       THEN {track_album_version} \
+                       ELSE physical_album.canonical_album_version END, \
+                  t.duration_sec \
          FROM track t \
          LEFT JOIN artist ar ON ar.server_id = t.server_id AND ar.id = t.artist_id \
          LEFT JOIN physical_album \
@@ -274,6 +330,7 @@ pub(super) fn apply_identity_invalidations_on_conn(
     let va_credit =
         crate::album_compilation_filter::collection_credit_sql("MAX(source.album_artist)");
     let album_version = canonical_album_version_expr("album_meta.raw_json", "source.raw_json");
+    let track_album_version = track_album_version_expr("t.raw_json");
     let select = &format!(
         "WITH invalidated_artist AS MATERIALIZED ( \
                     SELECT entity_id FROM identity_invalidation \
@@ -332,8 +389,11 @@ pub(super) fn apply_identity_invalidations_on_conn(
                   ) \
                   SELECT t.server_id, COALESCE(t.library_id, ''), t.id, t.artist, ar.name, \
                           t.title, t.album_artist, t.album, t.album_id, \
-                          physical_album.canonical_album_artist, physical_album.canonical_album, \
-                          physical_album.canonical_album_version, t.duration_sec \
+                           physical_album.canonical_album_artist, physical_album.canonical_album, \
+                           CASE WHEN NULLIF(TRIM(t.album_id), '') IS NULL \
+                                THEN {track_album_version} \
+                                ELSE physical_album.canonical_album_version END, \
+                           t.duration_sec \
                   FROM candidate_track candidate \
                   CROSS JOIN track t INDEXED BY sqlite_autoindex_track_1 \
                   LEFT JOIN artist ar \

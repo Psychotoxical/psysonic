@@ -16,6 +16,30 @@ fn merge_album_open_subsonic_track_raw_copies_album_flags() {
 }
 
 #[test]
+fn merge_album_open_subsonic_track_raw_copies_tag_only_album_version() {
+    let album = json!({ "tags": { "albumversion": ["", "Deluxe Edition"] } });
+    let mut song = json!({ "id": "tr_1", "title": "A" });
+
+    merge_album_open_subsonic_track_raw(&album, &mut song);
+
+    assert_eq!(song.get("albumVersion"), Some(&json!("Deluxe Edition")));
+}
+
+#[test]
+fn merge_album_open_subsonic_track_raw_keeps_the_song_tag_version() {
+    let album = json!({ "version": "Album edition" });
+    let mut song = json!({
+        "id": "tr_1",
+        "title": "A",
+        "tags": { "albumversion": ["", "Track edition"] }
+    });
+
+    merge_album_open_subsonic_track_raw(&album, &mut song);
+
+    assert_eq!(song.get("albumVersion"), Some(&json!("Track edition")));
+}
+
+#[test]
 fn merge_album_open_subsonic_track_raw_maps_album_participants_to_album_fields() {
     let album = json!({
         "artists": [{ "id": "ar1", "name": "Ice Nine Kills" }, { "id": "ar2", "name": "Shavo" }],

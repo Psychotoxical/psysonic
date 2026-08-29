@@ -207,6 +207,119 @@ fn rebuild_uses_saved_album_version_to_split_physical_releases() {
     assert_ne!(standard_key, deluxe_key);
 }
 
+#[test]
+fn rebuild_ignores_unrelated_top_level_track_version() {
+    let store = LibraryStore::open_in_memory();
+    let first = physical_album_track_row(
+        "s1", "t1", "Song", "Artist", "artist-1", "Album", "album-1", "Artist", "lib",
+    );
+    let mut second = physical_album_track_row(
+        "s1", "t2", "Song", "Artist", "artist-1", "Album", "album-2", "Artist", "lib",
+    );
+    second.raw_json = r#"{"version":"unrelated-song-value"}"#.into();
+    TrackRepository::new(&store)
+        .upsert_batch(&[first, second])
+        .unwrap();
+    store
+        .with_conn_mut("test.seed_track_version_artist", |conn| {
+            conn.execute(
+                "INSERT INTO artist (server_id, id, name, synced_at) \
+                 VALUES ('s1', 'artist-1', 'Artist', 1)",
+                [],
+            )?;
+            Ok(())
+        })
+        .unwrap();
+
+    rebuild_cluster_keys(&store, None).unwrap();
+
+    let (first_key, second_key) = store
+        .with_read_conn(|conn| {
+            Ok((
+                read_cluster_row(conn, "s1", "t1")?.unwrap(),
+                read_cluster_row(conn, "s1", "t2")?.unwrap(),
+            ))
+        })
+        .unwrap();
+    assert_eq!(first_key.0, second_key.0);
+    assert_eq!(first_key.1, second_key.1);
+}
+
+#[test]
+fn rebuild_versions_tracks_without_physical_album_ids() {
+    let store = LibraryStore::open_in_memory();
+    let mut standard = track_row(
+        "s1",
+        "standard",
+        "Song",
+        Some("Artist"),
+        "Album",
+        Some("Artist"),
+        200,
+        "lib",
+    );
+    standard.raw_json = r#"{"albumVersion":"Standard"}"#.into();
+    let mut deluxe = standard.clone();
+    deluxe.id = "deluxe".into();
+    deluxe.raw_json = r#"{"albumVersion":"Deluxe Edition"}"#.into();
+    let mut standard_tag = standard.clone();
+    standard_tag.id = "standard-tag".into();
+    standard_tag.raw_json = r#"{"tags":{"albumversion":["","Standard"]}}"#.into();
+    TrackRepository::new(&store)
+        .upsert_batch(&[standard, deluxe, standard_tag])
+        .unwrap();
+
+    rebuild_cluster_keys(&store, None).unwrap();
+
+    let (standard_key, deluxe_key, standard_tag_key) = store
+        .with_read_conn(|conn| {
+            Ok((
+                read_cluster_row(conn, "s1", "standard")?.unwrap(),
+                read_cluster_row(conn, "s1", "deluxe")?.unwrap(),
+                read_cluster_row(conn, "s1", "standard-tag")?.unwrap(),
+            ))
+        })
+        .unwrap();
+    assert_ne!(standard_key.0, deluxe_key.0);
+    assert_ne!(standard_key.1, deluxe_key.1);
+    assert_eq!(standard_key.0, standard_tag_key.0);
+    assert_eq!(standard_key.1, standard_tag_key.1);
+}
+
+#[test]
+fn rebuild_ignores_object_shaped_albumversion_tags() {
+    let store = LibraryStore::open_in_memory();
+    let plain = track_row(
+        "s1",
+        "plain",
+        "Song",
+        Some("Artist"),
+        "Album",
+        Some("Artist"),
+        200,
+        "lib",
+    );
+    let mut malformed = plain.clone();
+    malformed.id = "malformed".into();
+    malformed.raw_json = r#"{"tags":{"albumversion":{"name":"Deluxe"}}}"#.into();
+    TrackRepository::new(&store)
+        .upsert_batch(&[plain, malformed])
+        .unwrap();
+
+    rebuild_cluster_keys(&store, None).unwrap();
+
+    let (plain_key, malformed_key) = store
+        .with_read_conn(|conn| {
+            Ok((
+                read_cluster_row(conn, "s1", "plain")?.unwrap(),
+                read_cluster_row(conn, "s1", "malformed")?.unwrap(),
+            ))
+        })
+        .unwrap();
+    assert_eq!(plain_key.0, malformed_key.0);
+    assert_eq!(plain_key.1, malformed_key.1);
+}
+
 /// The credit-matches-a-performer test is not enough on its own: plenty of
 /// libraries tag compilation tracks with the label as the track artist too.
 /// Then the label matches, and two unrelated compilations sharing a title

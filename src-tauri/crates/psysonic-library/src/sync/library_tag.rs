@@ -1,9 +1,10 @@
-//! Post-sync library membership tagging for whole-server bulk ingests.
+//! Post-sync album-list enrichment for whole-server bulk ingests.
 //!
 //! Large Navidrome libraries ingest via OpenSubsonic `search3` without
 //! `libraryId` on each track. After a sync job completes, this pass pages
-//! `getAlbumList2` per music folder and tags `track.library_id` by album
-//! membership without re-ingesting tracks or touching `resync_gen`/tombstones.
+//! `getAlbumList2` per music folder, tags `track.library_id` by album membership,
+//! and copies album versions that the song payload omitted. It does not re-ingest
+//! tracks or touch `resync_gen`/tombstones.
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -21,6 +22,8 @@ use super::progress::{Progress, ProgressEvent};
 
 const ALBUM_PAGE_SIZE: u32 = 500;
 const MAX_ALBUM_LIST_REQUESTS_PER_PASS: u32 = 8;
+const ALBUM_LIST_STATE_VERSION: &str = "2";
+const ALBUM_LIST_DIRTY_STATE: &str = "dirty";
 
 /// Summary of a library-tagging pass.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -60,6 +63,10 @@ pub(crate) fn folders_hash(folders: &[MusicFolder]) -> String {
         .join("|")
 }
 
+fn album_list_state_hash(folders: &[MusicFolder]) -> String {
+    format!("{ALBUM_LIST_STATE_VERSION}|{}", folders_hash(folders))
+}
+
 /// Skip when nothing is untagged, or a prior pass made no progress on the
 /// same folder set (avoids re-paging album-less tracks forever).
 pub(crate) fn should_run_tagging_pass(
@@ -67,12 +74,16 @@ pub(crate) fn should_run_tagging_pass(
     prior: Option<&TagStateRow>,
     cursor_active: bool,
     folders_hash: &str,
+    force_album_metadata: bool,
 ) -> bool {
-    if untagged == 0 {
-        return false;
-    }
     if cursor_active {
         return true;
+    }
+    if force_album_metadata {
+        return true;
+    }
+    if untagged == 0 {
+        return prior.is_none_or(|state| state.folders_hash != folders_hash);
     }
     if let Some(p) = prior {
         if p.last_untagged_count == untagged && p.folders_hash == folders_hash {
@@ -184,6 +195,30 @@ fn write_tag_completion(
         .map_err(|e| SyncError::Storage(e.to_string()))
 }
 
+fn clear_tag_cursor(store: &LibraryStore, server_id: &str) -> Result<(), SyncError> {
+    store
+        .with_conn_mut("library_tag.clear_cursor", |conn| {
+            conn.execute(
+                "DELETE FROM library_tag_cursor WHERE server_id = ?1",
+                rusqlite::params![server_id],
+            )
+        })
+        .map_err(|e| SyncError::Storage(e.to_string()))?;
+    Ok(())
+}
+
+fn clear_tag_state(store: &LibraryStore, server_id: &str) -> Result<(), SyncError> {
+    store
+        .with_conn_mut("library_tag.clear_state", |conn| {
+            conn.execute(
+                "DELETE FROM library_tag_state WHERE server_id = ?1",
+                rusqlite::params![server_id],
+            )
+        })
+        .map_err(|e| SyncError::Storage(e.to_string()))?;
+    Ok(())
+}
+
 fn check_cancel(cancel: Option<&Arc<AtomicBool>>) -> Result<(), SyncError> {
     if cancel.is_some_and(|c| c.load(Ordering::Relaxed)) {
         return Err(SyncError::Cancelled);
@@ -192,11 +227,13 @@ fn check_cancel(cancel: Option<&Arc<AtomicBool>>) -> Result<(), SyncError> {
 }
 
 /// Best-effort post-sync pass: enumerate music folders, page scoped album
-/// lists, and fill empty `track.library_id` values by album membership.
+/// lists, fill empty `track.library_id` values, and preserve album versions
+/// omitted by `search3` song rows.
 ///
-/// When `require_untagged` is true (delta sync), returns immediately if no
-/// untagged tracks exist. Initial sync passes `false` so the gating logic
-/// still runs after folder enumeration.
+/// When `require_untagged` is true (an unchanged delta), returns immediately
+/// if membership and the versioned metadata cursor are already complete. A
+/// changed delta and initial sync pass `false` so album versions are refreshed
+/// even when every track already has a library id.
 pub async fn tag_library_membership(
     store: &LibraryStore,
     subsonic: &SubsonicClient,
@@ -210,11 +247,15 @@ pub async fn tag_library_membership(
         .count_untagged_tracks(server_id)
         .map_err(SyncError::Storage)?;
     let cursor = read_tag_cursor(store, server_id)?;
+    let prior = read_tag_state(store, server_id)?;
 
-    if require_untagged && untagged == 0 {
-        if let Some(cursor) = cursor.as_ref() {
-            write_tag_completion(store, server_id, &cursor.folders_hash, 0)?;
-        }
+    if require_untagged
+        && untagged == 0
+        && cursor.is_none()
+        && prior
+            .as_ref()
+            .is_some_and(|state| state.folders_hash.starts_with("2|"))
+    {
         return Ok(TagReport {
             folders_processed: 0,
             albums_processed: 0,
@@ -230,6 +271,12 @@ pub async fn tag_library_membership(
         .await
         .map_err(SyncError::from)?;
     if folders.is_empty() {
+        write_tag_completion(
+            store,
+            server_id,
+            &album_list_state_hash(&folders),
+            untagged,
+        )?;
         return Ok(TagReport {
             folders_processed: 0,
             albums_processed: 0,
@@ -242,10 +289,22 @@ pub async fn tag_library_membership(
 
     let mut folders = folders;
     folders.sort_by(|a, b| a.id.cmp(&b.id));
-    let hash = folders_hash(&folders);
-    let prior = read_tag_state(store, server_id)?;
+    let hash = album_list_state_hash(&folders);
     let active_cursor = cursor.as_ref().filter(|cursor| cursor.folders_hash == hash);
-    if !should_run_tagging_pass(untagged, prior.as_ref(), active_cursor.is_some(), &hash) {
+    let restart_after_active_dirty = active_cursor.is_some()
+        && prior
+            .as_ref()
+            .is_some_and(|state| state.folders_hash == ALBUM_LIST_DIRTY_STATE);
+    if cursor.is_some() && active_cursor.is_none() {
+        clear_tag_cursor(store, server_id)?;
+    }
+    if !should_run_tagging_pass(
+        untagged,
+        prior.as_ref(),
+        active_cursor.is_some(),
+        &hash,
+        !require_untagged,
+    ) {
         return Ok(TagReport {
             folders_processed: 0,
             albums_processed: 0,
@@ -305,10 +364,9 @@ pub async fn tag_library_membership(
                 }
                 break;
             }
-            let album_ids: Vec<String> = page.iter().map(|a| a.id.clone()).collect();
-            albums_processed += album_ids.len() as u32;
+            albums_processed += page.len() as u32;
             let tagged = tracks
-                .tag_library_by_album_ids(server_id, &folder.id, &album_ids)
+                .apply_album_list_page(server_id, &folder.id, &page)
                 .map_err(SyncError::Storage)?;
             tracks_tagged += tagged;
 
@@ -321,7 +379,13 @@ pub async fn tag_library_membership(
         .count_untagged_tracks(server_id)
         .map_err(SyncError::Storage)?;
     if completed {
-        write_tag_completion(store, server_id, &hash, untagged_remaining)?;
+        if restart_after_active_dirty {
+            write_tag_cursor(store, server_id, &hash, &folders[0].id, 0)?;
+            clear_tag_state(store, server_id)?;
+            completed = false;
+        } else {
+            write_tag_completion(store, server_id, &hash, untagged_remaining)?;
+        }
     }
 
     Ok(TagReport {

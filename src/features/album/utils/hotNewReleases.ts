@@ -15,6 +15,18 @@ function createdAtMs(album: SubsonicAlbum): number | null {
   return Number.isFinite(value) ? value : null;
 }
 
+function albumVersionFromTags(tags: unknown): string | null {
+  if (!tags || typeof tags !== 'object' || Array.isArray(tags)) return null;
+  const albumversion = (tags as Record<string, unknown>).albumversion;
+  const values = Array.isArray(albumversion) ? albumversion : [albumversion];
+  for (const value of values) {
+    if (typeof value !== 'string') continue;
+    const version = value.trim();
+    if (version) return version;
+  }
+  return null;
+}
+
 export interface ResolvedHotNewRelease {
   album: SubsonicAlbum;
   group: number;
@@ -101,10 +113,13 @@ export async function fetchHotNewReleases(
       scopes,
       albums: results.map(album => ({
         serverId: album.serverId ?? '',
-        id: album.id,
-        name: album.name,
-        artist: album.displayArtist?.trim() || album.artist?.trim() || null,
-      })),
+          id: album.id,
+          name: album.name,
+          artist: album.displayArtist?.trim() || album.artist?.trim() || null,
+          version: album.version?.trim()
+            || albumVersionFromTags(album.tags)
+            || null,
+        })),
     });
     if (resolutions.length !== results.length) return [];
     return results.map((album, index) => ({ album, ...resolutions[index]! }));

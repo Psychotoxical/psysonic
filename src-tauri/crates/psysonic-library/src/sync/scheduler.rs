@@ -325,7 +325,7 @@ impl<'a> BackgroundScheduler<'a> {
             &self.server_id,
             self.cancel.clone(),
             Arc::clone(&self.progress),
-            true,
+            delta_report.up_to_date,
         )
         .await;
 

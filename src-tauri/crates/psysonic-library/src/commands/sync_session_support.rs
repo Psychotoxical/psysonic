@@ -446,7 +446,11 @@ async fn library_sync_start_with_admission(
                 if let Some(creds) = navidrome_creds.clone() {
                     runner = runner.with_navidrome_credentials(creds);
                 }
-                let run = sync_outcome_to_result(runner.run().await, admission);
+                let outcome = runner.run().await;
+                let require_untagged = outcome
+                    .as_ref()
+                    .map_or(true, |report| force_full_tombstone || report.up_to_date);
+                let run = sync_outcome_to_result(outcome, admission);
                 if run.is_ok() {
                     run_tag_pass_best_effort(
                         &store,
@@ -454,7 +458,7 @@ async fn library_sync_start_with_admission(
                         &session_clone.server_id,
                         Some(Arc::clone(&cancel_for_task)),
                         Arc::clone(&progress),
-                        true,
+                        require_untagged,
                     )
                     .await;
                 }

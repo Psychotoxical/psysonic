@@ -212,6 +212,71 @@ fn sparse_remap_merges_from_resolved_old_row_before_deleting_it() {
 }
 
 #[test]
+fn sparse_remap_invalidates_album_list_state_and_marks_preserved_version_pending() {
+    let store = LibraryStore::open_in_memory();
+    let repo = TrackRepository::new(&store);
+    let mut old = row_with_id_hash("s1", "tr_old", "deadbeef", "/path/x.flac");
+    old.raw_json = json!({
+        "id": "tr_old",
+        "tags": { "albumversion": ["", "Stale authoritative value"] }
+    })
+    .to_string();
+    repo.upsert_batch(&[old]).unwrap();
+    store
+        .with_conn_mut("test.seed_library_tag_state", |conn| {
+            conn.execute(
+                "INSERT INTO library_tag_state \
+                 (server_id, folders_hash, last_untagged_count, completed_at) \
+                 VALUES ('s1', '2|1:Main', 0, 1)",
+                [],
+            )?;
+            conn.execute(
+                "INSERT INTO library_tag_cursor \
+                 (server_id, folders_hash, next_folder_id, next_album_offset, updated_at) \
+                 VALUES ('s1', '2|1:Main', '1', 500, 1)",
+                [],
+            )?;
+            Ok(())
+        })
+        .unwrap();
+
+    let mut incoming = row_with_id_hash("s1", "tr_new", "deadbeef", "/path/x.flac");
+    incoming.raw_json = json!({ "id": "tr_new", "title": "Title" }).to_string();
+    repo.upsert_sparse_batch_with_remap(&[incoming], true)
+        .unwrap();
+
+    let (state_hash, cursor_count, raw): (String, i64, String) = store
+        .with_read_conn(|conn| {
+            Ok((
+                conn.query_row(
+                    "SELECT folders_hash FROM library_tag_state WHERE server_id = 's1'",
+                    [],
+                    |row| row.get(0),
+                )?,
+                conn.query_row(
+                    "SELECT COUNT(*) FROM library_tag_cursor WHERE server_id = 's1'",
+                    [],
+                    |row| row.get(0),
+                )?,
+                conn.query_row(
+                    "SELECT raw_json FROM track WHERE server_id = 's1' AND id = 'tr_new'",
+                    [],
+                    |row| row.get(0),
+                )?,
+            ))
+        })
+        .unwrap();
+    let raw: serde_json::Value = serde_json::from_str(&raw).unwrap();
+    assert_eq!(state_hash, "dirty");
+    assert_eq!(cursor_count, 1);
+    assert_eq!(raw["albumVersion"], json!("Stale authoritative value"));
+    assert_eq!(
+        raw["_psysonicAlbumVersionNeedsListRefresh"],
+        json!(true)
+    );
+}
+
+#[test]
 fn sparse_remap_keeps_newer_timestamps_on_an_existing_destination() {
     let store = LibraryStore::open_in_memory();
     let repo = TrackRepository::new(&store);
