@@ -8,115 +8,74 @@ Within each section, order by **user impact** (most noticeable first) — not PR
 `CHANGELOG.md` keeps strict PR order inside Added / Changed / Fixed.
 
 
-## [1.51.0]
+## [1.52.0]
 
 ## Highlights
 
-### Simultaneous multi-server support
+### Offline downloads — resume safely on slow connections
 
-- Psysonic works with several music servers simultaneously — not by switching between them, but by bringing them together in one live library. Select music folders from every configured server in one priority-ordered scope.
-- **Home, Albums, Artists, Composers, Genres, Favourites, Playlists, Folder Browser, Search, Most Played, Statistics**, and detail pages browse all selected servers as one catalogue.
-- Matching tracks, albums, and artists are de-duplicated without losing their physical sources, so artwork, playback, metadata, favourites, ratings, playlists, sharing, offline pins, device sync, and Orbit still reach the correct server.
-- Each server now syncs and reports reachability independently. An unavailable or still-indexing server no longer blocks the rest of the selected library.
+- Original-quality downloads no longer fail merely because a slow server needs more than two minutes. Transfers can continue for as long as data keeps arriving.
+- An interrupted download resumes from a verified partial file instead of starting over. Changed or unsafe responses discard the partial cleanly, while cancellation, disk-space reservations, and concurrent attempts remain protected.
+- Album, artist, playlist, and favourites pins keep every server owner, survive restarts and server-address migrations, and stay cancelled when you remove them.
 
-### Streaming quality — per-address Navidrome profiles
+### Album catalogue — switch between cards and a detailed table
 
-- Saved Navidrome addresses can request the original stream or a **320–64 kbps** ceiling, with **Auto, MP3, Opus**, or **AAC** as the target format. LAN and public addresses can keep different profiles.
-- Offline pins, synced favourites, and Hot Cache still preserve original files. Analysis remains anchored to the original fingerprint, so transcoded playback does not fragment one track into several identities.
-- The quality badge in the queue, Now Playing, mobile player, and immersive fullscreen now shows the format Psysonic actually decoded, with the original format available in a tooltip.
+- **All Albums, New Releases**, and **Lossless** can switch independently between the familiar card grid and a table. Each page remembers its own choice.
+- The table shows cover, title, artist, song count, year, duration, and date added, removes columns gracefully on narrower windows, and sorts from the title and year headers.
+- Song counts, durations, and added dates now remain available across filtered album views. Albums added in the last two days also carry the new-release ribbon on the **All Albums** grid.
 
-### Audio visualizer — spectrum, scopes, and fullscreen views
+### Playlists — know what is yours and sort it everywhere
 
-- **Now Playing** and every fullscreen-player style can show a spectrum, oscilloscope, radial scope, or stereo field using cover-derived or theme colours, with an expanded window view.
-- Configure sensitivity, response, frame rate, and peak markers under **Settings → Appearance → Visualizer**. Separate switches let you enable it for Now Playing, fullscreen, or both.
-- Internet radio is supported while its equalizer audio graph is active.
-- Narrow bass bands now move smoothly instead of forming flat plateaus, while their frequency positions remain accurate at standard and Hi-Res sample rates.
+- When a server mixes your playlists with everyone else's public lists, the **Playlists** page and sidebar can separate your own, the ones you share, and the ones shared with you. The filter appears only when shared playlists exist.
+- Sidebar playlists show their cover and song count, while playlists without artwork keep the simple list icon.
+- Order the page and sidebar together by name, creation date, or song count. The choice is remembered and still works with folders and search.
 
-### Themes — local assets and easier discovery
+### Artist pages — every track they perform on
 
-- Themes can bundle local images and fonts for richer designs while remaining fully offline. Theme Store installs and imported `.zip` themes both support them.
-- The store suggests a random theme from deeper in the catalogue and lets you pick another, making older themes easier to discover.
-- Themes that require a newer Psysonic clearly say so instead of failing during installation or update.
+- Artist pages now pair the familiar **Popular tracks** ranking with an **All tracks** tab containing every song that artist performs on, including compilations and guest appearances.
+- The complete list is ordered by album, disc, and track number, supports sorting from every column, and lets you choose which metadata columns to show. It loads from the local index only when you open the tab, so the page remains quick to enter.
 
-### Artist credits — every artist is within reach
+### Scrobbling — choose the threshold or send it now
 
-- Artist names are clickable in all fullscreen styles, the detached mini player, and the mobile layout.
-- Joined credits such as “Primary feat. Guest” are separated into individual artist links across album headers and track lists, while names such as AC/DC stay intact.
-- Artist pages again separate the main discography from **Also featured on**, group releases by type, and show biographies, Last.fm links, and compilations under the correct artist.
+- **Settings → Integrations → Music Network** now lets you choose a **25–90%** scrobble threshold; the default remains 50%.
+- Advanced settings can add **Force scrobble** to the player bar and fullscreen player. It shows listening progress and can submit the current track immediately to the media server and every enabled Music Network destination.
 
-### Album details — artwork and ordering for every disc
+### Full Ukrainian interface
 
-- Multi-disc albums show each disc's own cover beside **CD N** when the server provides distinct artwork. The queue, mini-cover, and listener view use the same per-disc art on Navidrome.
-- Playing a multi-disc album from its header now queues disc 1 in full before disc 2 instead of interleaving tracks by track number.
+- Ukrainian (**Українська**) is available from the language picker on the Login and Settings screens, with the full interface translated.
+- Counts use the correct one, few, and many forms, and Ukrainian Cyrillic is folded consistently when matching the same release across several servers.
 
-### Random Mix — combine several genres
+### Navidrome upgrades — keep local data intact
 
-- Select several genre chips to build one balanced random playlist instead of replacing the previous selection. Duplicate tracks are removed before playback.
-- Selected genres remain visible while you browse another set of popular genres, and rapid changes keep only the newest mix.
-
-### Timeline — replay from any point in listening history
-
-- Right-click a past Timeline track and choose **Play from Here** to replay that occurrence, every later history entry, and the existing **Up Next** list in their original order, including mixed-server ownership.
-
-### Audio controls — fade smoothly when pausing and resuming
-
-- **Settings → Audio → Track transitions** can fade playback out before pausing and back in when resuming, with a configurable **0.1–2.0 second** duration. Rapid pause, resume, and stop actions cancel stale fades safely.
-
-### Fullscreen player — volume everywhere
-
-- **Minimal** and **Immersive** now include the same mute button and always-visible volume slider already available in **Prism**.
+- When a newer Navidrome switches albums, artists, and tracks to canonical IDs, Psysonic safely migrates the local library, analysis results, offline downloads, cached covers, and saved app state before completing a full verification sync.
+- The migration resumes after interruption and prevents playback, sync, imports, or background work from seeing a half-converted library. Navidrome 0.63.2 and older servers, and other Subsonic servers, continue as before.
 
 ## Improved
 
-- Large libraries do less repeated work while Home, Albums, Artists, New Releases, Lossless Albums, and Search mount, paginate, or restore. Useful content appears before non-visible enrichment and cover prefetching.
-- Waveform, loudness, and enrichment reuse audio already loaded for playback, preload, cache, and local files instead of downloading the original again. Background analysis stays bounded while active playback takes priority.
-- Back from an album opened through an artist or related release now returns to the page you just left, and a second Back restores the original browse page and state.
-- **Highly Rated** reshuffles within each rating tier when rerolled instead of returning the same fixed selection.
-- The dead **YouLyPlus** lyrics source has been removed. If it was your only enabled source, **LRCLIB** is switched on automatically; embedded and Navidrome word-by-word lyrics are unaffected.
+- Hovering a shortened card title or artist now reveals the complete text across album, artist, playlist, radio, song, and offline cards. The tooltip appears only when text is actually truncated and can be disabled under **Settings → Appearance → Display**.
+- Album cards and the offline play button now use the selected language for screen-reader labels instead of always announcing a German word.
+- **Windows:** update notices now wait 12 hours for WinGet moderation instead of two days, making new releases visible roughly a day and a half sooner without pointing at a version WinGet cannot install yet.
+- Help now covers multi-server browsing, Timeline playback, per-address streaming quality, album tables, shared playlists, composers, the visualizer, themes, and background sources, while outdated answers and settings paths have been removed.
 
 ## Fixed
 
 ### Playback and audio
 
-- Gapless MP3 albums no longer insert encoder silence between tracks when the files provide standard delay and padding information.
-- Surround tracks played through stereo speakers or headphones now mix every channel into the two you hear instead of dropping the centre, bass, and rear channels. Devices that support surround keep the original channel layout.
-- **Linux:** playback remains smooth under heavy CPU load, and ALSA or PipeWire sample-rate negotiation no longer causes half-speed, double-speed, or pitch-shifted audio. Hi-Res and gapless playback advance the queue reliably.
-- **Linux:** volume changes through desktop media controls now stay in sync with Psysonic in both directions.
-- AIFF, AIF, and AIFC tracks now play from servers, local files, and caches, including servers without byte-range support.
-- Resuming after a long pause no longer lets Now Playing run several tracks ahead of the audio.
-- Adding a track to a queue you cleared now mounts and starts the first track immediately.
-
-### Offline, Now Playing, and Navidrome
-
-- Hot Cache prefetches every mixed-server queue item from its owning server and protects the current and next tracks without confusing identical IDs from another server.
-- Albums and tracks deleted on the server retire from the local library reliably, while incomplete server responses no longer erase valid indexed data.
-- Removing a server profile stops its background sync and clears its local library state when requested; shared profiles keep the common index.
-- Freshly prepared offline tracks keep the correct sync time instead of appearing to date from 1970.
-
-### Themes and integrations
-
-- Orbit invites recognise server addresses with or without an entered protocol and match a configured second address, so valid guests are no longer refused.
-- Music Network reports a clearer message when a VPN, proxy, captive portal, or service webpage blocks a scrobbling connection.
+- Synced lyrics now follow playback continuously instead of lighting up inconsistently or nearly a second late. Every lyrics view uses the same position, including after seeking while paused.
+- Tracks played in Psysonic update their play count and last played date as soon as the server records the scrobble, including native Navidrome connections.
 
 ### Browse and library
 
-- **New Releases** loads continuously on large libraries without the long pause or window lock-up, and duplicate physical copies no longer reappear in the freshness overlay.
-- The **Artists** page no longer remains on an endless spinner for large selected libraries.
-- Genre pages show accurate de-duplicated album counts for the full selected scope and load their first indexed page substantially faster.
-- New Releases and Lossless Albums continue loading while you remain at the bottom instead of stalling after a few pages.
-- Artist and compilation pages keep **Various Artists**, guest appearances, release groups, biographies, similar artists, and album-artist links attached to the right owner.
-- The **Composers** letter bar includes **Other**, so names beginning with punctuation or non-Latin characters can be found again.
+- Albums, queue rows, playlists, favourites, search results, Random Mix, and Home song cards no longer start dragging after a held press loses or replaces its original row.
+- **Live Search** no longer shows the same artist, album, or song twice when the local index and server response use different forms of the same server identity.
+- Navidrome background sync preserves structured multi-artist credits instead of collapsing them into one comma-joined name.
+- The library selector can choose an individual music folder again after updating from Psysonic 1.50 to 1.51, with invalid saved scope repaired during startup.
+- Album, artist, favourites, and playlist tracklists now show and sort by locally analysed BPM when it is available.
+- Navidrome timestamps with negative UTC offsets populate **New Releases**, favourites, and last played dates again, with safe legacy values repaired gradually in the background.
+- Standard, deluxe, remastered, and other physical versions of an album stay separate, while matching copies of the same version can still merge across servers.
 
 ### Other
 
-- The startup splash stays visible until initial content is ready, and startup window controls, close, tray Exit, mini-player restore, and second-instance focus actions are no longer lost during startup or reload.
-- Internet radio keeps UTF-8 track titles readable, preserves station homepage URLs after editing, and no longer blanks packaged Linux builds.
-- **Linux:** MangoWM is recognised as a tiling window manager; AppImage manager installs resolve the bundled icon correctly.
-- Device-sync migration refuses paths that would escape the folder you selected and clearly reports a drive that disappears mid-migration.
-- Psysonic has a refreshed app icon.
-- Secondary buttons have visible outlines before hover, compact form actions stay aligned, and genre-page controls have clearer labels and spacing.
-
-## Under the hood
-
-- The local library index now keeps server ownership, music-folder scope, and cross-server identity separately, allowing combined catalogues without repeatedly merging full server responses in the UI.
-- Interrupted large syncs resume through a durable invalidation journal, and affected databases repair stale query-planner statistics instead of entering a long CPU-heavy rebuild after restart.
+- **Linux/KDE Plasma:** Space, F11, and other shortcuts work immediately after returning to Psysonic with Alt+Tab, without requiring an extra click inside the window.
+- Turning off **Show Tray Icon** also disables tray-dependent minimise settings, and unsafe saved combinations are repaired so closing Psysonic cannot leave it hidden with no way to reopen it.
+- Ukrainian settings descriptions include their full security, privacy, source, and playback warnings again.
