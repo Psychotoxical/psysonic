@@ -60,6 +60,108 @@ describe('pickMainStructuredLyrics', () => {
   });
 });
 
+// A FLAC whose LYRICS vorbis comment is repeated once per line: the server maps
+// each tag value to its own entry, so one layer arrives as N single-line entries
+// with the same lang and sync state. Shape taken from a Navidrome 0.63.2
+// response. Picking only the first entry showed one line (issue #1472).
+describe('pickMainStructuredLyrics with a layer split across entries', () => {
+  const split = [
+    lyrics({ lang: 'xxx', synced: true, line: [{ start: 1000, value: 'line one' }] }),
+    lyrics({ lang: 'xxx', synced: true, line: [{ start: 5000, value: 'line two' }] }),
+    lyrics({ lang: 'xxx', synced: true, line: [{ start: 9000, value: 'line three' }] }),
+  ];
+
+  it('concatenates the entries into one layer', () => {
+    expect(pickMainStructuredLyrics(split)?.line).toEqual([
+      { start: 1000, value: 'line one' },
+      { start: 5000, value: 'line two' },
+      { start: 9000, value: 'line three' },
+    ]);
+  });
+
+  it('leaves a single multi-line entry untouched', () => {
+    // The same tag written as one multi-line value — the shape that already worked.
+    const whole = lyrics({
+      lang: 'xxx',
+      synced: true,
+      line: [
+        { start: 1000, value: 'line one' },
+        { start: 5000, value: 'line two' },
+      ],
+    });
+    expect(pickMainStructuredLyrics([whole])).toBe(whole);
+  });
+
+  it('does not absorb a translation sharing the language', () => {
+    const translation = lyrics({
+      kind: 'translation',
+      lang: 'xxx',
+      synced: true,
+      line: [{ start: 1000, value: 'translated' }],
+    });
+    expect(pickMainStructuredLyrics([...split, translation])?.line).toHaveLength(3);
+  });
+
+  it('keeps kinds apart when no entry is main', () => {
+    // The only path where `kind` decides the grouping: with no main layer the
+    // pool is unfiltered, so translation and pronunciation reach it together
+    // and must not be concatenated into one.
+    const translation = lyrics({ kind: 'translation', lang: 'xxx', synced: true, line: [{ start: 1000, value: 'translated' }] });
+    const pronunciation = lyrics({ kind: 'pronunciation', lang: 'xxx', synced: true, line: [{ start: 1000, value: 'spoken' }] });
+    const picked = pickMainStructuredLyrics([translation, pronunciation]);
+    expect(picked?.line).toEqual([{ start: 1000, value: 'translated' }]);
+  });
+
+  it('does not absorb an unsynced entry of the same language', () => {
+    const unsynced = lyrics({ lang: 'xxx', line: [{ value: 'plain' }] });
+    expect(pickMainStructuredLyrics([...split, unsynced])?.line).toHaveLength(3);
+  });
+
+  it('keeps a different language as its own layer', () => {
+    const other = lyrics({ lang: 'eng', synced: true, line: [{ start: 1000, value: 'english' }] });
+    expect(pickMainStructuredLyrics([...split, other])?.line).toHaveLength(3);
+  });
+
+  it('shifts cue line indexes onto the concatenated line positions', () => {
+    // Without the shift every appended cue line would point at line 0 and
+    // highlight the wrong words.
+    const withCues = split.map((entry, i) =>
+      lyrics({ ...entry, cueLine: [{ index: 0, value: entry.line[0].value, cue: [
+        { start: (i + 1) * 1000, value: entry.line[0].value, byteStart: 0, byteEnd: 7 },
+      ] }] }),
+    );
+    expect(pickMainStructuredLyrics(withCues)?.cueLine?.map(c => c.index)).toEqual([0, 1, 2]);
+  });
+
+  it('reassembles fields of uneven length', () => {
+    // A tag field can hold a whole verse, so the pieces are not one line each.
+    // Shape measured on Navidrome 0.63.2 for three fields, the middle one
+    // holding two lines.
+    const uneven = [
+      lyrics({ lang: 'xxx', synced: true, line: [{ start: 1000, value: 'line one' }] }),
+      lyrics({ lang: 'xxx', synced: true, line: [
+        { start: 5000, value: 'line two' }, { start: 7000, value: 'line two b' },
+      ] }),
+      lyrics({ lang: 'xxx', synced: true, line: [{ start: 9000, value: 'line three' }] }),
+    ];
+    expect(pickMainStructuredLyrics(uneven)?.line).toHaveLength(4);
+  });
+
+  it('ignores entries whose line array is missing', () => {
+    // Raw server JSON: `line` is required by the type but can be absent in
+    // practice. Reaching `parseStructuredLyrics` with one throws out of the
+    // fetch pipeline uncaught, which would hang the pane on "loading".
+    const malformed = { lang: 'xxx', synced: true } as unknown as SubsonicStructuredLyrics;
+    expect(() => pickMainStructuredLyrics([malformed, ...split])).not.toThrow();
+    expect(pickMainStructuredLyrics([malformed, ...split])?.line).toHaveLength(3);
+  });
+
+  it('returns null when no entry has a usable line array', () => {
+    const malformed = { lang: 'xxx', synced: true } as unknown as SubsonicStructuredLyrics;
+    expect(pickMainStructuredLyrics([malformed])).toBeNull();
+  });
+});
+
 describe('getLyricsBySongId', () => {
   it('omits the enhanced parameter by default', async () => {
     apiMock.mockResolvedValue({ lyricsList: { structuredLyrics: [lyrics()] } });
