@@ -4139,7 +4139,7 @@ dependencies = [
 
 [[package]]
 name = "psysonic"
-version = "1.52.0-dev"
+version = "1.53.0-dev"
 dependencies = [
  "biquad",
  "dasp_sample",
@@ -4195,7 +4195,7 @@ dependencies = [
 
 [[package]]
 name = "psysonic-analysis"
-version = "1.52.0-dev"
+version = "1.53.0-dev"
 dependencies = [
  "ebur128",
  "futures-util",
@@ -4216,7 +4216,7 @@ dependencies = [
 
 [[package]]
 name = "psysonic-audio"
-version = "1.52.0-dev"
+version = "1.53.0-dev"
 dependencies = [
  "alsa",
  "biquad",
@@ -4248,7 +4248,7 @@ dependencies = [
 
 [[package]]
 name = "psysonic-core"
-version = "1.52.0-dev"
+version = "1.53.0-dev"
 dependencies = [
  "libc",
  "md5",
@@ -4262,7 +4262,7 @@ dependencies = [
 
 [[package]]
 name = "psysonic-integration"
-version = "1.52.0-dev"
+version = "1.53.0-dev"
 dependencies = [
  "discord-rich-presence",
  "futures-util",
@@ -4280,7 +4280,7 @@ dependencies = [
 
 [[package]]
 name = "psysonic-library"
-version = "1.52.0-dev"
+version = "1.53.0-dev"
 dependencies = [
  "psysonic-core",
  "psysonic-integration",
@@ -4296,7 +4296,7 @@ dependencies = [
 
 [[package]]
 name = "psysonic-syncfs"
-version = "1.52.0-dev"
+version = "1.53.0-dev"
 dependencies = [
  "fs4",
  "futures-util",
