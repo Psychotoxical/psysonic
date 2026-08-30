@@ -197,6 +197,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Standard, deluxe, remastered and other physical versions of the same album no longer collapse into one release in combined libraries, artist discographies or Album Detail. Matching copies of the same version still merge across servers.
 * Existing libraries rebuild their derived identity keys once after updating; the library database and user state are unchanged.
 
+### Synced lyrics in FLAC files show every line
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), issue reported by [@Naharie](https://github.com/Naharie), PR [#1474](https://github.com/Psysonic/psysonic/pull/1474)**
+
+* A FLAC whose lyrics tag is written one field per line only showed the first line, while the same lyrics in an MP3 displayed in full. Every part of the lyrics is now reassembled, whether the tag was written line by line, verse by verse or as a single block.
+* Word-by-word highlighting keeps pointing at the right words across the reassembled lines, and a malformed lyrics response no longer leaves the panel stuck loading.
+
 ## [1.51.0] - 2026-08-17
 
 ## Added
