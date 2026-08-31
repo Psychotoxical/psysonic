@@ -9,6 +9,9 @@ import {
   errorI18nKey,
   getMusicNetworkRuntime,
   isMusicNetworkError,
+  isSameScrobbleTarget,
+  scrobbleTargetRef,
+  type Account,
   type PresetId,
   type UserProfile,
 } from '@/music-network';
@@ -32,7 +35,7 @@ import {
  */
 export function MusicNetworkSection() {
   const { t } = useTranslation();
-  const { accounts, enrichmentPrimaryId, scrobblingMasterEnabled } = useMusicNetworkState();
+  const { accounts, enrichmentPrimaryId, scrobblingMasterEnabled, scrobbleQueue } = useMusicNetworkState();
   const scrobbleThresholdPercent = useAuthStore(s => s.scrobbleThresholdPercent);
   const setScrobbleThresholdPercent = useAuthStore(s => s.setScrobbleThresholdPercent);
   const advancedSettingsEnabled = useAuthStore(s => s.advancedSettingsEnabled);
@@ -80,6 +83,12 @@ export function MusicNetworkSection() {
       );
     }
   };
+
+  // Plays still owed to this destination. Counted here rather than in the card so
+  // the card stays presentational, and matched on the destination identity — the
+  // queue outlives the account id it was created under.
+  const owedFor = (account: Account) =>
+    scrobbleQueue.filter(e => isSameScrobbleTarget(e.target, scrobbleTargetRef(account))).length;
 
   const connectedPresetIds = accounts.map(a => a.presetId);
 
@@ -153,6 +162,7 @@ export function MusicNetworkSection() {
                   account={account}
                   profile={account.id === enrichmentPrimaryId ? primaryProfile : null}
                   onToggleScrobble={v => toggleScrobble(account.id, v)}
+                  owedCount={owedFor(account)}
                   onDisconnect={() => disconnect(account.id)}
                 />
               ))}

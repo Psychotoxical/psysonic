@@ -18,6 +18,7 @@ export {
   type LegacyLastfmState,
 } from './runtime/accountPersistence';
 
+export { isSameScrobbleTarget, scrobbleTargetRef } from './core/accounts';
 export type {
   Account,
   AccountPatch,
@@ -25,6 +26,7 @@ export type {
   MusicNetworkState,
   PersistedAccount,
   QueuedScrobble,
+  ScrobbleTargetRef,
 } from './core/accounts';
 export type {
   CapabilityId,

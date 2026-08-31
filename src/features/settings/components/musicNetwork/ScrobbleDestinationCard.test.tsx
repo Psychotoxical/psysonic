@@ -26,6 +26,7 @@ describe('ScrobbleDestinationCard', () => {
       <ScrobbleDestinationCard
         account={account}
         profile={null}
+        owedCount={0}
         onToggleScrobble={() => {}}
         onDisconnect={() => {}}
       />,
@@ -35,5 +36,47 @@ describe('ScrobbleDestinationCard', () => {
     // close cross; a disconnect action is neither.
     const button = screen.getByRole('button');
     expect(button).not.toHaveClass('btn-ghost--flat');
+  });
+
+  it('says nothing about owed plays when there are none', () => {
+    renderWithProviders(
+      <ScrobbleDestinationCard
+        account={account}
+        profile={null}
+        owedCount={0}
+        onToggleScrobble={() => {}}
+        onDisconnect={() => {}}
+      />,
+    );
+
+    expect(screen.queryByText(/waiting to be sent/i)).not.toBeInTheDocument();
+  });
+
+  it('reports plays kept for this destination, with a singular for one', () => {
+    renderWithProviders(
+      <ScrobbleDestinationCard
+        account={account}
+        profile={null}
+        owedCount={1}
+        onToggleScrobble={() => {}}
+        onDisconnect={() => {}}
+      />,
+    );
+
+    expect(screen.getByText('1 play waiting to be sent')).toBeInTheDocument();
+  });
+
+  it('uses the plural for several', () => {
+    renderWithProviders(
+      <ScrobbleDestinationCard
+        account={account}
+        profile={null}
+        owedCount={4}
+        onToggleScrobble={() => {}}
+        onDisconnect={() => {}}
+      />,
+    );
+
+    expect(screen.getByText('4 plays waiting to be sent')).toBeInTheDocument();
   });
 });
