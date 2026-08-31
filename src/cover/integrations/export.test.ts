@@ -20,7 +20,10 @@ describe('albumExportCoverRef', () => {
     expect(albumExportCoverRef({ id: 'abc123' })?.fetchCoverArtId).toBe('al-abc123_0');
   });
 
-  it('returns null when the album carries no usable id', () => {
+  it('returns null without an album id, instead of rebuilding the broken ref', () => {
+    // `coverArt` as a stand-in id would rewrite back to `al-al-abc_0`.
+    expect(albumExportCoverRef({ id: '', coverArt: 'al-abc' })).toBeNull();
+    expect(albumExportCoverRef({ id: '   ', coverArt: 'al-abc' })).toBeNull();
     expect(albumExportCoverRef({ id: '', coverArt: '' })).toBeNull();
   });
 });
