@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 >
 
 
+## [1.53.0]
+
+## Fixed
+
+### Shared Top Albums pictures show their covers again
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1478](https://github.com/Psysonic/psysonic/pull/1478)**
+
+* The picture created from Statistics → Most Played Albums drew every album as an empty tile, showing only the rank and the play count. The New Albums export lost its covers the same way.
+* Covers now come from the same place the album cards get theirs, so a shared picture also reuses artwork that is already on screen instead of fetching it a second time.
+
 ## [1.52.0]
 
 ## Added
