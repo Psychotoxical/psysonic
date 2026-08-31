@@ -254,6 +254,10 @@ export function computeAuthStoreRehydration(state: AuthState): Partial<AuthState
         () => crypto.randomUUID(),
       );
       musicNetworkMigrated = {
+        // Keep the sanitized queue computed above: reassigning wholesale used to
+        // drop it, letting an unchecked blob through on exactly the run where the
+        // sanitizer matters.
+        ...musicNetworkMigrated,
         musicNetworkAccounts: migrated.accounts,
         enrichmentPrimaryId: migrated.enrichmentPrimaryId,
         scrobblingMasterEnabled: migrated.scrobblingMasterEnabled,

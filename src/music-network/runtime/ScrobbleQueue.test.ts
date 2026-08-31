@@ -10,6 +10,7 @@ import {
   withEnqueued,
   SCROBBLE_QUEUE_MAX,
   SCROBBLE_MAX_AGE_MS,
+  SCROBBLE_MAX_ATTEMPTS,
 } from './ScrobbleQueue';
 
 const NOW = 1_700_000_000_000;
@@ -105,48 +106,48 @@ describe('backoffFor', () => {
 
 describe('flushQueue', () => {
   it('clears an entry that is delivered', async () => {
-    expect(await flushQueue([entry()], deps(), NOW)).toEqual([]);
+    expect(await flushQueue([entry()], deps(), () => NOW)).toEqual([]);
     expect(w.calls).toHaveLength(1);
   });
 
   it('keeps the original play timestamp on retry', async () => {
     const played = NOW - 3_600_000;
-    await flushQueue([entry({ event: event({ timestamp: played }) })], deps(), NOW);
+    await flushQueue([entry({ event: event({ timestamp: played }) })], deps(), () => NOW);
     expect(w.calls[0].timestamp).toBe(played);
   });
 
   it('backs off further after another transport failure', async () => {
     w.failWith(new MusicNetworkError('NETWORK', 'offline'));
-    const [kept] = await flushQueue([entry({ attempts: 1 })], deps(), NOW);
+    const [kept] = await flushQueue([entry({ attempts: 1 })], deps(), () => NOW);
     expect(kept.attempts).toBe(2);
     expect(kept.nextAttemptAt).toBe(NOW + backoffFor(2));
   });
 
   it('gives up on a rejected session instead of retrying forever', async () => {
     w.failWith(new MusicNetworkError('AUTH_SESSION_INVALID', 'bad key'));
-    expect(await flushQueue([entry()], deps(), NOW)).toEqual([]);
+    expect(await flushQueue([entry()], deps(), () => NOW)).toEqual([]);
   });
 
   it('gives up on a misconfigured destination', async () => {
     w.failWith(new MusicNetworkError('CUSTOM_URL_INVALID', 'nope'));
-    expect(await flushQueue([entry()], deps(), NOW)).toEqual([]);
+    expect(await flushQueue([entry()], deps(), () => NOW)).toEqual([]);
   });
 
   it('leaves an entry alone until its backoff has passed', async () => {
     const pending = entry({ nextAttemptAt: NOW + 60_000 });
-    expect(await flushQueue([pending], deps(), NOW)).toEqual([pending]);
+    expect(await flushQueue([pending], deps(), () => NOW)).toEqual([pending]);
     expect(w.calls).toHaveLength(0);
   });
 
   it('discards plays owed to a destination the user removed', async () => {
     const orphan = entry({ accountId: 'gone' });
-    expect(await flushQueue([orphan], deps(), NOW)).toEqual([]);
+    expect(await flushQueue([orphan], deps(), () => NOW)).toEqual([]);
     expect(w.calls).toHaveLength(0);
   });
 
   it('discards a play that aged out while queued', async () => {
     const stale = entry({ event: event({ timestamp: NOW - SCROBBLE_MAX_AGE_MS - 1 }) });
-    expect(await flushQueue([stale], deps(), NOW)).toEqual([]);
+    expect(await flushQueue([stale], deps(), () => NOW)).toEqual([]);
     expect(w.calls).toHaveLength(0);
   });
 
@@ -165,7 +166,52 @@ describe('flushQueue', () => {
     const backlog = Array.from({ length: 5 }, (_, i) =>
       entry({ event: event({ timestamp: NOW - i * 1000 }) }),
     );
-    await flushQueue(backlog, deps(), NOW);
+    await flushQueue(backlog, deps(), () => NOW);
     expect(maxInFlight).toBe(1);
+  });
+});
+
+describe('queue hardening', () => {
+  it('gives up once a destination has refused often enough', async () => {
+    // The wires collapse unrecognised provider errors into NETWORK, so a
+    // permanently bad request looks transient. Without a ceiling it would be
+    // re-sent hourly until it expires.
+    w.failWith(new MusicNetworkError('NETWORK', 'nope'));
+    const exhausted = entry({ attempts: SCROBBLE_MAX_ATTEMPTS });
+    expect(await flushQueue([exhausted], deps(), () => NOW)).toEqual([]);
+  });
+
+  it('keeps retrying below the ceiling', async () => {
+    w.failWith(new MusicNetworkError('NETWORK', 'nope'));
+    const young = entry({ attempts: SCROBBLE_MAX_ATTEMPTS - 2 });
+    expect(await flushQueue([young], deps(), () => NOW)).toHaveLength(1);
+  });
+
+  it('reports progress after every entry so a crash cannot replay deliveries', async () => {
+    // Persisting only at the end would leave already-sent plays queued if the app
+    // quits mid-flush, and they would go out again on the next launch.
+    const seen: number[] = [];
+    const backlog = [
+      entry({ event: event({ timestamp: NOW - 3000 }) }),
+      entry({ event: event({ timestamp: NOW - 2000 }) }),
+      entry({ event: event({ timestamp: NOW - 1000 }) }),
+    ];
+    await flushQueue(backlog, deps(), () => NOW, remaining => seen.push(remaining.length));
+    expect(seen).toEqual([2, 1, 0]);
+  });
+
+  it('dates a retry from the attempt, not from when the flush started', async () => {
+    // A backlog can span many minutes; a timestamp taken before the loop would
+    // make every retry due again on the next tick.
+    w.failWith(new MusicNetworkError('NETWORK', 'nope'));
+    let clock = NOW;
+    const [kept] = await flushQueue([entry()], deps(), () => (clock += 60_000));
+    expect(kept.nextAttemptAt).toBeGreaterThan(NOW + backoffFor(2));
+  });
+
+  it('returns the same queue when the play is already owed', () => {
+    // Identity, not just equality — the caller skips the persist write on a no-op.
+    const q = withEnqueued([], 'a1', event(), NOW);
+    expect(withEnqueued(q, 'a1', event(), NOW)).toBe(q);
   });
 });

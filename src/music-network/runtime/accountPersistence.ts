@@ -92,8 +92,12 @@ export function sanitizeScrobbleQueue(raw: unknown): QueuedScrobble[] {
     }
     const event = entry.event as Record<string, unknown> | undefined;
     if (!event || typeof event !== 'object') return false;
-    // `timestamp` drives expiry; the rest is what the wires send on.
+    // Every field is validated, not just the ones this module reads: the wires
+    // pass the event on verbatim, and an entry missing `duration` reaches the
+    // provider as "NaN", whose rejection the retry logic mistakes for transient.
     if (typeof event.timestamp !== 'number' || !Number.isFinite(event.timestamp)) return false;
+    if (typeof event.duration !== 'number' || !Number.isFinite(event.duration)) return false;
+    if (typeof event.album !== 'string') return false;
     return typeof event.title === 'string' && typeof event.artist === 'string';
   });
 }

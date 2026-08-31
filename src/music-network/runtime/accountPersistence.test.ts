@@ -99,3 +99,21 @@ describe('sanitizeScrobbleQueue', () => {
     expect(sanitizeScrobbleQueue([good, null, { nope: true }])).toEqual([good]);
   });
 });
+
+describe('sanitizeScrobbleQueue — event completeness', () => {
+  const base = {
+    accountId: 'a1',
+    event: { title: 'T', artist: 'A', album: 'Al', duration: 200, timestamp: 1 },
+    attempts: 1,
+    nextAttemptAt: 0,
+  };
+
+  it('drops an entry whose event the wires would send on incomplete', () => {
+    // A missing duration reaches the provider as "NaN"; the rejection that comes
+    // back looks transient, so the entry would be retried until it expires.
+    const { duration: _d, ...noDuration } = base.event;
+    expect(sanitizeScrobbleQueue([{ ...base, event: noDuration }])).toEqual([]);
+    const { album: _a, ...noAlbum } = base.event;
+    expect(sanitizeScrobbleQueue([{ ...base, event: noAlbum }])).toEqual([]);
+  });
+});

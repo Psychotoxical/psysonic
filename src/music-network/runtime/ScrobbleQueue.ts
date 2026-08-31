@@ -22,6 +22,14 @@ export const SCROBBLE_MAX_AGE_MS = 14 * 24 * 60 * 60 * 1000;
 /** Ceiling on stored entries; the oldest play is dropped first. */
 export const SCROBBLE_QUEUE_MAX = 500;
 
+/**
+ * Give-up ceiling per entry. Expiry alone is not enough: the wires collapse every
+ * unrecognised provider error into NETWORK, so a permanently rejected request
+ * (bad parameters, suspended key) looks transient and would be re-sent hourly for
+ * two weeks. At the capped backoff this is roughly a day of trying.
+ */
+export const SCROBBLE_MAX_ATTEMPTS = 24;
+
 const BACKOFF_BASE_MS = 60_000;
 const BACKOFF_MAX_MS = 60 * 60_000;
 
@@ -44,12 +52,14 @@ function isSameEntry(a: QueuedScrobble, accountId: string, event: ScrobbleEvent)
  * so the caller decides when to persist.
  */
 export function withEnqueued(
-  queue: readonly QueuedScrobble[],
+  queue: QueuedScrobble[],
   accountId: string,
   event: ScrobbleEvent,
   now: number = Date.now(),
 ): QueuedScrobble[] {
-  if (queue.some(e => isSameEntry(e, accountId, event))) return [...queue];
+  // Same array back on a no-op, so callers can skip a persist write: a wire
+  // failing repeatedly on one play must not rewrite the auth blob each time.
+  if (queue.some(e => isSameEntry(e, accountId, event))) return queue;
   const next: QueuedScrobble[] = [
     ...queue,
     { accountId, event, attempts: 1, nextAttemptAt: now + backoffFor(1) },
@@ -81,23 +91,38 @@ export interface FlushDeps extends OrchestratorDeps {
 export async function flushQueue(
   queue: readonly QueuedScrobble[],
   deps: FlushDeps,
-  now: number = Date.now(),
+  clock: () => number = Date.now,
+  onProgress?: (remaining: QueuedScrobble[]) => void,
 ): Promise<QueuedScrobble[]> {
-  const next: QueuedScrobble[] = [];
+  const settled: QueuedScrobble[] = [];
+  const pending = [...queue];
   for (const entry of queue) {
+    pending.shift();
+    // Re-read per entry: a backlog against a slow provider can span many minutes,
+    // and a timestamp taken before the loop would make every retry due at once.
+    const now = clock();
     const account = deps.targets.find(a => a.id === entry.accountId);
-    // Destination removed, or the play aged out while we waited.
-    if (!account || isExpired(entry, now)) continue;
+    // Destination gone or switched off, or the play aged out while we waited.
+    if (!account || isExpired(entry, now)) {
+      onProgress?.([...settled, ...pending]);
+      continue;
+    }
     if (entry.nextAttemptAt > now) {
-      next.push(entry);
+      settled.push(entry);
+      onProgress?.([...settled, ...pending]);
       continue;
     }
     const outcome = await deliver(account, 'scrobble', entry.event, deps);
-    if (outcome === 'ok' || outcome === 'drop') continue;
     const attempts = entry.attempts + 1;
-    next.push({ ...entry, attempts, nextAttemptAt: now + backoffFor(attempts) });
+    // A destination that keeps refusing is not always honest about why: the wires
+    // collapse unrecognised provider errors into NETWORK, so a permanently bad
+    // request would otherwise be re-sent hourly for the full 14 days.
+    if (outcome === 'retry' && attempts <= SCROBBLE_MAX_ATTEMPTS) {
+      settled.push({ ...entry, attempts, nextAttemptAt: clock() + backoffFor(attempts) });
+    }
+    onProgress?.([...settled, ...pending]);
   }
-  return next;
+  return settled;
 }
 
 /** Identity of an owed play: one destination, one moment of listening. */
@@ -105,31 +130,34 @@ function identityOf(entry: QueuedScrobble): string {
   return entry.accountId + '~' + entry.event.timestamp;
 }
 
+
 /**
- * Store-bound wrapper: reads, delivers, writes back.
+ * Store-bound wrapper: reads, delivers, persists.
  *
- * Delivery can span minutes, and the live path keeps enqueueing while it runs, so
- * the result is merged against a fresh read rather than written blind. Writing the
- * snapshot-derived list alone would drop every play that failed during the flush —
- * the exact loss this feature exists to prevent.
+ * Persists after every entry rather than once at the end. Delivery can span many
+ * minutes, and a quit or crash mid-loop would otherwise leave every already-sent
+ * play in the queue, to be sent a second time on the next launch. Each write is
+ * merged against a fresh read, because the live path keeps enqueueing throughout —
+ * writing the snapshot-derived list alone would drop the plays that failed while
+ * the flush was running, the exact loss this feature exists to prevent.
  */
 export async function flushScrobbleQueue(
   store: MusicNetworkStore,
   deps: FlushDeps,
-  now: number = Date.now(),
+  clock: () => number = Date.now,
 ): Promise<void> {
   const before = store.getState().scrobbleQueue;
   if (before.length === 0) return;
-  const next = await flushQueue(before, deps, now);
-
   const seen = new Set(before.map(identityOf));
-  const arrivedDuringFlush = store
-    .getState()
-    .scrobbleQueue.filter(e => !seen.has(identityOf(e)));
-  const merged = [...next, ...arrivedDuringFlush];
 
-  const latest = store.getState().scrobbleQueue;
-  const unchanged =
-    merged.length === latest.length && merged.every((e, i) => e === latest[i]);
-  if (!unchanged) store.setScrobbleQueue(merged);
+  const persist = (remaining: readonly QueuedScrobble[]) => {
+    const live = store.getState().scrobbleQueue;
+    const arrivedDuringFlush = live.filter(e => !seen.has(identityOf(e)));
+    const merged = [...remaining, ...arrivedDuringFlush];
+    const unchanged =
+      merged.length === live.length && merged.every((e, i) => e === live[i]);
+    if (!unchanged) store.setScrobbleQueue(merged);
+  };
+
+  persist(await flushQueue(before, deps, clock, persist));
 }

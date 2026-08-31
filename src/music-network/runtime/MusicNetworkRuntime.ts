@@ -198,14 +198,15 @@ export class MusicNetworkRuntime {
     return {
       setSessionError: (id: string, invalid: boolean) =>
         this.updateAccount(id, { sessionError: invalid }),
-      onRetryable: (accountId: string, event: ScrobbleEvent) =>
-        this.store.setScrobbleQueue(
-          withEnqueued(this.store.getState().scrobbleQueue, accountId, event),
-        ),
+      onRetryable: (accountId: string, event: ScrobbleEvent) => {
+        const queue = this.store.getState().scrobbleQueue;
+        const next = withEnqueued(queue, accountId, event);
+        if (next !== queue) this.store.setScrobbleQueue(next);
+      },
     };
   }
 
-  /** Plays still owed to a destination — surfaced in Music Network settings. */
+  /** Plays still owed to a destination. No UI consumes this yet — see the branch note. */
   owedScrobbleCount(): number {
     return this.store.getState().scrobbleQueue.length;
   }
