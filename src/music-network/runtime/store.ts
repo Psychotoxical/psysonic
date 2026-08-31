@@ -5,12 +5,14 @@
 // auth store. Keeping it an interface lets the engine be unit-tested with an
 // in-memory implementation.
 
-import type { MusicNetworkState, PersistedAccount } from '../core/accounts';
+import type { MusicNetworkState, PersistedAccount, QueuedScrobble } from '../core/accounts';
 
 export interface MusicNetworkStore {
   getState(): MusicNetworkState;
   setAccounts(accounts: PersistedAccount[]): void;
   setEnrichmentPrimaryId(id: string | null): void;
+  /** Replaces the owed-scrobble queue wholesale; the runtime owns its contents. */
+  setScrobbleQueue(queue: QueuedScrobble[]): void;
 }
 
 /** Side effects the runtime needs from the host (Tauri shell / app). */

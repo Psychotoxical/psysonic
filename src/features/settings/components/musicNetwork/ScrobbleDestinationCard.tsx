@@ -1,4 +1,5 @@
 import { useTranslation } from 'react-i18next';
+import { Clock } from 'lucide-react';
 import { getPreset, type Account, type UserProfile } from '@/music-network';
 import { renderPresetIcon } from '@/music-network/ui';
 
@@ -11,11 +12,14 @@ import { renderPresetIcon } from '@/music-network/ui';
 export function ScrobbleDestinationCard({
   account,
   profile,
+  owedCount,
   onToggleScrobble,
   onDisconnect,
 }: {
   account: Account;
   profile: UserProfile | null;
+  /** Plays kept for this destination after a failed send; 0 hides the line. */
+  owedCount: number;
   onToggleScrobble: (enabled: boolean) => void;
   onDisconnect: () => void;
 }) {
@@ -45,6 +49,18 @@ export function ScrobbleDestinationCard({
           </div>
           {account.username && (
             <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>@{account.username}</div>
+          )}
+          {owedCount > 0 && (
+            <div
+              style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2, display: 'flex', alignItems: 'center', gap: '0.35rem' }}
+              data-tooltip={t('musicNetwork.owedPlaysHelp')}
+              // The tooltip is decorative here: the same explanation is on the
+              // element itself, so keyboard and screen-reader users get it too.
+              title={t('musicNetwork.owedPlaysHelp')}
+            >
+              <Clock size={12} aria-hidden="true" style={{ flexShrink: 0 }} />
+              {t('musicNetwork.owedPlays', { count: owedCount })}
+            </div>
           )}
           {profile && (
             <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2, display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>

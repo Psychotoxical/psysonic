@@ -13,16 +13,20 @@ export type { MusicNetworkStore, RuntimeHost } from './runtime/store';
 export { listPresets, getPreset } from './registry/presetRegistry';
 export {
   migrateLegacyLastfm,
+  sanitizeScrobbleQueue,
   sanitizeAccounts,
   type LegacyLastfmState,
 } from './runtime/accountPersistence';
 
+export { isSameScrobbleTarget, scrobbleTargetRef } from './core/accounts';
 export type {
   Account,
   AccountPatch,
   AccountRoles,
   MusicNetworkState,
   PersistedAccount,
+  QueuedScrobble,
+  ScrobbleTargetRef,
 } from './core/accounts';
 export type {
   CapabilityId,

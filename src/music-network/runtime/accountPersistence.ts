@@ -6,8 +6,9 @@
 // global setting and gates dispatchNowPlaying at the playback call-site, so
 // now-playing behaviour is preserved exactly.
 
-import type { MusicNetworkState, PersistedAccount } from '../core/accounts';
+import type { MusicNetworkState, PersistedAccount, QueuedScrobble } from '../core/accounts';
 import { getPreset } from '../registry/presetRegistry';
+import { bounded } from './ScrobbleQueue';
 
 export interface LegacyLastfmState {
   lastfmSessionKey?: string;
@@ -28,7 +29,7 @@ export function migrateLegacyLastfm(
   const scrobblingMasterEnabled = legacy.scrobblingEnabled ?? true;
   const sessionKey = (legacy.lastfmSessionKey ?? '').trim();
   if (!sessionKey) {
-    return { scrobblingMasterEnabled, enrichmentPrimaryId: null, accounts: [] };
+    return { scrobblingMasterEnabled, enrichmentPrimaryId: null, accounts: [], scrobbleQueue: [] };
   }
 
   const preset = getPreset('lastfm');
@@ -50,7 +51,7 @@ export function migrateLegacyLastfm(
       nowPlaying: { status: 'yes' },
     },
   };
-  return { scrobblingMasterEnabled, enrichmentPrimaryId: id, accounts: [account] };
+  return { scrobblingMasterEnabled, enrichmentPrimaryId: id, accounts: [account], scrobbleQueue: [] };
 }
 
 const REQUIRED_STRING_FIELDS: (keyof PersistedAccount)[] = [
@@ -70,4 +71,46 @@ export function sanitizeAccounts(raw: unknown): PersistedAccount[] {
     if (REQUIRED_STRING_FIELDS.some(f => typeof acc[f] !== 'string')) return false;
     return getPreset(acc.presetId as PersistedAccount['presetId']) !== undefined;
   });
+}
+
+/**
+ * Drops malformed entries from a persisted owed-scrobble queue.
+ *
+ * The queue is written verbatim by the store's blacklist-style `partialize`, so a
+ * truncated or hand-edited blob reaches us unchecked. An entry missing its event
+ * would throw on the first expiry comparison and wedge the queue permanently —
+ * inside a `void flush()` with no one to catch it.
+ */
+export function sanitizeScrobbleQueue(raw: unknown, now: number = Date.now()): QueuedScrobble[] {
+  if (!Array.isArray(raw)) return [];
+  const kept = raw.filter((e): e is QueuedScrobble => {
+    if (!e || typeof e !== 'object') return false;
+    const entry = e as Record<string, unknown>;
+    const target = entry.target as Record<string, unknown> | undefined;
+    if (!target || typeof target !== 'object') return false;
+    // The preset must still exist, like sanitizeAccounts requires: an entry for a
+    // removed provider can never match an account, so it would be walked on every
+    // pass until it aged out.
+    if (typeof target.presetId !== 'string' || !getPreset(target.presetId as PersistedAccount['presetId'])) {
+      return false;
+    }
+    // '' for fixed-host and token-only providers, so present but possibly empty.
+    if (typeof target.baseUrl !== 'string' || typeof target.username !== 'string') return false;
+    if (typeof entry.attempts !== 'number' || !Number.isFinite(entry.attempts)) return false;
+    if (typeof entry.nextAttemptAt !== 'number' || !Number.isFinite(entry.nextAttemptAt)) {
+      return false;
+    }
+    const event = entry.event as Record<string, unknown> | undefined;
+    if (!event || typeof event !== 'object') return false;
+    // Every field is validated, not just the ones this module reads: the wires
+    // pass the event on verbatim, and an entry missing `duration` reaches the
+    // provider as "NaN", whose rejection the retry logic mistakes for transient.
+    if (typeof event.timestamp !== 'number' || !Number.isFinite(event.timestamp)) return false;
+    if (typeof event.duration !== 'number' || !Number.isFinite(event.duration)) return false;
+    if (typeof event.album !== 'string') return false;
+    return typeof event.title === 'string' && typeof event.artist === 'string';
+  });
+  // Same ceilings a live write goes through, so a restored blob cannot come back
+  // oversized or full of plays no provider would still accept.
+  return bounded(kept, now);
 }

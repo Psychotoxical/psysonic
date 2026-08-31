@@ -11,6 +11,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.53.0]
 
+## Added
+
+### Scrobbles are no longer lost when a service is unreachable
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1482](https://github.com/Psysonic/psysonic/pull/1482)**
+
+* A play that could not be sent — no connection, a service that was down, an expired login — used to disappear without a trace. It is now kept and sent later, automatically: when the connection returns, when you reconnect the service, and otherwise every few minutes. Kept plays survive restarting Psysonic.
+* Each destination in Settings → Integrations shows how many plays are still waiting to be sent, so a service that has quietly fallen behind is visible.
+* Plays are kept for 14 days, which is as far back as the services accept them.
+
 ## Fixed
 
 ### Shared Top Albums pictures show their covers again

@@ -7,7 +7,7 @@ import type {
   InstantMixProbeResult,
   SubsonicServerIdentity,
 } from '@/lib/server/subsonicServerIdentity';
-import type { PersistedAccount } from '../music-network';
+import type { PersistedAccount, QueuedScrobble } from '../music-network';
 
 /** Album-artist vs track-performer browse (#1209). Duplicated here — not `@/lib/api/library` — to avoid store ↔ library import cycles (dependency-cruiser). */
 export type ArtistBrowseCreditMode = 'album' | 'track';
@@ -131,6 +131,8 @@ export interface AuthState {
 
   // Music Network — multi-provider scrobble/enrichment framework state.
   musicNetworkAccounts: PersistedAccount[];
+  /** Scrobbles owed to a destination after a transient failure. Survives restart. */
+  musicNetworkScrobbleQueue: QueuedScrobble[];
   enrichmentPrimaryId: string | null;
   scrobblingMasterEnabled: boolean;
   /** Auto-scrobble when playback progress reaches this percent of the track (25–90). */
@@ -417,6 +419,7 @@ export interface AuthState {
 
   // Music Network actions (backing the runtime's MusicNetworkStore port).
   setMusicNetworkAccounts: (accounts: PersistedAccount[]) => void;
+  setMusicNetworkScrobbleQueue: (queue: QueuedScrobble[]) => void;
   setEnrichmentPrimaryId: (id: string | null) => void;
   setScrobblingMasterEnabled: (v: boolean) => void;
   setScrobbleThresholdPercent: (v: number) => void;

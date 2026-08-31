@@ -31,6 +31,7 @@ import { probeAccount } from './CapabilityProbe';
 import { resolveEnrichment } from './EnrichmentRouter';
 import { resolveWireContext } from './contextResolver';
 import { dispatchNowPlaying, dispatchScrobble } from './ScrobbleOrchestrator';
+import { flushScrobbleQueue, withEnqueued } from './ScrobbleQueue';
 import type { MusicNetworkStore, RuntimeHost } from './store';
 
 export interface ConnectOptions {
@@ -144,11 +145,16 @@ export class MusicNetworkRuntime {
   }
 
   updateAccount(accountId: string, patch: AccountPatch): void {
-    this.persist(
-      this.store.getState().accounts.map(a =>
-        a.id === accountId ? { ...a, ...patch } : a,
-      ),
+    const accounts = this.store.getState().accounts;
+    const target = accounts.find(a => a.id === accountId);
+    // No-op guard: a flush walking a backlog re-applies the same patch per entry
+    // (session-error, mostly), and every write persists the whole auth blob.
+    if (!target) return;
+    const unchanged = (Object.keys(patch) as (keyof AccountPatch)[]).every(
+      k => target[k] === patch[k],
     );
+    if (unchanged) return;
+    this.persist(accounts.map(a => (a.id === accountId ? { ...a, ...patch } : a)));
   }
 
   // ── Roles ─────────────────────────────────────────────────────────────────
@@ -197,7 +203,48 @@ export class MusicNetworkRuntime {
     return {
       setSessionError: (id: string, invalid: boolean) =>
         this.updateAccount(id, { sessionError: invalid }),
+      onRetryable: (account: PersistedAccount, event: ScrobbleEvent) => {
+        const queue = this.store.getState().scrobbleQueue;
+        const next = withEnqueued(queue, account, event);
+        if (next !== queue) this.store.setScrobbleQueue(next);
+      },
     };
+  }
+
+  /** Plays still owed to a destination. No UI consumes this yet — see the branch note. */
+  owedScrobbleCount(): number {
+    return this.store.getState().scrobbleQueue.length;
+  }
+
+  private owedFlush: Promise<void> | null = null;
+
+  /**
+   * Retries every owed play that is due. Safe to call often: entries carry their
+   * own backoff, so an early call is a cheap no-op.
+   *
+   * Concurrent calls share one run. The three triggers — start, connectivity and
+   * the interval — are uncoordinated, and a flush outliving the interval would
+   * otherwise be joined by a second one re-sending the entries the first is still
+   * delivering, producing duplicate scrobbles at the provider.
+   */
+  async flushOwedScrobbles(): Promise<void> {
+    if (this.owedFlush) return this.owedFlush;
+    // Master toggle off: hold what is owed and send nothing. Discarding here
+    // would turn a temporary switch-off into permanent loss; the entries simply
+    // wait, and expiry still bounds them.
+    if (!this.store.getState().scrobblingMasterEnabled) return;
+    this.owedFlush = flushScrobbleQueue(this.store, {
+      ...this.orchestratorDeps(),
+      // Same eligibility the live path applies, so a destination the user
+      // switched off is not written to behind their back.
+      // A function, not a snapshot: delivery flips the session-error flag, and a
+      // list captured before the loop would report the old value for every
+      // remaining entry — the hold below would never fire.
+      targets: () => this.scrobbleTargets(),
+    }).finally(() => {
+      this.owedFlush = null;
+    });
+    return this.owedFlush;
   }
 
   async dispatchScrobble(event: ScrobbleEvent): Promise<void> {

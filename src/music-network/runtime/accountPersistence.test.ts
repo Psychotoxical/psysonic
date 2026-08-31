@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { migrateLegacyLastfm, sanitizeAccounts } from './accountPersistence';
+import { migrateLegacyLastfm, sanitizeAccounts, sanitizeScrobbleQueue } from './accountPersistence';
 import type { PersistedAccount } from '../core/accounts';
 
 const newId = () => 'fixed-id';
@@ -65,5 +65,55 @@ describe('sanitizeAccounts', () => {
     expect(sanitizeAccounts([{ id: 'x' }])).toEqual([]);
     expect(sanitizeAccounts([{ ...valid, presetId: 'bogus' }])).toEqual([]);
     expect(sanitizeAccounts([valid, { foo: 1 }])).toEqual([valid]);
+  });
+});
+
+describe('sanitizeScrobbleQueue', () => {
+  const good = {
+    target: { presetId: 'lastfm', baseUrl: '', username: 'u1' },
+    event: { title: 'T', artist: 'A', album: 'Al', duration: 200, timestamp: Date.now() },
+    attempts: 1,
+    nextAttemptAt: 0,
+  };
+
+  it('keeps a well-formed entry', () => {
+    expect(sanitizeScrobbleQueue([good])).toEqual([good]);
+  });
+
+  it('returns an empty queue for anything that is not a list', () => {
+    expect(sanitizeScrobbleQueue(null)).toEqual([]);
+    expect(sanitizeScrobbleQueue('[]')).toEqual([]);
+    expect(sanitizeScrobbleQueue(undefined)).toEqual([]);
+  });
+
+  it('drops entries that would throw on the first expiry check', () => {
+    // An entry without an event, or with a non-numeric timestamp, used to reach
+    // `entry.event.timestamp` inside a `void flush()` and wedge the queue.
+    expect(sanitizeScrobbleQueue([{ ...good, event: undefined }])).toEqual([]);
+    expect(sanitizeScrobbleQueue([{ ...good, event: { ...good.event, timestamp: 'soon' } }])).toEqual([]);
+    expect(sanitizeScrobbleQueue([{ ...good, attempts: 'many' }])).toEqual([]);
+    expect(sanitizeScrobbleQueue([{ ...good, target: { presetId: '', baseUrl: '', username: '' } }])).toEqual([]);
+  });
+
+  it('keeps the healthy entries beside a corrupt one', () => {
+    expect(sanitizeScrobbleQueue([good, null, { nope: true }])).toEqual([good]);
+  });
+});
+
+describe('sanitizeScrobbleQueue — event completeness', () => {
+  const base = {
+    target: { presetId: 'lastfm', baseUrl: '', username: 'u1' },
+    event: { title: 'T', artist: 'A', album: 'Al', duration: 200, timestamp: Date.now() },
+    attempts: 1,
+    nextAttemptAt: 0,
+  };
+
+  it('drops an entry whose event the wires would send on incomplete', () => {
+    // A missing duration reaches the provider as "NaN"; the rejection that comes
+    // back looks transient, so the entry would be retried until it expires.
+    const { duration: _d, ...noDuration } = base.event;
+    expect(sanitizeScrobbleQueue([{ ...base, event: noDuration }])).toEqual([]);
+    const { album: _a, ...noAlbum } = base.event;
+    expect(sanitizeScrobbleQueue([{ ...base, event: noAlbum }])).toEqual([]);
   });
 });

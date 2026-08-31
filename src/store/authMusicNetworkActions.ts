@@ -1,4 +1,4 @@
-import type { PersistedAccount } from '../music-network';
+import type { PersistedAccount, QueuedScrobble } from '../music-network';
 import { clampScrobbleThresholdPercent } from './authStoreDefaults';
 import type { AuthState } from './authStoreTypes';
 
@@ -18,6 +18,7 @@ export function createMusicNetworkActions(set: SetState): Pick<
   | 'setScrobblingMasterEnabled'
   | 'setScrobbleThresholdPercent'
   | 'setForceScrobbleEnabled'
+  | 'setMusicNetworkScrobbleQueue'
 > {
   return {
     setMusicNetworkAccounts: (accounts: PersistedAccount[]) =>
@@ -30,5 +31,7 @@ export function createMusicNetworkActions(set: SetState): Pick<
       set({ scrobbleThresholdPercent: clampScrobbleThresholdPercent(v) }),
     setForceScrobbleEnabled: (v: boolean) =>
       set({ forceScrobbleEnabled: v }),
+    setMusicNetworkScrobbleQueue: (queue: QueuedScrobble[]) =>
+      set({ musicNetworkScrobbleQueue: queue }),
   };
 }
