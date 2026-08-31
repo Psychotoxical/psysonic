@@ -237,7 +237,10 @@ export class MusicNetworkRuntime {
       ...this.orchestratorDeps(),
       // Same eligibility the live path applies, so a destination the user
       // switched off is not written to behind their back.
-      targets: this.scrobbleTargets(),
+      // A function, not a snapshot: delivery flips the session-error flag, and a
+      // list captured before the loop would report the old value for every
+      // remaining entry — the hold below would never fire.
+      targets: () => this.scrobbleTargets(),
     }).finally(() => {
       this.owedFlush = null;
     });

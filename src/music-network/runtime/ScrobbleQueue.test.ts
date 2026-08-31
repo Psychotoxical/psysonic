@@ -57,7 +57,7 @@ function makeWire() {
 
 let w: ReturnType<typeof makeWire>;
 const other = (u: string) => account({ id: u, username: u });
-const deps = () => ({ setSessionError: () => {}, targets: [account()] });
+const deps = () => ({ setSessionError: () => {}, targets: () => [account()] });
 
 beforeEach(() => {
   __resetWires();
@@ -229,3 +229,42 @@ describe('queue hardening', () => {
   });
 });
 
+
+describe('a refusing destination is asked once per pass', () => {
+  it('does not burn an attempt on every entry when the provider rate-limits', async () => {
+    // The wires collapse a rate-limit rejection into NETWORK. Trying all 5 would
+    // increment attempts on all 5, and a few passes later they hit the give-up
+    // ceiling and are discarded — the loss the queue exists to prevent.
+    w.failWith(new MusicNetworkError('NETWORK', 'rate limited'));
+    const backlog = [1, 2, 3, 4, 5].map(i =>
+      entry({ event: event({ timestamp: NOW - i * 1000 }), attempts: 1 }),
+    );
+
+    const kept = await flushQueue(backlog, deps(), () => NOW);
+
+    expect(w.calls).toHaveLength(0);
+    expect(kept).toHaveLength(5);
+    // Only the entry that actually reached the provider counts an attempt.
+    expect(kept.filter(e => e.attempts === 2)).toHaveLength(1);
+    expect(kept.filter(e => e.attempts === 1)).toHaveLength(4);
+  });
+
+  it('sees a session flag raised during the same pass', async () => {
+    // `targets` is a function so the flag written by the first failure is visible
+    // to the entries after it; a snapshot would report the stale value.
+    const accounts = [account()];
+    const deltaDeps = {
+      setSessionError: (_id: string, invalid: boolean) => {
+        accounts[0] = { ...accounts[0], sessionError: invalid };
+      },
+      targets: () => accounts,
+    };
+    w.failWith(new MusicNetworkError('AUTH_SESSION_INVALID', 'stale'));
+    const backlog = [1, 2, 3].map(i => entry({ event: event({ timestamp: NOW - i * 1000 }) }));
+
+    const kept = await flushQueue(backlog, deltaDeps, () => NOW);
+
+    expect(kept).toHaveLength(3);
+    expect(accounts[0].sessionError).toBe(true);
+  });
+});
