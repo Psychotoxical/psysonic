@@ -70,10 +70,11 @@ function isSameEntry(a: QueuedScrobble, account: PersistedAccount, event: Scrobb
 /**
  * Applies the two ceilings that keep the queue finite: expiry, then the entry cap
  * with the oldest play evicted first — a fresh scrobble is likelier to still be
- * accepted. Every write goes through here, including the flush's merge, or a long
- * flush could write back entries the live path had already evicted.
+ * accepted. Every write goes through here, including the flush's merge and the
+ * rehydration sanitizer, or a stored queue could come back oversized or full of
+ * plays no provider would still accept.
  */
-function bounded(queue: readonly QueuedScrobble[], now: number): QueuedScrobble[] {
+export function bounded(queue: readonly QueuedScrobble[], now: number): QueuedScrobble[] {
   const live = queue.filter(e => !isExpired(e, now));
   if (live.length <= SCROBBLE_QUEUE_MAX) return live;
   return [...live]
@@ -135,7 +136,15 @@ export async function flushQueue(
 ): Promise<QueuedScrobble[]> {
   const settled: QueuedScrobble[] = [];
   const pending = [...queue];
-  const report = () => onProgress?.([...settled, ...pending]);
+  /**
+   * Entries whose delivery failed this pass. They move to the back rather than
+   * staying in place: a play the provider rejects for good — a malformed tag, a
+   * bad signature — would otherwise sit at the head and, together with the
+   * refusal set below, block every other play to that destination until it
+   * expired a fortnight later.
+   */
+  const deferred: QueuedScrobble[] = [];
+  const report = () => onProgress?.([...settled, ...pending, ...deferred]);
   // Destinations that already refused during this pass. Whatever the cause —
   // rate limit, dead session, provider outage — it applies to every entry for
   // that destination, so trying the rest would only add failed requests against
@@ -155,7 +164,6 @@ export async function flushQueue(
 
     if (refused.has(targetKey(entry.target))) {
       settled.push(entry);
-      report();
       continue;
     }
 
@@ -173,7 +181,6 @@ export async function flushQueue(
     // destination instead of the account id — and let expiry bound the wait.
     if (!account) {
       settled.push(entry);
-      report();
       continue;
     }
 
@@ -182,37 +189,40 @@ export async function flushQueue(
     // and the entry waits for the reconnect, which can take the user days.
     if (account.sessionError) {
       settled.push(entry);
-      report();
       continue;
     }
 
     if (entry.nextAttemptAt > now) {
       settled.push(entry);
-      report();
       continue;
     }
 
     const outcome = await deliver(account, 'scrobble', entry.event, deps);
     if (outcome === 'ok' || outcome === 'drop') {
+      // Only a delivery changes what has to survive a crash, so only a delivery
+      // triggers a write. The skips above cost a comparison and nothing else —
+      // draining a 500-entry backlog while offline used to rewrite the whole
+      // persisted auth blob 500 times.
       report();
       continue;
     }
     refused.add(targetKey(entry.target));
     // No attempt ceiling: NETWORK is also what an offline machine produces, so
     // counting failures would delete the head of the queue after a day offline
-    // while the entry advertises a fortnight. Expiry bounds the lifetime, and the
-    // refusal set above bounds the request rate to one per destination per pass.
+    // while the entry advertises a fortnight. Expiry bounds the lifetime, the
+    // refusal set bounds the request rate to one per destination per pass, and
+    // deferring keeps one bad play from blocking the rest.
     const attempts = entry.attempts + 1;
-    settled.push({ ...entry, attempts, nextAttemptAt: clock() + backoffFor(attempts) });
+    deferred.push({ ...entry, attempts, nextAttemptAt: clock() + backoffFor(attempts) });
     report();
   }
-  return settled;
+  return [...settled, ...deferred];
 }
 
 /**
  * Store-bound wrapper: reads, delivers, persists.
  *
- * Persists after every entry rather than once at the end. Delivery can span many
+ * Persists after a delivery rather than once at the end. Delivery can span many
  * minutes, and a quit or crash mid-loop would otherwise leave every already-sent
  * play in the queue, to be sent a second time on the next launch. Each write is
  * merged against a fresh read, because the live path keeps enqueueing throughout —

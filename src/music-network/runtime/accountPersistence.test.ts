@@ -71,7 +71,7 @@ describe('sanitizeAccounts', () => {
 describe('sanitizeScrobbleQueue', () => {
   const good = {
     target: { presetId: 'lastfm', baseUrl: '', username: 'u1' },
-    event: { title: 'T', artist: 'A', album: 'Al', duration: 200, timestamp: 1 },
+    event: { title: 'T', artist: 'A', album: 'Al', duration: 200, timestamp: Date.now() },
     attempts: 1,
     nextAttemptAt: 0,
   };
@@ -103,7 +103,7 @@ describe('sanitizeScrobbleQueue', () => {
 describe('sanitizeScrobbleQueue — event completeness', () => {
   const base = {
     target: { presetId: 'lastfm', baseUrl: '', username: 'u1' },
-    event: { title: 'T', artist: 'A', album: 'Al', duration: 200, timestamp: 1 },
+    event: { title: 'T', artist: 'A', album: 'Al', duration: 200, timestamp: Date.now() },
     attempts: 1,
     nextAttemptAt: 0,
   };
