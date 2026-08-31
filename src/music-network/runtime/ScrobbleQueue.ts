@@ -30,14 +30,6 @@ export const SCROBBLE_MAX_AGE_MS = 14 * 24 * 60 * 60 * 1000;
 /** Ceiling on stored entries; the oldest play is dropped first. */
 export const SCROBBLE_QUEUE_MAX = 500;
 
-/**
- * Give-up ceiling per entry, counted only against attempts that actually reached
- * the provider. The wires collapse unrecognised provider errors into NETWORK, so
- * a permanently rejected request (bad parameters, suspended key) looks transient
- * and would otherwise be re-sent hourly for two weeks.
- */
-export const SCROBBLE_MAX_ATTEMPTS = 24;
-
 const BACKOFF_BASE_MS = 60_000;
 const BACKOFF_MAX_MS = 60 * 60_000;
 
@@ -146,8 +138,8 @@ export async function flushQueue(
   const report = () => onProgress?.([...settled, ...pending]);
   // Destinations that already refused during this pass. Whatever the cause —
   // rate limit, dead session, provider outage — it applies to every entry for
-  // that destination, so trying the rest would burn one attempt each on a backlog
-  // of up to 500 and march them toward the give-up ceiling for nothing.
+  // that destination, so trying the rest would only add failed requests against
+  // a provider that has already said no, across a backlog of up to 500.
   const refused = new Set<string>();
 
   for (const entry of queue) {
@@ -167,9 +159,15 @@ export async function flushQueue(
       continue;
     }
 
-    const account = deps
+    // A destination can hold more than one account: self-hosted presets stay in
+    // the add-list after connecting, and with no reconnect button a user facing
+    // "Reconnect needed" plausibly just connects the same host again. Connect
+    // appends, so the stale flagged account comes first — prefer a healthy one,
+    // or the backlog would wait behind a dead account until it expired.
+    const matches = deps
       .targets()
-      .find(a => isSameScrobbleTarget(scrobbleTargetRef(a), entry.target));
+      .filter(a => isSameScrobbleTarget(scrobbleTargetRef(a), entry.target));
+    const account = matches.find(a => !a.sessionError) ?? matches[0];
     // No eligible destination right now: disconnected, switched off, or being
     // reconnected. Keep the play — that is the whole point of keying on the
     // destination instead of the account id — and let expiry bound the wait.
@@ -180,8 +178,8 @@ export async function flushQueue(
     }
 
     // Session rejected and not repaired yet: every entry for this account would
-    // fail identically. Hold without attempting, and without counting it against
-    // the give-up ceiling — reconnecting can take the user days.
+    // fail identically. Hold without attempting: no request, no backoff advance,
+    // and the entry waits for the reconnect, which can take the user days.
     if (account.sessionError) {
       settled.push(entry);
       report();
@@ -200,10 +198,12 @@ export async function flushQueue(
       continue;
     }
     refused.add(targetKey(entry.target));
+    // No attempt ceiling: NETWORK is also what an offline machine produces, so
+    // counting failures would delete the head of the queue after a day offline
+    // while the entry advertises a fortnight. Expiry bounds the lifetime, and the
+    // refusal set above bounds the request rate to one per destination per pass.
     const attempts = entry.attempts + 1;
-    if (attempts <= SCROBBLE_MAX_ATTEMPTS) {
-      settled.push({ ...entry, attempts, nextAttemptAt: clock() + backoffFor(attempts) });
-    }
+    settled.push({ ...entry, attempts, nextAttemptAt: clock() + backoffFor(attempts) });
     report();
   }
   return settled;

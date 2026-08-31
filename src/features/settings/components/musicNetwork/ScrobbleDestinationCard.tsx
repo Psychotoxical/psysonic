@@ -54,6 +54,9 @@ export function ScrobbleDestinationCard({
             <div
               style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2, display: 'flex', alignItems: 'center', gap: '0.35rem' }}
               data-tooltip={t('musicNetwork.owedPlaysHelp')}
+              // The tooltip is decorative here: the same explanation is on the
+              // element itself, so keyboard and screen-reader users get it too.
+              title={t('musicNetwork.owedPlaysHelp')}
             >
               <Clock size={12} aria-hidden="true" style={{ flexShrink: 0 }} />
               {t('musicNetwork.owedPlays', { count: owedCount })}

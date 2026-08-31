@@ -37,7 +37,18 @@ type WireOp = 'scrobble' | 'updateNowPlaying';
  */
 export type DeliveryOutcome = 'ok' | 'retry' | 'drop';
 
-const RETRYABLE_CODES = new Set(['NETWORK', 'RESPONSE_NOT_JSON', 'AUTH_SESSION_INVALID']);
+/**
+ * Auth failures the user can repair by reconnecting. Both raise the session-error
+ * flag that drives the reconnect prompt, and both keep the play: the queue is
+ * keyed on the destination, so it survives the reconnect.
+ *
+ * MALOJA_BAD_KEY is any 401/403 from a Maloja instance — a rotated key, a
+ * restart, or an auth gateway in front of it. Treating it as final discarded
+ * every play silently while the card still read "Connected".
+ */
+const RECOVERABLE_AUTH_CODES = new Set(['AUTH_SESSION_INVALID', 'MALOJA_BAD_KEY']);
+
+const RETRYABLE_CODES = new Set([...RECOVERABLE_AUTH_CODES, 'NETWORK', 'RESPONSE_NOT_JSON']);
 
 /** Sends one event to one destination and classifies the outcome. */
 export async function deliver(
@@ -57,7 +68,7 @@ export async function deliver(
       // Raise the flag that drives the reconnect prompt, and keep the play: the
       // flush skips a flagged account entirely, so nothing is re-sent while the
       // user has not reconnected yet.
-      if (e.code === 'AUTH_SESSION_INVALID') deps.setSessionError(account.id, true);
+      if (RECOVERABLE_AUTH_CODES.has(e.code)) deps.setSessionError(account.id, true);
       return RETRYABLE_CODES.has(e.code) ? 'retry' : 'drop';
     }
     // An error the wires did not classify: treat as transport trouble rather

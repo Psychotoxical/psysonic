@@ -10,7 +10,7 @@ import {
   withEnqueued,
   SCROBBLE_QUEUE_MAX,
   SCROBBLE_MAX_AGE_MS,
-  SCROBBLE_MAX_ATTEMPTS,
+
 } from './ScrobbleQueue';
 
 const NOW = 1_700_000_000_000;
@@ -182,22 +182,16 @@ describe('flushQueue', () => {
     await flushQueue(backlog, deps(), () => NOW);
     expect(maxInFlight).toBe(1);
   });
-});
 
-describe('queue hardening', () => {
-  it('gives up once a destination has refused often enough', async () => {
-    // The wires collapse unrecognised provider errors into NETWORK, so a
-    // permanently bad request looks transient. Without a ceiling it would be
-    // re-sent hourly until it expires.
+  it('keeps retrying a long-failing entry instead of deleting it', async () => {
+    // There is deliberately no attempt ceiling: NETWORK is also what an offline
+    // machine produces, so counting failures would delete the head of the queue
+    // after a day offline while the entry advertises a fortnight. Expiry is the
+    // only thing that ends an entry's life.
     w.failWith(new MusicNetworkError('NETWORK', 'nope'));
-    const exhausted = entry({ attempts: SCROBBLE_MAX_ATTEMPTS });
-    expect(await flushQueue([exhausted], deps(), () => NOW)).toEqual([]);
-  });
-
-  it('keeps retrying below the ceiling', async () => {
-    w.failWith(new MusicNetworkError('NETWORK', 'nope'));
-    const young = entry({ attempts: SCROBBLE_MAX_ATTEMPTS - 2 });
-    expect(await flushQueue([young], deps(), () => NOW)).toHaveLength(1);
+    const veteran = entry({ attempts: 500 });
+    const [kept] = await flushQueue([veteran], deps(), () => NOW);
+    expect(kept.attempts).toBe(501);
   });
 
   it('reports progress after every entry so a crash cannot replay deliveries', async () => {
@@ -266,5 +260,38 @@ describe('a refusing destination is asked once per pass', () => {
 
     expect(kept).toHaveLength(3);
     expect(accounts[0].sessionError).toBe(true);
+  });
+});
+
+describe('a repairable auth failure keeps the play', () => {
+  it('holds a Maloja key rejection instead of discarding it', async () => {
+    // Any 401/403 from a Maloja instance arrives as MALOJA_BAD_KEY — a rotated
+    // key, a restart, or an auth gateway in front of it. Treating it as final
+    // discarded every play silently while the card still read "Connected".
+    w.failWith(new MusicNetworkError('MALOJA_BAD_KEY', 'denied'));
+    expect(await flushQueue([entry()], deps(), () => NOW)).toHaveLength(1);
+  });
+
+  it('raises the reconnect flag for it', async () => {
+    const flagged: string[] = [];
+    w.failWith(new MusicNetworkError('MALOJA_BAD_KEY', 'denied'));
+    await flushQueue([entry()], {
+      setSessionError: (id, invalid) => { if (invalid) flagged.push(id); },
+      targets: () => [account()],
+    }, () => NOW);
+    expect(flagged).toEqual(['a1']);
+  });
+
+  it('prefers a healthy account over a flagged one for the same destination', async () => {
+    // Reconnecting appends a second account for the same host; the stale flagged
+    // one stays first. Picking it would park the backlog until it expired.
+    const stale = account({ id: 'stale', sessionError: true });
+    const healthy = account({ id: 'healthy' });
+    const kept = await flushQueue([entry()], {
+      setSessionError: () => {},
+      targets: () => [stale, healthy],
+    }, () => NOW);
+    expect(w.calls).toHaveLength(1);
+    expect(kept).toEqual([]);
   });
 });
