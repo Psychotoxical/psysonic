@@ -145,11 +145,16 @@ export class MusicNetworkRuntime {
   }
 
   updateAccount(accountId: string, patch: AccountPatch): void {
-    this.persist(
-      this.store.getState().accounts.map(a =>
-        a.id === accountId ? { ...a, ...patch } : a,
-      ),
+    const accounts = this.store.getState().accounts;
+    const target = accounts.find(a => a.id === accountId);
+    // No-op guard: a flush walking a backlog re-applies the same patch per entry
+    // (session-error, mostly), and every write persists the whole auth blob.
+    if (!target) return;
+    const unchanged = (Object.keys(patch) as (keyof AccountPatch)[]).every(
+      k => target[k] === patch[k],
     );
+    if (unchanged) return;
+    this.persist(accounts.map(a => (a.id === accountId ? { ...a, ...patch } : a)));
   }
 
   // ── Roles ─────────────────────────────────────────────────────────────────

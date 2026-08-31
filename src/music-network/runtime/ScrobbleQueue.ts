@@ -64,9 +64,18 @@ export function withEnqueued(
     ...queue,
     { accountId, event, attempts: 1, nextAttemptAt: now + backoffFor(1) },
   ];
-  const live = next.filter(e => !isExpired(e, now));
+  return bounded(next, now);
+}
+
+/**
+ * Applies the two ceilings that keep the queue finite: expiry, then the entry
+ * cap with the oldest play evicted first — a fresh scrobble is likelier to still
+ * be accepted. Every write goes through here, including the flush's merge, or a
+ * long flush could write back entries the live path had already evicted.
+ */
+function bounded(queue: readonly QueuedScrobble[], now: number): QueuedScrobble[] {
+  const live = queue.filter(e => !isExpired(e, now));
   if (live.length <= SCROBBLE_QUEUE_MAX) return live;
-  // Oldest play first: a fresh scrobble is likelier to still be accepted.
   return [...live]
     .sort((a, b) => a.event.timestamp - b.event.timestamp)
     .slice(live.length - SCROBBLE_QUEUE_MAX);
@@ -107,15 +116,9 @@ export async function flushQueue(
       onProgress?.([...settled, ...pending]);
       continue;
     }
-    // Session rejected: hold without attempting. Every entry for this account
-    // would fail the same way, burning the give-up ceiling on a condition only the
-    // user can clear — and each failure would rewrite the account record. The
-    // backlog waits for the reconnect; expiry still bounds how long.
-    if (account.sessionError) {
-      settled.push(entry);
-      onProgress?.([...settled, ...pending]);
-      continue;
-    }
+    // No session-error guard here: a flagged account's entries are dropped by
+    // `deliver` on the first attempt, and holding them would strand plays behind
+    // an account id that a reconnect replaces anyway.
     if (entry.nextAttemptAt > now) {
       settled.push(entry);
       onProgress?.([...settled, ...pending]);
@@ -162,7 +165,7 @@ export async function flushScrobbleQueue(
   const persist = (remaining: readonly QueuedScrobble[]) => {
     const live = store.getState().scrobbleQueue;
     const arrivedDuringFlush = live.filter(e => !seen.has(identityOf(e)));
-    const merged = [...remaining, ...arrivedDuringFlush];
+    const merged = bounded([...remaining, ...arrivedDuringFlush], clock());
     const unchanged =
       merged.length === live.length && merged.every((e, i) => e === live[i]);
     if (!unchanged) store.setScrobbleQueue(merged);

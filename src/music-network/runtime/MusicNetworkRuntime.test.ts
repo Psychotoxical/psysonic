@@ -216,9 +216,11 @@ describe('owed scrobbles', () => {
     });
   });
 
-  it('owes the play and flags the session when authentication is rejected', async () => {
-    // A stale session is what the reconnect prompt fixes, so the play is kept.
-    // The flush holds entries for a flagged account instead of re-sending them.
+  it('does not owe a play the destination refused on authentication', async () => {
+    // Queueing these would be a promise the app cannot keep: repairing a session
+    // replaces the account id, so the entry would be orphaned rather than
+    // delivered. It is dropped honestly instead, and the session-error flag
+    // drives the reconnect prompt.
     const store = memStore({
       scrobblingMasterEnabled: true,
       enrichmentPrimaryId: null,
@@ -229,7 +231,7 @@ describe('owed scrobbles', () => {
 
     await rt.dispatchScrobble(fresh());
 
-    expect(rt.owedScrobbleCount()).toBe(1);
+    expect(rt.owedScrobbleCount()).toBe(0);
   });
 
   it('delivers an owed play once the destination answers again', async () => {

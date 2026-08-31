@@ -123,14 +123,12 @@ describe('flushQueue', () => {
     expect(kept.nextAttemptAt).toBe(NOW + backoffFor(2));
   });
 
-  it('keeps the play when a session turns out to be rejected', async () => {
-    // Changed deliberately: discarding here lost the whole backlog on the one
-    // outage the user can actually fix. The flag is raised, the play is kept, and
-    // the next flush holds it until the account is reconnected.
+  it('gives up on a rejected session', async () => {
+    // Holding these was tried and reverted: repairing a session means disconnect
+    // plus connect, which mints a new account id, so held entries would be
+    // orphaned on the next flush anyway — after occupying the cap in between.
     w.failWith(new MusicNetworkError('AUTH_SESSION_INVALID', 'bad key'));
-    const kept = await flushQueue([entry()], deps(), () => NOW);
-    expect(kept).toHaveLength(1);
-    expect(kept[0].attempts).toBe(2);
+    expect(await flushQueue([entry()], deps(), () => NOW)).toEqual([]);
   });
 
   it('gives up on a misconfigured destination', async () => {
@@ -221,25 +219,3 @@ describe('queue hardening', () => {
   });
 });
 
-describe('a rejected session holds the backlog', () => {
-  it('keeps owed plays instead of discarding them', async () => {
-    // The one recoverable long outage: the user reconnects and expects the plays
-    // from the outage window to arrive, not to have been thrown away.
-    const stale = [account({ sessionError: true })];
-    const owed = [entry(), entry({ event: event({ timestamp: NOW - 1000 }) })];
-    const kept = await flushQueue(owed, { setSessionError: () => {}, targets: stale }, () => NOW);
-    expect(kept).toEqual(owed);
-  });
-
-  it('does not attempt delivery while the session is rejected', async () => {
-    const stale = [account({ sessionError: true })];
-    await flushQueue([entry()], { setSessionError: () => {}, targets: stale }, () => NOW);
-    expect(w.calls).toHaveLength(0);
-  });
-
-  it('does not burn the give-up ceiling while waiting for a reconnect', async () => {
-    const stale = [account({ sessionError: true })];
-    const [kept] = await flushQueue([entry({ attempts: 3 })], { setSessionError: () => {}, targets: stale }, () => NOW);
-    expect(kept.attempts).toBe(3);
-  });
-});

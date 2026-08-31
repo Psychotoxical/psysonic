@@ -54,10 +54,13 @@ export async function deliver(
     if (e instanceof MusicNetworkError) {
       if (e.code === 'AUTH_SESSION_INVALID') {
         deps.setSessionError(account.id, true);
-        // Retryable, not lost: a stale session is what the reconnect prompt exists
-        // to fix, and the play becomes deliverable again the moment it is fixed.
-        // The flush skips accounts in this state, so nothing is re-sent meanwhile.
-        return 'retry';
+        // Dropped, not held. Holding was tried and is a lie: repairing a session
+        // means disconnect + connect, `connect` mints a fresh account id, and every
+        // held entry then points at an id that no longer exists — discarded on the
+        // next flush after occupying the cap in the meantime. Holding would only
+        // pay off with a reconnect that keeps the account identity, which does not
+        // exist today (`clearSessionError` has no caller outside the runtime).
+        return 'drop';
       }
       return RETRYABLE_CODES.has(e.code) ? 'retry' : 'drop';
     }
