@@ -3,7 +3,7 @@ import { MusicNetworkRuntime } from './MusicNetworkRuntime';
 import type { MusicNetworkStore, RuntimeHost } from './store';
 import { __resetWires, registerWire } from '../registry/wireRegistry';
 import { MusicNetworkError } from '../core/errors';
-import type { MusicNetworkState, PersistedAccount, QueuedScrobble } from '../core/accounts';
+import { scrobbleTargetRef, type MusicNetworkState, type PersistedAccount, type QueuedScrobble } from '../core/accounts';
 import type { EnrichmentWire } from '../contracts/EnrichmentWire';
 import type { ScrobbleWire } from '../contracts/ScrobbleWire';
 import type { ScrobbleEvent } from '../core/types';
@@ -211,16 +211,15 @@ describe('owed scrobbles', () => {
 
     expect(rt.owedScrobbleCount()).toBe(1);
     expect(store.getState().scrobbleQueue[0]).toMatchObject({
-      accountId: lbAccount().id,
+      target: scrobbleTargetRef(lbAccount()),
       attempts: 1,
     });
   });
 
-  it('does not owe a play the destination refused on authentication', async () => {
-    // Queueing these would be a promise the app cannot keep: repairing a session
-    // replaces the account id, so the entry would be orphaned rather than
-    // delivered. It is dropped honestly instead, and the session-error flag
-    // drives the reconnect prompt.
+  it('owes the play when the destination rejects the session', async () => {
+    // Keyed on the destination, not the account id, so the entry survives the
+    // disconnect-and-reconnect that repairs the session. The flag drives the
+    // reconnect prompt; the flush holds the play until the account is back.
     const store = memStore({
       scrobblingMasterEnabled: true,
       enrichmentPrimaryId: null,
@@ -231,7 +230,7 @@ describe('owed scrobbles', () => {
 
     await rt.dispatchScrobble(fresh());
 
-    expect(rt.owedScrobbleCount()).toBe(0);
+    expect(rt.owedScrobbleCount()).toBe(1);
   });
 
   it('delivers an owed play once the destination answers again', async () => {
@@ -240,7 +239,7 @@ describe('owed scrobbles', () => {
       enrichmentPrimaryId: null,
       accounts: [lbAccount()],
       scrobbleQueue: [
-        { accountId: lbAccount().id, event: fresh(), attempts: 1, nextAttemptAt: 0 },
+        { target: scrobbleTargetRef(lbAccount()), event: fresh(), attempts: 1, nextAttemptAt: 0 },
       ],
     });
     const rt = new MusicNetworkRuntime(store, host);
@@ -277,7 +276,7 @@ describe('owed scrobbles — concurrency and consent', () => {
       enrichmentPrimaryId: null,
       accounts: [lbAccount()],
       scrobbleQueue: [
-        { accountId: lbAccount().id, event: fresh2(), attempts: 1, nextAttemptAt: 0 },
+        { target: scrobbleTargetRef(lbAccount()), event: fresh2(), attempts: 1, nextAttemptAt: 0 },
       ],
       ...over,
     });
@@ -288,7 +287,7 @@ describe('owed scrobbles — concurrency and consent', () => {
     // failing in that window must not be overwritten by the snapshot-derived list.
     const store = storeWithOwed();
     const rt = new MusicNetworkRuntime(store, host);
-    const late = { accountId: lbAccount().id, event: fresh2({ timestamp: Date.now() + 5 }), attempts: 1, nextAttemptAt: 0 };
+    const late = { target: scrobbleTargetRef(lbAccount()), event: fresh2({ timestamp: Date.now() + 5 }), attempts: 1, nextAttemptAt: 0 };
     lb.wire.scrobble = async () => {
       store.setScrobbleQueue([...store.getState().scrobbleQueue, late]);
     };
@@ -318,13 +317,65 @@ describe('owed scrobbles — concurrency and consent', () => {
     expect(store.getState().scrobbleQueue).toEqual(before);
   });
 
-  it('drops a play owed to a destination the user switched off', async () => {
+  it('holds a play for a destination the user switched off', async () => {
+    // Switching a destination off silences it, it does not discard what is owed.
+    // Turning it back on delivers the backlog — the same shape as the master
+    // toggle one level up.
     const store = storeWithOwed({ accounts: [lbAccount({ scrobbleEnabled: false })] });
     const rt = new MusicNetworkRuntime(store, host);
 
     await rt.flushOwedScrobbles();
 
     expect(lb.calls.scrobble).toBe(0);
+    expect(rt.owedScrobbleCount()).toBe(1);
+  });
+});
+
+describe('owed scrobbles survive a reconnect', () => {
+  const fresh3 = (): ScrobbleEvent => ({ ...EVENT, timestamp: Date.now() });
+
+  it('delivers a held play after the account was disconnected and connected again', async () => {
+    // The whole reason entries key on preset + host + user instead of the account
+    // id: repairing a session means disconnect + connect, and `connect` mints a
+    // new id. An id-keyed entry would be orphaned by the very act that makes it
+    // deliverable again.
+    const store = memStore({
+      scrobblingMasterEnabled: true,
+      enrichmentPrimaryId: null,
+      accounts: [lbAccount()],
+      scrobbleQueue: [
+        { target: scrobbleTargetRef(lbAccount()), event: fresh3(), attempts: 1, nextAttemptAt: 0 },
+      ],
+    });
+    // Reconnect: same destination, brand-new account id.
+    store.setAccounts([lbAccount({ id: 'reconnected-id' })]);
+    const rt = new MusicNetworkRuntime(store, host);
+
+    await rt.flushOwedScrobbles();
+
+    expect(lb.calls.scrobble).toBe(1);
     expect(rt.owedScrobbleCount()).toBe(0);
+  });
+
+  it('does not hand the play to a different user on the same service', async () => {
+    const store = memStore({
+      scrobblingMasterEnabled: true,
+      enrichmentPrimaryId: null,
+      accounts: [lbAccount({ username: 'alice' })],
+      scrobbleQueue: [
+        {
+          target: scrobbleTargetRef(lbAccount({ username: 'bob' })),
+          event: fresh3(),
+          attempts: 1,
+          nextAttemptAt: 0,
+        },
+      ],
+    });
+    const rt = new MusicNetworkRuntime(store, host);
+
+    await rt.flushOwedScrobbles();
+
+    expect(lb.calls.scrobble).toBe(0);
+    expect(rt.owedScrobbleCount()).toBe(1);
   });
 });

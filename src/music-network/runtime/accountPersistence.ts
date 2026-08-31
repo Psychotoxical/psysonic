@@ -85,7 +85,13 @@ export function sanitizeScrobbleQueue(raw: unknown): QueuedScrobble[] {
   return raw.filter((e): e is QueuedScrobble => {
     if (!e || typeof e !== 'object') return false;
     const entry = e as Record<string, unknown>;
-    if (typeof entry.accountId !== 'string' || !entry.accountId) return false;
+    const target = entry.target as Record<string, unknown> | undefined;
+    if (!target || typeof target !== 'object') return false;
+    // presetId identifies the destination; baseUrl and username are '' for
+    // fixed-host and token-only providers, so they must be present but may be
+    // empty. An entry keyed the old way (accountId) fails here and is discarded.
+    if (typeof target.presetId !== 'string' || !target.presetId) return false;
+    if (typeof target.baseUrl !== 'string' || typeof target.username !== 'string') return false;
     if (typeof entry.attempts !== 'number' || !Number.isFinite(entry.attempts)) return false;
     if (typeof entry.nextAttemptAt !== 'number' || !Number.isFinite(entry.nextAttemptAt)) {
       return false;

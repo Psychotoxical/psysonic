@@ -70,7 +70,7 @@ describe('sanitizeAccounts', () => {
 
 describe('sanitizeScrobbleQueue', () => {
   const good = {
-    accountId: 'a1',
+    target: { presetId: 'lastfm', baseUrl: '', username: 'u1' },
     event: { title: 'T', artist: 'A', album: 'Al', duration: 200, timestamp: 1 },
     attempts: 1,
     nextAttemptAt: 0,
@@ -92,7 +92,7 @@ describe('sanitizeScrobbleQueue', () => {
     expect(sanitizeScrobbleQueue([{ ...good, event: undefined }])).toEqual([]);
     expect(sanitizeScrobbleQueue([{ ...good, event: { ...good.event, timestamp: 'soon' } }])).toEqual([]);
     expect(sanitizeScrobbleQueue([{ ...good, attempts: 'many' }])).toEqual([]);
-    expect(sanitizeScrobbleQueue([{ ...good, accountId: '' }])).toEqual([]);
+    expect(sanitizeScrobbleQueue([{ ...good, target: { presetId: '', baseUrl: '', username: '' } }])).toEqual([]);
   });
 
   it('keeps the healthy entries beside a corrupt one', () => {
@@ -102,7 +102,7 @@ describe('sanitizeScrobbleQueue', () => {
 
 describe('sanitizeScrobbleQueue — event completeness', () => {
   const base = {
-    accountId: 'a1',
+    target: { presetId: 'lastfm', baseUrl: '', username: 'u1' },
     event: { title: 'T', artist: 'A', album: 'Al', duration: 200, timestamp: 1 },
     attempts: 1,
     nextAttemptAt: 0,

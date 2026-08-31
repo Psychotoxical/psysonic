@@ -6,8 +6,7 @@
 //
 // Failure handling has one classifier, `deliver`, used by both the live path and
 // the retry of an owed scrobble — so a queued play is judged exactly like a fresh
-// one. A wire throwing AUTH_SESSION_INVALID flips that account's session-error
-// flag (cleared on the next success).
+// one.
 
 import { MusicNetworkError } from '../core/errors';
 import type { PersistedAccount } from '../core/accounts';
@@ -19,23 +18,26 @@ export interface OrchestratorDeps {
   /** Flip the persisted session-error flag for an account. */
   setSessionError(accountId: string, invalid: boolean): void;
   /**
-   * Take custody of a play that failed on a transient error. Optional so the
-   * now-playing path — which is worthless once late — can leave it unset.
+   * Take custody of a play the destination could not receive yet. Optional so the
+   * now-playing path — worthless once late — can leave it unset.
    */
-  onRetryable?(accountId: string, event: ScrobbleEvent): void;
+  onRetryable?(account: PersistedAccount, event: ScrobbleEvent): void;
 }
 
 type WireOp = 'scrobble' | 'updateNowPlaying';
 
 /**
- * `retry` = the destination may accept this play later (transport-level trouble).
- * `drop` = it never will: a rejected session, an unsupported capability or a
- * misconfigured account. Queueing those would fill the queue with mail that can
- * never be delivered, so only transport failures are retryable.
+ * `retry` = the destination may accept this play later. That covers transport
+ * trouble and a rejected session: the session is repairable by reconnecting, and
+ * the queue keys entries on the destination rather than the account id, so they
+ * survive that repair.
+ *
+ * `drop` = it never will — an unsupported capability or a misconfigured account.
+ * Queueing those would fill the queue with mail that can never be delivered.
  */
 export type DeliveryOutcome = 'ok' | 'retry' | 'drop';
 
-const RETRYABLE_CODES = new Set(['NETWORK', 'RESPONSE_NOT_JSON']);
+const RETRYABLE_CODES = new Set(['NETWORK', 'RESPONSE_NOT_JSON', 'AUTH_SESSION_INVALID']);
 
 /** Sends one event to one destination and classifies the outcome. */
 export async function deliver(
@@ -52,16 +54,10 @@ export async function deliver(
     return 'ok';
   } catch (e) {
     if (e instanceof MusicNetworkError) {
-      if (e.code === 'AUTH_SESSION_INVALID') {
-        deps.setSessionError(account.id, true);
-        // Dropped, not held. Holding was tried and is a lie: repairing a session
-        // means disconnect + connect, `connect` mints a fresh account id, and every
-        // held entry then points at an id that no longer exists — discarded on the
-        // next flush after occupying the cap in the meantime. Holding would only
-        // pay off with a reconnect that keeps the account identity, which does not
-        // exist today (`clearSessionError` has no caller outside the runtime).
-        return 'drop';
-      }
+      // Raise the flag that drives the reconnect prompt, and keep the play: the
+      // flush skips a flagged account entirely, so nothing is re-sent while the
+      // user has not reconnected yet.
+      if (e.code === 'AUTH_SESSION_INVALID') deps.setSessionError(account.id, true);
       return RETRYABLE_CODES.has(e.code) ? 'retry' : 'drop';
     }
     // An error the wires did not classify: treat as transport trouble rather
@@ -77,7 +73,7 @@ async function dispatchOne(
   deps: OrchestratorDeps,
 ): Promise<void> {
   const outcome = await deliver(account, op, event, deps);
-  if (outcome === 'retry') deps.onRetryable?.(account.id, event);
+  if (outcome === 'retry') deps.onRetryable?.(account, event);
 }
 
 export async function dispatchScrobble(

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { __resetWires, registerWire } from '../registry/wireRegistry';
 import { MusicNetworkError } from '../core/errors';
-import type { PersistedAccount, QueuedScrobble } from '../core/accounts';
+import { scrobbleTargetRef, type PersistedAccount, type QueuedScrobble } from '../core/accounts';
 import type { ScrobbleWire } from '../contracts/ScrobbleWire';
 import type { ScrobbleEvent } from '../core/types';
 import {
@@ -30,7 +30,13 @@ function account(over: Partial<PersistedAccount> = {}): PersistedAccount {
 }
 
 function entry(over: Partial<QueuedScrobble> = {}): QueuedScrobble {
-  return { accountId: 'a1', event: event(), attempts: 1, nextAttemptAt: NOW, ...over };
+  return {
+    target: scrobbleTargetRef(account()),
+    event: event(),
+    attempts: 1,
+    nextAttemptAt: NOW,
+    ...over,
+  };
 }
 
 /** Wire whose scrobble outcome the test drives. */
@@ -50,6 +56,7 @@ function makeWire() {
 }
 
 let w: ReturnType<typeof makeWire>;
+const other = (u: string) => account({ id: u, username: u });
 const deps = () => ({ setSessionError: () => {}, targets: [account()] });
 
 beforeEach(() => {
@@ -60,38 +67,38 @@ beforeEach(() => {
 
 describe('withEnqueued', () => {
   it('takes custody of a failed play', () => {
-    const q = withEnqueued([], 'a1', event(), NOW);
+    const q = withEnqueued([], account(), event(), NOW);
     expect(q).toHaveLength(1);
     expect(q[0].attempts).toBe(1);
     expect(q[0].nextAttemptAt).toBe(NOW + backoffFor(1));
   });
 
   it('does not owe the same play twice to the same destination', () => {
-    const once = withEnqueued([], 'a1', event(), NOW);
-    expect(withEnqueued(once, 'a1', event(), NOW)).toHaveLength(1);
+    const once = withEnqueued([], account(), event(), NOW);
+    expect(withEnqueued(once, account(), event(), NOW)).toHaveLength(1);
   });
 
   it('owes the same play separately per destination', () => {
-    const q = withEnqueued(withEnqueued([], 'a1', event(), NOW), 'a2', event(), NOW);
-    expect(q.map(e => e.accountId)).toEqual(['a1', 'a2']);
+    const q = withEnqueued(withEnqueued([], account(), event(), NOW), other('a2'), event(), NOW);
+    expect(q.map(e => e.target.username)).toEqual(['', 'a2']);
   });
 
   it('drops plays too old for any destination to accept', () => {
     const ancient = entry({ event: event({ timestamp: NOW - SCROBBLE_MAX_AGE_MS - 1 }) });
-    const q = withEnqueued([ancient], 'a2', event(), NOW);
+    const q = withEnqueued([ancient], other('a2'), event(), NOW);
     expect(q).toHaveLength(1);
-    expect(q[0].accountId).toBe('a2');
+    expect(q[0].target.username).toBe('a2');
   });
 
   it('caps the queue by dropping the oldest play first', () => {
     const full = Array.from({ length: SCROBBLE_QUEUE_MAX }, (_, i) =>
-      entry({ accountId: `old-${i}`, event: event({ timestamp: NOW - (i + 1) * 1000 }) }),
+      entry({ target: scrobbleTargetRef(other(`old-${i}`)), event: event({ timestamp: NOW - (i + 1) * 1000 }) }),
     );
-    const q = withEnqueued(full, 'fresh', event(), NOW);
+    const q = withEnqueued(full, other('fresh'), event(), NOW);
     expect(q).toHaveLength(SCROBBLE_QUEUE_MAX);
-    expect(q.some(e => e.accountId === 'fresh')).toBe(true);
+    expect(q.some(e => e.target.username === 'fresh')).toBe(true);
     // The entry furthest in the past is the one that made room.
-    expect(q.some(e => e.accountId === `old-${SCROBBLE_QUEUE_MAX - 1}`)).toBe(false);
+    expect(q.some(e => e.target.username === `old-${SCROBBLE_QUEUE_MAX - 1}`)).toBe(false);
   });
 });
 
@@ -123,12 +130,13 @@ describe('flushQueue', () => {
     expect(kept.nextAttemptAt).toBe(NOW + backoffFor(2));
   });
 
-  it('gives up on a rejected session', async () => {
-    // Holding these was tried and reverted: repairing a session means disconnect
-    // plus connect, which mints a new account id, so held entries would be
-    // orphaned on the next flush anyway — after occupying the cap in between.
+  it('holds the play through a rejected session', async () => {
+    // The session is repairable, and entries key on the destination rather than
+    // the account id, so they survive the disconnect-and-reconnect that repairs
+    // it. The flag is raised for the reconnect prompt; the play waits.
     w.failWith(new MusicNetworkError('AUTH_SESSION_INVALID', 'bad key'));
-    expect(await flushQueue([entry()], deps(), () => NOW)).toEqual([]);
+    const kept = await flushQueue([entry()], deps(), () => NOW);
+    expect(kept).toHaveLength(1);
   });
 
   it('gives up on a misconfigured destination', async () => {
@@ -142,9 +150,11 @@ describe('flushQueue', () => {
     expect(w.calls).toHaveLength(0);
   });
 
-  it('discards plays owed to a destination the user removed', async () => {
-    const orphan = entry({ accountId: 'gone' });
-    expect(await flushQueue([orphan], deps(), () => NOW)).toEqual([]);
+  it('holds a play whose destination is absent right now', async () => {
+    // Disconnected, switched off, or mid-reconnect. Discarding here would defeat
+    // the point of a persistent queue: the destination usually comes back.
+    const absent = entry({ target: scrobbleTargetRef(other('gone')) });
+    expect(await flushQueue([absent], deps(), () => NOW)).toEqual([absent]);
     expect(w.calls).toHaveLength(0);
   });
 
@@ -214,8 +224,8 @@ describe('queue hardening', () => {
 
   it('returns the same queue when the play is already owed', () => {
     // Identity, not just equality — the caller skips the persist write on a no-op.
-    const q = withEnqueued([], 'a1', event(), NOW);
-    expect(withEnqueued(q, 'a1', event(), NOW)).toBe(q);
+    const q = withEnqueued([], account(), event(), NOW);
+    expect(withEnqueued(q, account(), event(), NOW)).toBe(q);
   });
 });
 
