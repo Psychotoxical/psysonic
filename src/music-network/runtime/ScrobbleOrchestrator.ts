@@ -54,7 +54,10 @@ export async function deliver(
     if (e instanceof MusicNetworkError) {
       if (e.code === 'AUTH_SESSION_INVALID') {
         deps.setSessionError(account.id, true);
-        return 'drop';
+        // Retryable, not lost: a stale session is what the reconnect prompt exists
+        // to fix, and the play becomes deliverable again the moment it is fixed.
+        // The flush skips accounts in this state, so nothing is re-sent meanwhile.
+        return 'retry';
       }
       return RETRYABLE_CODES.has(e.code) ? 'retry' : 'drop';
     }

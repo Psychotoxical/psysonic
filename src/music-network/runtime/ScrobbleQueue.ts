@@ -107,6 +107,15 @@ export async function flushQueue(
       onProgress?.([...settled, ...pending]);
       continue;
     }
+    // Session rejected: hold without attempting. Every entry for this account
+    // would fail the same way, burning the give-up ceiling on a condition only the
+    // user can clear — and each failure would rewrite the account record. The
+    // backlog waits for the reconnect; expiry still bounds how long.
+    if (account.sessionError) {
+      settled.push(entry);
+      onProgress?.([...settled, ...pending]);
+      continue;
+    }
     if (entry.nextAttemptAt > now) {
       settled.push(entry);
       onProgress?.([...settled, ...pending]);

@@ -44,10 +44,18 @@ const OWED_FLUSH_INTERVAL_MS = 5 * 60_000;
  */
 function startOwedScrobbleFlushing(): void {
   const flush = () => {
-    void getMusicNetworkRuntimeOrNull()?.flushOwedScrobbles();
+    // A rejection here must not escape: this fires from three triggers, and the
+    // queue rides in the persisted auth blob — a full localStorage would reject on
+    // every one of them, forever, with nobody to catch it.
+    void getMusicNetworkRuntimeOrNull()
+      ?.flushOwedScrobbles()
+      .catch(() => {});
   };
   flush();
-  if (typeof window !== 'undefined') window.addEventListener('online', flush);
+  // Both the listener and the timer are browser-only; a non-browser import must
+  // not be left holding a live interval that fires into an unrelated store.
+  if (typeof window === 'undefined') return;
+  window.addEventListener('online', flush);
   // Lives for the process; the runtime is a singleton owned by the app shell.
   setInterval(flush, OWED_FLUSH_INTERVAL_MS);
 }
