@@ -1,8 +1,7 @@
 import type { SubsonicAlbum } from '@/lib/api/subsonicTypes';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { coverArtRef } from '@/cover/ref';
-import { loadCoverBlobForExport } from '@/cover/integrations/export';
+import { albumExportCoverRef, loadCoverBlobForExport } from '@/cover/integrations/export';
 import PsysonicLogo from '@/ui/PsysonicLogo';
 
 export type ExportFormat = 'story' | 'square' | 'twitter';
@@ -62,9 +61,10 @@ function isLight(hex: string): boolean {
 }
 
 async function loadAlbumCover(album: SubsonicAlbum, displayCssPx: number, signal?: AbortSignal): Promise<ImageBitmap | null> {
-  if (!album.coverArt) return null;
+  const ref = albumExportCoverRef(album);
+  if (!ref) return null;
   try {
-    const blob = await loadCoverBlobForExport(coverArtRef(album.coverArt), displayCssPx, signal);
+    const blob = await loadCoverBlobForExport(ref, displayCssPx, signal);
     if (!blob) return null;
     return await createImageBitmap(blob);
   } catch {
