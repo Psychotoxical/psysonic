@@ -1,6 +1,5 @@
 import { getAlbumList } from '@/lib/api/subsonicLibrary';
-import { coverArtRef } from '@/cover/ref';
-import { loadCoverBlobForExport } from '@/cover/integrations/export';
+import { albumExportCoverRef, loadCoverBlobForExport } from '@/cover/integrations/export';
 import type { SubsonicAlbum } from '@/lib/api/subsonicTypes';
 import { albumArtistDisplayName } from '@/features/album/utils/deriveAlbumHeaderArtistRefs';
 import { writeFile } from '@tauri-apps/plugin-fs';
@@ -41,9 +40,10 @@ function clampText(ctx: CanvasRenderingContext2D, text: string, maxW: number): s
 }
 
 async function loadAlbumCoverBitmap(album: SubsonicAlbum): Promise<ImageBitmap | null> {
-  if (!album.coverArt) return null;
+  const ref = albumExportCoverRef(album);
+  if (!ref) return null;
   try {
-    const blob = await loadCoverBlobForExport(coverArtRef(album.coverArt), COVER_SIZE);
+    const blob = await loadCoverBlobForExport(ref, COVER_SIZE);
     if (!blob) return null;
     return await createImageBitmap(blob);
   } catch { return null; }
