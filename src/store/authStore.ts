@@ -50,6 +50,7 @@ export const useAuthStore = create<AuthState>()(
       activeServerId: null,
       libraryBrowseServerIds: [],
       musicNetworkAccounts: [],
+      musicNetworkScrobbleQueue: [],
       enrichmentPrimaryId: null,
       scrobblingMasterEnabled: true,
       scrobbleThresholdPercent: SCROBBLE_THRESHOLD_PERCENT_DEFAULT,

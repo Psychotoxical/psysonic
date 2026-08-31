@@ -23,6 +23,7 @@ export type {
   AccountRoles,
   MusicNetworkState,
   PersistedAccount,
+  QueuedScrobble,
 } from './core/accounts';
 export type {
   CapabilityId,

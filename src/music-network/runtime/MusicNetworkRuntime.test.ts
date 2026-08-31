@@ -3,7 +3,7 @@ import { MusicNetworkRuntime } from './MusicNetworkRuntime';
 import type { MusicNetworkStore, RuntimeHost } from './store';
 import { __resetWires, registerWire } from '../registry/wireRegistry';
 import { MusicNetworkError } from '../core/errors';
-import type { MusicNetworkState, PersistedAccount } from '../core/accounts';
+import type { MusicNetworkState, PersistedAccount, QueuedScrobble } from '../core/accounts';
 import type { EnrichmentWire } from '../contracts/EnrichmentWire';
 import type { ScrobbleWire } from '../contracts/ScrobbleWire';
 import type { ScrobbleEvent } from '../core/types';
@@ -56,12 +56,16 @@ function makeListenBrainzMock() {
 
 // ── in-memory store ──────────────────────────────────────────────────────────
 
-function memStore(initial: MusicNetworkState): MusicNetworkStore {
-  let state = initial;
+// Callers predate the queue field; default it here so their literals stay terse.
+function memStore(
+  initial: Omit<MusicNetworkState, 'scrobbleQueue'> & { scrobbleQueue?: QueuedScrobble[] },
+): MusicNetworkStore {
+  let state: MusicNetworkState = { scrobbleQueue: [], ...initial };
   return {
     getState: () => state,
     setAccounts: a => { state = { ...state, accounts: a }; },
     setEnrichmentPrimaryId: id => { state = { ...state, enrichmentPrimaryId: id }; },
+    setScrobbleQueue: q => { state = { ...state, scrobbleQueue: q }; },
   };
 }
 
@@ -186,5 +190,77 @@ describe('enrichment primary', () => {
     expect(await rt.isTrackLoved({ title: 'T', artist: 'A' })).toBe(false);
     expect(await rt.getSimilarArtists('A')).toEqual([]);
     expect(rt.profileUrl()).toBeNull();
+  });
+});
+
+describe('owed scrobbles', () => {
+  // The shared EVENT is pinned to 2023 and would age out of the queue on sight,
+  // so these tests use a play from just now.
+  const fresh = (): ScrobbleEvent => ({ ...EVENT, timestamp: Date.now() });
+
+  it('takes custody of a play a destination could not receive', async () => {
+    const store = memStore({
+      scrobblingMasterEnabled: true,
+      enrichmentPrimaryId: null,
+      accounts: [lbAccount()],
+    });
+    lb.wire.scrobble = async () => { throw new MusicNetworkError('NETWORK', 'offline'); };
+    const rt = new MusicNetworkRuntime(store, host);
+
+    await rt.dispatchScrobble(fresh());
+
+    expect(rt.owedScrobbleCount()).toBe(1);
+    expect(store.getState().scrobbleQueue[0]).toMatchObject({
+      accountId: lbAccount().id,
+      attempts: 1,
+    });
+  });
+
+  it('does not owe a play the destination refused on authentication', async () => {
+    // A rejected session is not fixed by waiting; retrying it forever would fill
+    // the queue with mail that can never be delivered.
+    const store = memStore({
+      scrobblingMasterEnabled: true,
+      enrichmentPrimaryId: null,
+      accounts: [lbAccount()],
+    });
+    lb.wire.scrobble = async () => { throw new MusicNetworkError('AUTH_SESSION_INVALID', 'bad'); };
+    const rt = new MusicNetworkRuntime(store, host);
+
+    await rt.dispatchScrobble(fresh());
+
+    expect(rt.owedScrobbleCount()).toBe(0);
+  });
+
+  it('delivers an owed play once the destination answers again', async () => {
+    const store = memStore({
+      scrobblingMasterEnabled: true,
+      enrichmentPrimaryId: null,
+      accounts: [lbAccount()],
+      scrobbleQueue: [
+        { accountId: lbAccount().id, event: fresh(), attempts: 1, nextAttemptAt: 0 },
+      ],
+    });
+    const rt = new MusicNetworkRuntime(store, host);
+
+    await rt.flushOwedScrobbles();
+
+    expect(lb.calls.scrobble).toBe(1);
+    expect(rt.owedScrobbleCount()).toBe(0);
+  });
+
+  it('leaves a now-playing failure unqueued', async () => {
+    // Stale presence is worse than none, so it is deliberately not retried.
+    const store = memStore({
+      scrobblingMasterEnabled: true,
+      enrichmentPrimaryId: null,
+      accounts: [lbAccount()],
+    });
+    lb.wire.updateNowPlaying = async () => { throw new MusicNetworkError('NETWORK', 'offline'); };
+    const rt = new MusicNetworkRuntime(store, host);
+
+    await rt.dispatchNowPlaying(fresh());
+
+    expect(rt.owedScrobbleCount()).toBe(0);
   });
 });

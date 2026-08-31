@@ -31,6 +31,7 @@ import { probeAccount } from './CapabilityProbe';
 import { resolveEnrichment } from './EnrichmentRouter';
 import { resolveWireContext } from './contextResolver';
 import { dispatchNowPlaying, dispatchScrobble } from './ScrobbleOrchestrator';
+import { flushScrobbleQueue, withEnqueued } from './ScrobbleQueue';
 import type { MusicNetworkStore, RuntimeHost } from './store';
 
 export interface ConnectOptions {
@@ -197,7 +198,27 @@ export class MusicNetworkRuntime {
     return {
       setSessionError: (id: string, invalid: boolean) =>
         this.updateAccount(id, { sessionError: invalid }),
+      onRetryable: (accountId: string, event: ScrobbleEvent) =>
+        this.store.setScrobbleQueue(
+          withEnqueued(this.store.getState().scrobbleQueue, accountId, event),
+        ),
     };
+  }
+
+  /** Plays still owed to a destination — surfaced in Music Network settings. */
+  owedScrobbleCount(): number {
+    return this.store.getState().scrobbleQueue.length;
+  }
+
+  /**
+   * Retries every owed play that is due. Safe to call often: entries carry their
+   * own backoff, so an early call is a cheap no-op.
+   */
+  async flushOwedScrobbles(): Promise<void> {
+    await flushScrobbleQueue(this.store, {
+      ...this.orchestratorDeps(),
+      accounts: this.store.getState().accounts,
+    });
   }
 
   async dispatchScrobble(event: ScrobbleEvent): Promise<void> {

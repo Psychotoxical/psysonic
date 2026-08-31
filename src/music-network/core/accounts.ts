@@ -5,7 +5,7 @@
 // decide fan-out (scrobble) and enrichment eligibility.
 
 import type { CapabilitySet } from './capabilities';
-import type { PresetId, WireId } from './types';
+import type { PresetId, ScrobbleEvent, WireId } from './types';
 
 export interface AccountRoles {
   /** Account participates in scrobble fan-out when enabled + master on. */
@@ -65,4 +65,28 @@ export interface MusicNetworkState {
   /** Single enrichment primary account id, or null. */
   enrichmentPrimaryId: string | null;
   accounts: PersistedAccount[];
+  /**
+   * Scrobbles that failed on a transient error and are owed to a destination.
+   * Persisted, because a play cannot be repeated the way a star click can — the
+   * user never sees the failure and has no way to replay the track.
+   */
+  scrobbleQueue: QueuedScrobble[];
+}
+
+/**
+ * One play owed to one destination. Fanned out per account rather than per play,
+ * so a play that reached two of three destinations only retries the third.
+ */
+export interface QueuedScrobble {
+  /** Destination account. Entries for a removed account are dropped on flush. */
+  accountId: string;
+  event: ScrobbleEvent;
+  /** Delivery attempts so far; drives the backoff below. */
+  attempts: number;
+  /**
+   * Epoch ms before which no retry is made. Expiry keys off `event.timestamp`
+   * instead — that is the play itself, and what the destination will reject as
+   * too old.
+   */
+  nextAttemptAt: number;
 }

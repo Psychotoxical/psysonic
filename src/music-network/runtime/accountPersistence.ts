@@ -28,7 +28,7 @@ export function migrateLegacyLastfm(
   const scrobblingMasterEnabled = legacy.scrobblingEnabled ?? true;
   const sessionKey = (legacy.lastfmSessionKey ?? '').trim();
   if (!sessionKey) {
-    return { scrobblingMasterEnabled, enrichmentPrimaryId: null, accounts: [] };
+    return { scrobblingMasterEnabled, enrichmentPrimaryId: null, accounts: [], scrobbleQueue: [] };
   }
 
   const preset = getPreset('lastfm');
@@ -50,7 +50,7 @@ export function migrateLegacyLastfm(
       nowPlaying: { status: 'yes' },
     },
   };
-  return { scrobblingMasterEnabled, enrichmentPrimaryId: id, accounts: [account] };
+  return { scrobblingMasterEnabled, enrichmentPrimaryId: id, accounts: [account], scrobbleQueue: [] };
 }
 
 const REQUIRED_STRING_FIELDS: (keyof PersistedAccount)[] = [
