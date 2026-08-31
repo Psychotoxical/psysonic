@@ -63,8 +63,14 @@ export function withEnqueued(
 }
 
 export interface FlushDeps extends OrchestratorDeps {
-  /** Accounts as they exist now; entries for unknown ids are dropped. */
-  accounts: readonly PersistedAccount[];
+  /**
+   * Destinations eligible for a scrobble right now — the same filter the live
+   * path applies. An entry for anything else is dropped: the user either removed
+   * that account or switched it off, and delivering anyway would override an
+   * explicit setting. (The master toggle is handled one level up, where it holds
+   * the queue instead of discarding it.)
+   */
+  targets: readonly PersistedAccount[];
 }
 
 /**
@@ -79,7 +85,7 @@ export async function flushQueue(
 ): Promise<QueuedScrobble[]> {
   const next: QueuedScrobble[] = [];
   for (const entry of queue) {
-    const account = deps.accounts.find(a => a.id === entry.accountId);
+    const account = deps.targets.find(a => a.id === entry.accountId);
     // Destination removed, or the play aged out while we waited.
     if (!account || isExpired(entry, now)) continue;
     if (entry.nextAttemptAt > now) {
@@ -94,16 +100,36 @@ export async function flushQueue(
   return next;
 }
 
-/** Store-bound wrapper: reads, flushes, writes back only when something moved. */
+/** Identity of an owed play: one destination, one moment of listening. */
+function identityOf(entry: QueuedScrobble): string {
+  return entry.accountId + '~' + entry.event.timestamp;
+}
+
+/**
+ * Store-bound wrapper: reads, delivers, writes back.
+ *
+ * Delivery can span minutes, and the live path keeps enqueueing while it runs, so
+ * the result is merged against a fresh read rather than written blind. Writing the
+ * snapshot-derived list alone would drop every play that failed during the flush —
+ * the exact loss this feature exists to prevent.
+ */
 export async function flushScrobbleQueue(
   store: MusicNetworkStore,
   deps: FlushDeps,
   now: number = Date.now(),
 ): Promise<void> {
-  const queue = store.getState().scrobbleQueue;
-  if (queue.length === 0) return;
-  const next = await flushQueue(queue, deps, now);
+  const before = store.getState().scrobbleQueue;
+  if (before.length === 0) return;
+  const next = await flushQueue(before, deps, now);
+
+  const seen = new Set(before.map(identityOf));
+  const arrivedDuringFlush = store
+    .getState()
+    .scrobbleQueue.filter(e => !seen.has(identityOf(e)));
+  const merged = [...next, ...arrivedDuringFlush];
+
+  const latest = store.getState().scrobbleQueue;
   const unchanged =
-    next.length === queue.length && next.every((e, i) => e === queue[i]);
-  if (!unchanged) store.setScrobbleQueue(next);
+    merged.length === latest.length && merged.every((e, i) => e === latest[i]);
+  if (!unchanged) store.setScrobbleQueue(merged);
 }

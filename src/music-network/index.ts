@@ -13,6 +13,7 @@ export type { MusicNetworkStore, RuntimeHost } from './runtime/store';
 export { listPresets, getPreset } from './registry/presetRegistry';
 export {
   migrateLegacyLastfm,
+  sanitizeScrobbleQueue,
   sanitizeAccounts,
   type LegacyLastfmState,
 } from './runtime/accountPersistence';

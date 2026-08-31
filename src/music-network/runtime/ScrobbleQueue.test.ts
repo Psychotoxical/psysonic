@@ -49,7 +49,7 @@ function makeWire() {
 }
 
 let w: ReturnType<typeof makeWire>;
-const deps = () => ({ setSessionError: () => {}, accounts: [account()] });
+const deps = () => ({ setSessionError: () => {}, targets: [account()] });
 
 beforeEach(() => {
   __resetWires();

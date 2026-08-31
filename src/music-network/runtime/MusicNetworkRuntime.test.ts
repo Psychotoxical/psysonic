@@ -264,3 +264,65 @@ describe('owed scrobbles', () => {
     expect(rt.owedScrobbleCount()).toBe(0);
   });
 });
+
+describe('owed scrobbles — concurrency and consent', () => {
+  const fresh2 = (over: Partial<ScrobbleEvent> = {}): ScrobbleEvent =>
+    ({ ...EVENT, timestamp: Date.now(), ...over });
+
+  function storeWithOwed(over: Partial<MusicNetworkState> = {}) {
+    return memStore({
+      scrobblingMasterEnabled: true,
+      enrichmentPrimaryId: null,
+      accounts: [lbAccount()],
+      scrobbleQueue: [
+        { accountId: lbAccount().id, event: fresh2(), attempts: 1, nextAttemptAt: 0 },
+      ],
+      ...over,
+    });
+  }
+
+  it('keeps a play that failed while the flush was still running', async () => {
+    // The flush snapshots the queue, then spends real time on the network. A play
+    // failing in that window must not be overwritten by the snapshot-derived list.
+    const store = storeWithOwed();
+    const rt = new MusicNetworkRuntime(store, host);
+    const late = { accountId: lbAccount().id, event: fresh2({ timestamp: Date.now() + 5 }), attempts: 1, nextAttemptAt: 0 };
+    lb.wire.scrobble = async () => {
+      store.setScrobbleQueue([...store.getState().scrobbleQueue, late]);
+    };
+
+    await rt.flushOwedScrobbles();
+
+    expect(store.getState().scrobbleQueue).toContainEqual(late);
+  });
+
+  it('does not deliver the same play twice when two triggers overlap', async () => {
+    const store = storeWithOwed();
+    const rt = new MusicNetworkRuntime(store, host);
+
+    await Promise.all([rt.flushOwedScrobbles(), rt.flushOwedScrobbles()]);
+
+    expect(lb.calls.scrobble).toBe(1);
+  });
+
+  it('holds the queue instead of delivering while scrobbling is switched off', async () => {
+    const store = storeWithOwed({ scrobblingMasterEnabled: false });
+    const before = store.getState().scrobbleQueue;
+    const rt = new MusicNetworkRuntime(store, host);
+
+    await rt.flushOwedScrobbles();
+
+    expect(lb.calls.scrobble).toBe(0);
+    expect(store.getState().scrobbleQueue).toEqual(before);
+  });
+
+  it('drops a play owed to a destination the user switched off', async () => {
+    const store = storeWithOwed({ accounts: [lbAccount({ scrobbleEnabled: false })] });
+    const rt = new MusicNetworkRuntime(store, host);
+
+    await rt.flushOwedScrobbles();
+
+    expect(lb.calls.scrobble).toBe(0);
+    expect(rt.owedScrobbleCount()).toBe(0);
+  });
+});

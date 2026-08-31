@@ -32,7 +32,7 @@ import type {
   SeekbarStyle,
   WindowButtonStyle,
 } from './authStoreTypes';
-import { migrateLegacyLastfm, sanitizeAccounts } from '../music-network';
+import { migrateLegacyLastfm, sanitizeAccounts, sanitizeScrobbleQueue } from '../music-network';
 import { deriveLibraryBrowseServerIdsWithFallback } from '@/lib/library/libraryBrowseScope';
 import { sanitizeDebugLoggingDepth } from '@/lib/perf/debugLoggingMode';
 
@@ -231,6 +231,9 @@ export function computeAuthStoreRehydration(state: AuthState): Partial<AuthState
   let musicNetworkMigrated: Partial<AuthState> = {
     musicNetworkAccounts: sanitizeAccounts(
       (state as { musicNetworkAccounts?: unknown }).musicNetworkAccounts,
+    ),
+    musicNetworkScrobbleQueue: sanitizeScrobbleQueue(
+      (state as { musicNetworkScrobbleQueue?: unknown }).musicNetworkScrobbleQueue,
     ),
   };
   try {

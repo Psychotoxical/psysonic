@@ -210,15 +210,32 @@ export class MusicNetworkRuntime {
     return this.store.getState().scrobbleQueue.length;
   }
 
+  private owedFlush: Promise<void> | null = null;
+
   /**
    * Retries every owed play that is due. Safe to call often: entries carry their
    * own backoff, so an early call is a cheap no-op.
+   *
+   * Concurrent calls share one run. The three triggers — start, connectivity and
+   * the interval — are uncoordinated, and a flush outliving the interval would
+   * otherwise be joined by a second one re-sending the entries the first is still
+   * delivering, producing duplicate scrobbles at the provider.
    */
   async flushOwedScrobbles(): Promise<void> {
-    await flushScrobbleQueue(this.store, {
+    if (this.owedFlush) return this.owedFlush;
+    // Master toggle off: hold what is owed and send nothing. Discarding here
+    // would turn a temporary switch-off into permanent loss; the entries simply
+    // wait, and expiry still bounds them.
+    if (!this.store.getState().scrobblingMasterEnabled) return;
+    this.owedFlush = flushScrobbleQueue(this.store, {
       ...this.orchestratorDeps(),
-      accounts: this.store.getState().accounts,
+      // Same eligibility the live path applies, so a destination the user
+      // switched off is not written to behind their back.
+      targets: this.scrobbleTargets(),
+    }).finally(() => {
+      this.owedFlush = null;
     });
+    return this.owedFlush;
   }
 
   async dispatchScrobble(event: ScrobbleEvent): Promise<void> {

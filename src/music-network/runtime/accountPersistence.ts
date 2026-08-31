@@ -6,7 +6,7 @@
 // global setting and gates dispatchNowPlaying at the playback call-site, so
 // now-playing behaviour is preserved exactly.
 
-import type { MusicNetworkState, PersistedAccount } from '../core/accounts';
+import type { MusicNetworkState, PersistedAccount, QueuedScrobble } from '../core/accounts';
 import { getPreset } from '../registry/presetRegistry';
 
 export interface LegacyLastfmState {
@@ -69,5 +69,31 @@ export function sanitizeAccounts(raw: unknown): PersistedAccount[] {
     const acc = a as Record<string, unknown>;
     if (REQUIRED_STRING_FIELDS.some(f => typeof acc[f] !== 'string')) return false;
     return getPreset(acc.presetId as PersistedAccount['presetId']) !== undefined;
+  });
+}
+
+/**
+ * Drops malformed entries from a persisted owed-scrobble queue.
+ *
+ * The queue is written verbatim by the store's blacklist-style `partialize`, so a
+ * truncated or hand-edited blob reaches us unchecked. An entry missing its event
+ * would throw on the first expiry comparison and wedge the queue permanently —
+ * inside a `void flush()` with no one to catch it.
+ */
+export function sanitizeScrobbleQueue(raw: unknown): QueuedScrobble[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.filter((e): e is QueuedScrobble => {
+    if (!e || typeof e !== 'object') return false;
+    const entry = e as Record<string, unknown>;
+    if (typeof entry.accountId !== 'string' || !entry.accountId) return false;
+    if (typeof entry.attempts !== 'number' || !Number.isFinite(entry.attempts)) return false;
+    if (typeof entry.nextAttemptAt !== 'number' || !Number.isFinite(entry.nextAttemptAt)) {
+      return false;
+    }
+    const event = entry.event as Record<string, unknown> | undefined;
+    if (!event || typeof event !== 'object') return false;
+    // `timestamp` drives expiry; the rest is what the wires send on.
+    if (typeof event.timestamp !== 'number' || !Number.isFinite(event.timestamp)) return false;
+    return typeof event.title === 'string' && typeof event.artist === 'string';
   });
 }
