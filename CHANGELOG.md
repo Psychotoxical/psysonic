@@ -21,6 +21,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Each destination in Settings → Integrations shows how many plays are still waiting to be sent, so a service that has quietly fallen behind is visible.
 * Plays are kept for 14 days, which is as far back as the services accept them.
 
+### Psysonic Rewind — your year in music as a shareable poster
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1485](https://github.com/Psysonic/psysonic/pull/1485)**
+
+* The statistics page gains a Psysonic Rewind card: play your year back as a story, then save it as a poster. Four layouts — overview, artist spotlight, album spotlight, and nerd stats — each in story (9:16) and square (1:1) format, drawn in a dedicated dark poster style with a live preview.
+* Everything is computed locally from your own play history — your data never leaves your device, and the poster says so.
+
 ## Fixed
 
 ### Shared Top Albums pictures show their covers again
