@@ -2,18 +2,20 @@
 // Generates latest.json for the Tauri updater from a GitHub release.
 // Reads .sig files uploaded by tauri-action, assembles the manifest, writes latest.json.
 //
-// macOS-only for now — Windows + Linux are added once their signing pipelines
-// (Certum cert for Windows, native package managers for Linux) are wired up.
+// macOS only: those bundles are built and signed here in CI. The Windows entry
+// is added afterwards by scripts/sign-windows-updater.mjs (manual workflow),
+// because the shipped Windows installer is signed outside CI. Linux stays on
+// the manual download flow.
 //
 // Required env vars: VERSION, GITHUB_TOKEN
 // Usage: node scripts/generate-update-manifest.js
 
 const { execSync } = require('child_process');
 const fs = require('fs');
+const { REPO, releaseTag, assetUrl, validateSignature } = require('./lib/updater-manifest.cjs');
 
 const VERSION = process.env.VERSION;
-const REPO = 'Psysonic/psysonic';
-const TAG = `app-v${VERSION}`;
+const TAG = releaseTag(VERSION);
 
 if (!VERSION) {
   console.error('VERSION env var required');
@@ -28,23 +30,6 @@ const PLATFORM_FILES = {
 
 const platforms = {};
 
-// A real minisign .sig file is multi-line and ~200+ chars.
-// A public key (RWTxxx... single line, ~56 chars) must never appear here.
-function validateSignature(sig, platform, sigFile) {
-  if (/^RWT[A-Za-z0-9+/]{10,}={0,2}$/.test(sig)) {
-    throw new Error(
-      `${platform}: .sig file "${sigFile}" contains a PUBLIC KEY instead of a signature.\n` +
-      `  Got: ${sig}\n` +
-      `  TAURI_SIGNING_PRIVATE_KEY must be the private key, not the public one.`
-    );
-  }
-  if (sig.length < 80) {
-    throw new Error(
-      `${platform}: .sig file "${sigFile}" looks too short (${sig.length} chars) to be a valid signature.`
-    );
-  }
-}
-
 for (const [platform, filename] of Object.entries(PLATFORM_FILES)) {
   const sigFile = `${filename}.sig`;
   try {
@@ -54,7 +39,7 @@ for (const [platform, filename] of Object.entries(PLATFORM_FILES)) {
     );
     const signature = fs.readFileSync(sigFile, 'utf8').trim();
     validateSignature(signature, platform, sigFile);
-    const url = `https://github.com/${REPO}/releases/download/${TAG}/${filename}`;
+    const url = assetUrl(TAG, filename);
     platforms[platform] = { signature, url };
     console.log(`✓ ${platform}`);
   } catch (e) {

@@ -1,0 +1,52 @@
+name: Sign Windows updater
+
+# The Windows installer that ships is built and code-signed outside CI and
+# uploaded to the release by hand, replacing the unsigned CI build. The in-app
+# updater only installs a download whose minisign signature matches the bytes
+# on the release, so that signature has to be made over the hand-uploaded file.
+# This workflow does that with the same updater key the macOS bundles are
+# signed with, then writes the windows-x86_64 entry into the release's
+# latest.json. Safe to re-run; run it again whenever the installer asset changes.
+#
+# Run it only after the channel workflow has finished — it uploads latest.json
+# last and would overwrite the entry otherwise.
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag (app-vX.Y.Z or app-vX.Y.Z-rc.N)"
+        required: true
+        type: string
+      dry_run:
+        description: "Verify and sign, upload nothing"
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+
+jobs:
+  sign:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - name: setup node
+        uses: actions/setup-node@v5
+        with:
+          node-version: lts/*
+          cache: "npm"
+      - name: install npm dependencies
+        run: npm ci
+      - name: sign the installer and update latest.json
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          RELEASE_TAG: ${{ inputs.tag }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          set -euo pipefail
+          extra=()
+          if [ "$DRY_RUN" = "true" ]; then extra+=(--dry-run); fi
+          node scripts/sign-windows-updater.mjs --tag "$RELEASE_TAG" "${extra[@]}"

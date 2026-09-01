@@ -28,6 +28,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * The statistics page gains a Psysonic Rewind card: play your year back as a story, then save it as a poster. Four layouts — overview, artist spotlight, album spotlight, and nerd stats — each in story (9:16) and square (1:1) format, drawn in a dedicated dark poster style with a live preview.
 * Everything is computed locally from your own play history — your data never leaves your device, and the poster says so.
 
+### Windows updates install from inside the app
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1487](https://github.com/Psysonic/psysonic/pull/1487)**
+
+* On Windows the update dialog now installs the new version itself, the way it already does on macOS: the installer is downloaded, its signature is checked against the key built into the app, and it runs in the background. Psysonic closes and reopens by itself when it is done.
+* Until now Windows only offered the installer as a download to run by hand. Installs of this version and later update in place; an older install still downloads the next installer once.
+
 ## Fixed
 
 ### Shared Top Albums pictures show their covers again

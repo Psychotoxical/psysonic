@@ -47,7 +47,8 @@
         "https://github.com/Psysonic/psysonic/releases/latest/download/latest.json"
       ],
       "windows": {
-        "installMode": "passive"
+        "installMode": "passive",
+        "installerArgs": ["/SILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/CLOSEAPPLICATIONS"]
       }
     }
   },

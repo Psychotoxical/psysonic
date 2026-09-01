@@ -452,6 +452,7 @@ const CONTRIBUTOR_ENTRIES = [
       'Sidebar — playlist covers and song counts, plus sorting by name, creation date or size (PR #1455)',
       'Artist pages — an All Tracks tab listing everything an artist performs on, with pickable sortable columns (PR #1458)',
       'Psysonic Rewind — a year-in-review story and shareable posters in four layouts (PR #1485)',
+      'Windows — updates install from inside the app, signed and verified like on macOS (PR #1487)',
     ],
   },
   {
