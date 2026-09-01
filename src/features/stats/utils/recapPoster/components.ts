@@ -92,7 +92,10 @@ export function drawHeroStat(
   });
 
   const waveX = Math.max(labelX + 260, w * 0.55);
-  drawWaveform(ctx, waveX, y - size * 0.1, w - waveX - pad * 0.4, size * 1.1, rc.seed + 11);
+  const waveW = w - waveX - pad * 0.4;
+  if (waveW > 80) {
+    drawWaveform(ctx, waveX, y - size * 0.1, waveW, size * 1.1, rc.seed + 11);
+  }
   return y + size * 0.98;
 }
 
@@ -305,10 +308,9 @@ export function drawHourlyHeatband(
   ctx.fillStyle = C.textSecondary;
   ctx.font = `500 ${Math.round(type.statLabel * 0.9)}px ${REWIND_FONT_TEXT}`;
   for (const hour of [0, 6, 12, 18, 24]) {
-    const hx = x + Math.min(hour, 23.999) * (cell + gap) * (hour === 24 ? 1.0 : 1);
-    const label = String(hour).padStart(2, '0');
+    const hx = hour === 24 ? x + width : x + hour * (cell + gap);
     ctx.textAlign = hour === 0 ? 'left' : hour === 24 ? 'right' : 'center';
-    ctx.fillText(label, hour === 24 ? x + width : hx, y + type.statLabel);
+    ctx.fillText(String(hour).padStart(2, '0'), hx, y + type.statLabel);
   }
   ctx.textAlign = 'left';
   return y + type.statLabel + 8;

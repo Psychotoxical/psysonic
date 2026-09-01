@@ -46,12 +46,15 @@ export default function YearRecapExportModal({ open, data, onClose }: Props) {
     return available;
   }, [data.recap.topArtists.length, data.recap.topAlbums.length]);
 
+  // A data change can retire the selected spotlight layout — never render it.
+  const activeLayout = layouts.includes(layout) ? layout : 'overview';
+
   const posterOptions = useMemo<RewindPosterOptions>(() => {
     const persona = listeningPersona(data.recap.hourlyPlayCounts);
     const window = persona ? PERSONA_WINDOWS[persona] : null;
     return {
       data: { recap: data.recap, summary: data.summary, year: data.year },
-      layout,
+      layout: activeLayout,
       format,
       strings: {
         kicker: t('statistics.recapIntroKicker'),
@@ -90,7 +93,7 @@ export default function YearRecapExportModal({ open, data, onClose }: Props) {
         privacy: t('statistics.recapPrivacy'),
       },
     };
-  }, [data, layout, format, t]);
+  }, [data, activeLayout, format, t]);
 
   // Live preview — same replaceChildren pattern as StatsExportModal.
   useEffect(() => {
@@ -136,7 +139,7 @@ export default function YearRecapExportModal({ open, data, onClose }: Props) {
     setSaving(true);
     try {
       const blob = await exportRewindPosterBlob(posterOptions);
-      const saved = await savePngBlob(blob, `psysonic-rewind-${data.year}-${layout}-${format}.png`, {
+      const saved = await savePngBlob(blob, `psysonic-rewind-${data.year}-${activeLayout}-${format}.png`, {
         dialogTitle: t('statistics.exportSave'),
         savedToast: t('statistics.exportSaved'),
         failedToast: t('statistics.exportSaveFailed'),
@@ -185,7 +188,7 @@ export default function YearRecapExportModal({ open, data, onClose }: Props) {
                   key={l}
                   type="button"
                   className="btn btn-surface"
-                  style={optionButton(layout === l)}
+                  style={optionButton(activeLayout === l)}
                   onClick={() => setLayout(l)}
                 >
                   {t(LAYOUT_LABEL_KEYS[l])}

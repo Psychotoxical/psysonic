@@ -76,16 +76,17 @@ export function renderNerdLayout(rc: RewindRenderContext): void {
     y += cardH + Math.round(rc.h * (story ? 0.026 : 0.02));
   }
 
-  // Genres left, longest session right.
+  // Genres left, longest session right. Percentages are shares of the whole
+  // year's listening time, so they deliberately do not sum to 100.
   const genres = data.recap.topGenres.slice(0, 4);
-  const totalGenreSec = data.recap.topGenres.reduce((acc, g) => acc + g.listenedSec, 0);
   const colGap = 24;
   const leftW = Math.round((w - pad * 2 - colGap) * 0.55);
   const rightX = pad + leftW + colGap;
   const rightW = w - pad - rightX;
+  const totalSec = data.recap.totalListenedSec;
   const genreRows = genres.map(g => ({
     name: g.name,
-    percent: totalGenreSec > 0 ? Math.round((g.listenedSec / totalGenreSec) * 100) : 0,
+    percent: totalSec > 0 ? Math.round((g.listenedSec / totalSec) * 100) : 0,
   }));
   const genreBlockH = type.section + 16 + genreRows.length * (type.statLabel + 37);
   if (genres.length > 0 && y + genreBlockH <= rc.contentBottom) {
