@@ -7,6 +7,11 @@ import { version as currentVersion } from '../../../../package.json';
 import { IS_LINUX, IS_MACOS, IS_WINDOWS } from '@/lib/util/platform';
 import { SKIP_KEY, isNewer, isWithinModerationWindow, pickAsset, type ReleaseData, type DlState } from '@/lib/util/appUpdaterHelpers';
 
+/** Platforms where the Tauri Updater plugin installs the update from inside
+ * the app. Linux stays on the manual download: deb/rpm/AppImage/AUR/Nix have
+ * no sensible in-place path. */
+export type UpdaterPlatform = 'macos' | 'windows' | null;
+
 /** All update-modal state, the GitHub release probe and the download/relaunch
  * handlers. The component owns only the early-return guard and the JSX. */
 export function useAppUpdater() {
@@ -23,6 +28,7 @@ export function useAppUpdater() {
   const unlistenRef = useRef<(() => void) | null>(null);
   const countdownRef = useRef<number | null>(null);
   const relaunchFnRef = useRef<(() => Promise<void>) | null>(null);
+  const updaterPlatform: UpdaterPlatform = IS_MACOS ? 'macos' : IS_WINDOWS ? 'windows' : null;
 
   const fetchRelease = async (preview = false) => {
     try {
@@ -114,17 +120,24 @@ export function useAppUpdater() {
   const asset = pickAsset(release?.assets ?? []);
 
   const handleDownload = async () => {
-    // On macOS: use the Tauri Updater plugin — downloads .app.tar.gz, verifies
-    // the minisign signature against the bundled pubkey, replaces the .app, and
-    // relaunches. No manual "open the DMG" step needed.
-    if (IS_MACOS) {
+    // macOS and Windows use the Tauri Updater plugin: it downloads the update
+    // and verifies its minisign signature against the bundled pubkey.
+    // macOS: replaces the .app in place; the process keeps running, so we
+    //   relaunch it ourselves after a short countdown.
+    // Windows: hands the verified installer to the OS (silent Inno Setup run,
+    //   see plugins.updater.windows.installerArgs) and exits this process
+    //   itself; the installer relaunches Psysonic when it is done. Nothing to
+    //   do here after 'Finished' — no countdown, no relaunch().
+    if (updaterPlatform) {
       setDlState('downloading');
       setDlProgress({ bytes: 0, total: 0 });
       setDlError('');
       try {
         const { check } = await import('@tauri-apps/plugin-updater');
-        const { relaunch } = await import('@tauri-apps/plugin-process');
-        relaunchFnRef.current = relaunch;
+        if (updaterPlatform === 'macos') {
+          const { relaunch } = await import('@tauri-apps/plugin-process');
+          relaunchFnRef.current = relaunch;
+        }
         const update = await check();
         if (!update) {
           setDlError(t('common.updaterErrorMsg'));
@@ -142,10 +155,10 @@ export function useAppUpdater() {
             setDlProgress({ bytes: downloaded, total });
           } else if (event.event === 'Finished') {
             setDlState('done');
-            // downloadAndInstall replaces the .app in place but does not exit
-            // the running process. Give the user a 3s countdown (with a manual
-            // "Restart now" button) before auto-relaunch.
-            startRestartCountdown(3);
+            // macOS: downloadAndInstall replaces the .app in place but does not
+            // exit the running process. Give the user a 3s countdown (with a
+            // manual "Restart now" button) before auto-relaunch.
+            if (updaterPlatform === 'macos') startRestartCountdown(3);
           }
         });
       } catch (e) {
@@ -198,12 +211,12 @@ export function useAppUpdater() {
   const showAurHint = IS_LINUX && isArch;
   // Windows can also update through WinGet once a release clears moderation
   // (the notice itself is held back for that window, see #1200). Shown next to
-  // the installer download, not instead of it — not every Windows user
-  // installed via WinGet.
+  // the in-app install, not instead of it — a WinGet user may prefer to keep
+  // that tool in charge of the installed version.
   const showWingetHint = IS_WINDOWS;
-  // On macOS the Tauri Updater handles architecture, signature verification
-  // and in-place install — we don't need (and should not show) a DMG asset.
-  const useTauriUpdater = IS_MACOS;
+  // Where the Tauri Updater handles download, signature verification and
+  // install, the modal must not offer the raw asset (DMG / installer) as well.
+  const useTauriUpdater = updaterPlatform !== null;
   const showInstallBtn = !showAurHint && (useTauriUpdater || !!asset);
 
   const pct = dlProgress.total > 0
@@ -213,7 +226,7 @@ export function useAppUpdater() {
   return {
     release, dismissed, setDismissed, changelogOpen, setChangelogOpen,
     dlState, dlProgress, dlError, countdown,
-    asset, showAurHint, showWingetHint, useTauriUpdater, showInstallBtn, pct,
+    asset, showAurHint, showWingetHint, updaterPlatform, useTauriUpdater, showInstallBtn, pct,
     handleSkip, handleRestartNow, handleDownload, handleShowFolder,
   };
 }

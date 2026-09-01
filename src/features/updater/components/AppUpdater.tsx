@@ -13,7 +13,7 @@ export default function AppUpdater() {
   const {
     release, dismissed, setDismissed, changelogOpen, setChangelogOpen,
     dlState, dlProgress, dlError, countdown,
-    asset, showAurHint, showWingetHint, useTauriUpdater, showInstallBtn, pct,
+    asset, showAurHint, showWingetHint, updaterPlatform, useTauriUpdater, showInstallBtn, pct,
     handleSkip, handleRestartNow, handleDownload, handleShowFolder,
   } = useAppUpdater();
 
@@ -46,7 +46,7 @@ export default function AppUpdater() {
         )}
       </>
     );
-  } else if (dlState === 'done' && useTauriUpdater) {
+  } else if (dlState === 'done' && updaterPlatform === 'macos') {
     footer = (
       <>
         <div style={{ flex: 1 }} />
@@ -56,6 +56,10 @@ export default function AppUpdater() {
         </button>
       </>
     );
+  } else if (dlState === 'done' && updaterPlatform === 'windows') {
+    // The installer is already running and this process exits by itself —
+    // there is nothing left to click.
+    footer = null;
   } else if (dlState === 'done') {
     footer = (
       <>
@@ -131,20 +135,30 @@ export default function AppUpdater() {
                   {t('common.updaterMacReadyTitle', { defaultValue: 'Ready to install' })}
                 </div>
                 <div className="update-modal-mac-info-sub">
-                  {t('common.updaterMacReady', {
-                    defaultValue: 'The update downloads, verifies and applies in place — no DMG needed. The app restarts automatically when done.',
-                  })}
+                  {updaterPlatform === 'windows'
+                    ? t('common.updaterWinReady')
+                    : t('common.updaterMacReady', {
+                      defaultValue: 'The update downloads, verifies and applies in place — no DMG needed. The app restarts automatically when done.',
+                    })}
                 </div>
                 <div className="update-modal-trust-badges">
                   <span className="update-modal-trust-badge">
                     <ShieldCheck size={12} />
-                    {t('common.updaterTrustNotarized', { defaultValue: 'Notarized by Apple' })}
+                    {updaterPlatform === 'windows'
+                      ? t('common.updaterTrustCodeSigned')
+                      : t('common.updaterTrustNotarized', { defaultValue: 'Notarized by Apple' })}
                   </span>
                   <span className="update-modal-trust-badge">
                     <CheckCircle2 size={12} />
                     {t('common.updaterTrustSignature', { defaultValue: 'Signature verified' })}
                   </span>
                 </div>
+              </div>
+            )}
+            {dlState === 'idle' && showWingetHint && (
+              <div className="update-modal-winget">
+                <div className="update-modal-winget-title">{t('common.updaterWingetHint')}</div>
+                <code className="update-modal-winget-cmd">winget upgrade Psysonic</code>
               </div>
             )}
             {dlState === 'downloading' && (
@@ -159,7 +173,14 @@ export default function AppUpdater() {
                 </span>
               </div>
             )}
-            {dlState === 'done' && (
+            {dlState === 'done' && updaterPlatform === 'windows' && (
+              <div className="update-modal-done">
+                <RefreshCw size={32} className="update-modal-done-icon" />
+                <div className="update-modal-done-title">{t('common.updaterWinInstallingTitle')}</div>
+                <div className="update-modal-done-countdown">{t('common.updaterWinInstalling')}</div>
+              </div>
+            )}
+            {dlState === 'done' && updaterPlatform === 'macos' && (
               <div className="update-modal-done">
                 <CheckCircle2 size={32} className="update-modal-done-icon" />
                 <div className="update-modal-done-title">
