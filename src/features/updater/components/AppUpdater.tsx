@@ -29,21 +29,22 @@ export default function AppUpdater() {
         <button className="btn btn-surface" onClick={handleSkip}>
           {t('common.updaterSkipBtn')}
         </button>
-        <div style={{ flex: 1 }} />
-        <button
-          className={`btn ${showInstallBtn ? 'btn-surface' : 'btn-primary'}`}
-          onClick={() => setDismissed(true)}
-        >
-          {t('common.updaterRemindBtn')}
-        </button>
-        {showInstallBtn && (
-          <button className="btn btn-primary" onClick={handleDownload}>
-            <Download size={14} />
-            {useTauriUpdater
-              ? t('common.updaterInstallNow', { defaultValue: 'Install now' })
-              : t('common.updaterDownloadBtn')}
+        <div className="update-modal-footer-actions">
+          <button
+            className={`btn ${showInstallBtn ? 'btn-surface' : 'btn-primary'}`}
+            onClick={() => setDismissed(true)}
+          >
+            {t('common.updaterRemindBtn')}
           </button>
-        )}
+          {showInstallBtn && (
+            <button className="btn btn-primary" onClick={handleDownload}>
+              <Download size={14} />
+              {useTauriUpdater
+                ? t('common.updaterInstallNow', { defaultValue: 'Install now' })
+                : t('common.updaterDownloadBtn')}
+            </button>
+          )}
+        </div>
       </>
     );
   } else if (dlState === 'done' && updaterPlatform === 'macos') {

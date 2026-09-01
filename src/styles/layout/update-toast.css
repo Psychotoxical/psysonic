@@ -282,6 +282,14 @@
 }
 /* WinGet update hint — shown alongside the Windows installer download, mirrors
    the AUR hint styling with a little top gap to separate it from the asset. */
+/* Right-hand action pair of the modal footer. margin-left:auto keeps it
+   right-aligned on its own row when the footer wraps. */
+.update-modal-footer-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-left: auto;
+}
 .update-modal-winget {
   display: flex;
   flex-direction: column;

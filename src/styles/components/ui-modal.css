@@ -90,6 +90,10 @@
 
 .ui-modal-footer {
   display: flex;
+  /* Buttons never shrink (.btn is nowrap). Long labels — three German
+     buttons at 520px — must wrap onto a second row instead of running past
+     the modal edge. */
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2);
   padding: 12px 18px;
