@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Share2, Sparkles } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import {
   libraryGetPlayerStatsHeatmap,
@@ -10,9 +10,12 @@ import {
 } from '@/lib/api/library';
 import { usePlayerStatsLiveRefresh } from '@/features/stats/hooks/usePlayerStatsLiveRefresh';
 import { usePlayerStatsRecordingEnabled } from '@/features/stats/hooks/usePlayerStatsRecordingEnabled';
+import { useYearRecapData } from '@/features/stats/hooks/useYearRecapData';
 import PlayerStatsHeatmap from '@/features/stats/components/PlayerStatsHeatmap';
 import PlayerStatsIndexRequiredNotice from '@/features/stats/components/PlayerStatsIndexRequiredNotice';
 import PlayerStatsRecentDays from '@/features/stats/components/PlayerStatsRecentDays';
+import YearRecapStory from '@/features/stats/components/YearRecapStory';
+import YearRecapExportModal from '@/features/stats/components/YearRecapExportModal';
 import { formatPlayerStatsListeningTotal } from '@/lib/format/formatHumanDuration';
 
 const currentCalendarYear = () => new Date().getFullYear();
@@ -28,6 +31,10 @@ export default function PlayerStatisticsPanel() {
   const [loading, setLoading] = useState(true);
   const [recentRefreshKey, setRecentRefreshKey] = useState(0);
   const [liveRefreshKey, setLiveRefreshKey] = useState(0);
+  const [recapRequestId, setRecapRequestId] = useState(0);
+  const [recapStoryOpen, setRecapStoryOpen] = useState(false);
+  const [recapExportOpen, setRecapExportOpen] = useState(false);
+  const recapData = useYearRecapData(year, recapRequestId);
 
   useEffect(() => {
     if (!recordingEnabled) {
@@ -81,6 +88,26 @@ export default function PlayerStatisticsPanel() {
   }, [year, recordingEnabled]);
 
   usePlayerStatsLiveRefresh(refreshLive);
+
+  const [recapPending, setRecapPending] = useState<null | 'story' | 'export'>(null);
+  useEffect(() => {
+    if (!recapPending) return;
+    if (recapData.error) {
+      // React Compiler set-state-in-effect rule: transient open-intent resolved from async load state.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setRecapPending(null);
+      return;
+    }
+    if (!recapData.data) return;
+    if (recapPending === 'story') setRecapStoryOpen(true);
+    else setRecapExportOpen(true);
+    setRecapPending(null);
+  }, [recapPending, recapData.data, recapData.error]);
+
+  const openRecap = (target: 'story' | 'export') => {
+    setRecapRequestId(id => id + 1);
+    setRecapPending(target);
+  };
 
   if (!recordingEnabled) {
     return (
@@ -161,6 +188,38 @@ export default function PlayerStatisticsPanel() {
             <p style={{ color: 'var(--text-muted)', marginBottom: '1rem' }}>{t('statistics.playerEmpty')}</p>
           )}
 
+          {!empty && (
+            <div className="year-recap-card">
+              <div className="year-recap-card-text">
+                <span className="year-recap-card-kicker">{t('statistics.recapIntroKicker')}</span>
+                <span className="year-recap-card-title">{t('statistics.recapCardTitle', { year })}</span>
+              </div>
+              <div className="year-recap-card-actions">
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={() => openRecap('story')}
+                  disabled={recapData.loading && recapPending === 'story'}
+                >
+                  <Sparkles size={16} />
+                  {recapData.loading && recapPending === 'story'
+                    ? t('statistics.computing')
+                    : t('statistics.recapCardCta')}
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-surface"
+                  onClick={() => openRecap('export')}
+                  disabled={recapData.loading && recapPending === 'export'}
+                  aria-label={t('statistics.recapShareCta')}
+                  data-tooltip={t('statistics.recapShareCta')}
+                >
+                  <Share2 size={16} />
+                </button>
+              </div>
+            </div>
+          )}
+
           <PlayerStatsHeatmap
             year={year}
             dayCounts={dayCounts}
@@ -175,6 +234,21 @@ export default function PlayerStatisticsPanel() {
           heatmapSelectedDate={selectedDate}
           refreshKey={recentRefreshKey}
           liveRefreshKey={liveRefreshKey}
+        />
+      )}
+
+      {recapStoryOpen && recapData.data && (
+        <YearRecapStory
+          data={recapData.data}
+          onClose={() => setRecapStoryOpen(false)}
+          onShare={() => setRecapExportOpen(true)}
+        />
+      )}
+      {recapData.data && (
+        <YearRecapExportModal
+          open={recapExportOpen}
+          data={recapData.data}
+          onClose={() => setRecapExportOpen(false)}
         />
       )}
     </div>

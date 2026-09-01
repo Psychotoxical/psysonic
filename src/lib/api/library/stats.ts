@@ -17,6 +17,7 @@ import type {
   PlaySessionHeatmapDay,
   PlaySessionDayDetail,
   PlaySessionYearBounds,
+  PlaySessionYearRecap,
   PlaySessionRecentDay,
   PlaySessionRecentTrack,
 } from './dto';
@@ -109,6 +110,19 @@ export async function libraryGetPlayerStatsYearBounds(): Promise<PlaySessionYear
   const res = await commands.libraryGetPlayerStatsYearBounds();
   if (res.status === 'error') throw new Error(res.error);
   return res.data;
+}
+
+export async function libraryGetPlayerStatsYearRecap(year: number): Promise<PlaySessionYearRecap> {
+  const res = await commands.libraryGetPlayerStatsYearRecap(year);
+  if (res.status === 'error') throw new Error(res.error);
+  const recap = res.data;
+  return {
+    ...recap,
+    topAlbums: recap.topAlbums.map(item => ({
+      ...item,
+      serverId: item.serverId === null ? null : mapServerIdFromIndexKey(item.serverId),
+    })),
+  } as PlaySessionYearRecap;
 }
 
 export async function libraryGetPlayerStatsRecentDays(limit = 30): Promise<PlaySessionRecentDay[]> {

@@ -2,6 +2,7 @@ mod insert_completion;
 mod recent_plays;
 mod summaries;
 mod track_links;
+mod year_recap;
 
 use super::*;
 use crate::dto::PlaySessionInputDto;

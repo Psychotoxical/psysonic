@@ -409,6 +409,52 @@ export type PlaySessionYearBounds = {
   maxYear: number | null;
 };
 
+/** One ranked row in the year recap (top artist, album, or track). */
+export type PlaySessionRecapItem = {
+  name: string;
+  /** Artist for album/track rows; `null` for artist rows. */
+  secondary: string | null;
+  /** Representative owner for cover loading (album rows only). */
+  serverId: string | null;
+  albumId: string | null;
+  coverArtId: string | null;
+  listenedSec: number;
+  playCount: number;
+};
+
+export type PlaySessionRecapGenre = {
+  name: string;
+  listenedSec: number;
+  playCount: number;
+};
+
+export type PlaySessionRecapDay = {
+  date: string;
+  listenedSec: number;
+  playCount: number;
+};
+
+/** Cross-server aggregates for the shareable year recap. */
+export type PlaySessionYearRecap = {
+  topArtists: PlaySessionRecapItem[];
+  topAlbums: PlaySessionRecapItem[];
+  topTracks: PlaySessionRecapItem[];
+  topGenres: PlaySessionRecapGenre[];
+  /** Top tracks of the leading top artist (artist-spotlight poster). */
+  topArtistTracks: PlaySessionRecapItem[];
+  /** Listening sessions built from the leading top artist's plays alone. */
+  topArtistSessionCount: number;
+  /** Track plays per local hour of day, index 0–23. */
+  hourlyPlayCounts: number[];
+  totalListenedSec: number;
+  losslessListenedSec: number;
+  /** Listened seconds inside the longest listening session of the year. */
+  longestSessionSec: number;
+  /** Artists whose first recorded session ever falls inside this year. */
+  newArtistCount: number;
+  busiestDay: PlaySessionRecapDay | null;
+};
+
 // Sourced from the tauri-specta contract (single source of truth); kept as named
 // aliases so existing consumers stay unchanged while the shape lives in one place.
 export type CatalogYearBounds = CatalogYearBoundsDto;
