@@ -3,8 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { X } from 'lucide-react';
-import { save } from '@tauri-apps/plugin-dialog';
-import { writeFile } from '@tauri-apps/plugin-fs';
+import { savePngBlob } from '@/lib/dom/saveCanvasPng';
 import { showToast } from '@/lib/dom/toast';
 import {
   exportAlbumCardBlob,
@@ -100,21 +99,14 @@ export default function StatsExportModal({ open, albums, meta, onClose }: Props)
       const blob = await exportAlbumCardBlob({ albums: effectiveAlbums, format, gridSize, title, meta });
       const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 16);
       const suggested = `psysonic-top-albums-${gridSize}x${gridSize}-${format}-${stamp}.png`;
-      const path = await save({
-        title: t('statistics.exportSave'),
-        defaultPath: suggested,
-        filters: [{ name: 'PNG', extensions: ['png'] }],
+      const saved = await savePngBlob(blob, suggested, {
+        dialogTitle: t('statistics.exportSave'),
+        savedToast: t('statistics.exportSaved'),
+        failedToast: t('statistics.exportSaveFailed'),
       });
-      if (!path) {
-        setSaving(false);
-        return;
-      }
-      const buf = new Uint8Array(await blob.arrayBuffer());
-      await writeFile(path, buf);
-      showToast(t('statistics.exportSaved'), 2400, 'info');
-      onClose();
+      if (saved) onClose();
     } catch (err) {
-      console.error('[stats-export] save failed', err);
+      console.error('[stats-export] render failed', err);
       showToast(t('statistics.exportSaveFailed'), 3200, 'error');
     } finally {
       setSaving(false);

@@ -73,8 +73,8 @@ async function loadAlbumCover(album: SubsonicAlbum, displayCssPx: number, signal
 }
 
 /** Decodes the Psysonic wordmark SVG into an Image, ready for drawImage.
- *  `targetHeight` is informational — actual scaling happens at drawImage time. */
-async function loadWordmark(color: string): Promise<HTMLImageElement> {
+ *  Shared with the year-recap poster renderer; scaling happens at drawImage time. */
+export async function loadWordmark(color: string): Promise<HTMLImageElement> {
   const svgMarkup = getCachedLogoSvg(color);
   const blob = new Blob([svgMarkup], { type: 'image/svg+xml' });
   const url = URL.createObjectURL(blob);

@@ -1,0 +1,357 @@
+/* Year recap — entry card on Player stats, fullscreen story, export modal bits. */
+
+/* ── Entry card ─────────────────────────────────────────────────────────── */
+.year-recap-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  padding: 1rem 1.25rem;
+  margin-bottom: 1.25rem;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--glass-border));
+  background:
+    linear-gradient(120deg,
+      color-mix(in srgb, var(--accent) 14%, var(--bg-card)) 0%,
+      var(--bg-card) 60%);
+}
+
+.year-recap-card-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.year-recap-card-kicker {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.year-recap-card-title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  font-family: var(--font-display);
+}
+
+.year-recap-card-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.year-recap-card-actions .btn {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+/* ── Story overlay ──────────────────────────────────────────────────────── */
+.year-recap-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background:
+    radial-gradient(120% 90% at 50% 0%,
+      color-mix(in srgb, var(--accent) 22%, var(--bg-app)) 0%,
+      var(--bg-app) 70%);
+  outline: none;
+}
+
+.year-recap-progress {
+  position: absolute;
+  top: max(0.9rem, env(safe-area-inset-top));
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 4px;
+  width: min(480px, 80vw);
+}
+
+.year-recap-progress span {
+  flex: 1;
+  height: 3px;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--text-primary) 18%, transparent);
+}
+
+.year-recap-progress span.is-done {
+  background: var(--accent);
+}
+
+.year-recap-close {
+  position: absolute;
+  top: 1.4rem;
+  right: 1.4rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 1px solid var(--glass-border);
+  background: color-mix(in srgb, var(--bg-card) 70%, transparent);
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.year-recap-nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 1px solid var(--glass-border);
+  background: color-mix(in srgb, var(--bg-card) 70%, transparent);
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.year-recap-nav:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.year-recap-nav-prev { left: 1.25rem; }
+.year-recap-nav-next { right: 1.25rem; }
+
+.year-recap-slide {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 0.75rem;
+  width: min(560px, 84vw);
+  max-height: 78vh;
+  overflow-y: auto;
+  padding: 1rem;
+  animation: year-recap-slide-in 280ms ease;
+}
+
+@keyframes year-recap-slide-in {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .year-recap-slide { animation: none; }
+}
+
+.year-recap-kicker {
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin: 0;
+}
+
+.year-recap-big-title {
+  font-size: clamp(1.6rem, 4vw, 2.4rem);
+  font-weight: 800;
+  font-family: var(--font-display);
+  margin: 0;
+}
+
+.year-recap-slide-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin: 0 0 0.5rem;
+}
+
+.year-recap-huge {
+  font-size: clamp(3.2rem, 9vw, 5.5rem);
+  font-weight: 800;
+  font-family: var(--font-display);
+  line-height: 1;
+  color: var(--accent);
+  margin: 0;
+}
+
+.year-recap-label {
+  font-size: 1rem;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.year-recap-line {
+  font-size: 0.95rem;
+  color: var(--text-secondary);
+  margin: 0.35rem 0 0;
+}
+
+.year-recap-stat-grid {
+  display: flex;
+  gap: 2.5rem;
+  justify-content: center;
+}
+
+/* ── Top lists ──────────────────────────────────────────────────────────── */
+.year-recap-toplist {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  width: 100%;
+  text-align: left;
+}
+
+.year-recap-toplist li {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.year-recap-toplist-rank {
+  flex-shrink: 0;
+  width: 1.6rem;
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: var(--accent);
+  font-family: var(--font-display);
+}
+
+.year-recap-toplist-cover {
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  border-radius: 6px;
+  object-fit: cover;
+  background: var(--bg-card);
+}
+
+.year-recap-toplist-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+
+.year-recap-toplist-name {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.year-recap-toplist-secondary {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.year-recap-toplist-count {
+  flex-shrink: 0;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+/* ── Genres / hours / lossless visuals ─────────────────────────────────── */
+.year-recap-genres {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  width: 100%;
+}
+
+.year-recap-genre-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.year-recap-genre-name {
+  flex-shrink: 0;
+  width: 40%;
+  text-align: right;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.year-recap-genre-bar {
+  flex: 1;
+  height: 10px;
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--text-primary) 12%, transparent);
+  overflow: hidden;
+}
+
+.year-recap-genre-bar div {
+  height: 100%;
+  border-radius: 5px;
+  background: var(--accent);
+}
+
+.year-recap-hours {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 90px;
+  width: min(420px, 76vw);
+  margin-top: 0.5rem;
+}
+
+.year-recap-hours div {
+  flex: 1;
+  border-radius: 2px 2px 0 0;
+  background: color-mix(in srgb, var(--accent) 75%, transparent);
+}
+
+.year-recap-lossless-bar {
+  width: min(420px, 76vw);
+  height: 12px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--text-primary) 12%, transparent);
+  overflow: hidden;
+  margin-top: 0.5rem;
+}
+
+.year-recap-lossless-bar div {
+  height: 100%;
+  border-radius: 6px;
+  background: var(--accent);
+}
+
+.year-recap-share-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.year-recap-privacy {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin: 1rem 0 0;
+}
+
+/* ── Export modal bits ──────────────────────────────────────────────────── */
+.year-recap-option-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-bottom: 0.5rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
