@@ -403,6 +403,56 @@ pub struct PlaySessionYearBoundsDto {
     pub max_year: Option<i32>,
 }
 
+/// One ranked row in the year recap (top artist, album, or track).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct PlaySessionRecapItemDto {
+    pub name: String,
+    /// Artist for album/track rows; `None` for artist rows.
+    pub secondary: Option<String>,
+    /// Representative owner for cover loading (album rows only).
+    pub server_id: Option<String>,
+    pub album_id: Option<String>,
+    pub cover_art_id: Option<String>,
+    pub listened_sec: f64,
+    pub play_count: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct PlaySessionRecapGenreDto {
+    pub name: String,
+    pub listened_sec: f64,
+    pub play_count: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct PlaySessionRecapDayDto {
+    pub date: String,
+    pub listened_sec: f64,
+    pub play_count: u32,
+}
+
+/// Cross-server aggregates for the shareable year recap — one call, one small
+/// payload, so the frontend never streams a year of raw sessions over IPC.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct PlaySessionYearRecapDto {
+    pub top_artists: Vec<PlaySessionRecapItemDto>,
+    pub top_albums: Vec<PlaySessionRecapItemDto>,
+    pub top_tracks: Vec<PlaySessionRecapItemDto>,
+    pub top_genres: Vec<PlaySessionRecapGenreDto>,
+    /// Track plays per local hour of day, index 0–23.
+    pub hourly_play_counts: Vec<u32>,
+    pub total_listened_sec: f64,
+    /// Portion of `total_listened_sec` spent on lossless containers.
+    pub lossless_listened_sec: f64,
+    /// Artists whose first recorded session ever falls inside this year.
+    pub new_artist_count: u32,
+    pub busiest_day: Option<PlaySessionRecapDayDto>,
+}
+
 /// Min/max `year` from indexed tracks for a server (Albums year filter UI).
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, specta::Type)]
 #[serde(rename_all = "camelCase")]

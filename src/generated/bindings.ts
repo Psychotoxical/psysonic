@@ -111,6 +111,7 @@ export const commands = {
 	libraryGetPlayerStatsHeatmap: (year: number) => typedError<PlaySessionHeatmapDayDto[], string>(__TAURI_INVOKE("library_get_player_stats_heatmap", { year })),
 	libraryGetPlayerStatsDayDetail: (dateIso: string) => typedError<PlaySessionDayDetailDto, string>(__TAURI_INVOKE("library_get_player_stats_day_detail", { dateIso })),
 	libraryGetPlayerStatsYearBounds: () => typedError<PlaySessionYearBoundsDto, string>(__TAURI_INVOKE("library_get_player_stats_year_bounds")),
+	libraryGetPlayerStatsYearRecap: (year: number) => typedError<PlaySessionYearRecapDto, string>(__TAURI_INVOKE("library_get_player_stats_year_recap", { year })),
 	libraryGetPlayerStatsRecentDays: (limit: number | null) => typedError<PlaySessionRecentDayDto[], string>(__TAURI_INVOKE("library_get_player_stats_recent_days", { limit })),
 	libraryGetRecentPlaySessions: (limit: number | null, sinceMs: number | null) => typedError<PlaySessionDayTrackDto[], string>(__TAURI_INVOKE("library_get_recent_play_sessions", { limit, sinceMs })),
 	libraryPurgeServer: (serverId: string, includeAnalysis: boolean | null, includeOffline: boolean | null) => typedError<PurgeReportDto, string>(__TAURI_INVOKE("library_purge_server", { serverId, includeAnalysis, includeOffline })),
@@ -1546,6 +1547,31 @@ export type PlaySessionInputDto = {
 	durationSecHint?: number | null,
 };
 
+export type PlaySessionRecapDayDto = {
+	date: string,
+	listenedSec: number | null,
+	playCount: number,
+};
+
+export type PlaySessionRecapGenreDto = {
+	name: string,
+	listenedSec: number | null,
+	playCount: number,
+};
+
+/**  One ranked row in the year recap (top artist, album, or track). */
+export type PlaySessionRecapItemDto = {
+	name: string,
+	/**  Artist for album/track rows; `None` for artist rows. */
+	secondary: string | null,
+	/**  Representative owner for cover loading (album rows only). */
+	serverId: string | null,
+	albumId: string | null,
+	coverArtId: string | null,
+	listenedSec: number | null,
+	playCount: number,
+};
+
 /**  Summary for one day in the recent-days list (no track rows). */
 export type PlaySessionRecentDayDto = {
 	date: string,
@@ -1560,6 +1586,25 @@ export type PlaySessionRecentDayDto = {
 export type PlaySessionYearBoundsDto = {
 	minYear: number | null,
 	maxYear: number | null,
+};
+
+/**
+ *  Cross-server aggregates for the shareable year recap — one call, one small
+ *  payload, so the frontend never streams a year of raw sessions over IPC.
+ */
+export type PlaySessionYearRecapDto = {
+	topArtists: PlaySessionRecapItemDto[],
+	topAlbums: PlaySessionRecapItemDto[],
+	topTracks: PlaySessionRecapItemDto[],
+	topGenres: PlaySessionRecapGenreDto[],
+	/**  Track plays per local hour of day, index 0–23. */
+	hourlyPlayCounts: number[],
+	totalListenedSec: number | null,
+	/**  Portion of `total_listened_sec` spent on lossless containers. */
+	losslessListenedSec: number | null,
+	/**  Artists whose first recorded session ever falls inside this year. */
+	newArtistCount: number,
+	busiestDay: PlaySessionRecapDayDto | null,
 };
 
 /**  Cross-server year summary for the Player stats tab. */

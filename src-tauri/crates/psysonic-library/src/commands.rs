@@ -30,7 +30,8 @@ use crate::dto::{
     LibraryStatisticsDto, LibraryStatisticsRequest, LibraryTrackDto, LibraryTracksEnvelope,
     OfflinePathDto, PlaySessionDayDetailDto, PlaySessionHeatmapDayDto, PlaySessionInputDto,
     PlaySessionRecentDayDto, PlaySessionRecentTrackDto, PlaySessionYearBoundsDto,
-    PlaySessionYearSummaryDto, PurgeReportDto, SyncJobDto, SyncStateDto, TrackArtifactDto,
+    PlaySessionYearRecapDto, PlaySessionYearSummaryDto, PurgeReportDto, SyncJobDto,
+    SyncStateDto, TrackArtifactDto,
     TrackFactDto, TrackRefDto,
 };
 use crate::live_search;
@@ -1359,6 +1360,15 @@ pub fn library_get_player_stats_year_bounds(
     runtime: State<'_, LibraryRuntime>,
 ) -> Result<PlaySessionYearBoundsDto, String> {
     PlaySessionRepository::new(&runtime.store).year_bounds()
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn library_get_player_stats_year_recap(
+    runtime: State<'_, LibraryRuntime>,
+    year: i32,
+) -> Result<PlaySessionYearRecapDto, String> {
+    PlaySessionRepository::new(&runtime.store).year_recap(year)
 }
 
 #[tauri::command]

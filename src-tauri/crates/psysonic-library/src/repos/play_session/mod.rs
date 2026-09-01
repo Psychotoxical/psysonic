@@ -12,9 +12,12 @@ use rusqlite::{params, OptionalExtension};
 
 use crate::dto::{
     PlaySessionDayDetailDto, PlaySessionDayTrackDto, PlaySessionDayTotalsDto,
-    PlaySessionHeatmapDayDto, PlaySessionInputDto, PlaySessionRecentDayDto,
-    PlaySessionRecentTrackDto, PlaySessionYearBoundsDto, PlaySessionYearSummaryDto,
+    PlaySessionHeatmapDayDto, PlaySessionInputDto, PlaySessionRecapDayDto,
+    PlaySessionRecapGenreDto, PlaySessionRecapItemDto, PlaySessionRecentDayDto,
+    PlaySessionRecentTrackDto, PlaySessionYearBoundsDto, PlaySessionYearRecapDto,
+    PlaySessionYearSummaryDto,
 };
+use crate::lossless_formats::track_is_lossless_sql;
 use crate::store::LibraryStore;
 
 use cluster::{count_listening_sessions, PlaySpan};
@@ -349,6 +352,209 @@ impl<'a> PlaySessionRepository<'a> {
                 out.sort_by(|a, b| b.date.cmp(&a.date));
                 out.truncate(limit as usize);
                 Ok(out)
+            })
+            .map_err(|e| e.to_string())
+    }
+
+    /// Cross-server aggregates for the shareable year recap. Sessions join the
+    /// track row without a `deleted` filter — history counts even when the
+    /// track has since been retired (same stance as `day_detail`).
+    pub fn year_recap(&self, year: i32) -> Result<PlaySessionYearRecapDto, String> {
+        const TOP_LIMIT: u32 = 5;
+        let year_str = year.to_string();
+        self.store
+            .with_read_conn(|conn| {
+                let year_filter =
+                    "strftime('%Y', ps.started_at_ms / 1000, 'unixepoch', 'localtime') = ?1";
+                let join = "FROM play_session ps \
+                            JOIN track t ON t.server_id = ps.server_id AND t.id = ps.track_id";
+
+                // Top artists — name + aggregates only, so no bare column can
+                // come from an undefined row of the group.
+                let mut stmt = conn.prepare(&format!(
+                    "SELECT t.artist, SUM(ps.listened_sec), COUNT(*) {join} \
+                     WHERE {year_filter} AND TRIM(COALESCE(t.artist, '')) != '' \
+                     GROUP BY t.artist \
+                     ORDER BY SUM(ps.listened_sec) DESC, t.artist ASC \
+                     LIMIT {TOP_LIMIT}"
+                ))?;
+                let top_artists = stmt
+                    .query_map(params![year_str], |row| {
+                        Ok(PlaySessionRecapItemDto {
+                            name: row.get(0)?,
+                            secondary: None,
+                            server_id: None,
+                            album_id: None,
+                            cover_art_id: None,
+                            listened_sec: row.get(1)?,
+                            play_count: row.get::<_, i64>(2)? as u32,
+                        })
+                    })?
+                    .collect::<rusqlite::Result<Vec<_>>>()?;
+
+                // Top albums by name; the representative row (owner, ids, artist)
+                // is fetched per winner afterwards so it comes from one
+                // deterministic track row instead of mixed MAX() aggregates.
+                let mut stmt = conn.prepare(&format!(
+                    "SELECT t.album, SUM(ps.listened_sec), COUNT(*) {join} \
+                     WHERE {year_filter} AND TRIM(COALESCE(t.album, '')) != '' \
+                     GROUP BY t.album \
+                     ORDER BY SUM(ps.listened_sec) DESC, t.album ASC \
+                     LIMIT {TOP_LIMIT}"
+                ))?;
+                let album_rows = stmt
+                    .query_map(params![year_str], |row| {
+                        Ok((
+                            row.get::<_, String>(0)?,
+                            row.get::<_, f64>(1)?,
+                            row.get::<_, i64>(2)? as u32,
+                        ))
+                    })?
+                    .collect::<rusqlite::Result<Vec<_>>>()?;
+                let mut representative = conn.prepare(
+                    "SELECT t.server_id, t.album_id, t.cover_art_id, t.artist FROM track t \
+                     WHERE t.album = ?1 \
+                     ORDER BY (t.album_id IS NULL), (t.cover_art_id IS NULL), t.server_id, t.id \
+                     LIMIT 1",
+                )?;
+                let mut top_albums = Vec::with_capacity(album_rows.len());
+                for (name, listened_sec, play_count) in album_rows {
+                    let rep = representative
+                        .query_row(params![name], |row| {
+                            Ok((
+                                row.get::<_, Option<String>>(0)?,
+                                row.get::<_, Option<String>>(1)?,
+                                row.get::<_, Option<String>>(2)?,
+                                row.get::<_, Option<String>>(3)?,
+                            ))
+                        })
+                        .optional()?
+                        .unwrap_or((None, None, None, None));
+                    top_albums.push(PlaySessionRecapItemDto {
+                        name,
+                        secondary: rep.3,
+                        server_id: rep.0,
+                        album_id: rep.1,
+                        cover_art_id: rep.2,
+                        listened_sec,
+                        play_count,
+                    });
+                }
+
+                // Top tracks — title and artist both live in the GROUP BY.
+                let mut stmt = conn.prepare(&format!(
+                    "SELECT t.title, t.artist, SUM(ps.listened_sec), COUNT(*) {join} \
+                     WHERE {year_filter} AND TRIM(COALESCE(t.title, '')) != '' \
+                     GROUP BY t.title, t.artist \
+                     ORDER BY SUM(ps.listened_sec) DESC, t.title ASC \
+                     LIMIT {TOP_LIMIT}"
+                ))?;
+                let top_tracks = stmt
+                    .query_map(params![year_str], |row| {
+                        Ok(PlaySessionRecapItemDto {
+                            name: row.get(0)?,
+                            secondary: row.get(1)?,
+                            server_id: None,
+                            album_id: None,
+                            cover_art_id: None,
+                            listened_sec: row.get(2)?,
+                            play_count: row.get::<_, i64>(3)? as u32,
+                        })
+                    })?
+                    .collect::<rusqlite::Result<Vec<_>>>()?;
+
+                let mut stmt = conn.prepare(&format!(
+                    "SELECT t.genre, SUM(ps.listened_sec), COUNT(*) {join} \
+                     WHERE {year_filter} AND TRIM(COALESCE(t.genre, '')) != '' \
+                     GROUP BY t.genre \
+                     ORDER BY SUM(ps.listened_sec) DESC, t.genre ASC \
+                     LIMIT {TOP_LIMIT}"
+                ))?;
+                let top_genres = stmt
+                    .query_map(params![year_str], |row| {
+                        Ok(PlaySessionRecapGenreDto {
+                            name: row.get(0)?,
+                            listened_sec: row.get(1)?,
+                            play_count: row.get::<_, i64>(2)? as u32,
+                        })
+                    })?
+                    .collect::<rusqlite::Result<Vec<_>>>()?;
+
+                // Plays per local hour of day.
+                let mut hourly_play_counts = vec![0u32; 24];
+                let mut stmt = conn.prepare(
+                    "SELECT CAST(strftime('%H', ps.started_at_ms / 1000, 'unixepoch', 'localtime') AS INTEGER), \
+                            COUNT(*) \
+                     FROM play_session ps \
+                     WHERE strftime('%Y', ps.started_at_ms / 1000, 'unixepoch', 'localtime') = ?1 \
+                     GROUP BY 1",
+                )?;
+                let hours = stmt.query_map(params![year_str], |row| {
+                    Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?))
+                })?;
+                for hour in hours {
+                    let (h, n) = hour?;
+                    if (0..24).contains(&h) {
+                        hourly_play_counts[h as usize] = n as u32;
+                    }
+                }
+
+                let lossless = track_is_lossless_sql("t");
+                let (total_listened_sec, lossless_listened_sec) = conn.query_row(
+                    &format!(
+                        "SELECT COALESCE(SUM(ps.listened_sec), 0.0), \
+                                COALESCE(SUM(CASE WHEN {lossless} THEN ps.listened_sec ELSE 0 END), 0.0) \
+                         {join} WHERE {year_filter}"
+                    ),
+                    params![year_str],
+                    |row| Ok((row.get::<_, f64>(0)?, row.get::<_, f64>(1)?)),
+                )?;
+
+                // Artists first heard this year — the MIN spans the whole
+                // history, not only the requested year.
+                let new_artist_count: i64 = conn.query_row(
+                    &format!(
+                        "SELECT COUNT(*) FROM ( \
+                           SELECT MIN(ps.started_at_ms) AS first_ms {join} \
+                           WHERE TRIM(COALESCE(t.artist, '')) != '' \
+                           GROUP BY t.artist \
+                         ) WHERE strftime('%Y', first_ms / 1000, 'unixepoch', 'localtime') = ?1"
+                    ),
+                    params![year_str],
+                    |row| row.get(0),
+                )?;
+
+                let busiest_day = conn
+                    .query_row(
+                        "SELECT date(ps.started_at_ms / 1000, 'unixepoch', 'localtime') AS d, \
+                                SUM(ps.listened_sec), COUNT(*) \
+                         FROM play_session ps \
+                         WHERE strftime('%Y', ps.started_at_ms / 1000, 'unixepoch', 'localtime') = ?1 \
+                         GROUP BY d \
+                         ORDER BY SUM(ps.listened_sec) DESC, d ASC \
+                         LIMIT 1",
+                        params![year_str],
+                        |row| {
+                            Ok(PlaySessionRecapDayDto {
+                                date: row.get(0)?,
+                                listened_sec: row.get(1)?,
+                                play_count: row.get::<_, i64>(2)? as u32,
+                            })
+                        },
+                    )
+                    .optional()?;
+
+                Ok(PlaySessionYearRecapDto {
+                    top_artists,
+                    top_albums,
+                    top_tracks,
+                    top_genres,
+                    hourly_play_counts,
+                    total_listened_sec,
+                    lossless_listened_sec,
+                    new_artist_count: new_artist_count as u32,
+                    busiest_day,
+                })
             })
             .map_err(|e| e.to_string())
     }
