@@ -127,6 +127,16 @@ fn year_recap_ranks_and_aggregates() {
     assert_eq!(recap.top_tracks[0].name, "Song One");
     assert_eq!(recap.top_tracks[0].secondary.as_deref(), Some("Alpha"));
 
+    // Artist-spotlight extras belong to the leading artist (Alpha).
+    assert_eq!(recap.top_artist_tracks.len(), 2);
+    assert_eq!(recap.top_artist_tracks[0].name, "Song One");
+    assert_eq!(recap.top_artist_tracks[0].play_count, 1);
+    assert_eq!(recap.top_artist_tracks[1].name, "Song Two");
+    // Alpha's two plays sit an hour apart — two sessions under the 30-min gap.
+    assert_eq!(recap.top_artist_session_count, 2);
+    // The heaviest of the four year sessions is the lone 600 s play.
+    assert!((recap.longest_session_sec - 600.0).abs() < 1e-6);
+
     assert_eq!(recap.top_genres[0].name, "Rock");
     assert_eq!(recap.top_genres[1].name, "Jazz");
 
@@ -173,8 +183,11 @@ fn year_recap_empty_year_is_all_zeroes() {
     assert!(recap.top_albums.is_empty());
     assert!(recap.top_tracks.is_empty());
     assert!(recap.top_genres.is_empty());
+    assert!(recap.top_artist_tracks.is_empty());
+    assert_eq!(recap.top_artist_session_count, 0);
     assert_eq!(recap.total_listened_sec, 0.0);
     assert_eq!(recap.lossless_listened_sec, 0.0);
+    assert_eq!(recap.longest_session_sec, 0.0);
     assert_eq!(recap.new_artist_count, 0);
     assert!(recap.busiest_day.is_none());
     assert_eq!(recap.hourly_play_counts.iter().sum::<u32>(), 0);

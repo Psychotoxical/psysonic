@@ -443,11 +443,18 @@ pub struct PlaySessionYearRecapDto {
     pub top_albums: Vec<PlaySessionRecapItemDto>,
     pub top_tracks: Vec<PlaySessionRecapItemDto>,
     pub top_genres: Vec<PlaySessionRecapGenreDto>,
+    /// Top tracks of the leading top artist (artist-spotlight poster).
+    pub top_artist_tracks: Vec<PlaySessionRecapItemDto>,
+    /// Listening sessions built from the leading top artist's plays alone.
+    pub top_artist_session_count: u32,
     /// Track plays per local hour of day, index 0–23.
     pub hourly_play_counts: Vec<u32>,
     pub total_listened_sec: f64,
     /// Portion of `total_listened_sec` spent on lossless containers.
     pub lossless_listened_sec: f64,
+    /// Listened seconds inside the longest listening session of the year
+    /// (30-minute idle gap clustering, pauses excluded).
+    pub longest_session_sec: f64,
     /// Artists whose first recorded session ever falls inside this year.
     pub new_artist_count: u32,
     pub busiest_day: Option<PlaySessionRecapDayDto>,

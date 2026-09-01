@@ -1597,11 +1597,20 @@ export type PlaySessionYearRecapDto = {
 	topAlbums: PlaySessionRecapItemDto[],
 	topTracks: PlaySessionRecapItemDto[],
 	topGenres: PlaySessionRecapGenreDto[],
+	/**  Top tracks of the leading top artist (artist-spotlight poster). */
+	topArtistTracks: PlaySessionRecapItemDto[],
+	/**  Listening sessions built from the leading top artist's plays alone. */
+	topArtistSessionCount: number,
 	/**  Track plays per local hour of day, index 0–23. */
 	hourlyPlayCounts: number[],
 	totalListenedSec: number | null,
 	/**  Portion of `total_listened_sec` spent on lossless containers. */
 	losslessListenedSec: number | null,
+	/**
+	 *  Listened seconds inside the longest listening session of the year
+	 *  (30-minute idle gap clustering, pauses excluded).
+	 */
+	longestSessionSec: number | null,
 	/**  Artists whose first recorded session ever falls inside this year. */
 	newArtistCount: number,
 	busiestDay: PlaySessionRecapDayDto | null,

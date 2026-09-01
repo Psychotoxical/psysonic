@@ -392,6 +392,49 @@ impl<'a> PlaySessionRepository<'a> {
                     })?
                     .collect::<rusqlite::Result<Vec<_>>>()?;
 
+                // Artist-spotlight extras for the leading artist: their top
+                // tracks and how many listening sessions they carried.
+                let mut top_artist_tracks = Vec::new();
+                let mut top_artist_session_count = 0u32;
+                if let Some(leader) = top_artists.first() {
+                    let mut stmt = conn.prepare(&format!(
+                        "SELECT t.title, t.artist, SUM(ps.listened_sec), COUNT(*) {join} \
+                         WHERE {year_filter} AND t.artist = ?2 \
+                           AND TRIM(COALESCE(t.title, '')) != '' \
+                         GROUP BY t.title \
+                         ORDER BY SUM(ps.listened_sec) DESC, t.title ASC \
+                         LIMIT {TOP_LIMIT}"
+                    ))?;
+                    top_artist_tracks = stmt
+                        .query_map(params![year_str, leader.name], |row| {
+                            Ok(PlaySessionRecapItemDto {
+                                name: row.get(0)?,
+                                secondary: row.get(1)?,
+                                server_id: None,
+                                album_id: None,
+                                cover_art_id: None,
+                                listened_sec: row.get(2)?,
+                                play_count: row.get::<_, i64>(3)? as u32,
+                            })
+                        })?
+                        .collect::<rusqlite::Result<Vec<_>>>()?;
+
+                    let mut stmt = conn.prepare(&format!(
+                        "SELECT ps.started_at_ms, ps.listened_sec {join} \
+                         WHERE {year_filter} AND t.artist = ?2 \
+                         ORDER BY ps.started_at_ms ASC"
+                    ))?;
+                    let artist_plays = stmt
+                        .query_map(params![year_str, leader.name], |row| {
+                            Ok(PlaySpan {
+                                started_at_ms: row.get(0)?,
+                                listened_sec: row.get(1)?,
+                            })
+                        })?
+                        .collect::<rusqlite::Result<Vec<_>>>()?;
+                    top_artist_session_count = count_listening_sessions(&artist_plays);
+                }
+
                 // Top albums by name; the representative row (owner, ids, artist)
                 // is fetched per winner afterwards so it comes from one
                 // deterministic track row instead of mixed MAX() aggregates.
@@ -544,14 +587,35 @@ impl<'a> PlaySessionRepository<'a> {
                     )
                     .optional()?;
 
+                // Longest listening session of the year (nerd-stats poster).
+                let mut stmt = conn.prepare(
+                    "SELECT started_at_ms, listened_sec \
+                     FROM play_session \
+                     WHERE strftime('%Y', started_at_ms / 1000, 'unixepoch', 'localtime') = ?1 \
+                     ORDER BY started_at_ms ASC",
+                )?;
+                let all_plays = stmt
+                    .query_map(params![year_str], |row| {
+                        Ok(PlaySpan {
+                            started_at_ms: row.get(0)?,
+                            listened_sec: row.get(1)?,
+                        })
+                    })?
+                    .collect::<rusqlite::Result<Vec<_>>>()?;
+                let longest_session_sec =
+                    cluster::listening_session_stats(&all_plays).longest_listened_sec;
+
                 Ok(PlaySessionYearRecapDto {
                     top_artists,
                     top_albums,
                     top_tracks,
                     top_genres,
+                    top_artist_tracks,
+                    top_artist_session_count,
                     hourly_play_counts,
                     total_listened_sec,
                     lossless_listened_sec,
+                    longest_session_sec,
                     new_artist_count: new_artist_count as u32,
                     busiest_day,
                 })
