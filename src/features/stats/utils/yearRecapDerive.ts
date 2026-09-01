@@ -50,6 +50,18 @@ export function listeningPersona(hourlyPlayCounts: number[]): ListeningPersona |
   return windows.reduce((best, w) => (w.plays > best.plays ? w : best)).persona;
 }
 
+/**
+ * The local-hour window behind each persona, for interpreted insight copy
+ * ("most of your listening happens between {{from}} and {{to}}"). `to` is
+ * exclusive so 17–22 reads as "between 17 and 23".
+ */
+export const PERSONA_WINDOWS: Record<ListeningPersona, { from: number; to: number }> = {
+  earlyBird: { from: 5, to: 11 },
+  daytime: { from: 11, to: 17 },
+  evening: { from: 17, to: 23 },
+  nightOwl: { from: 23, to: 5 },
+};
+
 /** Share of plays finished to completion, 0–100 (rounded). */
 export function completionPercent(fullCount: number, partialCount: number): number | null {
   const total = fullCount + partialCount;

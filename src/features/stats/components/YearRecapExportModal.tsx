@@ -6,13 +6,13 @@ import { savePngBlob } from '@/lib/dom/saveCanvasPng';
 import { showToast } from '@/lib/dom/toast';
 import type { YearRecapData } from '@/features/stats/hooks/useYearRecapData';
 import {
-  exportYearRecapBlob,
-  personaForPoster,
-  renderYearRecapCanvas,
-  type RecapPosterFormat,
-  type RecapPosterOptions,
-  type RecapPosterPalette,
-} from '@/features/stats/utils/exportYearRecap';
+  exportRewindPosterBlob,
+  renderRewindPoster,
+  type RewindPosterFormat,
+  type RewindPosterLayout,
+  type RewindPosterOptions,
+} from '@/features/stats/utils/recapPoster';
+import { listeningPersona, PERSONA_WINDOWS } from '@/features/stats/utils/yearRecapDerive';
 
 interface Props {
   open: boolean;
@@ -20,43 +20,77 @@ interface Props {
   onClose: () => void;
 }
 
-const FORMATS: RecapPosterFormat[] = ['story', 'square'];
-const PALETTES: RecapPosterPalette[] = ['midnight', 'daylight'];
+const FORMATS: RewindPosterFormat[] = ['story', 'square'];
+
+const LAYOUT_LABEL_KEYS: Record<RewindPosterLayout, string> = {
+  overview: 'statistics.rewindLayoutOverview',
+  artist: 'statistics.rewindLayoutArtist',
+  album: 'statistics.rewindLayoutAlbum',
+  nerd: 'statistics.rewindLayoutNerd',
+};
 
 export default function YearRecapExportModal({ open, data, onClose }: Props) {
   const { t } = useTranslation();
-  const [format, setFormat] = useState<RecapPosterFormat>('story');
-  const [palette, setPalette] = useState<RecapPosterPalette>('midnight');
+  const [layout, setLayout] = useState<RewindPosterLayout>('overview');
+  const [format, setFormat] = useState<RewindPosterFormat>('story');
   const [saving, setSaving] = useState(false);
   const previewRef = useRef<HTMLDivElement | null>(null);
   const previewSeqRef = useRef(0);
 
-  const posterOptions = useMemo<RecapPosterOptions>(() => {
-    const persona = personaForPoster(data.recap);
+  // §11: spotlight layouts need a leader — hide them instead of rendering holes.
+  const layouts = useMemo<RewindPosterLayout[]>(() => {
+    const available: RewindPosterLayout[] = ['overview'];
+    if (data.recap.topArtists.length > 0) available.push('artist');
+    if (data.recap.topAlbums.length > 0) available.push('album');
+    available.push('nerd');
+    return available;
+  }, [data.recap.topArtists.length, data.recap.topAlbums.length]);
+
+  const posterOptions = useMemo<RewindPosterOptions>(() => {
+    const persona = listeningPersona(data.recap.hourlyPlayCounts);
+    const window = persona ? PERSONA_WINDOWS[persona] : null;
     return {
-      recap: data.recap,
-      heatmap: data.heatmap,
-      year: data.year,
-      listeningDayCount: data.summary.listeningDayCount,
+      data: { recap: data.recap, summary: data.summary, year: data.year },
+      layout,
       format,
-      palette,
       strings: {
         kicker: t('statistics.recapIntroKicker'),
-        title: t('statistics.recapCardTitle', { year: data.year }),
-        hoursLabel: t('statistics.recapStatHours'),
-        daysLabel: t('statistics.recapStatDays'),
-        playsLabel: t('statistics.recapStatPlays'),
-        newArtistsLabel: t('statistics.recapStatNewArtists'),
+        overviewTitle: t('statistics.recapCardTitle', { year: data.year }),
+        artistTitle: t('statistics.rewindArtistTitle'),
+        albumTitle: t('statistics.rewindAlbumTitle'),
+        nerdTitle: t('statistics.rewindNerdTitle'),
+        hoursWord: t('statistics.recapStatHours'),
+        minutesWord: t('statistics.rewindMinutesWord'),
+        hourUnit: t('statistics.rewindHourUnit'),
+        minuteUnit: t('statistics.rewindMinuteUnit'),
+        nerdHeroLabel: t('statistics.rewindNerdHeroLabel'),
+        statDays: t('statistics.recapStatDays'),
+        statPlays: t('statistics.recapStatPlays'),
+        statNewArtists: t('statistics.recapStatNewArtists'),
+        statUniqueTracks: t('statistics.rewindUniqueTracks'),
+        statSessions: t('statistics.rewindSessions'),
+        statListeningTime: t('statistics.rewindListeningTime'),
+        statPlaysShort: t('statistics.rewindPlays'),
         topArtists: t('statistics.recapTopArtists'),
         topAlbums: t('statistics.recapTopAlbums'),
-        losslessLabel: t('statistics.recapLosslessBody'),
-        personaLabel: persona
+        topTracks: t('statistics.recapTopTracks'),
+        topGenres: t('statistics.recapTopGenres'),
+        losslessWord: t('statistics.recapLosslessTitle'),
+        losslessSentence: t('statistics.recapLosslessBody'),
+        hourlyHeading: t('statistics.rewindHourlyHeading'),
+        personaTitle: persona
           ? t(`statistics.recapPersona${persona[0].toUpperCase()}${persona.slice(1)}`)
           : null,
+        personaBody: window
+          ? t('statistics.rewindPersonaBody', { from: window.from, to: window.to })
+          : null,
+        longestSession: t('statistics.rewindLongestSession'),
+        localFirstTitle: t('statistics.rewindLocalFirstTitle'),
+        localFirstBody: t('statistics.rewindLocalFirstBody'),
         privacy: t('statistics.recapPrivacy'),
       },
     };
-  }, [data, format, palette, t]);
+  }, [data, layout, format, t]);
 
   // Live preview — same replaceChildren pattern as StatsExportModal.
   useEffect(() => {
@@ -67,7 +101,7 @@ export default function YearRecapExportModal({ open, data, onClose }: Props) {
     let cancelled = false;
     (async () => {
       try {
-        const canvas = await renderYearRecapCanvas(posterOptions);
+        const canvas = await renderRewindPoster(posterOptions);
         if (cancelled || seq !== previewSeqRef.current) return;
         host.replaceChildren(canvas);
         canvas.style.width = '100%';
@@ -101,15 +135,15 @@ export default function YearRecapExportModal({ open, data, onClose }: Props) {
     if (saving) return;
     setSaving(true);
     try {
-      const blob = await exportYearRecapBlob(posterOptions);
-      const saved = await savePngBlob(blob, `psysonic-recap-${data.year}-${format}.png`, {
+      const blob = await exportRewindPosterBlob(posterOptions);
+      const saved = await savePngBlob(blob, `psysonic-rewind-${data.year}-${layout}-${format}.png`, {
         dialogTitle: t('statistics.exportSave'),
         savedToast: t('statistics.exportSaved'),
         failedToast: t('statistics.exportSaveFailed'),
       });
       if (saved) onClose();
     } catch (err) {
-      console.error('[recap-export] render failed', err);
+      console.error('[rewind-export] render failed', err);
       showToast(t('statistics.exportSaveFailed'), 3200, 'error');
     } finally {
       setSaving(false);
@@ -144,6 +178,22 @@ export default function YearRecapExportModal({ open, data, onClose }: Props) {
 
         <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
           <div>
+            <div className="year-recap-option-label">{t('statistics.rewindLayoutLabel')}</div>
+            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+              {layouts.map(l => (
+                <button
+                  key={l}
+                  type="button"
+                  className="btn btn-surface"
+                  style={optionButton(layout === l)}
+                  onClick={() => setLayout(l)}
+                >
+                  {t(LAYOUT_LABEL_KEYS[l])}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
             <div className="year-recap-option-label">{t('statistics.exportFormat')}</div>
             <div style={{ display: 'flex', gap: '0.5rem' }}>
               {FORMATS.map(f => (
@@ -155,22 +205,6 @@ export default function YearRecapExportModal({ open, data, onClose }: Props) {
                   onClick={() => setFormat(f)}
                 >
                   {t(f === 'story' ? 'statistics.exportFormatStory' : 'statistics.exportFormatSquare')}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div>
-            <div className="year-recap-option-label">{t('statistics.recapPaletteLabel')}</div>
-            <div style={{ display: 'flex', gap: '0.5rem' }}>
-              {PALETTES.map(p => (
-                <button
-                  key={p}
-                  type="button"
-                  className="btn btn-surface"
-                  style={optionButton(palette === p)}
-                  onClick={() => setPalette(p)}
-                >
-                  {t(p === 'midnight' ? 'statistics.recapPaletteMidnight' : 'statistics.recapPaletteDaylight')}
                 </button>
               ))}
             </div>

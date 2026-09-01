@@ -440,10 +440,16 @@ export type PlaySessionYearRecap = {
   topAlbums: PlaySessionRecapItem[];
   topTracks: PlaySessionRecapItem[];
   topGenres: PlaySessionRecapGenre[];
+  /** Top tracks of the leading top artist (artist-spotlight poster). */
+  topArtistTracks: PlaySessionRecapItem[];
+  /** Listening sessions built from the leading top artist's plays alone. */
+  topArtistSessionCount: number;
   /** Track plays per local hour of day, index 0–23. */
   hourlyPlayCounts: number[];
   totalListenedSec: number;
   losslessListenedSec: number;
+  /** Listened seconds inside the longest listening session of the year. */
+  longestSessionSec: number;
   /** Artists whose first recorded session ever falls inside this year. */
   newArtistCount: number;
   busiestDay: PlaySessionRecapDay | null;
