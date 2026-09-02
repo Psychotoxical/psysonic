@@ -1,0 +1,108 @@
+name: Linux Bundle Test
+
+# Manual smoke build for the Linux bundles.
+#
+# reusable-channel-publish.yml is otherwise the only place that bundles for
+# Linux, so a test build of a branch — for a reporter who needs to verify a fix
+# before the next release, or for an AppImage packaging regression — would
+# otherwise cost a full release run with its tag and draft release. This job
+# builds the same way (same runner, same system packages, same tauri command)
+# but skips every release interaction, so it can be repeated as often as needed
+# for any ref. The result is a workflow artifact, kept for a week.
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Git ref to build (branch, tag or SHA). Defaults to the ref the run was started from."
+        required: false
+        type: string
+      bundles:
+        description: "Bundle formats to build"
+        required: false
+        default: appimage
+        type: choice
+        options:
+          - appimage
+          - deb
+          - rpm
+          - deb,rpm,appimage
+
+permissions:
+  contents: read
+
+jobs:
+  bundle:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+      - name: install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf \
+            libasound2-dev squashfs-tools cmake
+      - name: setup node
+        uses: actions/setup-node@v5
+        with:
+          node-version: lts/*
+          cache: "npm"
+      - name: install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+      - name: cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - name: install npm dependencies
+        run: npm install
+      # Which toolchain and WebKitGTK actually went into the bundle is the one
+      # fact a Linux bundling report always needs and the log never carries.
+      - name: record toolchain
+        run: |
+          set -euo pipefail
+          lsb_release -a
+          echo "webkit2gtk-4.1: $(dpkg-query -W -f='${Version}' libwebkit2gtk-4.1-dev)"
+          rustc --version
+          node --version
+          git rev-parse HEAD
+      - name: build Linux bundles
+        env:
+          VITE_LASTFM_API_KEY: ${{ secrets.VITE_LASTFM_API_KEY }}
+          VITE_LASTFM_API_SECRET: ${{ secrets.VITE_LASTFM_API_SECRET }}
+          APPIMAGE_EXTRACT_AND_RUN: 1
+        run: npm run tauri:build -- --bundles ${{ inputs.bundles }} --verbose
+      - name: verify bundle output
+        run: |
+          set -euo pipefail
+          BUNDLE_DIR="src-tauri/target/release/bundle"
+          if [ ! -d "$BUNDLE_DIR" ]; then
+            echo "::error::bundle directory missing: $BUNDLE_DIR"
+            exit 1
+          fi
+          echo "--- bundles ---"
+          find "$BUNDLE_DIR" \( -name "*.AppImage" -o -name "*.deb" -o -name "*.rpm" \) -exec ls -la {} \;
+          COUNT="$(find "$BUNDLE_DIR" \( -name "*.AppImage" -o -name "*.deb" -o -name "*.rpm" \) | wc -l)"
+          if [ "$COUNT" -eq 0 ]; then
+            echo "::error::no bundle produced"
+            exit 1
+          fi
+      - name: show bundle output on failure
+        if: failure()
+        run: |
+          set -eu
+          echo "--- bundle directory ---"
+          ls -laR src-tauri/target/release/bundle || echo "(no bundle directory)"
+      # tar, not the raw files: upload-artifact zips its input and drops the
+      # executable bit an AppImage needs to be runnable after download.
+      - name: package bundles
+        run: |
+          set -euo pipefail
+          cd src-tauri/target/release/bundle
+          find . \( -name "*.AppImage" -o -name "*.deb" -o -name "*.rpm" \) -print0 \
+            | tar czf "${GITHUB_WORKSPACE}/psysonic-linux-bundles.tar.gz" --null -T -
+      - uses: actions/upload-artifact@v4
+        with:
+          name: psysonic-linux-bundles
+          path: psysonic-linux-bundles.tar.gz
+          retention-days: 7
