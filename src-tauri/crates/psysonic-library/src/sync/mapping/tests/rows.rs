@@ -261,3 +261,38 @@ fn an_empty_play_date_falls_through_to_the_next_name() {
 
     assert!(row.played_at.is_some(), "an unusable first name must not end the search");
 }
+
+#[test]
+fn navidrome_song_reads_strong_keys_under_their_native_names() {
+    // Navidrome's MediaFile serializes the recording id as `mbzRecordingID` and
+    // delivers ISRCs inside `tags` as a string array (model/mediafile.go at
+    // v0.62.0). Reading only `mbzTrackId` / `musicBrainzId` / top-level `isrc`
+    // left both columns NULL across a whole library, so the canonical layer had
+    // nothing to link (#1434).
+    let raw = json!({
+        "id": "tr_1", "title": "Hello", "album": "An Album", "duration": 240,
+        "mbzRecordingID": "12345678-1234-4123-8123-123456789abc",
+        "tags": { "isrc": ["USRC17607839", "GBUM71029604"], "genre": ["Ambient"] }
+    });
+    let row = navidrome_song_to_track_row("s1", &raw, 9_999, None).unwrap();
+
+    assert_eq!(row.isrc.as_deref(), Some("USRC17607839"));
+    assert_eq!(
+        row.mbid_recording.as_deref(),
+        Some("12345678-1234-4123-8123-123456789abc")
+    );
+}
+
+#[test]
+fn navidrome_song_treats_blank_strong_keys_as_absent() {
+    // An empty key must not become a canonical identity: `link_track` keys
+    // `canonical_track` on the value, so a blank would merge unrelated rows.
+    let raw = json!({
+        "id": "tr_1", "title": "Hello", "album": "An Album", "duration": 240,
+        "isrc": "   ", "mbzRecordingID": "", "tags": { "isrc": ["", "  "] }
+    });
+    let row = navidrome_song_to_track_row("s1", &raw, 9_999, None).unwrap();
+
+    assert_eq!(row.isrc, None);
+    assert_eq!(row.mbid_recording, None);
+}
