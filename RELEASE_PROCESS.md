@@ -80,13 +80,15 @@ Rules:
    - Nix verification
    - opens PR to bump `main` to next minor `-dev`
 
-### Windows installer and updater manifest (manual, per RC and stable)
+### Windows installer and updater manifest (manual)
 
 CI builds the Windows installer as an unsigned compile check. The installer that ships is built and code-signed by a maintainer and uploaded to the release by hand, replacing the CI asset under the same name (`Psysonic_X.Y.Z_x64-setup.exe`). Wait until the channel workflow has finished — it uploads `latest.json` last — then:
 
 1. Upload the signed installer: `gh release upload app-vX.Y.Z Psysonic_X.Y.Z_x64-setup.exe --clobber`.
 2. Run workflow: **Sign Windows updater** with the release tag. It signs the uploaded installer with the updater key and writes the `windows-x86_64` entry into `latest.json`. Without this entry the in-app updater on Windows has nothing to install.
 3. Re-run it whenever the installer asset is replaced — the updater signature covers the exact bytes on the release.
+
+Step 2 is required for every stable release. The in-app updater reads `releases/latest`, which never resolves to a pre-release, so for an RC it is only needed when testing the updater against that RC directly.
 
 ### Step E: Move `main` forward
 
