@@ -87,6 +87,7 @@ export default function AppUpdater() {
   return (
     <Modal
       open
+      size="lg"
       onClose={() => setDismissed(true)}
       icon={<ArrowUpCircle size={18} />}
       title={t('common.updaterModalTitle')}
