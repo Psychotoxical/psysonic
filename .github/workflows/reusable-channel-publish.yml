@@ -401,6 +401,8 @@ jobs:
           VITE_LASTFM_API_SECRET: ${{ secrets.VITE_LASTFM_API_SECRET }}
           APPIMAGE_EXTRACT_AND_RUN: 1
         run: npm run tauri:build -- --bundles deb,rpm,appimage
+      - name: patch AppImage to prefer host WebKitGTK
+        run: scripts/appimage-prefer-host-webkit.sh src-tauri/target/release/bundle/appimage
       - name: upload Linux artifacts
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

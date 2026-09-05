@@ -72,6 +72,10 @@ jobs:
           VITE_LASTFM_API_SECRET: ${{ secrets.VITE_LASTFM_API_SECRET }}
           APPIMAGE_EXTRACT_AND_RUN: 1
         run: npm run tauri:build -- --bundles ${{ inputs.bundles }} --verbose
+      # Same patch the release channel applies, so a dispatch run exercises it
+      # and the artifact is what users would actually download.
+      - name: patch AppImage to prefer host WebKitGTK
+        run: scripts/appimage-prefer-host-webkit.sh src-tauri/target/release/bundle/appimage
       - name: verify bundle output
         run: |
           set -euo pipefail
