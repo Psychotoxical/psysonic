@@ -50,6 +50,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * In languages with long button labels, such as German, the "Install now" button of the update dialog ran past the right edge of the dialog. The dialog is wider now, and should the labels still not fit side by side, the buttons move to a second row instead of being cut off.
 
+### Library rebuilds remove tracks deleted from Navidrome again
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1497](https://github.com/Psysonic/psysonic/pull/1497)**
+
+* Albums and tracks deleted from a Navidrome server no longer remain as fragmented ghost entries after rebuilding a selected library.
+
 ## [1.52.0]
 
 ## Added
