@@ -56,6 +56,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * Albums and tracks deleted from a Navidrome server no longer remain as fragmented ghost entries after rebuilding a selected library.
 
+### Multi-disc album subtitles appear again
+
+**By [@cucadmuh](https://github.com/cucadmuh), reported by [@BjarneMJ](https://github.com/BjarneMJ), PR [#1498](https://github.com/Psysonic/psysonic/pull/1498)**
+
+* Album Detail now shows OpenSubsonic per-disc subtitles returned by Navidrome, such as "The demos", instead of falling back to only "Disc 3" and "Disc 4" after loading the album from the local library index.
+
 ## [1.52.0]
 
 ## Added
