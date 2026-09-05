@@ -49,6 +49,10 @@ export default function DeviceSync() {
   const sources          = useDeviceSyncStore(s => s.sources);
   const checkedIds       = useDeviceSyncStore(s => s.checkedIds);
   const pendingDeletion  = useDeviceSyncStore(s => s.pendingDeletion);
+  const pendingPlan      = useDeviceSyncStore(s => s.pendingPlan);
+  const targetDeviceId   = useDeviceSyncStore(s => s.targetDeviceId);
+  const pendingPlanDeviceId = useDeviceSyncStore(s => s.pendingPlanDeviceId);
+  const pendingPlanChecked = useDeviceSyncStore(s => s.pendingPlanChecked);
   const deviceFilePaths  = useDeviceSyncStore(s => s.deviceFilePaths);
   const scanning         = useDeviceSyncStore(s => s.scanning);
   const {
@@ -73,6 +77,8 @@ export default function DeviceSync() {
   const [preSyncOpen, setPreSyncOpen] = useState(false);
   const [preSyncLoading, setPreSyncLoading] = useState(false);
   const [syncDelta, setSyncDelta] = useState<SyncDelta>({
+    planId: '',
+    deviceId: '',
     addBytes: 0,
     addCount: 0,
     delBytes: 0,
@@ -115,6 +121,9 @@ export default function DeviceSync() {
     sources.length,
     driveDetected,
     t,
+    activeDrive
+      ? `${activeDrive.mount_point}\0${activeDrive.name}\0${activeDrive.total_space}\0${activeDrive.file_system}`
+      : null,
   );
 
   // Source status (path map + derived synced/pending/deletion)
@@ -218,8 +227,10 @@ export default function DeviceSync() {
     !targetDir ||
     sources.length === 0 ||
     isRunning ||
+    !pendingPlanChecked ||
+    (pendingPlan && pendingPlanDeviceId !== targetDeviceId) ||
     (!driveDetected && !!targetDir) ||
-    (pendingCount === 0 && deletionCount === 0);
+    (pendingCount === 0 && deletionCount === 0 && !pendingPlan);
 
   return (
     <div className="device-sync-page">

@@ -6,16 +6,34 @@ use tauri::{Emitter, Manager};
 use crate::sync_cancel_flags;
 
 use super::device::{
-    build_track_path, ensure_mounted_target, get_removable_drives, is_path_on_mounted_volume,
-    planned_path_stays_within, SyncBatchResult, TrackSyncInfo,
+    build_track_path, ensure_mounted_target, get_removable_drives, path_contains_symlink,
+    planned_path_stays_within, validate_device_identity, SyncBatchResult, TrackSyncInfo,
 };
 use crate::file_transfer::{
     apply_server_http_get, finalize_streamed_download, subsonic_http_client,
 };
 
 mod filesystem;
+mod model;
 mod payload;
+pub(crate) mod plan;
 mod planner;
+
+pub(crate) use model::{
+    estimate_track_size_bytes, fetch_subsonic_songs, inject_playlist_context,
+    subsonic_response_root, track_sync_info_from_subsonic_json,
+};
+pub use model::{
+    parse_subsonic_songs, DeviceSyncLayoutMode, DeviceSyncManifestFile, DeviceSyncManifestPlaylist,
+    DeviceSyncPlannedPlaylist, DeviceSyncPlaylistPathMode, DeviceSyncSourcePayload,
+    SubsonicAuthPayload, SyncDeltaResult,
+};
+pub(crate) use plan::{
+    activate_device_sync_plan, clear_device_sync_plan, normalized_manifest_files,
+    normalized_manifest_playlists, normalized_strings, relative_delete_paths,
+    validate_active_device_sync_plan_binding, DeviceSyncPlanPlaylist, DeviceSyncPlanRecord,
+};
+pub(crate) use planner::portable_path_identity;
 
 pub use filesystem::prune_empty_parents;
 use filesystem::{
@@ -39,265 +57,14 @@ pub async fn list_device_dir_files(dir: String) -> Result<Vec<String>, String> {
 #[tauri::command]
 #[specta::specta]
 pub async fn delete_device_file(dest_dir: String, path: String) -> Result<(), String> {
+    let _device_sync_guard = super::device::device_sync_operation_guard().await;
     let _filesystem_write_guard = crate::filesystem_write_guard().await?;
     ensure_mounted_target(std::path::Path::new(&dest_dir))?;
     delete_device_file_impl(dest_dir, path).await
 }
 
-#[derive(serde::Deserialize, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct SubsonicAuthPayload {
-    base_url: String,
-    u: String,
-    t: String,
-    s: String,
-    v: String,
-    c: String,
-    f: String,
-    server_id: String,
-    server_index_key: String,
-}
-
-#[derive(serde::Deserialize, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct DeviceSyncSourcePayload {
-    #[serde(rename = "type")]
-    source_type: String,
-    id: String,
-    /// Playlist display name — only present for playlist sources, used when
-    /// computing the playlist-folder path on the device.
-    #[serde(default)]
-    name: Option<String>,
-    #[serde(default)]
-    path_id: Option<String>,
-    server_index_key: String,
-}
-
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
-#[serde(rename_all = "kebab-case")]
-pub enum DeviceSyncLayoutMode {
-    #[default]
-    SelfContained,
-    SharedAlbumTree,
-}
-
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
-#[serde(rename_all = "kebab-case")]
-pub enum DeviceSyncPlaylistPathMode {
-    #[default]
-    PlaylistRelative,
-    DeviceRooted,
-}
-
-#[derive(Clone, serde::Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct DeviceSyncPlannedPlaylist {
-    pub source_key: String,
-    pub name: String,
-    pub path_id: Option<String>,
-    pub relative_path: String,
-    pub tracks: Vec<serde_json::Value>,
-    pub references: Vec<String>,
-}
-
-#[derive(Clone, serde::Deserialize, serde::Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct DeviceSyncManifestFile {
-    pub track_id: String,
-    pub relative_path: String,
-    pub source_keys: Vec<String>,
-    pub size_bytes: u64,
-}
-
-#[derive(Clone, serde::Deserialize, serde::Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct DeviceSyncManifestPlaylist {
-    pub source_key: String,
-    pub relative_path: String,
-}
-
-#[derive(serde::Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SyncDeltaResult {
-    pub(super) add_bytes: u64,
-    pub(super) add_count: u32,
-    pub(super) del_bytes: u64,
-    pub(super) del_count: u32,
-    pub(super) reclaimable_bytes: u64,
-    pub(super) available_bytes: u64,
-    pub(super) tracks: Vec<serde_json::Value>,
-    pub(super) delete_paths: Vec<String>,
-    pub(super) deferred_delete_paths: Vec<String>,
-    pub(super) playlists: Vec<DeviceSyncPlannedPlaylist>,
-    pub(super) manifest_files: Vec<DeviceSyncManifestFile>,
-    pub(super) manifest_playlists: Vec<DeviceSyncManifestPlaylist>,
-}
-
-pub async fn fetch_subsonic_songs(
-    client: &reqwest::Client,
-    registry: Option<&psysonic_core::server_http::ServerHttpRegistry>,
-    auth: &SubsonicAuthPayload,
-    endpoint: &str,
-    id: &str,
-) -> Result<Vec<serde_json::Value>, String> {
-    let url = format!("{}/{}", auth.base_url, endpoint);
-    let query = vec![
-        ("u", auth.u.as_str()),
-        ("t", auth.t.as_str()),
-        ("s", auth.s.as_str()),
-        ("v", auth.v.as_str()),
-        ("c", auth.c.as_str()),
-        ("f", auth.f.as_str()),
-        ("id", id),
-    ];
-    let res = apply_server_http_get(client, registry, Some(&auth.server_id), &url)
-        .query(&query)
-        .send()
-        .await
-        .map_err(|e| e.to_string())?;
-    let json: serde_json::Value = res.json().await.map_err(|e| e.to_string())?;
-    parse_subsonic_songs(&json, endpoint)
-}
-
-/// Estimate the byte size of a Subsonic song JSON. Prefer the explicit `size`
-/// field; fall back to `duration * 320 kbps / 8` when missing. Returns 0 when
-/// neither is present.
-pub(crate) fn estimate_track_size_bytes(track: &serde_json::Value) -> u64 {
-    track
-        .get("size")
-        .and_then(|s| s.as_u64())
-        .unwrap_or_else(|| {
-            track.get("duration").and_then(|d| d.as_u64()).unwrap_or(0) * 320_000 / 8
-        })
-}
-
-/// Build a [`TrackSyncInfo`] from a Subsonic song JSON object. Optional
-/// playlist context attaches playlist identity + position when the selected
-/// layout stores tracks under the `Playlists/<name>/` tree. The
-/// `albumArtist` field falls back to `artist` when missing or whitespace-only.
-pub(crate) fn track_sync_info_from_subsonic_json(
-    track: &serde_json::Value,
-    track_id: &str,
-    playlist_name: Option<&str>,
-    playlist_id: Option<&str>,
-    playlist_index: Option<u32>,
-) -> TrackSyncInfo {
-    let suffix = track
-        .get("suffix")
-        .and_then(|s| s.as_str())
-        .unwrap_or("mp3");
-    let artist_raw = track.get("artist").and_then(|v| v.as_str()).unwrap_or("");
-    let album_artist = track
-        .get("albumArtist")
-        .and_then(|v| v.as_str())
-        .filter(|s| !s.trim().is_empty())
-        .unwrap_or(artist_raw);
-    TrackSyncInfo {
-        id: track_id.to_string(),
-        url: String::new(),
-        suffix: suffix.to_string(),
-        artist: artist_raw.to_string(),
-        album_artist: album_artist.to_string(),
-        album: track
-            .get("album")
-            .and_then(|v| v.as_str())
-            .unwrap_or("")
-            .to_string(),
-        title: track
-            .get("title")
-            .and_then(|v| v.as_str())
-            .unwrap_or("")
-            .to_string(),
-        track_number: track
-            .get("track")
-            .and_then(|v| v.as_u64())
-            .map(|n| n as u32),
-        duration: track
-            .get("duration")
-            .and_then(|v| v.as_u64())
-            .map(|n| n as u32),
-        playlist_name: playlist_name.map(|s| s.to_string()),
-        playlist_id: playlist_id.map(|s| s.to_string()),
-        playlist_index,
-    }
-}
-
-/// Attach playlist context keys to a Subsonic-track JSON so
-/// the frontend can re-send the track to `sync_batch_to_device` without
-/// re-deriving the playlist context. No-op when both args are `None`.
-pub(crate) fn inject_playlist_context(
-    track: &mut serde_json::Value,
-    playlist_name: Option<&str>,
-    playlist_id: Option<&str>,
-    playlist_index: Option<u32>,
-) {
-    if let Some(obj) = track.as_object_mut() {
-        if let Some(name) = playlist_name {
-            obj.insert(
-                "_playlistName".to_string(),
-                serde_json::Value::String(name.to_string()),
-            );
-        }
-        if let Some(id) = playlist_id {
-            obj.insert(
-                "_playlistId".to_string(),
-                serde_json::Value::String(id.to_string()),
-            );
-        }
-        if let Some(idx) = playlist_index {
-            obj.insert(
-                "_playlistIndex".to_string(),
-                serde_json::Value::Number(idx.into()),
-            );
-        }
-    }
-}
-
-pub(crate) fn subsonic_response_root(
-    json: &serde_json::Value,
-) -> Result<&serde_json::Value, String> {
-    let root = json
-        .get("subsonic-response")
-        .ok_or_else(|| "No subsonic-response".to_string())?;
-    if root.get("status").and_then(|value| value.as_str()) == Some("failed") {
-        let message = root
-            .get("error")
-            .and_then(|value| value.get("message"))
-            .and_then(|value| value.as_str())
-            .unwrap_or("Subsonic request failed");
-        return Err(message.to_string());
-    }
-    Ok(root)
-}
-
-/// Pure response-shape extraction for `getAlbum.view` / `getPlaylist.view` —
-/// pulled out of [`fetch_subsonic_songs`] so it can be tested without an HTTP
-/// roundtrip. Subsonic returns the song list either as an array (multiple
-/// tracks) or as a single object (one track); both shapes are normalised to a
-/// `Vec`. Other endpoints return an empty `Vec` rather than an error so the
-/// caller can fan out across endpoint types without special-casing.
-pub fn parse_subsonic_songs(
-    json: &serde_json::Value,
-    endpoint: &str,
-) -> Result<Vec<serde_json::Value>, String> {
-    let root = subsonic_response_root(json)?;
-    let songs = if endpoint == "getAlbum.view" {
-        root.get("album").and_then(|a| a.get("song"))
-    } else if endpoint == "getPlaylist.view" {
-        root.get("playlist").and_then(|p| p.get("entry"))
-    } else {
-        None
-    };
-
-    if let Some(arr) = songs.and_then(|s| s.as_array()) {
-        return Ok(arr.clone());
-    } else if let Some(obj) = songs.and_then(|s| s.as_object()) {
-        return Ok(vec![serde_json::Value::Object(obj.clone())]);
-    }
-    Ok(vec![])
-}
-
 #[tauri::command]
+#[allow(clippy::too_many_arguments)] // Tauri IPC fields map directly to the frontend request.
 pub async fn calculate_sync_payload(
     sources: Vec<DeviceSyncSourcePayload>,
     deletion_ids: Vec<String>,
@@ -305,8 +72,17 @@ pub async fn calculate_sync_payload(
     target_dir: String,
     layout_mode: DeviceSyncLayoutMode,
     playlist_path_mode: DeviceSyncPlaylistPathMode,
+    expected_device_id: Option<String>,
     app: tauri::AppHandle,
 ) -> Result<SyncDeltaResult, String> {
+    let _device_sync_guard = super::device::device_sync_operation_guard().await;
+    let device_id = {
+        let _filesystem_write_guard = crate::filesystem_write_guard().await?;
+        let root = std::path::Path::new(&target_dir);
+        let device_id = super::device::ensure_device_identity(root)?;
+        validate_active_device_sync_plan_binding(root, &device_id, expected_device_id.as_deref())?;
+        device_id
+    };
     calculate_sync_payload_impl(
         sources,
         deletion_ids,
@@ -314,6 +90,8 @@ pub async fn calculate_sync_payload(
         target_dir,
         layout_mode,
         playlist_path_mode,
+        device_id,
+        expected_device_id,
         app,
     )
     .await
@@ -340,29 +118,25 @@ pub fn cancel_device_sync(job_id: String, app: tauri::AppHandle) {
 /// final `device:sync:complete` event with the summary.
 #[tauri::command]
 #[specta::specta]
+#[allow(clippy::too_many_arguments)] // Tauri IPC fields map directly to the generated frontend binding.
 pub async fn sync_batch_to_device(
     tracks: Vec<TrackSyncInfo>,
     dest_dir: String,
     job_id: String,
     expected_bytes: u64,
+    expected_device_id: String,
+    plan_id: String,
     server_id: Option<String>,
     app: tauri::AppHandle,
 ) -> Result<SyncBatchResult, String> {
+    let _device_sync_guard = super::device::device_sync_operation_guard().await;
     let _filesystem_write_guard = crate::filesystem_write_guard().await?;
     use std::sync::atomic::{AtomicU32, Ordering};
     use std::time::{Duration, Instant};
     use tokio::sync::Mutex;
 
     let dest_root = std::path::PathBuf::from(&dest_dir);
-    if !dest_root.exists() {
-        return Err("VOLUME_NOT_FOUND".to_string());
-    }
-    // Safety: verify dest_dir is on an actual mounted volume, not the root FS.
-    // This catches the case where a USB drive was unmounted but the empty
-    // mount-point directory still exists — writing there fills the root partition.
-    if !is_path_on_mounted_volume(&dest_root) {
-        return Err("NOT_MOUNTED_VOLUME".to_string());
-    }
+    validate_device_identity(&dest_root, &expected_device_id)?;
 
     // Safety: Ensure target logic hasn't exceeded physical volume capacities securely stopping dead bytes natively.
     let drives = get_removable_drives();
@@ -392,6 +166,27 @@ pub async fn sync_batch_to_device(
     let http_registry = app
         .try_state::<Arc<psysonic_core::server_http::ServerHttpRegistry>>()
         .map(|s| Arc::clone(&*s));
+    let active_plan = activate_device_sync_plan(&dest_root, &plan_id, &expected_device_id)?;
+    let planned_tracks = active_plan
+        .manifest_files
+        .iter()
+        .map(|file| {
+            (
+                portable_path_identity(&file.relative_path),
+                file.track_id.as_str(),
+            )
+        })
+        .collect::<std::collections::HashMap<_, _>>();
+    for track in &tracks {
+        let relative = format!("{}.{}", build_track_path(track), track.suffix);
+        if planned_tracks
+            .get(&portable_path_identity(&relative))
+            .copied()
+            != Some(track.id.as_str())
+        {
+            return Err("DEVICE_SYNC_PENDING_PLAN_MISMATCH".to_string());
+        }
+    }
 
     // Concurrency limiter: max 2 parallel USB writes.
     let semaphore = std::sync::Arc::new(tokio::sync::Semaphore::new(2));
@@ -422,6 +217,7 @@ pub async fn sync_batch_to_device(
         let fresh = fresh_paths.clone();
         let cancel = cancel_flag.clone();
         let request_server_id = server_id.clone();
+        let expected_device = expected_device_id.clone();
 
         handles.push(tokio::spawn(async move {
             let _permit = sem.acquire().await.expect("semaphore closed");
@@ -429,6 +225,10 @@ pub async fn sync_batch_to_device(
 
             // Bail out if cancelled while waiting in the semaphore queue.
             if cancel.load(Ordering::Relaxed) {
+                return;
+            }
+            if validate_device_identity(std::path::Path::new(&dest), &expected_device).is_err() {
+                f.fetch_add(1, Ordering::Relaxed);
                 return;
             }
 
@@ -447,6 +247,10 @@ pub async fn sync_batch_to_device(
                     f.fetch_add(1, Ordering::Relaxed);
                     return;
                 }
+            }
+            if path_contains_symlink(std::path::Path::new(&dest), &dest_path).unwrap_or(true) {
+                f.fetch_add(1, Ordering::Relaxed);
+                return;
             }
 
             let status = if dest_path.exists() {
@@ -469,6 +273,8 @@ pub async fn sync_batch_to_device(
                 }
                 if !planned_path_stays_within(std::path::Path::new(&dest), &dest_path)
                     .unwrap_or(false)
+                    || path_contains_symlink(std::path::Path::new(&dest), &dest_path)
+                        .unwrap_or(true)
                 {
                     f.fetch_add(1, Ordering::Relaxed);
                     return;
@@ -509,6 +315,11 @@ pub async fn sync_batch_to_device(
                 };
 
                 let part_path = dest_path.with_extension(format!("{}.part", track.suffix));
+                if validate_device_identity(std::path::Path::new(&dest), &expected_device).is_err()
+                {
+                    f.fetch_add(1, Ordering::Relaxed);
+                    return;
+                }
                 if let Err(e) =
                     finalize_streamed_download(response, &dest_path, &part_path, None).await
                 {
@@ -567,7 +378,9 @@ pub async fn sync_batch_to_device(
     let should_rollback = was_cancelled || failed.load(Ordering::Relaxed) > 0;
     if should_rollback {
         let paths = std::mem::take(&mut *fresh_paths.lock().await);
-        if rollback_device_files(&dest_root, paths).await.is_err() {
+        let rollback_ok = validate_device_identity(&dest_root, &expected_device_id).is_ok()
+            && rollback_device_files(&dest_root, paths).await.is_ok();
+        if !rollback_ok {
             failed.fetch_add(1, Ordering::Relaxed);
         }
         done.store(0, Ordering::Relaxed);
@@ -600,6 +413,7 @@ pub async fn sync_batch_to_device(
 #[tauri::command]
 #[specta::specta]
 pub async fn delete_device_files(dest_dir: String, paths: Vec<String>) -> Result<u32, String> {
+    let _device_sync_guard = super::device::device_sync_operation_guard().await;
     let _filesystem_write_guard = crate::filesystem_write_guard().await?;
     ensure_mounted_target(std::path::Path::new(&dest_dir))?;
     delete_device_files_impl(dest_dir, paths).await

@@ -20,6 +20,10 @@ describe('runDeviceSyncChooseFolder', () => {
       legacyTargetDir: null,
       checkedIds: [],
       pendingDeletion: [],
+      pendingPlan: false,
+      targetDeviceId: null,
+      pendingPlanDeviceId: null,
+      pendingPlanChecked: false,
       deviceFilePaths: [],
       scanning: false,
     });
@@ -46,6 +50,8 @@ describe('runDeviceSyncChooseFolder', () => {
       playlists: [],
     }));
     onInvoke('write_device_manifest', () => undefined);
+    onInvoke('pending_device_sync_plan_device_id', () => null);
+    onInvoke('device_sync_device_id', () => 'device-1');
     const setTargetDir = vi.fn((dir: string) => useDeviceSyncStore.getState().setTargetDir(dir));
 
     await runDeviceSyncChooseFolder({
@@ -62,11 +68,43 @@ describe('runDeviceSyncChooseFolder', () => {
       syncedPlaylistPathMode: 'device-rooted',
       sources: [source],
     });
-    expect(invokeMock).toHaveBeenCalledWith('write_device_manifest', expect.objectContaining({
-      destDir: '/device',
-      layoutMode: 'shared-album-tree',
-      playlistPathMode: 'device-rooted',
-      files,
+    expect(invokeMock).not.toHaveBeenCalledWith('write_device_manifest', expect.anything());
+  });
+
+  it('preserves desired state when the selected folder has an active plan', async () => {
+    const desired: DeviceSyncSource = {
+      type: 'playlist', id: 'desired', name: 'Desired', serverIndexKey: 'owner.test',
+    };
+    useDeviceSyncStore.setState({
+      sources: [desired],
+      pendingDeletion: ['pending-key'],
+      targetDeviceId: 'device-1',
+    });
+    onInvoke('read_device_manifest', () => ({
+      version: 4,
+      schema: 'fixed-v2',
+      ownerServerIndexKey: 'owner.test',
+      sources: [{ type: 'playlist', id: 'old', name: 'Old', serverIndexKey: 'owner.test' }],
+      files: [],
+      playlists: [],
     }));
+    onInvoke('pending_device_sync_plan_device_id', () => 'device-1');
+    onInvoke('device_sync_device_id', () => 'device-1');
+
+    await runDeviceSyncChooseFolder({
+      t: ((key: string) => key) as never,
+      setTargetDir: dir => useDeviceSyncStore.getState().setTargetDir(dir),
+      scanDevice: vi.fn(),
+    });
+
+    expect(useDeviceSyncStore.getState()).toMatchObject({
+      targetDir: '/device',
+      sources: [desired],
+      pendingDeletion: ['pending-key'],
+      pendingPlan: true,
+      pendingPlanDeviceId: 'device-1',
+      pendingPlanChecked: true,
+      targetDeviceId: 'device-1',
+    });
   });
 });

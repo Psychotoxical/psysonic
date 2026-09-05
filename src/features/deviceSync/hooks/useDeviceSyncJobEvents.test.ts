@@ -13,6 +13,8 @@ import { NAVIDROME_CANONICAL_BOOTSTRAP_LOCK_KEY } from '@/lib/server/navidromeCa
 
 const jobContext = (source: DeviceSyncSource, targetDir: string) => ({
   targetDir,
+  deviceId: 'device-1',
+  planId: 'plan-1',
   serverIndexKey: source.serverIndexKey,
   sources: [source],
   deletionSourceKeys: [],
@@ -48,7 +50,7 @@ describe('useDeviceSyncJobEvents ownership', () => {
     };
     useDeviceSyncJobStore.getState().startSync('job-1', 1, jobContext(source, '/old-device'));
     useDeviceSyncStore.setState({ targetDir: '/new-device', sources: [] });
-    onInvoke('write_device_manifest', () => undefined);
+    onInvoke('finalize_device_sync', () => ({ deleted: 0, cleanupFailed: false }));
     renderHook(() => useDeviceSyncJobEvents());
     await waitFor(() => expect(tauriMockListenerCount('device:sync:complete')).toBe(1));
 
@@ -56,16 +58,14 @@ describe('useDeviceSyncJobEvents ownership', () => {
       jobId: 'job-1', done: 1, skipped: 0, failed: 0, total: 1,
     });
 
-    await waitFor(() => expect(invokeMock).toHaveBeenCalledWith('write_device_manifest', {
+    await waitFor(() => expect(invokeMock).toHaveBeenCalledWith('finalize_device_sync', expect.objectContaining({
       destDir: '/old-device',
-      ownerServerIndexKey: 'owner.test',
-      sources: [source],
-      canonicalIdVersion: null,
-      layoutMode: 'self-contained',
-      playlistPathMode: 'playlist-relative',
-      files: [],
-      playlists: [],
-    }));
+      payload: expect.objectContaining({
+        expectedDeviceId: 'device-1',
+        ownerServerIndexKey: 'owner.test',
+        sources: [expect.objectContaining(source)],
+      }),
+    })));
     expect(invokeMock).not.toHaveBeenCalledWith('list_device_dir_files', expect.anything());
   });
 
@@ -83,7 +83,7 @@ describe('useDeviceSyncJobEvents ownership', () => {
     });
 
     await waitFor(() => expect(useDeviceSyncJobStore.getState().status).toBe('failed'));
-    expect(invokeMock).not.toHaveBeenCalledWith('write_device_manifest', expect.anything());
+    expect(invokeMock).not.toHaveBeenCalledWith('finalize_device_sync', expect.anything());
   });
 
   it('keeps cancellation active until the native completion event confirms it', async () => {

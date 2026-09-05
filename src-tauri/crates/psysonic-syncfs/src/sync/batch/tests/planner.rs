@@ -1,5 +1,7 @@
 use super::super::payload::device_sync_source_key;
-use super::super::planner::{build_sync_plan, FetchedDeviceSyncSource};
+use super::super::planner::{
+    build_sync_plan, build_sync_plan_with_resume, FetchedDeviceSyncSource,
+};
 use super::super::{
     DeviceSyncLayoutMode, DeviceSyncManifestFile, DeviceSyncManifestPlaylist,
     DeviceSyncPlaylistPathMode, DeviceSyncSourcePayload,
@@ -184,6 +186,53 @@ fn shared_file_survives_removing_one_of_its_sources() {
 }
 
 #[test]
+fn shared_file_survives_playlist_membership_change() {
+    let device = tempfile::tempdir().unwrap();
+    let album = source("album", "album-1", "Album");
+    let playlist = source("playlist", "playlist-1", "Mix");
+    let album_key = device_sync_source_key(&album);
+    let playlist_key = device_sync_source_key(&playlist);
+    let relative_path = "Album Artist/Album/01 - Song.flac";
+    std::fs::create_dir_all(device.path().join("Album Artist/Album")).unwrap();
+    std::fs::write(device.path().join(relative_path), b"track").unwrap();
+    write_manifest(
+        &device,
+        &[album.clone(), playlist.clone()],
+        DeviceSyncLayoutMode::SharedAlbumTree,
+        &[DeviceSyncManifestFile {
+            track_id: "track-1".to_string(),
+            relative_path: relative_path.to_string(),
+            source_keys: vec![album_key.clone(), playlist_key],
+            size_bytes: 100,
+        }],
+        &[],
+    );
+    let fetched = vec![
+        FetchedDeviceSyncSource {
+            source: album,
+            tracks: vec![track("track-1", "Song")],
+        },
+        FetchedDeviceSyncSource {
+            source: playlist,
+            tracks: Vec::new(),
+        },
+    ];
+
+    let plan = build_sync_plan(
+        &fetched,
+        &[],
+        device.path().to_str().unwrap(),
+        DeviceSyncLayoutMode::SharedAlbumTree,
+        DeviceSyncPlaylistPathMode::PlaylistRelative,
+    )
+    .unwrap();
+
+    assert_eq!(plan.add_count, 0);
+    assert!(plan.delete_paths.is_empty());
+    assert_eq!(plan.manifest_files[0].source_keys, vec![album_key]);
+}
+
+#[test]
 fn self_contained_to_shared_migration_defers_the_only_existing_copy() {
     let device = tempfile::tempdir().unwrap();
     let playlist = source("playlist", "playlist-1", "Mix");
@@ -227,6 +276,57 @@ fn self_contained_to_shared_migration_defers_the_only_existing_copy() {
         vec![device.path().join(old_path).to_string_lossy().to_string()]
     );
     assert_eq!(plan.reclaimable_bytes, 0);
+}
+
+#[test]
+fn active_plan_resumes_a_downloaded_file_not_yet_in_the_manifest() {
+    let device = tempfile::tempdir().unwrap();
+    let playlist = source("playlist", "playlist-1", "Mix");
+    let playlist_key = device_sync_source_key(&playlist);
+    let old_path = "Playlists/Mix/01 - Artist - Song.flac";
+    let new_path = "Album Artist/Album/01 - Song.flac";
+    std::fs::create_dir_all(device.path().join("Playlists/Mix")).unwrap();
+    std::fs::create_dir_all(device.path().join("Album Artist/Album")).unwrap();
+    std::fs::write(device.path().join(old_path), b"track").unwrap();
+    std::fs::write(device.path().join(new_path), b"track").unwrap();
+    write_manifest(
+        &device,
+        std::slice::from_ref(&playlist),
+        DeviceSyncLayoutMode::SelfContained,
+        &[DeviceSyncManifestFile {
+            track_id: "track-1".to_string(),
+            relative_path: old_path.to_string(),
+            source_keys: vec![playlist_key.clone()],
+            size_bytes: 100,
+        }],
+        &[],
+    );
+    let fetched = vec![FetchedDeviceSyncSource {
+        source: playlist,
+        tracks: vec![track("track-1", "Song")],
+    }];
+    let resume_files = vec![DeviceSyncManifestFile {
+        track_id: "track-1".to_string(),
+        relative_path: new_path.to_string(),
+        source_keys: vec![playlist_key],
+        size_bytes: 100,
+    }];
+
+    let plan = build_sync_plan_with_resume(
+        &fetched,
+        &[],
+        device.path().to_str().unwrap(),
+        DeviceSyncLayoutMode::SharedAlbumTree,
+        DeviceSyncPlaylistPathMode::DeviceRooted,
+        Some(&resume_files),
+    )
+    .unwrap();
+
+    assert_eq!(plan.add_count, 0);
+    assert_eq!(
+        plan.delete_paths,
+        vec![device.path().join(old_path).to_string_lossy().to_string()]
+    );
 }
 
 #[test]
@@ -285,18 +385,64 @@ fn removing_the_final_playlist_deletes_its_track_and_m3u() {
 }
 
 #[test]
+fn removing_a_legacy_source_derives_and_deletes_its_owned_files() {
+    let device = tempfile::tempdir().unwrap();
+    let album = source("album", "album-1", "Album");
+    let album_key = device_sync_source_key(&album);
+    let track_path = "Album Artist/Album/01 - Song.flac";
+    std::fs::create_dir_all(device.path().join("Album Artist/Album")).unwrap();
+    std::fs::write(device.path().join(track_path), b"track").unwrap();
+    std::fs::write(
+        device.path().join("psysonic-sync.json"),
+        serde_json::to_vec(&serde_json::json!({
+            "version": 3,
+            "schema": "fixed-v1",
+            "ownerServerIndexKey": "server.test",
+            "sources": [{
+                "type": "album",
+                "id": "album-1",
+                "name": "Album",
+                "serverIndexKey": "server.test",
+            }],
+        }))
+        .unwrap(),
+    )
+    .unwrap();
+    let fetched = vec![FetchedDeviceSyncSource {
+        source: album,
+        tracks: vec![track("track-1", "Song")],
+    }];
+
+    let plan = build_sync_plan(
+        &fetched,
+        &[album_key],
+        device.path().to_str().unwrap(),
+        DeviceSyncLayoutMode::SharedAlbumTree,
+        DeviceSyncPlaylistPathMode::PlaylistRelative,
+    )
+    .unwrap();
+
+    assert_eq!(
+        plan.delete_paths,
+        vec![device.path().join(track_path).to_string_lossy().to_string()]
+    );
+}
+
+#[test]
 fn manifest_cannot_nominate_an_unrelated_device_file_for_deletion() {
     let device = tempfile::tempdir().unwrap();
     let album = source("album", "album-1", "Album");
     let album_key = device_sync_source_key(&album);
-    std::fs::write(device.path().join("keep-me.txt"), b"private").unwrap();
+    let unrelated_path = "Private/Documents/keep-me.txt";
+    std::fs::create_dir_all(device.path().join("Private/Documents")).unwrap();
+    std::fs::write(device.path().join(unrelated_path), b"private").unwrap();
     write_manifest(
         &device,
         std::slice::from_ref(&album),
         DeviceSyncLayoutMode::SharedAlbumTree,
         &[DeviceSyncManifestFile {
             track_id: "track-1".to_string(),
-            relative_path: "keep-me.txt".to_string(),
+            relative_path: unrelated_path.to_string(),
             source_keys: vec![album_key.clone()],
             size_bytes: 7,
         }],
@@ -317,11 +463,11 @@ fn manifest_cannot_nominate_an_unrelated_device_file_for_deletion() {
     .unwrap();
 
     assert!(plan.delete_paths.is_empty());
-    assert!(device.path().join("keep-me.txt").exists());
+    assert!(device.path().join(unrelated_path).exists());
 }
 
 #[test]
-fn v4_manifest_removes_a_track_no_longer_returned_by_the_server() {
+fn v4_manifest_does_not_delete_a_track_that_can_no_longer_be_derived() {
     let device = tempfile::tempdir().unwrap();
     let album = source("album", "album-1", "Album");
     let album_key = device_sync_source_key(&album);
@@ -354,10 +500,47 @@ fn v4_manifest_removes_a_track_no_longer_returned_by_the_server() {
     )
     .unwrap();
 
-    assert_eq!(
-        plan.delete_paths,
-        vec![device.path().join(old_path).to_string_lossy().to_string()]
+    assert!(plan.delete_paths.is_empty());
+    assert!(device.path().join(old_path).exists());
+    assert_eq!(plan.manifest_files.len(), 1);
+    assert_eq!(plan.manifest_files[0].track_id, "removed-track");
+    assert_eq!(plan.manifest_files[0].relative_path, old_path);
+}
+
+#[test]
+fn v4_manifest_drops_missing_unverifiable_ownership_from_the_replacement() {
+    let device = tempfile::tempdir().unwrap();
+    let album = source("album", "album-1", "Album");
+    let album_key = device_sync_source_key(&album);
+    let old_path = "Album Artist/Album/01 - Missing.flac";
+    write_manifest(
+        &device,
+        std::slice::from_ref(&album),
+        DeviceSyncLayoutMode::SharedAlbumTree,
+        &[DeviceSyncManifestFile {
+            track_id: "missing-track".to_string(),
+            relative_path: old_path.to_string(),
+            source_keys: vec![album_key],
+            size_bytes: 3,
+        }],
+        &[],
     );
+    let fetched = vec![FetchedDeviceSyncSource {
+        source: album,
+        tracks: vec![],
+    }];
+
+    let plan = build_sync_plan(
+        &fetched,
+        &[],
+        device.path().to_str().unwrap(),
+        DeviceSyncLayoutMode::SharedAlbumTree,
+        DeviceSyncPlaylistPathMode::PlaylistRelative,
+    )
+    .unwrap();
+
+    assert!(plan.delete_paths.is_empty());
+    assert!(plan.manifest_files.is_empty());
 }
 
 #[test]

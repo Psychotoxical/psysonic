@@ -16,6 +16,10 @@ describe('runDeviceSyncSummaryPrompt ownership', () => {
       sources: [],
       checkedIds: [],
       pendingDeletion: [],
+      pendingPlan: false,
+      targetDeviceId: null,
+      pendingPlanDeviceId: null,
+      pendingPlanChecked: false,
       deviceFilePaths: [],
       scanning: false,
     });
@@ -30,7 +34,9 @@ describe('runDeviceSyncSummaryPrompt ownership', () => {
       type: 'album', id: 'album-1', name: 'Album', serverIndexKey,
     };
     useAuthStore.setState(makeAuthState({ servers: [owner, active], activeServerId: active.id }));
-    useDeviceSyncStore.setState({ targetDir: '/device', sources: [source], pendingDeletion: [] });
+    useDeviceSyncStore.setState({
+      targetDir: '/device', sources: [source], pendingDeletion: [], pendingPlanChecked: true,
+    });
 
     onInvoke('calculate_sync_payload', args => {
       const payload = args as {
@@ -38,6 +44,7 @@ describe('runDeviceSyncSummaryPrompt ownership', () => {
         auth: { serverId: string; serverIndexKey: string; baseUrl: string; u: string };
         layoutMode: string;
         playlistPathMode: string;
+        expectedDeviceId: string | null;
       };
       expect(payload.sources).toEqual([source]);
       expect(payload.auth).toMatchObject({
@@ -48,7 +55,10 @@ describe('runDeviceSyncSummaryPrompt ownership', () => {
       });
       expect(payload.layoutMode).toBe('self-contained');
       expect(payload.playlistPathMode).toBe('playlist-relative');
+      expect(payload.expectedDeviceId).toBeNull();
       return {
+        planId: 'plan-1',
+        deviceId: 'device-1',
         addBytes: 0, addCount: 0, delBytes: 0, delCount: 0, reclaimableBytes: 0,
         availableBytes: 1, tracks: [], deletePaths: ['/device/old.flac'],
         deferredDeletePaths: ['/device/old.m3u8'],
@@ -72,11 +82,14 @@ describe('runDeviceSyncSummaryPrompt ownership', () => {
     expect(setSyncDelta).toHaveBeenCalledWith(expect.objectContaining({
       context: expect.objectContaining({
         serverIndexKey,
+        planId: 'plan-1',
+        deviceId: 'device-1',
         targetDir: '/device',
         sources: [source],
         deferredDeletePaths: ['/device/old.flac', '/device/old.m3u8'],
       }),
     }));
+    expect(useDeviceSyncStore.getState().targetDeviceId).toBe('device-1');
   });
 
   it('discards a preview that resolves after the target changes', async () => {
@@ -86,7 +99,9 @@ describe('runDeviceSyncSummaryPrompt ownership', () => {
       type: 'playlist', id: 'playlist-1', name: 'Playlist', serverIndexKey,
     };
     useAuthStore.setState(makeAuthState({ servers: [owner], activeServerId: owner.id }));
-    useDeviceSyncStore.setState({ targetDir: '/old', sources: [source], pendingDeletion: [] });
+    useDeviceSyncStore.setState({
+      targetDir: '/old', sources: [source], pendingDeletion: [], pendingPlanChecked: true,
+    });
 
     let resolvePayload!: (value: object) => void;
     onInvoke('calculate_sync_payload', () => new Promise(resolve => { resolvePayload = resolve; }));
@@ -106,6 +121,8 @@ describe('runDeviceSyncSummaryPrompt ownership', () => {
 
     useDeviceSyncStore.setState({ targetDir: '/new' });
     resolvePayload({
+      planId: 'plan-1',
+      deviceId: 'device-1',
       addBytes: 0, addCount: 0, delBytes: 0, delCount: 0, reclaimableBytes: 0,
       availableBytes: 1, tracks: [], deletePaths: [], deferredDeletePaths: [],
       playlists: [], manifestFiles: [], manifestPlaylists: [],
@@ -114,6 +131,32 @@ describe('runDeviceSyncSummaryPrompt ownership', () => {
 
     expect(setSyncDelta).not.toHaveBeenCalled();
     expect(setPreSyncOpen).toHaveBeenLastCalledWith(false);
+  });
+
+  it('refuses to calculate until the selected device plan state is checked', async () => {
+    const owner = makeServer({ id: 'owner', url: 'https://owner.test' });
+    const serverIndexKey = serverIndexKeyForProfile(owner);
+    const source: DeviceSyncSource = {
+      type: 'album', id: 'album-1', name: 'Album', serverIndexKey,
+    };
+    useAuthStore.setState(makeAuthState({ servers: [owner], activeServerId: owner.id }));
+    useDeviceSyncStore.setState({ targetDir: '/device', sources: [source], pendingPlanChecked: false });
+    const setSyncDelta = vi.fn<(delta: SyncDelta) => void>();
+
+    await runDeviceSyncSummaryPrompt({
+      targetDir: '/device',
+      sources: [source],
+      pendingDeletion: [],
+      layoutMode: 'self-contained',
+      playlistPathMode: 'playlist-relative',
+      t: ((key: string) => key) as never,
+      setPreSyncLoading: vi.fn(),
+      setPreSyncOpen: vi.fn(),
+      setSyncDelta,
+    });
+
+    expect(setSyncDelta).not.toHaveBeenCalled();
+    expect(invokeMock).not.toHaveBeenCalledWith('calculate_sync_payload', expect.anything());
   });
 
   it('refuses to execute a preview after its source selection changes', async () => {
@@ -126,6 +169,8 @@ describe('runDeviceSyncSummaryPrompt ownership', () => {
     useDeviceSyncStore.setState({ targetDir: '/device', sources: [source], pendingDeletion: [] });
     const context = {
       targetDir: '/device',
+      deviceId: 'device-1',
+      planId: 'plan-1',
       serverIndexKey,
       sources: [source],
       deletionSourceKeys: [],
@@ -141,6 +186,8 @@ describe('runDeviceSyncSummaryPrompt ownership', () => {
 
     await runDeviceSyncExecute({
       syncDelta: {
+        planId: 'plan-1',
+        deviceId: 'device-1',
         addBytes: 0, addCount: 0, delBytes: 0, delCount: 0, reclaimableBytes: 0,
         availableBytes: 1, tracks: [], deletePaths: [], deferredDeletePaths: [],
         playlists: [], manifestFiles: [], manifestPlaylists: [], context,

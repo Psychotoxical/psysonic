@@ -40,12 +40,32 @@ export function useDeviceSyncSourceStatuses(
     let cancelled = false;
     (async () => {
       const map = new Map<string, string[]>();
-      await Promise.all(sources.map(async source => {
+      const fetched = await Promise.all(sources.map(async source => {
+        try {
+          return { source, tracks: await fetchTracksForSource(source) };
+        } catch {
+          return { source, tracks: [] };
+        }
+      }));
+      const preferredSharedTracks = new Map<string, (typeof fetched)[number]['tracks'][number]>();
+      for (const entry of fetched.filter(entry => entry.source.type !== 'playlist')) {
+        for (const track of entry.tracks) {
+          if (!preferredSharedTracks.has(track.id)) preferredSharedTracks.set(track.id, track);
+        }
+      }
+      for (const entry of fetched.filter(entry => entry.source.type === 'playlist')) {
+        for (const track of entry.tracks) {
+          if (!preferredSharedTracks.has(track.id)) preferredSharedTracks.set(track.id, track);
+        }
+      }
+      await Promise.all(fetched.map(async ({ source, tracks }) => {
         if (cancelled) return;
         try {
-          const tracks = await fetchTracksForSource(source);
+          const pathTracks = layoutMode === 'shared-album-tree'
+            ? tracks.map(track => preferredSharedTracks.get(track.id) ?? track)
+            : tracks;
           const paths = await computeSyncPaths({
-            tracks: tracks.map((tr, idx) => trackToSyncInfo(
+            tracks: pathTracks.map((tr, idx) => trackToSyncInfo(
               tr, '',
               source.type === 'playlist' && layoutMode === 'self-contained'
                 ? {

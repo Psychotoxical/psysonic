@@ -35,8 +35,35 @@ describe('deviceSyncStore ownership', () => {
       legacyTargetDir: null,
       checkedIds: [],
       pendingDeletion: [],
+      pendingPlan: false,
+      targetDeviceId: null,
+      pendingPlanDeviceId: null,
+      pendingPlanChecked: false,
+      targetRevision: 0,
       deviceFilePaths: [],
       scanning: false,
+    });
+  });
+
+  it('preserves the device binding while a changed mount path is rechecked', () => {
+    useDeviceSyncStore.setState({
+      targetDir: '/old-mount',
+      targetDeviceId: 'device-1',
+      pendingPlan: true,
+      pendingPlanDeviceId: 'device-1',
+      pendingPlanChecked: true,
+      targetRevision: 4,
+    });
+
+    useDeviceSyncStore.getState().setTargetDir('/new-mount');
+
+    expect(useDeviceSyncStore.getState()).toMatchObject({
+      targetDir: '/new-mount',
+      targetDeviceId: 'device-1',
+      pendingPlan: false,
+      pendingPlanDeviceId: null,
+      pendingPlanChecked: false,
+      targetRevision: 5,
     });
   });
 
@@ -168,6 +195,16 @@ describe('deviceSyncStore ownership', () => {
     expect(useDeviceSyncStore.getState().legacySources).toEqual([legacy]);
   });
 
+  it('preserves pending deletion keys for crash-safe finalization retry', () => {
+    const sourceKey = deviceSyncSourceKey(sourceA);
+    const migrated = migrateDeviceSyncPersistedState({
+      sources: [sourceA],
+      pendingDeletion: [sourceKey, sourceKey, 42],
+    });
+
+    expect(migrated.pendingDeletion).toEqual([sourceKey]);
+  });
+
   it('keeps quarantined legacy sources scoped to their originating device', () => {
     const sourceOne = { type: 'album' as const, id: 'one', name: 'One' };
     const sourceTwo = { type: 'album' as const, id: 'two', name: 'Two' };
@@ -221,6 +258,49 @@ describe('deviceSyncStore ownership', () => {
       name: 'Legacy',
       serverIndexKey: sourceA.serverIndexKey,
     }]);
+  });
+
+  it('canonicalizes materialized manifest ownership when the checkpoint is ready', () => {
+    const legacyTrackId = '123e4567-e89b-12d3-a456-426614174000';
+    const legacyPlaylistId = '223e4567-e89b-12d3-a456-426614174000';
+    localStorage.setItem(NAVIDROME_CANONICAL_MIGRATION_CHECKPOINT_KEY, JSON.stringify({
+      version: 1,
+      servers: {
+        [sourceA.serverIndexKey]: {
+          canonicalVersion: 1,
+          phase: 'ready',
+          checkedVersion: '0.64.0',
+        },
+      },
+    }));
+    const legacySourceKey = JSON.stringify([
+      sourceA.serverIndexKey, 'playlist', legacyPlaylistId,
+    ]);
+
+    const imported = deviceSyncManifestImport({
+      version: 4,
+      schema: 'fixed-v2',
+      ownerServerIndexKey: sourceA.serverIndexKey,
+      sources: [{
+        type: 'playlist', id: legacyPlaylistId, name: 'Mix', serverIndexKey: sourceA.serverIndexKey,
+      }],
+      files: [{
+        trackId: legacyTrackId,
+        relativePath: 'Artist/Album/01 - Song.flac',
+        sourceKeys: [legacySourceKey],
+        sizeBytes: 100,
+      }],
+      playlists: [{ sourceKey: legacySourceKey, relativePath: 'Playlists/Mix/Mix.m3u8' }],
+    });
+    const canonicalSourceKey = JSON.stringify([
+      sourceA.serverIndexKey, 'playlist', canonicalNavidromeId(legacyPlaylistId),
+    ]);
+
+    expect(imported?.files[0]).toMatchObject({
+      trackId: canonicalNavidromeId(legacyTrackId),
+      sourceKeys: [canonicalSourceKey],
+    });
+    expect(imported?.playlists[0].sourceKey).toBe(canonicalSourceKey);
   });
 
   it('defers old manifest import while the owner canonical migration is pending', () => {

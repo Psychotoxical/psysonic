@@ -22,6 +22,9 @@ describe('finalizeDeviceSyncJob', () => {
       legacyTargetDir: null,
       checkedIds: [],
       pendingDeletion: [],
+      pendingPlan: false,
+      targetDeviceId: null,
+      pendingPlanDeviceId: null,
       deviceFilePaths: [],
       scanning: false,
     });
@@ -36,12 +39,12 @@ describe('finalizeDeviceSyncJob', () => {
     };
     const albumKey = deviceSyncSourceKey(album);
     useDeviceSyncStore.setState({ sources: [album, playlist], pendingDeletion: [albumKey] });
-    onInvoke('delete_device_files', () => 1);
-    onInvoke('write_playlist_m3u8', () => undefined);
-    onInvoke('write_device_manifest', () => undefined);
+    onInvoke('finalize_device_sync', () => ({ deleted: 1, cleanupFailed: false }));
     const track = makeSubsonicSong({ id: 'track-1', albumArtist: 'Album Artist', track: 1 });
     const context: DeviceSyncJobContext = {
       targetDir: '/device',
+      deviceId: 'device-1',
+      planId: 'plan-1',
       serverIndexKey: 'server.test',
       sources: [playlist],
       deletionSourceKeys: [albumKey],
@@ -69,33 +72,35 @@ describe('finalizeDeviceSyncJob', () => {
 
     await finalizeDeviceSyncJob(context);
 
-    expect(invokeMock.mock.calls.map(([command]) => command)).toEqual([
-      'write_playlist_m3u8',
-      'delete_device_files',
-      'write_device_manifest',
-    ]);
-    expect(invokeMock).toHaveBeenCalledWith('write_playlist_m3u8', expect.objectContaining({
-      references: ['/Album Artist/Test Album/01 - Song.flac'],
-    }));
-    expect(invokeMock).toHaveBeenCalledWith('delete_device_files', {
+    expect(invokeMock.mock.calls.map(([command]) => command)).toEqual(['finalize_device_sync']);
+    expect(invokeMock).toHaveBeenCalledWith('finalize_device_sync', {
       destDir: '/device',
-      paths: ['/device/Playlists/Mix/01 - Track.flac'],
+      payload: expect.objectContaining({
+        expectedDeviceId: 'device-1',
+        planId: 'plan-1',
+        deferredDeletePaths: ['/device/Playlists/Mix/01 - Track.flac'],
+        playlists: [expect.objectContaining({
+          references: ['/Album Artist/Test Album/01 - Song.flac'],
+        })],
+      }),
     });
     expect(useDeviceSyncStore.getState().sources).toEqual([playlist]);
     expect(useDeviceSyncStore.getState().pendingDeletion).toEqual([]);
+    expect(useDeviceSyncStore.getState().pendingPlan).toBe(false);
     expect(useDeviceSyncStore.getState().syncedLayoutMode).toBe('shared-album-tree');
     expect(useDeviceSyncStore.getState().syncedPlaylistPathMode).toBe('device-rooted');
   });
 
-  it('does not commit manifest or source state when playlist writing fails', async () => {
+  it('does not commit source state when native finalization fails', async () => {
     const playlist: DeviceSyncSource = {
       type: 'playlist', id: 'playlist-1', name: 'Mix', serverIndexKey: 'server.test',
     };
     useDeviceSyncStore.setState({ sources: [playlist] });
-    onInvoke('write_playlist_m3u8', () => { throw 'read only'; });
-    onInvoke('write_device_manifest', () => undefined);
+    onInvoke('finalize_device_sync', () => { throw 'read only'; });
     const context: DeviceSyncJobContext = {
       targetDir: '/device',
+      deviceId: 'device-1',
+      planId: 'plan-1',
       serverIndexKey: 'server.test',
       sources: [playlist],
       deletionSourceKeys: [],
@@ -115,8 +120,36 @@ describe('finalizeDeviceSyncJob', () => {
 
     await expect(finalizeDeviceSyncJob(context)).rejects.toThrow('read only');
 
-    expect(invokeMock).not.toHaveBeenCalledWith('delete_device_files', expect.anything());
-    expect(invokeMock).not.toHaveBeenCalledWith('write_device_manifest', expect.anything());
+    expect(invokeMock).toHaveBeenCalledWith('finalize_device_sync', expect.anything());
     expect(useDeviceSyncStore.getState().syncedLayoutMode).toBe('self-contained');
+  });
+
+  it('keeps source state pending when native cleanup is incomplete', async () => {
+    const playlist: DeviceSyncSource = {
+      type: 'playlist', id: 'playlist-1', name: 'Mix', serverIndexKey: 'server.test',
+    };
+    const playlistKey = deviceSyncSourceKey(playlist);
+    useDeviceSyncStore.setState({ sources: [playlist], pendingDeletion: [playlistKey] });
+    onInvoke('finalize_device_sync', () => ({ deleted: 0, cleanupFailed: true }));
+    const context: DeviceSyncJobContext = {
+      targetDir: '/device',
+      deviceId: 'device-1',
+      planId: 'plan-1',
+      serverIndexKey: 'server.test',
+      sources: [],
+      deletionSourceKeys: [playlistKey],
+      layoutMode: 'shared-album-tree',
+      playlistPathMode: 'device-rooted',
+      deferredDeletePaths: ['/device/old.flac'],
+      playlists: [],
+      manifestFiles: [],
+      manifestPlaylists: [],
+    };
+
+    await expect(finalizeDeviceSyncJob(context)).rejects.toThrow('DEVICE_SYNC_CLEANUP_FAILED');
+
+    expect(useDeviceSyncStore.getState().sources).toEqual([playlist]);
+    expect(useDeviceSyncStore.getState().pendingDeletion).toEqual([playlistKey]);
+    expect(useDeviceSyncStore.getState().pendingPlan).toBe(true);
   });
 });

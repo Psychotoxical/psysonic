@@ -14,11 +14,13 @@ use crate::sync::device::{
 };
 
 mod manifest;
+mod retained;
 
+pub(crate) use manifest::portable_path_identity;
 use manifest::{
-    manifest_file_is_owned, manifest_layout_mode, manifest_playlist_is_owned, manifest_source_keys,
-    old_manifest_files, old_manifest_playlists, portable_path_identity,
+    manifest_layout_mode, manifest_source_keys, old_manifest_files, old_manifest_playlists,
 };
+use retained::{retained_manifest_files, retained_manifest_playlists};
 
 #[derive(Clone)]
 pub(super) struct FetchedDeviceSyncSource {
@@ -265,12 +267,31 @@ fn manifest_files(state: &DesiredState) -> Vec<DeviceSyncManifestFile> {
         .collect()
 }
 
+#[cfg(test)]
 pub(super) fn build_sync_plan(
     fetched: &[FetchedDeviceSyncSource],
     deletion_ids: &[String],
     target_dir: &str,
     layout_mode: DeviceSyncLayoutMode,
     playlist_path_mode: DeviceSyncPlaylistPathMode,
+) -> Result<SyncDeltaResult, String> {
+    build_sync_plan_with_resume(
+        fetched,
+        deletion_ids,
+        target_dir,
+        layout_mode,
+        playlist_path_mode,
+        None,
+    )
+}
+
+pub(super) fn build_sync_plan_with_resume(
+    fetched: &[FetchedDeviceSyncSource],
+    deletion_ids: &[String],
+    target_dir: &str,
+    layout_mode: DeviceSyncLayoutMode,
+    playlist_path_mode: DeviceSyncPlaylistPathMode,
+    resume_files: Option<&[DeviceSyncManifestFile]>,
 ) -> Result<SyncDeltaResult, String> {
     let root = Path::new(target_dir);
     let deletion_keys = deletion_ids.iter().cloned().collect::<HashSet<_>>();
@@ -290,6 +311,20 @@ pub(super) fn build_sync_plan(
     )?;
 
     let previous_manifest = read_device_manifest(target_dir.to_string());
+    if let (Some(manifest), Some(owner)) = (
+        previous_manifest.as_ref(),
+        fetched
+            .first()
+            .map(|entry| entry.source.server_index_key.as_str()),
+    ) {
+        if manifest
+            .get("ownerServerIndexKey")
+            .and_then(serde_json::Value::as_str)
+            .is_some_and(|previous_owner| previous_owner != owner)
+        {
+            return Err("DEVICE_SYNC_SERVER_OWNER_MISMATCH".to_string());
+        }
+    }
     let previous_source_keys = previous_manifest
         .as_ref()
         .map(manifest_source_keys)
@@ -301,29 +336,52 @@ pub(super) fn build_sync_plan(
         manifest_layout_mode(previous_manifest.as_ref()),
         DeviceSyncPlaylistPathMode::PlaylistRelative,
     )?;
-    let previous_layout_mode = manifest_layout_mode(previous_manifest.as_ref());
     let has_materialized_plan = previous_manifest.as_ref().is_some_and(|manifest| {
         manifest.get("files").is_some() && manifest.get("playlists").is_some()
     });
-    let old_files = previous_manifest
-        .as_ref()
-        .and_then(old_manifest_files)
+    let derived_old_files = manifest_files(&derived_old);
+    let expected_old_files = derived_old_files
+        .iter()
+        .map(|file| (portable_path_identity(&file.relative_path), file))
+        .collect::<HashMap<_, _>>();
+    let materialized_old_files = previous_manifest.as_ref().and_then(old_manifest_files);
+    let old_files = materialized_old_files
+        .clone()
         .map(|files| {
             files
                 .into_iter()
                 .filter(|file| {
-                    manifest_file_is_owned(file, &previous_source_keys, previous_layout_mode)
+                    let Some(expected) =
+                        expected_old_files.get(&portable_path_identity(&file.relative_path))
+                    else {
+                        return false;
+                    };
+                    file.track_id == expected.track_id
+                        && !file.source_keys.is_empty()
+                        && file
+                            .source_keys
+                            .iter()
+                            .all(|key| previous_source_keys.contains(key))
                 })
                 .collect()
         })
-        .unwrap_or_else(|| manifest_files(&derived_old));
-    let old_playlists = previous_manifest
-        .as_ref()
-        .and_then(old_manifest_playlists)
+        .unwrap_or(derived_old_files);
+    let expected_old_playlists = derived_old
+        .manifest_playlists
+        .iter()
+        .map(|playlist| (portable_path_identity(&playlist.relative_path), playlist))
+        .collect::<HashMap<_, _>>();
+    let materialized_old_playlists = previous_manifest.as_ref().and_then(old_manifest_playlists);
+    let old_playlists = materialized_old_playlists
+        .clone()
         .map(|playlists| {
             playlists
                 .into_iter()
-                .filter(|playlist| manifest_playlist_is_owned(playlist, &previous_source_keys))
+                .filter(|playlist| {
+                    expected_old_playlists
+                        .get(&portable_path_identity(&playlist.relative_path))
+                        .is_some_and(|expected| playlist.source_key == expected.source_key)
+                })
                 .collect()
         })
         .unwrap_or(derived_old.manifest_playlists);
@@ -333,6 +391,16 @@ pub(super) fn build_sync_plan(
         .values()
         .map(|file| portable_path_identity(&file.relative_path))
         .collect::<HashSet<_>>();
+    let desired_tracks_by_path = desired
+        .files
+        .values()
+        .map(|file| {
+            (
+                portable_path_identity(&file.relative_path),
+                file.track_id.as_str(),
+            )
+        })
+        .collect::<HashMap<_, _>>();
     let mut desired_paths_by_track: HashMap<&str, Vec<&str>> = HashMap::new();
     for file in desired.files.values() {
         desired_paths_by_track
@@ -350,6 +418,16 @@ pub(super) fn build_sync_plan(
             return Err("DEVICE_SYNC_MANIFEST_PLAN_INVALID".to_string());
         }
     }
+    let resume_files_by_path = resume_files
+        .unwrap_or_default()
+        .iter()
+        .map(|file| {
+            (
+                portable_path_identity(&file.relative_path),
+                file.track_id.as_str(),
+            )
+        })
+        .collect::<HashMap<_, _>>();
 
     let mut delete_paths = Vec::new();
     let mut deferred_delete_paths = Vec::new();
@@ -358,11 +436,7 @@ pub(super) fn build_sync_plan(
     for old in &old_files {
         let path_identity = portable_path_identity(&old.relative_path);
         if desired_paths.contains(&path_identity) {
-            let desired_track_id = desired
-                .files
-                .values()
-                .find(|file| portable_path_identity(&file.relative_path) == path_identity)
-                .map(|file| file.track_id.as_str());
+            let desired_track_id = desired_tracks_by_path.get(&path_identity).copied();
             if desired_track_id != Some(old.track_id.as_str()) {
                 return Err(format!(
                     "DEVICE_SYNC_PATH_IDENTITY_COLLISION:{}",
@@ -431,6 +505,10 @@ pub(super) fn build_sync_plan(
                     .get(&portable_path_identity(&file.relative_path))
                     .copied()
                     != Some(file.track_id.as_str())
+                && resume_files_by_path
+                    .get(&portable_path_identity(&file.relative_path))
+                    .copied()
+                    != Some(file.track_id.as_str())
             {
                 return Err(format!(
                     "DEVICE_SYNC_PATH_IDENTITY_COLLISION:{}",
@@ -450,8 +528,33 @@ pub(super) fn build_sync_plan(
         tracks.push(track);
     }
 
-    let desired_manifest_files = manifest_files(&desired);
+    let authenticated_file_paths = old_files
+        .iter()
+        .map(|file| portable_path_identity(&file.relative_path))
+        .collect::<HashSet<_>>();
+    let mut desired_manifest_files = manifest_files(&desired);
+    desired_manifest_files.extend(retained_manifest_files(
+        root,
+        materialized_old_files.unwrap_or_default(),
+        &authenticated_file_paths,
+        &desired_paths,
+    ));
+    desired_manifest_files.sort_by(|left, right| left.relative_path.cmp(&right.relative_path));
+    let authenticated_playlist_paths = old_playlists
+        .iter()
+        .map(|playlist| portable_path_identity(&playlist.relative_path))
+        .collect::<HashSet<_>>();
+    let mut desired_manifest_playlists = desired.manifest_playlists;
+    desired_manifest_playlists.extend(retained_manifest_playlists(
+        root,
+        materialized_old_playlists.unwrap_or_default(),
+        &authenticated_playlist_paths,
+        &desired_playlist_paths,
+    ));
+    desired_manifest_playlists.sort_by(|left, right| left.relative_path.cmp(&right.relative_path));
     Ok(SyncDeltaResult {
+        plan_id: String::new(),
+        device_id: String::new(),
         add_bytes,
         add_count: tracks.len() as u32,
         del_bytes,
@@ -463,6 +566,6 @@ pub(super) fn build_sync_plan(
         deferred_delete_paths,
         playlists: desired.playlists,
         manifest_files: desired_manifest_files,
-        manifest_playlists: desired.manifest_playlists,
+        manifest_playlists: desired_manifest_playlists,
     })
 }

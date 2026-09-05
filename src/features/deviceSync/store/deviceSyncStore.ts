@@ -111,6 +111,19 @@ function isManifestPlaylist(value: unknown): value is DeviceSyncManifestPlaylist
   return typeof playlist.sourceKey === 'string' && typeof playlist.relativePath === 'string';
 }
 
+function canonicalManifestSourceKey(sourceKey: string, ownerServerIndexKey: string): string {
+  try {
+    const value = JSON.parse(sourceKey) as unknown;
+    if (!Array.isArray(value) || value.length !== 3 || value.some(part => typeof part !== 'string')) {
+      return sourceKey;
+    }
+    if (resolveStorageServerIndexKey(value[0]) !== ownerServerIndexKey) return sourceKey;
+    return JSON.stringify([ownerServerIndexKey, value[1], canonicalNavidromeId(value[2])]);
+  } catch {
+    return sourceKey;
+  }
+}
+
 export function deviceSyncSourcesFromManifest(
   manifest: DeviceSyncManifest | null,
 ): DeviceSyncSource[] {
@@ -164,13 +177,26 @@ export function deviceSyncManifestImport(
   const files = manifest.files ?? [];
   const playlists = manifest.playlists ?? [];
   if (!files.every(isManifestFile) || !playlists.every(isManifestPlaylist)) return null;
+  const normalizedFiles = checkpointStatus === 'ready'
+    ? files.map(file => ({
+        ...file,
+        trackId: canonicalNavidromeId(file.trackId),
+        sourceKeys: file.sourceKeys.map(key => canonicalManifestSourceKey(key, ownerServerIndexKey)),
+      }))
+    : files;
+  const normalizedPlaylists = checkpointStatus === 'ready'
+    ? playlists.map(playlist => ({
+        ...playlist,
+        sourceKey: canonicalManifestSourceKey(playlist.sourceKey, ownerServerIndexKey),
+      }))
+    : playlists;
   return {
     ownerServerIndexKey,
     sources: withPlaylistPathIds([...normalized.values()]),
     layoutMode: manifest.layoutMode ?? 'self-contained',
     playlistPathMode: manifest.playlistPathMode ?? 'playlist-relative',
-    files,
-    playlists,
+    files: normalizedFiles,
+    playlists: normalizedPlaylists,
     hasMaterializedPlan,
   };
 }
@@ -210,7 +236,14 @@ export function migrateDeviceSyncPersistedState(persisted: unknown): Partial<Dev
       ? (typeof state?.legacyTargetDir === 'string' ? state.legacyTargetDir : state?.targetDir ?? null)
       : null,
     checkedIds: [],
-    pendingDeletion: [],
+    pendingDeletion: Array.isArray(state?.pendingDeletion)
+      ? [...new Set(state.pendingDeletion.filter((value): value is string => typeof value === 'string'))]
+      : [],
+    pendingPlan: false,
+    targetDeviceId: typeof state?.targetDeviceId === 'string' ? state.targetDeviceId : null,
+    pendingPlanDeviceId: null,
+    pendingPlanChecked: false,
+    targetRevision: 0,
   };
 }
 
@@ -252,7 +285,12 @@ interface DeviceSyncState {
   legacySources: LegacyDeviceSyncSource[]; // ownerless v0 selections awaiting explicit recovery
   legacyTargetDir: string | null;     // device the quarantined ownerless sources came from
   checkedIds: string[];               // currently checked for bulk actions (not persisted)
-  pendingDeletion: string[];          // source IDs marked for deletion (not persisted)
+  pendingDeletion: string[];          // source IDs marked for deletion; persisted for crash-safe retry
+  pendingPlan: boolean;               // active native plan awaiting finalization or cleanup
+  targetDeviceId: string | null;      // device identity associated with the persisted desired state
+  pendingPlanDeviceId: string | null; // active plan identity detected on the selected device
+  pendingPlanChecked: boolean;        // native plan state was checked for the selected target
+  targetRevision: number;             // forces a same-path manual target recheck
   deviceFilePaths: string[];          // actual file paths found on the device (not persisted)
   scanning: boolean;                   // true while scanning the device
 
@@ -279,6 +317,10 @@ interface DeviceSyncState {
   markForDeletion: (ids: string[]) => void;
   unmarkDeletion: (id: string) => void;
   clearPendingDeletion: () => void;
+  setPendingPlan: (pending: boolean) => void;
+  setTargetDeviceId: (deviceId: string | null) => void;
+  setPendingPlanDeviceId: (deviceId: string | null) => void;
+  setPendingPlanChecked: (checked: boolean) => void;
   removeSources: (ids: string[]) => void;
   setDeviceFilePaths: (paths: string[]) => void;
   setScanning: (v: boolean) => void;
@@ -297,10 +339,21 @@ export const useDeviceSyncStore = create<DeviceSyncState>()(
       legacyTargetDir: null,
       checkedIds: [],
       pendingDeletion: [],
+      pendingPlan: false,
+      targetDeviceId: null,
+      pendingPlanDeviceId: null,
+      pendingPlanChecked: false,
+      targetRevision: 0,
       deviceFilePaths: [],
       scanning: false,
 
-      setTargetDir: (dir) => set({ targetDir: dir }),
+      setTargetDir: (dir) => set(state => ({
+        targetDir: dir,
+        pendingPlan: false,
+        pendingPlanDeviceId: null,
+        pendingPlanChecked: false,
+        targetRevision: state.targetRevision + 1,
+      })),
       setLayoutMode: (layoutMode) => set({ layoutMode }),
       setPlaylistPathMode: (playlistPathMode) => set({ playlistPathMode }),
       applyManifestConfiguration: (layoutMode, playlistPathMode) => set({
@@ -383,6 +436,10 @@ export const useDeviceSyncStore = create<DeviceSyncState>()(
         })),
 
       clearPendingDeletion: () => set({ pendingDeletion: [] }),
+      setPendingPlan: (pendingPlan) => set({ pendingPlan }),
+      setTargetDeviceId: (targetDeviceId) => set({ targetDeviceId }),
+      setPendingPlanDeviceId: (pendingPlanDeviceId) => set({ pendingPlanDeviceId }),
+      setPendingPlanChecked: (pendingPlanChecked) => set({ pendingPlanChecked }),
 
       removeSources: (ids) =>
         set((s) => ({
@@ -408,6 +465,8 @@ export const useDeviceSyncStore = create<DeviceSyncState>()(
         sources: s.sources,
         legacySources: s.legacySources,
         legacyTargetDir: s.legacyTargetDir,
+        pendingDeletion: s.pendingDeletion,
+        targetDeviceId: s.targetDeviceId,
       }),
     }
   )

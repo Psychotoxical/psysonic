@@ -74,6 +74,64 @@ fn manifest_v4_persists_the_materialized_shared_file_plan() {
     assert_eq!(manifest["playlists"], playlists);
 }
 
+#[test]
+fn canonical_migration_rewrites_materialized_manifest_ids() {
+    let dir = tempfile::tempdir().unwrap();
+    let owner = "server.test";
+    let previous_owner = "legacy-profile.test";
+    let legacy_track = "01234567-89ab-cdef-0123-456789abcdef";
+    let legacy_playlist = "fedcba98-7654-3210-fedc-ba9876543210";
+    let canonical_track = psysonic_core::navidrome_id_codec::canonical_id(legacy_track);
+    let canonical_playlist = psysonic_core::navidrome_id_codec::canonical_id(legacy_playlist);
+    let legacy_source_key =
+        serde_json::to_string(&(previous_owner, "playlist", legacy_playlist)).unwrap();
+
+    write_device_manifest_payload(DeviceManifestWrite {
+        dest_dir: dir.path().to_string_lossy().to_string(),
+        owner_server_index_key: previous_owner.to_string(),
+        sources: serde_json::json!([{
+            "type": "playlist",
+            "id": legacy_playlist,
+            "name": "Mix",
+            "serverIndexKey": previous_owner,
+        }]),
+        canonical_id_version: None,
+        layout_mode: Some("shared-album-tree".to_string()),
+        playlist_path_mode: Some("device-rooted".to_string()),
+        files: Some(serde_json::json!([{
+            "trackId": legacy_track,
+            "relativePath": "Artist/Album/01 - Song.flac",
+            "sourceKeys": [legacy_source_key],
+            "sizeBytes": 100,
+        }])),
+        playlists: Some(serde_json::json!([{
+            "sourceKey": serde_json::to_string(&(previous_owner, "playlist", legacy_playlist)).unwrap(),
+            "relativePath": "Playlists/Mix/Mix.m3u8",
+        }])),
+    })
+    .unwrap();
+
+    write_device_manifest_for_migration(
+        dir.path().to_string_lossy().to_string(),
+        owner.to_string(),
+        serde_json::json!([{
+            "type": "playlist",
+            "id": canonical_playlist,
+            "name": "Mix",
+            "serverIndexKey": owner,
+        }]),
+        Some(1),
+    )
+    .unwrap();
+
+    let manifest = read_device_manifest(dir.path().to_string_lossy().to_string()).unwrap();
+    let canonical_source_key =
+        serde_json::to_string(&(owner, "playlist", canonical_playlist)).unwrap();
+    assert_eq!(manifest["files"][0]["trackId"], canonical_track);
+    assert_eq!(manifest["files"][0]["sourceKeys"][0], canonical_source_key);
+    assert_eq!(manifest["playlists"][0]["sourceKey"], canonical_source_key);
+}
+
 #[tokio::test]
 async fn manifest_rejects_sources_from_another_server() {
     let _test_guard = MANIFEST_TEST_LOCK.lock().await;

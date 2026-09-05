@@ -27,6 +27,8 @@ import { getAuthParams, restBaseFromUrl } from '@/lib/api/subsonicClient';
 import { finalizeDeviceSyncJob } from '@/features/deviceSync/utils/finalizeDeviceSyncJob';
 
 export interface SyncDelta {
+  planId: string;
+  deviceId: string;
   addBytes: number;
   addCount: number;
   delBytes: number;
@@ -90,6 +92,16 @@ export async function runDeviceSyncSummaryPrompt(deps: RunDeviceSyncSummaryDeps)
 
   if (!targetDir)          { showToast(t('deviceSync.noTargetDir'), 3000, 'error'); return; }
   if (sources.length === 0){ showToast(t('deviceSync.noSources'),   3000, 'error'); return; }
+  const currentState = useDeviceSyncStore.getState();
+  if (!currentState.pendingPlanChecked) {
+    showToast(t('deviceSync.fetchError'), 3000, 'error');
+    return;
+  }
+  if (currentState.pendingPlan
+    && currentState.pendingPlanDeviceId !== currentState.targetDeviceId) {
+    showToast(t('deviceSync.fetchError'), 3000, 'error');
+    return;
+  }
 
   setPreSyncLoading(true);
   setPreSyncOpen(true);
@@ -106,6 +118,7 @@ export async function runDeviceSyncSummaryPrompt(deps: RunDeviceSyncSummaryDeps)
       targetDir,
       layoutMode,
       playlistPathMode,
+      expectedDeviceId: currentState.targetDeviceId,
     });
     const liveState = useDeviceSyncStore.getState();
     const sourceKeys = sourceSnapshot.map(deviceSyncSourceKey);
@@ -119,6 +132,7 @@ export async function runDeviceSyncSummaryPrompt(deps: RunDeviceSyncSummaryDeps)
       setPreSyncOpen(false);
       return;
     }
+    useDeviceSyncStore.getState().setTargetDeviceId(payload.deviceId);
 
     const resultingSources = sourceSnapshot.filter(
       source => !deletionSnapshot.includes(deviceSyncSourceKey(source)),
@@ -127,6 +141,8 @@ export async function runDeviceSyncSummaryPrompt(deps: RunDeviceSyncSummaryDeps)
       ...payload,
       context: {
         targetDir,
+        deviceId: payload.deviceId,
+        planId: payload.planId,
         serverIndexKey,
         sources: resultingSources,
         deletionSourceKeys: deletionSnapshot,
@@ -178,6 +194,8 @@ export async function runDeviceSyncExecute(deps: RunDeviceSyncExecuteDeps): Prom
   const allTracks = syncDelta.tracks;
   const jobId = uuid();
   useDeviceSyncJobStore.getState().startSync(jobId, allTracks.length, context);
+  useDeviceSyncStore.getState().setPendingPlan(true);
+  useDeviceSyncStore.getState().setPendingPlanDeviceId(context.deviceId);
   if (allTracks.length === 0) {
     useDeviceSyncJobStore.getState().beginFinalizing();
     try {
@@ -207,6 +225,8 @@ export async function runDeviceSyncExecute(deps: RunDeviceSyncExecuteDeps): Prom
     destDir: targetDir,
     jobId,
     expectedBytes: syncDelta.addBytes,
+    expectedDeviceId: context.deviceId,
+    planId: context.planId,
     serverId: runtimeServer.id,
   }).catch((err: unknown) => {
     // The typed facade rejects with an Error whose message is the raw Rust error

@@ -19,6 +19,8 @@ export interface DeviceSyncPlannedPlaylist {
 
 export interface DeviceSyncJobContext {
   targetDir: string;
+  deviceId: string;
+  planId: string;
   serverIndexKey: string;
   sources: DeviceSyncSource[];
   deletionSourceKeys: string[];
