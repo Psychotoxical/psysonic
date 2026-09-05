@@ -24,14 +24,19 @@ pub async fn nd_list_songs_internal(
     start: u32,
     end: u32,
 ) -> Result<serde_json::Value, String> {
-    let url = format!(
-        "{}/api/song?_sort={}&_order={}&_start={}&_end={}",
-        server_url, sort, order, start, end
-    );
+    let mut seed = serde_json::Map::new();
+    seed.insert("missing".to_string(), serde_json::Value::Bool(false));
+    let filters = nd_build_filters(seed, None);
+    let start_s = start.to_string();
+    let end_s = end.to_string();
+    let url = format!("{}/api/song", server_url);
     let auth = format!("Bearer {token}");
     let resp = nd_retry(|| {
         let url = url.clone();
         let auth = auth.clone();
+        let filters = filters.clone();
+        let start_s = start_s.clone();
+        let end_s = end_s.clone();
         async move {
             nd_apply_request(
                 registry,
@@ -39,6 +44,13 @@ pub async fn nd_list_songs_internal(
                 &url,
                 nd_http_client()
                     .get(&url)
+                    .query(&[
+                        ("_filters", filters.as_str()),
+                        ("_sort", sort),
+                        ("_order", order),
+                        ("_start", start_s.as_str()),
+                        ("_end", end_s.as_str()),
+                    ])
                     .header("X-ND-Authorization", auth),
             )
             .send()

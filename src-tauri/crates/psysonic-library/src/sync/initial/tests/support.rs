@@ -140,6 +140,34 @@ pub(super) async fn mount_minimal_artists(server: &MockServer) {
         .await;
 }
 
+pub(super) async fn mount_song_not_found(server: &MockServer, id: &str) {
+    Mock::given(wm_method("GET"))
+        .and(wm_path("/rest/getSong.view"))
+        .and(query_param("id", id))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "subsonic-response": {
+                "status": "failed",
+                "error": { "code": 70, "message": "Song not found" }
+            }
+        })))
+        .mount(server)
+        .await;
+}
+
+pub(super) async fn mount_song_present(server: &MockServer, id: &str) {
+    Mock::given(wm_method("GET"))
+        .and(wm_path("/rest/getSong.view"))
+        .and(query_param("id", id))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "subsonic-response": {
+                "status": "ok",
+                "song": { "id": id, "title": "Still present", "duration": 100 }
+            }
+        })))
+        .mount(server)
+        .await;
+}
+
 pub(super) fn seed_two_library_resync(store: &LibraryStore, scope: &str) {
     let sync_state = SyncStateRepository::new(store);
     sync_state.ensure("s1", scope).unwrap();
@@ -149,7 +177,14 @@ pub(super) fn seed_two_library_resync(store: &LibraryStore, scope: &str) {
             conn.execute(
                 "INSERT INTO track (server_id, id, title, album, album_id, library_id, \
                    duration_sec, deleted, synced_at, raw_json, resync_gen) \
-                 VALUES ('s1', 'a-stale', 'A stale', 'A', 'album-a', 'lib-a', \
+                  VALUES ('s1', 'a-stale', 'A stale', 'A', 'album-a', 'lib-a', \
+                    1, 0, 1, '{}', 0)",
+                [],
+            )?;
+            conn.execute(
+                "INSERT INTO track (server_id, id, title, album, album_id, library_id, \
+                   duration_sec, deleted, synced_at, raw_json, resync_gen) \
+                 VALUES ('s1', 'a-present', 'A present', 'A', 'album-a', 'lib-a', \
                    1, 0, 1, '{}', 0)",
                 [],
             )?;
@@ -165,25 +200,35 @@ pub(super) fn seed_two_library_resync(store: &LibraryStore, scope: &str) {
         .unwrap();
 }
 
-pub(super) fn assert_scoped_resync_kept_unconfirmed_rows(store: &LibraryStore, new_id: &str) {
-    let (stale_deleted, other_deleted, new_library): (i64, i64, String) = store
-        .with_read_conn(|conn| {
-            Ok((
-                conn.query_row("SELECT deleted FROM track WHERE id = 'a-stale'", [], |r| {
-                    r.get(0)
-                })?,
-                conn.query_row("SELECT deleted FROM track WHERE id = 'b-keep'", [], |r| {
-                    r.get(0)
-                })?,
-                conn.query_row(
-                    "SELECT library_id FROM track WHERE id = ?1",
-                    [new_id],
-                    |r| r.get(0),
-                )?,
-            ))
-        })
-        .unwrap();
-    assert_eq!(stale_deleted, 0);
+pub(super) fn assert_scoped_resync_deleted_confirmed_missing_row(
+    store: &LibraryStore,
+    new_id: &str,
+) {
+    let (stale_deleted, present_deleted, other_deleted, new_library): (i64, i64, i64, String) =
+        store
+            .with_read_conn(|conn| {
+                Ok((
+                    conn.query_row("SELECT deleted FROM track WHERE id = 'a-stale'", [], |r| {
+                        r.get(0)
+                    })?,
+                    conn.query_row(
+                        "SELECT deleted FROM track WHERE id = 'a-present'",
+                        [],
+                        |r| r.get(0),
+                    )?,
+                    conn.query_row("SELECT deleted FROM track WHERE id = 'b-keep'", [], |r| {
+                        r.get(0)
+                    })?,
+                    conn.query_row(
+                        "SELECT library_id FROM track WHERE id = ?1",
+                        [new_id],
+                        |r| r.get(0),
+                    )?,
+                ))
+            })
+            .unwrap();
+    assert_eq!(stale_deleted, 1);
+    assert_eq!(present_deleted, 0);
     assert_eq!(other_deleted, 0);
     assert_eq!(new_library, "lib-a");
     let stats: PollStats = serde_json::from_value(
@@ -193,10 +238,7 @@ pub(super) fn assert_scoped_resync_kept_unconfirmed_rows(store: &LibraryStore, n
             .unwrap(),
     )
     .unwrap();
-    assert_eq!(
-        stats.last_resync_sweep_skip.map(|skip| skip.reason),
-        Some(ResyncSweepSkipReason::MissingExpectedCount)
-    );
+    assert_eq!(stats.last_resync_sweep_skip, None);
 }
 
 pub(super) fn current_bulk_pragmas(store: &LibraryStore) -> BulkIngestPragmas {
