@@ -62,6 +62,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * Album Detail now shows OpenSubsonic per-disc subtitles returned by Navidrome, such as "The demos", instead of falling back to only "Disc 3" and "Disc 4" after loading the album from the local library index.
 
+### Playlist pages return to where you left off
+
+**By [@cucadmuh](https://github.com/cucadmuh), reported by MrMiniblock on Discord, PR [#1499](https://github.com/Psysonic/psysonic/pull/1499)**
+
+* Opening an album or artist from a long playlist and then going back now restores the previous scroll position instead of returning to the top.
+
 ## [1.52.0]
 
 ## Added
