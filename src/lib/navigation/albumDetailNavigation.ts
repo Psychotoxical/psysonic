@@ -7,6 +7,7 @@ import {
   isAlbumDetailPath,
   isArtistDetailPath,
   isComposerDetailPath,
+  isPlaylistDetailPath,
 } from '@/lib/navigation/detailRoutePaths';
 import {
   peekPersistedAdvancedSearchLeaveSnapshot,
@@ -18,10 +19,12 @@ import {
   buildComposerDetailPath,
   type ArtistDetailPathOptions,
 } from '@/lib/navigation/detailServerScope';
+import { APP_MAIN_SCROLL_VIEWPORT_ID } from '@/constants/appScroll';
 
 export type AlbumDetailLocationState = {
   returnTo?: string;
   returnState?: AlbumDetailLocationState;
+  playlistDetailScrollTop?: number;
 };
 
 export type AlbumsBrowseRestoreLocationState = {
@@ -29,6 +32,7 @@ export type AlbumsBrowseRestoreLocationState = {
   artistBrowseRestore?: boolean;
   composerBrowseRestore?: boolean;
   advancedSearchRestore?: boolean;
+  playlistDetailScrollTop?: number;
 };
 
 export function readAlbumDetailReturnTo(state: unknown): string | null {
@@ -54,6 +58,12 @@ export function readAdvancedSearchRestore(state: unknown): boolean {
   return (state as AlbumsBrowseRestoreLocationState | null)?.advancedSearchRestore === true;
 }
 
+export function readPlaylistDetailScrollTop(state: unknown): number | null {
+  const scrollTop = (state as AlbumDetailLocationState | null)?.playlistDetailScrollTop;
+  if (typeof scrollTop !== 'number' || !Number.isFinite(scrollTop)) return null;
+  return Math.max(0, scrollTop);
+}
+
 export function buildReturnToFromLocation(
   location: Pick<Location, 'pathname' | 'search' | 'hash'>,
 ): string {
@@ -74,6 +84,12 @@ export function composerBrowseRestoreNavigationState(): AlbumsBrowseRestoreLocat
 
 export function advancedSearchRestoreNavigationState(): AlbumsBrowseRestoreLocationState {
   return { advancedSearchRestore: true };
+}
+
+export function playlistDetailRestoreNavigationState(
+  scrollTop: number,
+): AlbumsBrowseRestoreLocationState {
+  return { playlistDetailScrollTop: Math.max(0, scrollTop) };
 }
 
 export function shouldRestoreAdvancedSearchSession(
@@ -113,6 +129,7 @@ export function shouldSkipMainScrollResetOnRouteChange(
   if (readArtistBrowseRestore(locationState)) return true;
   if (readComposerBrowseRestore(locationState)) return true;
   if (readAdvancedSearchRestore(locationState)) return true;
+  if (isPlaylistDetailPath(pathname) && readPlaylistDetailScrollTop(locationState) !== null) return true;
   const leave = useAdvancedSearchSessionStore.getState().peekLeaveScrollSnapshot();
   if ((leave?.scrollTop ?? 0) > 0) return true;
   const stash = useAdvancedSearchSessionStore.getState().peekReturnStash();
@@ -149,13 +166,28 @@ function isGenreDetailReturnPath(path: string): boolean {
   return /^\/genres\/[^/]+$/.test(bare);
 }
 
-function browseReturnRestoreState(returnTo: string): AlbumsBrowseRestoreLocationState | undefined {
+function browseReturnRestoreState(
+  returnTo: string,
+  detailState: unknown,
+): AlbumsBrowseRestoreLocationState | undefined {
   if (isAlbumGridBrowseReturnPath(returnTo)) return albumBrowseRestoreNavigationState();
   if (isGenreDetailReturnPath(returnTo)) return albumBrowseRestoreNavigationState();
   if (isArtistsBrowseReturnPath(returnTo)) return artistBrowseRestoreNavigationState();
   if (isComposersBrowseReturnPath(returnTo)) return composerBrowseRestoreNavigationState();
   if (isSearchReturnPath(returnTo)) return advancedSearchRestoreNavigationState();
+  if (isPlaylistDetailPath(returnTo)) {
+    const scrollTop = readPlaylistDetailScrollTop(detailState);
+    if (scrollTop !== null) return playlistDetailRestoreNavigationState(scrollTop);
+  }
   return undefined;
+}
+
+function playlistDetailScrollTopForLocation(pathname: string): number | null {
+  if (!isPlaylistDetailPath(pathname)) return null;
+  const scrollTop = typeof document === 'undefined'
+    ? 0
+    : (document.getElementById(APP_MAIN_SCROLL_VIEWPORT_ID)?.scrollTop ?? 0);
+  return Number.isFinite(scrollTop) ? Math.max(0, scrollTop) : 0;
 }
 
 function buildDetailLocationState(
@@ -166,9 +198,15 @@ function buildDetailLocationState(
     || isArtistDetailPath(location.pathname)
     || isComposerDetailPath(location.pathname);
   const existing = readAlbumDetailReturnTo(location.state);
+  const playlistDetailScrollTop = playlistDetailScrollTopForLocation(location.pathname);
   return onDetail && existing
     ? { returnTo, returnState: location.state as AlbumDetailLocationState }
-    : { returnTo };
+    : {
+      returnTo,
+      ...(playlistDetailScrollTop !== null
+        ? { playlistDetailScrollTop }
+        : {}),
+    };
 }
 
 function saveSearchLeaveIfNeeded(
@@ -237,7 +275,7 @@ export function navigateAlbumDetailBack(
 ): void {
   const returnTo = readAlbumDetailReturnTo(location.state);
   if (returnTo) {
-    const restoreState = browseReturnRestoreState(returnTo);
+    const restoreState = browseReturnRestoreState(returnTo, location.state);
     const returnState = (location.state as AlbumDetailLocationState | null)?.returnState;
     const state = readAlbumDetailReturnTo(returnState) ? returnState : restoreState;
     navigate(returnTo, state ? { state } : undefined);

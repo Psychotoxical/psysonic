@@ -1,10 +1,10 @@
 import { useMemo } from 'react';
-import { useNavigate } from 'react-router';
+import { useLocation, useNavigate } from 'react-router';
 import type { SubsonicSong } from '@/lib/api/subsonicTypes';
 import { resolveTrackArtistRefs } from '@/features/playback/utils/playback/trackArtistRefs';
 import { useAuthStore } from '@/store/authStore';
-import { buildArtistDetailPath } from '@/lib/navigation/detailServerScope';
 import { ResolvedArtistRefInline } from '@/ui/ResolvedArtistRefInline';
+import { navigateToArtistDetail } from '@/lib/navigation/albumDetailNavigation';
 
 /**
  * Multi-artist credit for playlist track rows (main list + suggestions).
@@ -16,6 +16,7 @@ import { ResolvedArtistRefInline } from '@/ui/ResolvedArtistRefInline';
  */
 export function PlaylistArtistCell({ song }: { song: SubsonicSong }) {
   const navigate = useNavigate();
+  const location = useLocation();
   const activeServerId = useAuthStore(s => s.activeServerId ?? '');
   const artistRefs = useMemo(() => resolveTrackArtistRefs(song), [song]);
   return (
@@ -24,7 +25,12 @@ export function PlaylistArtistCell({ song }: { song: SubsonicSong }) {
         refs={artistRefs}
         serverId={song.serverId ?? activeServerId}
         fallbackName={song.artist}
-        onGoArtist={id => navigate(buildArtistDetailPath(id, { serverId: song.serverId }))}
+        onGoArtist={id => navigateToArtistDetail(
+          navigate,
+          location,
+          id,
+          { serverId: song.serverId },
+        )}
         as="none"
         linkTag="span"
         plainClassName="track-artist"

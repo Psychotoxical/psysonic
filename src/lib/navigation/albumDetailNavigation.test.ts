@@ -18,6 +18,7 @@ import { useAdvancedSearchSessionStore } from '@/store/advancedSearchSessionStor
 describe('albumDetailNavigation', () => {
   afterEach(() => {
     useAdvancedSearchSessionStore.getState().clearLeaveScrollSnapshot();
+    document.body.replaceChildren();
   });
 
   it('reads returnTo from location state', () => {
@@ -48,6 +49,28 @@ describe('albumDetailNavigation', () => {
     );
     expect(navigate).toHaveBeenCalledWith('/album/alb-1?server=srv-b', {
       state: { returnTo: '/search?q=album' },
+    });
+  });
+
+  it('captures playlist scroll when navigating to an album', () => {
+    const viewport = document.createElement('div');
+    viewport.id = 'app-main-scroll-viewport';
+    viewport.scrollTop = 864;
+    document.body.appendChild(viewport);
+    const navigate = vi.fn();
+
+    navigateToAlbumDetail(
+      navigate,
+      { pathname: '/playlists/pl-1', search: '?server=srv-a', hash: '', state: null },
+      'alb-1',
+      { serverId: 'srv-a' },
+    );
+
+    expect(navigate).toHaveBeenCalledWith('/album/alb-1?server=srv-a', {
+      state: {
+        returnTo: '/playlists/pl-1?server=srv-a',
+        playlistDetailScrollTop: 864,
+      },
     });
   });
 
@@ -186,6 +209,19 @@ describe('albumDetailNavigation', () => {
     });
   });
 
+  it('returns to a playlist with its saved scroll position', () => {
+    const navigate = vi.fn();
+    navigateAlbumDetailBack(navigate, {
+      state: {
+        returnTo: '/playlists/pl-1?server=srv-a',
+        playlistDetailScrollTop: 864,
+      },
+    });
+    expect(navigate).toHaveBeenCalledWith('/playlists/pl-1?server=srv-a', {
+      state: { playlistDetailScrollTop: 864 },
+    });
+  });
+
   it('navigates to artist with returnTo snapshot from Advanced Search', () => {
     const navigate = vi.fn();
     navigateToArtistDetail(
@@ -258,6 +294,17 @@ describe('albumDetailNavigation', () => {
   it('skips main scroll reset when Search session restore is pending', () => {
     expect(shouldSkipMainScrollResetOnRouteChange('/search', { advancedSearchRestore: true })).toBe(true);
     expect(shouldSkipMainScrollResetOnRouteChange('/tracks', { advancedSearchRestore: true })).toBe(true);
+  });
+
+  it('skips main scroll reset when Playlist Detail scroll restore is pending', () => {
+    expect(shouldSkipMainScrollResetOnRouteChange(
+      '/playlists/pl-1',
+      { playlistDetailScrollTop: 864 },
+    )).toBe(true);
+    expect(shouldSkipMainScrollResetOnRouteChange(
+      '/albums',
+      { playlistDetailScrollTop: 864 },
+    )).toBe(false);
   });
 
   it('skips main scroll reset when Advanced Search vertical scroll restore is pending', () => {
