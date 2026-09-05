@@ -85,6 +85,72 @@ async fn full_pass_checks_more_than_one_budget_and_stays_in_scope() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn resync_orphan_pass_checks_only_unstamped_rows_in_scope() {
+    let server = MockServer::start().await;
+    Mock::given(wm_method("GET"))
+        .and(wm_path("/rest/getSong.view"))
+        .and(query_param("id", "a-stale"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "subsonic-response": {
+                "status": "failed",
+                "error": { "code": 70, "message": "Song not found" }
+            }
+        })))
+        .mount(&server)
+        .await;
+
+    let store = LibraryStore::open_in_memory();
+    for (id, library_id, resync_gen) in [
+        ("a-stale", "lib-a", 1_i64),
+        ("a-current", "lib-a", 2_i64),
+        ("b-stale", "lib-b", 1_i64),
+    ] {
+        seed_scoped_track(&store, id, 1, Some(library_id), None);
+        store
+            .with_conn_mut("test.set_resync_generation", |conn| {
+                conn.execute(
+                    "UPDATE track SET resync_gen = ?2 WHERE id = ?1",
+                    rusqlite::params![id, resync_gen],
+                )?;
+                Ok(())
+            })
+            .unwrap();
+    }
+
+    let report = TombstoneReconciler::new(&store, &test_subsonic(&server.uri()), "s1")
+        .with_library_scope("lib-a")
+        .with_sleep_disabled()
+        .reconcile_resync_orphans(2, 200)
+        .await
+        .unwrap();
+    assert_eq!(report.checked, 1);
+    assert_eq!(report.deleted, 1);
+
+    let states: (i64, i64, i64) = store
+        .with_read_conn(|conn| {
+            Ok((
+                conn.query_row(
+                    "SELECT deleted FROM track WHERE id = 'a-stale'",
+                    [],
+                    |row| row.get(0),
+                )?,
+                conn.query_row(
+                    "SELECT deleted FROM track WHERE id = 'a-current'",
+                    [],
+                    |row| row.get(0),
+                )?,
+                conn.query_row(
+                    "SELECT deleted FROM track WHERE id = 'b-stale'",
+                    [],
+                    |row| row.get(0),
+                )?,
+            ))
+        })
+        .unwrap();
+    assert_eq!(states, (1, 0, 0));
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn tombstone_deletion_refreshes_projection_and_identity() {
     let server = MockServer::start().await;
     Mock::given(wm_method("GET"))

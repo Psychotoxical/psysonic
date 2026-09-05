@@ -19,6 +19,7 @@ async fn n1_ingest_paginates_navidrome_native_endpoint() {
         Mock::given(wm_method("GET"))
             .and(wm_path("/api/song"))
             .and(query_param("_start", start.to_string()))
+            .and(query_param("_filters", r#"{"missing":false}"#))
             .and(header("X-ND-Authorization", "Bearer nd-tok"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::Value::Array(songs)))
             .mount(&server)
@@ -38,12 +39,21 @@ async fn n1_ingest_paginates_navidrome_native_endpoint() {
     Mock::given(wm_method("GET"))
         .and(wm_path("/rest/getScanStatus.view"))
         .respond_with(ResponseTemplate::new(200).set_body_json(json!({
-            "subsonic-response": { "status": "ok", "scanStatus": { "scanning": false } }
+            "subsonic-response": {
+                "status": "ok",
+                "scanStatus": { "scanning": false, "count": 4 }
+            }
         })))
         .mount(&server)
         .await;
 
     let store = LibraryStore::open_in_memory();
+    let sync_state = SyncStateRepository::new(&store);
+    sync_state.ensure("s1", "").unwrap();
+    sync_state.set_last_full_sync_at("s1", "", 1).unwrap();
+    TrackRepository::new(&store)
+        .upsert_batch(&[test_track_row("stale", "Stale")])
+        .unwrap();
     let nav = NavidromeProbeCredentials {
         server_url: server.uri(),
         bearer_token: "nd-tok".into(),
@@ -64,12 +74,21 @@ async fn n1_ingest_paginates_navidrome_native_endpoint() {
     assert_eq!(report.ingested_count, 4);
     let count: i64 = store
         .with_conn("misc", |c| {
-            c.query_row("SELECT COUNT(*) FROM track", [], |r| r.get(0))
+            c.query_row("SELECT COUNT(*) FROM track WHERE deleted = 0", [], |r| {
+                r.get(0)
+            })
         })
         .unwrap();
     assert_eq!(count, 4);
+    let stale_deleted: i64 = store
+        .with_read_conn(|conn| {
+            conn.query_row("SELECT deleted FROM track WHERE id = 'stale'", [], |row| {
+                row.get(0)
+            })
+        })
+        .unwrap();
+    assert_eq!(stale_deleted, 1);
 
-    let sync_state = SyncStateRepository::new(&store);
     assert_eq!(sync_state.get_local_track_count("s1", "").unwrap(), Some(4));
     assert_eq!(
         sync_state.get_sync_phase("s1", "").unwrap().as_deref(),
