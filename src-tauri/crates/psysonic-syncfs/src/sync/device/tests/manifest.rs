@@ -3,7 +3,7 @@ use super::*;
 static MANIFEST_TEST_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 
 #[tokio::test]
-async fn manifest_v3_persists_the_server_owner() {
+async fn manifest_v4_persists_the_server_owner_and_layout() {
     let _test_guard = MANIFEST_TEST_LOCK.lock().await;
     let dir = tempfile::tempdir().unwrap();
     let owner = "server.test";
@@ -23,10 +23,55 @@ async fn manifest_v3_persists_the_server_owner() {
     .unwrap();
 
     let manifest = read_device_manifest(dir.path().to_string_lossy().to_string()).unwrap();
-    assert_eq!(manifest["version"], 3);
+    assert_eq!(manifest["version"], 4);
+    assert_eq!(manifest["schema"], "fixed-v2");
     assert_eq!(manifest["ownerServerIndexKey"], owner);
     assert_eq!(manifest["sources"], sources);
     assert_eq!(manifest["canonicalIdVersion"], 1);
+    assert_eq!(manifest["layoutMode"], "self-contained");
+    assert_eq!(manifest["playlistPathMode"], "playlist-relative");
+    assert!(manifest.get("files").is_none());
+    assert!(manifest.get("playlists").is_none());
+}
+
+#[test]
+fn manifest_v4_persists_the_materialized_shared_file_plan() {
+    let dir = tempfile::tempdir().unwrap();
+    let owner = "server.test";
+    let sources = serde_json::json!([{
+        "type": "playlist",
+        "id": "playlist-1",
+        "name": "Mix",
+        "serverIndexKey": owner,
+    }]);
+    let files = serde_json::json!([{
+        "trackId": "track-1",
+        "relativePath": "Artist/Album/01 - Song.flac",
+        "sourceKeys": [serde_json::to_string(&(owner, "playlist", "playlist-1")).unwrap()],
+        "sizeBytes": 100,
+    }]);
+    let playlists = serde_json::json!([{
+        "sourceKey": serde_json::to_string(&(owner, "playlist", "playlist-1")).unwrap(),
+        "relativePath": "Playlists/Mix/Mix.m3u8",
+    }]);
+
+    write_device_manifest_payload(DeviceManifestWrite {
+        dest_dir: dir.path().to_string_lossy().to_string(),
+        owner_server_index_key: owner.to_string(),
+        sources,
+        canonical_id_version: Some(1),
+        layout_mode: Some("shared-album-tree".to_string()),
+        playlist_path_mode: Some("device-rooted".to_string()),
+        files: Some(files.clone()),
+        playlists: Some(playlists.clone()),
+    })
+    .unwrap();
+
+    let manifest = read_device_manifest(dir.path().to_string_lossy().to_string()).unwrap();
+    assert_eq!(manifest["layoutMode"], "shared-album-tree");
+    assert_eq!(manifest["playlistPathMode"], "device-rooted");
+    assert_eq!(manifest["files"], files);
+    assert_eq!(manifest["playlists"], playlists);
 }
 
 #[tokio::test]
@@ -57,6 +102,10 @@ async fn ordinary_manifest_write_rejects_a_host_directory() {
         "server.test".to_string(),
         serde_json::json!([]),
         Some(1),
+        None,
+        None,
+        None,
+        None,
     )
     .await;
 
@@ -94,6 +143,10 @@ async fn manifest_write_is_rejected_while_migration_is_active() {
             "serverIndexKey": "server.test",
         }]),
         Some(1),
+        None,
+        None,
+        None,
+        None,
     )
     .await;
     crate::deactivate_filesystem_migration_generation(8_001).unwrap();

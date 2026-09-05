@@ -6,8 +6,8 @@ use tauri::{Emitter, Manager};
 use crate::sync_cancel_flags;
 
 use super::device::{
-    build_track_path, get_removable_drives, is_path_on_mounted_volume, SyncBatchResult,
-    TrackSyncInfo,
+    build_track_path, ensure_mounted_target, get_removable_drives, is_path_on_mounted_volume,
+    planned_path_stays_within, SyncBatchResult, TrackSyncInfo,
 };
 use crate::file_transfer::{
     apply_server_http_get, finalize_streamed_download, subsonic_http_client,
@@ -15,9 +15,13 @@ use crate::file_transfer::{
 
 mod filesystem;
 mod payload;
+mod planner;
 
 pub use filesystem::prune_empty_parents;
-use filesystem::{delete_device_file_impl, delete_device_files_impl, list_device_dir_files_impl};
+use filesystem::{
+    delete_device_file_impl, delete_device_files_impl, list_device_dir_files_impl,
+    rollback_device_files,
+};
 use payload::calculate_sync_payload_impl;
 #[cfg(test)]
 use payload::{
@@ -34,9 +38,10 @@ pub async fn list_device_dir_files(dir: String) -> Result<Vec<String>, String> {
 /// (up to 2 levels: album folder, then artist folder).
 #[tauri::command]
 #[specta::specta]
-pub async fn delete_device_file(path: String) -> Result<(), String> {
+pub async fn delete_device_file(dest_dir: String, path: String) -> Result<(), String> {
     let _filesystem_write_guard = crate::filesystem_write_guard().await?;
-    delete_device_file_impl(path).await
+    ensure_mounted_target(std::path::Path::new(&dest_dir))?;
+    delete_device_file_impl(dest_dir, path).await
 }
 
 #[derive(serde::Deserialize, Clone)]
@@ -68,15 +73,64 @@ pub struct DeviceSyncSourcePayload {
     server_index_key: String,
 }
 
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum DeviceSyncLayoutMode {
+    #[default]
+    SelfContained,
+    SharedAlbumTree,
+}
+
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum DeviceSyncPlaylistPathMode {
+    #[default]
+    PlaylistRelative,
+    DeviceRooted,
+}
+
+#[derive(Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DeviceSyncPlannedPlaylist {
+    pub source_key: String,
+    pub name: String,
+    pub path_id: Option<String>,
+    pub relative_path: String,
+    pub tracks: Vec<serde_json::Value>,
+    pub references: Vec<String>,
+}
+
+#[derive(Clone, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DeviceSyncManifestFile {
+    pub track_id: String,
+    pub relative_path: String,
+    pub source_keys: Vec<String>,
+    pub size_bytes: u64,
+}
+
+#[derive(Clone, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DeviceSyncManifestPlaylist {
+    pub source_key: String,
+    pub relative_path: String,
+}
+
 #[derive(serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SyncDeltaResult {
-    add_bytes: u64,
-    add_count: u32,
-    del_bytes: u64,
-    del_count: u32,
-    available_bytes: u64,
-    tracks: Vec<serde_json::Value>,
+    pub(super) add_bytes: u64,
+    pub(super) add_count: u32,
+    pub(super) del_bytes: u64,
+    pub(super) del_count: u32,
+    pub(super) reclaimable_bytes: u64,
+    pub(super) available_bytes: u64,
+    pub(super) tracks: Vec<serde_json::Value>,
+    pub(super) delete_paths: Vec<String>,
+    pub(super) deferred_delete_paths: Vec<String>,
+    pub(super) playlists: Vec<DeviceSyncPlannedPlaylist>,
+    pub(super) manifest_files: Vec<DeviceSyncManifestFile>,
+    pub(super) manifest_playlists: Vec<DeviceSyncManifestPlaylist>,
 }
 
 pub async fn fetch_subsonic_songs(
@@ -118,8 +172,8 @@ pub(crate) fn estimate_track_size_bytes(track: &serde_json::Value) -> u64 {
 }
 
 /// Build a [`TrackSyncInfo`] from a Subsonic song JSON object. Optional
-/// playlist context attaches playlist identity + position so playlist
-/// tracks land under the `Playlists/<name>/` tree on the device. The
+/// playlist context attaches playlist identity + position when the selected
+/// layout stores tracks under the `Playlists/<name>/` tree. The
 /// `albumArtist` field falls back to `artist` when missing or whitespace-only.
 pub(crate) fn track_sync_info_from_subsonic_json(
     track: &serde_json::Value,
@@ -199,6 +253,23 @@ pub(crate) fn inject_playlist_context(
     }
 }
 
+pub(crate) fn subsonic_response_root(
+    json: &serde_json::Value,
+) -> Result<&serde_json::Value, String> {
+    let root = json
+        .get("subsonic-response")
+        .ok_or_else(|| "No subsonic-response".to_string())?;
+    if root.get("status").and_then(|value| value.as_str()) == Some("failed") {
+        let message = root
+            .get("error")
+            .and_then(|value| value.get("message"))
+            .and_then(|value| value.as_str())
+            .unwrap_or("Subsonic request failed");
+        return Err(message.to_string());
+    }
+    Ok(root)
+}
+
 /// Pure response-shape extraction for `getAlbum.view` / `getPlaylist.view` —
 /// pulled out of [`fetch_subsonic_songs`] so it can be tested without an HTTP
 /// roundtrip. Subsonic returns the song list either as an array (multiple
@@ -209,9 +280,7 @@ pub fn parse_subsonic_songs(
     json: &serde_json::Value,
     endpoint: &str,
 ) -> Result<Vec<serde_json::Value>, String> {
-    let root = json
-        .get("subsonic-response")
-        .ok_or_else(|| "No subsonic-response".to_string())?;
+    let root = subsonic_response_root(json)?;
     let songs = if endpoint == "getAlbum.view" {
         root.get("album").and_then(|a| a.get("song"))
     } else if endpoint == "getPlaylist.view" {
@@ -234,9 +303,20 @@ pub async fn calculate_sync_payload(
     deletion_ids: Vec<String>,
     auth: SubsonicAuthPayload,
     target_dir: String,
+    layout_mode: DeviceSyncLayoutMode,
+    playlist_path_mode: DeviceSyncPlaylistPathMode,
     app: tauri::AppHandle,
 ) -> Result<SyncDeltaResult, String> {
-    calculate_sync_payload_impl(sources, deletion_ids, auth, target_dir, app).await
+    calculate_sync_payload_impl(
+        sources,
+        deletion_ids,
+        auth,
+        target_dir,
+        layout_mode,
+        playlist_path_mode,
+        app,
+    )
+    .await
 }
 
 /// Signals a running `sync_batch_to_device` job to stop after its current tracks finish.
@@ -320,6 +400,7 @@ pub async fn sync_batch_to_device(
     let done = std::sync::Arc::new(AtomicU32::new(0));
     let skipped = std::sync::Arc::new(AtomicU32::new(0));
     let failed = std::sync::Arc::new(AtomicU32::new(0));
+    let fresh_paths = std::sync::Arc::new(Mutex::new(Vec::new()));
 
     // Throttled event emission (max once per 500ms).
     let last_emit = std::sync::Arc::new(Mutex::new(Instant::now()));
@@ -338,6 +419,7 @@ pub async fn sync_batch_to_device(
         let s = skipped.clone();
         let f = failed.clone();
         let le = last_emit.clone();
+        let fresh = fresh_paths.clone();
         let cancel = cancel_flag.clone();
         let request_server_id = server_id.clone();
 
@@ -354,6 +436,18 @@ pub async fn sync_batch_to_device(
             let file_name = format!("{}.{}", relative, track.suffix);
             let dest_path = std::path::Path::new(&dest).join(&file_name);
             let path_str = dest_path.to_string_lossy().to_string();
+
+            match planned_path_stays_within(std::path::Path::new(&dest), &dest_path) {
+                Ok(true) => {}
+                Ok(false) => {
+                    f.fetch_add(1, Ordering::Relaxed);
+                    return;
+                }
+                Err(_) => {
+                    f.fetch_add(1, Ordering::Relaxed);
+                    return;
+                }
+            }
 
             let status = if dest_path.exists() {
                 s.fetch_add(1, Ordering::Relaxed);
@@ -372,6 +466,12 @@ pub async fn sync_batch_to_device(
                         );
                         return;
                     }
+                }
+                if !planned_path_stays_within(std::path::Path::new(&dest), &dest_path)
+                    .unwrap_or(false)
+                {
+                    f.fetch_add(1, Ordering::Relaxed);
+                    return;
                 }
 
                 let response = match apply_server_http_get(
@@ -424,6 +524,7 @@ pub async fn sync_batch_to_device(
                 }
 
                 d.fetch_add(1, Ordering::Relaxed);
+                fresh.lock().await.push(dest_path.clone());
                 "done"
             };
 
@@ -463,6 +564,15 @@ pub async fn sync_batch_to_device(
         flags.remove(&job_id);
     }
 
+    let should_rollback = was_cancelled || failed.load(Ordering::Relaxed) > 0;
+    if should_rollback {
+        let paths = std::mem::take(&mut *fresh_paths.lock().await);
+        if rollback_device_files(&dest_root, paths).await.is_err() {
+            failed.fetch_add(1, Ordering::Relaxed);
+        }
+        done.store(0, Ordering::Relaxed);
+    }
+
     let result = SyncBatchResult {
         done: done.load(Ordering::Relaxed),
         skipped: skipped.load(Ordering::Relaxed),
@@ -489,9 +599,10 @@ pub async fn sync_batch_to_device(
 /// directories. Returns the number of files successfully deleted.
 #[tauri::command]
 #[specta::specta]
-pub async fn delete_device_files(paths: Vec<String>) -> Result<u32, String> {
+pub async fn delete_device_files(dest_dir: String, paths: Vec<String>) -> Result<u32, String> {
     let _filesystem_write_guard = crate::filesystem_write_guard().await?;
-    delete_device_files_impl(paths).await
+    ensure_mounted_target(std::path::Path::new(&dest_dir))?;
+    delete_device_files_impl(dest_dir, paths).await
 }
 
 #[cfg(test)]

@@ -78,9 +78,16 @@ export function useDeviceSyncDeviceScan(
           destDir: requestTarget,
           ownerServerIndexKey: manifestImport.ownerServerIndexKey,
           sources: manifestImport.sources,
+          layoutMode: manifestImport.layoutMode,
+          playlistPathMode: manifestImport.playlistPathMode,
+          ...(manifestImport.hasMaterializedPlan
+            ? { files: manifestImport.files, playlists: manifestImport.playlists }
+            : {}),
         });
         if (useDeviceSyncStore.getState().targetDir !== requestTarget) return;
-        useDeviceSyncStore.getState().clearSources();
+        const store = useDeviceSyncStore.getState();
+        store.clearSources();
+        store.applyManifestConfiguration(manifestImport.layoutMode, manifestImport.playlistPathMode);
         manifestImport.sources.forEach(s => useDeviceSyncStore.getState().addSource(s));
         showToast(t('deviceSync.manifestImported', { count: manifestImport.sources.length }), 4000, 'info');
       }

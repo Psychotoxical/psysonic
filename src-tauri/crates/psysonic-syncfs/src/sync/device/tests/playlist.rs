@@ -6,8 +6,8 @@ fn playlist_replacement_never_leaves_partial_contents() {
     let first = track(|track| track.title = "First".to_string());
     let second = track(|track| track.title = "Second".to_string());
 
-    write_playlist_m3u8_within_root(device.path(), "Road Trip", None, &[first]).unwrap();
-    write_playlist_m3u8_within_root(device.path(), "Road Trip", None, &[second]).unwrap();
+    write_playlist_m3u8_within_root(device.path(), "Road Trip", None, &[first], None).unwrap();
+    write_playlist_m3u8_within_root(device.path(), "Road Trip", None, &[second], None).unwrap();
 
     let directory = playlist_directory_name("Road Trip", None);
 
@@ -39,6 +39,7 @@ fn playlist_write_rejects_a_symlink_escape() {
         "Escaped",
         Some("playlist-1"),
         &[track(|_| {})],
+        None,
     );
 
     assert_eq!(result, Err("DEVICE_SYNC_PATH_ESCAPES_ROOT".to_string()));
@@ -56,6 +57,7 @@ fn playlist_ids_disambiguate_identical_display_names() {
         "Road/Trip",
         Some(first_id),
         &[track(|track| track.title = "First".to_string())],
+        None,
     )
     .unwrap();
     write_playlist_m3u8_within_root(
@@ -63,6 +65,7 @@ fn playlist_ids_disambiguate_identical_display_names() {
         "Road:Trip",
         Some(second_id),
         &[track(|track| track.title = "Second".to_string())],
+        None,
     )
     .unwrap();
 
@@ -81,4 +84,25 @@ fn playlist_ids_disambiguate_identical_display_names() {
         .join(&second)
         .join(format!("{second}.m3u8"))
         .exists());
+}
+
+#[test]
+fn playlist_write_uses_explicit_shared_track_references() {
+    let device = tempfile::tempdir().unwrap();
+    let tracks = [track(|track| track.title = "Shared".to_string())];
+    let references = ["/Artist/Album/01 - Shared.flac".to_string()];
+
+    write_playlist_m3u8_within_root(
+        device.path(),
+        "Shared Mix",
+        None,
+        &tracks,
+        Some(&references),
+    )
+    .unwrap();
+
+    let playlist =
+        std::fs::read_to_string(device.path().join("Playlists/Shared Mix/Shared Mix.m3u8"))
+            .unwrap();
+    assert!(playlist.ends_with("/Artist/Album/01 - Shared.flac\n"));
 }

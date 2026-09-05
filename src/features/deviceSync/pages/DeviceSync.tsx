@@ -6,7 +6,10 @@ import {
   useDeviceSyncStore,
   type DeviceSyncSource,
 } from '@/features/deviceSync/store/deviceSyncStore';
-import { useDeviceSyncJobStore } from '@/features/deviceSync/store/deviceSyncJobStore';
+import {
+  deviceSyncJobIsActive,
+  useDeviceSyncJobStore,
+} from '@/features/deviceSync/store/deviceSyncJobStore';
 
 import {
   type SourceTab,
@@ -15,7 +18,6 @@ import { useDeviceSyncDrives } from '@/features/deviceSync/hooks/useDeviceSyncDr
 import { useDeviceSyncSourceStatuses } from '@/features/deviceSync/hooks/useDeviceSyncSourceStatuses';
 import { useDeviceSyncBrowser } from '@/features/deviceSync/hooks/useDeviceSyncBrowser';
 import { useDeviceSyncDeviceScan } from '@/features/deviceSync/hooks/useDeviceSyncDeviceScan';
-import { useDeviceSyncJobEvents } from '@/features/deviceSync/hooks/useDeviceSyncJobEvents';
 import {
   runDeviceSyncMigrationPreview,
   runDeviceSyncMigrationExecute,
@@ -40,15 +42,19 @@ export default function DeviceSync() {
   const { t } = useTranslation();
 
   const targetDir        = useDeviceSyncStore(s => s.targetDir);
+  const layoutMode       = useDeviceSyncStore(s => s.layoutMode);
+  const playlistPathMode = useDeviceSyncStore(s => s.playlistPathMode);
+  const syncedLayoutMode = useDeviceSyncStore(s => s.syncedLayoutMode);
+  const syncedPlaylistPathMode = useDeviceSyncStore(s => s.syncedPlaylistPathMode);
   const sources          = useDeviceSyncStore(s => s.sources);
   const checkedIds       = useDeviceSyncStore(s => s.checkedIds);
   const pendingDeletion  = useDeviceSyncStore(s => s.pendingDeletion);
   const deviceFilePaths  = useDeviceSyncStore(s => s.deviceFilePaths);
   const scanning         = useDeviceSyncStore(s => s.scanning);
   const {
-    setTargetDir, addSource, removeSource,
+    setTargetDir, setLayoutMode, setPlaylistPathMode, addSource, removeSource,
     toggleChecked, setCheckedIds, markForDeletion,
-    unmarkDeletion, removeSources,
+    unmarkDeletion,
   } = useDeviceSyncStore.getState();
 
   const jobStatus = useDeviceSyncJobStore(s => s.status);
@@ -71,8 +77,14 @@ export default function DeviceSync() {
     addCount: 0,
     delBytes: 0,
     delCount: 0,
+    reclaimableBytes: 0,
     availableBytes: 0,
     tracks: [] as SubsonicSong[],
+    deletePaths: [],
+    deferredDeletePaths: [],
+    playlists: [],
+    manifestFiles: [],
+    manifestPlaylists: [],
     context: null,
   });
 
@@ -84,7 +96,9 @@ export default function DeviceSync() {
   const [migrationUnchanged, setMigrationUnchanged] = useState(0);
   const [migrationResult, setMigrationResult] = useState<MigrationResult | null>(null);
 
-  const isRunning = jobStatus === 'running';
+  const isRunning = deviceSyncJobIsActive(jobStatus);
+  const configurationDirty = layoutMode !== syncedLayoutMode
+    || (layoutMode === 'shared-album-tree' && playlistPathMode !== syncedPlaylistPathMode);
 
   // Browser (playlists / albums / artists tabs + their loaders + debounced search)
   const {
@@ -105,12 +119,13 @@ export default function DeviceSync() {
 
   // Source status (path map + derived synced/pending/deletion)
   const { sourcePathsMap, sourceStatuses } = useDeviceSyncSourceStatuses(
-    targetDir, sources, pendingDeletion, deviceFilePaths,
+    targetDir, sources, pendingDeletion, deviceFilePaths, layoutMode, configurationDirty,
   );
 
   // ─── Desired State / Diff Logic ─────────────────────────────────────────
 
   const handleToggleSource = useCallback((source: DeviceSyncSource) => {
+    if (deviceSyncJobIsActive(useDeviceSyncJobStore.getState().status)) return;
     const sourceKey = deviceSyncSourceKey(source);
     const isSelected = sources.some(s => deviceSyncSourceKey(s) === sourceKey);
     const isPendingDeletion = pendingDeletion.includes(sourceKey);
@@ -121,7 +136,7 @@ export default function DeviceSync() {
       const isSynced = sourceStatuses.get(sourceKey) === 'synced';
       const pathsOnDisk = sourcePathsMap.get(sourceKey)?.filter(p => deviceFilePaths.includes(p)).length || 0;
       
-      if (pathsOnDisk > 0 || isSynced) {
+      if (configurationDirty || pathsOnDisk > 0 || isSynced) {
         // Source currently has physical footprint. Stage for deletion.
         markForDeletion([sourceKey]);
       } else {
@@ -136,10 +151,7 @@ export default function DeviceSync() {
         addSource(source); // Trigger clean pending install state
       }
     }
-  }, [sources, pendingDeletion, sourceStatuses, sourcePathsMap, deviceFilePaths, markForDeletion, removeSource, unmarkDeletion, addSource]);
-
-  // ─── Listen for background sync events ──────────────────────────────────
-  useDeviceSyncJobEvents(t, scanDevice);
+  }, [sources, pendingDeletion, sourceStatuses, sourcePathsMap, deviceFilePaths, configurationDirty, markForDeletion, removeSource, unmarkDeletion, addSource]);
 
   // ─── Migration handlers ─────────────────────────────────────────────────
 
@@ -171,13 +183,13 @@ export default function DeviceSync() {
   // ─── Sync (non-blocking) ────────────────────────────────────────────────
 
   const promptSyncSummary = () => runDeviceSyncSummaryPrompt({
-    targetDir, sources, pendingDeletion, t,
+    targetDir, sources, pendingDeletion, layoutMode, playlistPathMode, t,
     setPreSyncLoading, setPreSyncOpen, setSyncDelta,
   });
 
   const handleSyncExecution = () => runDeviceSyncExecute({
     syncDelta, t,
-    setPreSyncOpen, removeSources, scanDevice,
+    setPreSyncOpen, scanDevice,
   });
 
   // ─── Actions ────────────────────────────────────────────────────────────
@@ -223,6 +235,11 @@ export default function DeviceSync() {
         scanDevice={scanDevice}
         handleChooseFolder={handleChooseFolder}
         startMigrationPreview={startMigrationPreview}
+        layoutMode={layoutMode}
+        playlistPathMode={playlistPathMode}
+        setLayoutMode={setLayoutMode}
+        setPlaylistPathMode={setPlaylistPathMode}
+        isRunning={isRunning}
       />
 
       <DeviceSyncLegacyRecovery />
@@ -249,6 +266,7 @@ export default function DeviceSync() {
           sources={sources}
           pendingDeletion={pendingDeletion}
           handleToggleSource={handleToggleSource}
+          disabled={isRunning}
         />
 
         <DeviceSyncDevicePanel

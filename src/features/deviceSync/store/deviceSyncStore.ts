@@ -17,6 +17,21 @@ export interface DeviceSyncSource {
   artist?: string;
 }
 
+export type DeviceSyncLayoutMode = 'self-contained' | 'shared-album-tree';
+export type DeviceSyncPlaylistPathMode = 'playlist-relative' | 'device-rooted';
+
+export interface DeviceSyncManifestFile {
+  trackId: string;
+  relativePath: string;
+  sourceKeys: string[];
+  sizeBytes: number;
+}
+
+export interface DeviceSyncManifestPlaylist {
+  sourceKey: string;
+  relativePath: string;
+}
+
 export type LegacyDeviceSyncSource = Omit<DeviceSyncSource, 'serverIndexKey'>;
 
 export type DeviceSyncManifest = {
@@ -25,6 +40,10 @@ export type DeviceSyncManifest = {
   canonicalIdVersion?: number;
   ownerServerIndexKey?: string;
   sources?: unknown[];
+  layoutMode?: DeviceSyncLayoutMode;
+  playlistPathMode?: DeviceSyncPlaylistPathMode;
+  files?: unknown[];
+  playlists?: unknown[];
 };
 
 export function deviceSyncSourceKey(source: Pick<DeviceSyncSource, 'serverIndexKey' | 'type' | 'id'>): string {
@@ -62,11 +81,34 @@ function isLegacyDeviceSyncSource(value: unknown): value is LegacyDeviceSyncSour
 
 function isSupportedDeviceSyncManifest(manifest: DeviceSyncManifest): boolean {
   if (manifest.version !== undefined
-    && (!Number.isInteger(manifest.version) || manifest.version < 1 || manifest.version > 3)) return false;
-  if (manifest.schema !== undefined && manifest.schema !== 'fixed-v1') return false;
+    && (!Number.isInteger(manifest.version) || manifest.version < 1 || manifest.version > 4)) return false;
+  if (manifest.schema !== undefined && manifest.schema !== 'fixed-v1' && manifest.schema !== 'fixed-v2') return false;
   if (manifest.version === 3 && manifest.schema !== 'fixed-v1') return false;
+  if (manifest.version === 4 && manifest.schema !== 'fixed-v2') return false;
   if (manifest.canonicalIdVersion !== undefined && manifest.canonicalIdVersion !== 1) return false;
+  if (manifest.layoutMode !== undefined
+    && manifest.layoutMode !== 'self-contained'
+    && manifest.layoutMode !== 'shared-album-tree') return false;
+  if (manifest.playlistPathMode !== undefined
+    && manifest.playlistPathMode !== 'playlist-relative'
+    && manifest.playlistPathMode !== 'device-rooted') return false;
   return true;
+}
+
+function isManifestFile(value: unknown): value is DeviceSyncManifestFile {
+  if (!value || typeof value !== 'object') return false;
+  const file = value as Partial<DeviceSyncManifestFile>;
+  return typeof file.trackId === 'string'
+    && typeof file.relativePath === 'string'
+    && Array.isArray(file.sourceKeys)
+    && file.sourceKeys.every(key => typeof key === 'string')
+    && typeof file.sizeBytes === 'number';
+}
+
+function isManifestPlaylist(value: unknown): value is DeviceSyncManifestPlaylist {
+  if (!value || typeof value !== 'object') return false;
+  const playlist = value as Partial<DeviceSyncManifestPlaylist>;
+  return typeof playlist.sourceKey === 'string' && typeof playlist.relativePath === 'string';
 }
 
 export function deviceSyncSourcesFromManifest(
@@ -77,7 +119,15 @@ export function deviceSyncSourcesFromManifest(
 
 export function deviceSyncManifestImport(
   manifest: DeviceSyncManifest | null,
-): { ownerServerIndexKey: string; sources: DeviceSyncSource[] } | null {
+): {
+  ownerServerIndexKey: string;
+  sources: DeviceSyncSource[];
+  layoutMode: DeviceSyncLayoutMode;
+  playlistPathMode: DeviceSyncPlaylistPathMode;
+  files: DeviceSyncManifestFile[];
+  playlists: DeviceSyncManifestPlaylist[];
+  hasMaterializedPlan: boolean;
+} | null {
   if (!manifest || !isSupportedDeviceSyncManifest(manifest) || !Array.isArray(manifest.sources)) return null;
   const manifestOwner = manifest.ownerServerIndexKey
     ? resolveStorageServerIndexKey(manifest.ownerServerIndexKey)
@@ -109,7 +159,20 @@ export function deviceSyncManifestImport(
       : source;
     normalized.set(deviceSyncSourceKey(next), next);
   }
-  return { ownerServerIndexKey, sources: withPlaylistPathIds([...normalized.values()]) };
+  if ((manifest.files === undefined) !== (manifest.playlists === undefined)) return null;
+  const hasMaterializedPlan = manifest.files !== undefined;
+  const files = manifest.files ?? [];
+  const playlists = manifest.playlists ?? [];
+  if (!files.every(isManifestFile) || !playlists.every(isManifestPlaylist)) return null;
+  return {
+    ownerServerIndexKey,
+    sources: withPlaylistPathIds([...normalized.values()]),
+    layoutMode: manifest.layoutMode ?? 'self-contained',
+    playlistPathMode: manifest.playlistPathMode ?? 'playlist-relative',
+    files,
+    playlists,
+    hasMaterializedPlan,
+  };
 }
 
 export function deviceSyncLegacySourcesFromManifest(
@@ -137,6 +200,10 @@ export function migrateDeviceSyncPersistedState(persisted: unknown): Partial<Dev
   ];
   return {
     ...state,
+    layoutMode: state?.layoutMode === 'shared-album-tree' ? 'shared-album-tree' : 'self-contained',
+    playlistPathMode: state?.playlistPathMode === 'device-rooted' ? 'device-rooted' : 'playlist-relative',
+    syncedLayoutMode: state?.syncedLayoutMode === 'shared-album-tree' ? 'shared-album-tree' : 'self-contained',
+    syncedPlaylistPathMode: state?.syncedPlaylistPathMode === 'device-rooted' ? 'device-rooted' : 'playlist-relative',
     sources: withPlaylistPathIds(persistedSources.filter(isDeviceSyncSource)),
     legacySources,
     legacyTargetDir: legacySources.length > 0
@@ -177,6 +244,10 @@ export function prepareDeviceSyncLegacyRecovery(args: {
 
 interface DeviceSyncState {
   targetDir: string | null;
+  layoutMode: DeviceSyncLayoutMode;
+  playlistPathMode: DeviceSyncPlaylistPathMode;
+  syncedLayoutMode: DeviceSyncLayoutMode;
+  syncedPlaylistPathMode: DeviceSyncPlaylistPathMode;
   sources: DeviceSyncSource[];        // persistent device content list
   legacySources: LegacyDeviceSyncSource[]; // ownerless v0 selections awaiting explicit recovery
   legacyTargetDir: string | null;     // device the quarantined ownerless sources came from
@@ -186,6 +257,16 @@ interface DeviceSyncState {
   scanning: boolean;                   // true while scanning the device
 
   setTargetDir: (dir: string | null) => void;
+  setLayoutMode: (mode: DeviceSyncLayoutMode) => void;
+  setPlaylistPathMode: (mode: DeviceSyncPlaylistPathMode) => void;
+  applyManifestConfiguration: (
+    layoutMode: DeviceSyncLayoutMode,
+    playlistPathMode: DeviceSyncPlaylistPathMode,
+  ) => void;
+  markConfigurationSynced: (
+    layoutMode: DeviceSyncLayoutMode,
+    playlistPathMode: DeviceSyncPlaylistPathMode,
+  ) => void;
   addSource: (source: DeviceSyncSource) => void;
   removeSource: (id: string) => void;
   clearSources: () => void;
@@ -207,6 +288,10 @@ export const useDeviceSyncStore = create<DeviceSyncState>()(
   persist(
     (set, get) => ({
       targetDir: null,
+      layoutMode: 'self-contained',
+      playlistPathMode: 'playlist-relative',
+      syncedLayoutMode: 'self-contained',
+      syncedPlaylistPathMode: 'playlist-relative',
       sources: [],
       legacySources: [],
       legacyTargetDir: null,
@@ -216,6 +301,18 @@ export const useDeviceSyncStore = create<DeviceSyncState>()(
       scanning: false,
 
       setTargetDir: (dir) => set({ targetDir: dir }),
+      setLayoutMode: (layoutMode) => set({ layoutMode }),
+      setPlaylistPathMode: (playlistPathMode) => set({ playlistPathMode }),
+      applyManifestConfiguration: (layoutMode, playlistPathMode) => set({
+        layoutMode,
+        playlistPathMode,
+        syncedLayoutMode: layoutMode,
+        syncedPlaylistPathMode: playlistPathMode,
+      }),
+      markConfigurationSynced: (syncedLayoutMode, syncedPlaylistPathMode) => set({
+        syncedLayoutMode,
+        syncedPlaylistPathMode,
+      }),
 
       addSource: (source) =>
         set((s) => {
@@ -300,10 +397,14 @@ export const useDeviceSyncStore = create<DeviceSyncState>()(
     {
       name: 'psysonic_device_sync',
       storage: createNavidromeCanonicalMigrationAwareJSONStorage(),
-      version: 3,
+      version: 4,
       migrate: (persisted) => migrateDeviceSyncPersistedState(persisted) as DeviceSyncState,
       partialize: (s) => ({
         targetDir: s.targetDir,
+        layoutMode: s.layoutMode,
+        playlistPathMode: s.playlistPathMode,
+        syncedLayoutMode: s.syncedLayoutMode,
+        syncedPlaylistPathMode: s.syncedPlaylistPathMode,
         sources: s.sources,
         legacySources: s.legacySources,
         legacyTargetDir: s.legacyTargetDir,

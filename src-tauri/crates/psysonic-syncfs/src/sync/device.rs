@@ -1,6 +1,6 @@
-use tauri::{Emitter, Manager};
 use std::io::Write;
 use std::sync::{Mutex, OnceLock};
+use tauri::{Emitter, Manager};
 
 use crate::file_transfer::{
     apply_server_http_get, finalize_streamed_download, subsonic_http_client,
@@ -8,8 +8,9 @@ use crate::file_transfer::{
 
 mod rename;
 
-use rename::{planned_path_stays_within, rename_pairs_within_root};
+use rename::rename_pairs_within_root;
 pub use rename::RenameResult;
+pub(crate) use rename::{planned_path_stays_within, resolve_within_root};
 
 // ─── Device Sync ─────────────────────────────────────────────────────────────
 
@@ -51,20 +52,29 @@ pub fn get_removable_drives() -> Vec<RemovableDrive> {
 /// The file records which sources (albums/playlists/artists) are synced to this
 /// device so that another machine can pick them up without relying on localStorage.
 #[tauri::command]
+#[allow(clippy::too_many_arguments)] // Tauri IPC fields map directly to the frontend payload.
 pub async fn write_device_manifest(
     dest_dir: String,
     owner_server_index_key: String,
     sources: serde_json::Value,
     canonical_id_version: Option<u8>,
+    layout_mode: Option<String>,
+    playlist_path_mode: Option<String>,
+    files: Option<serde_json::Value>,
+    playlists: Option<serde_json::Value>,
 ) -> Result<(), String> {
     let _filesystem_write_guard = crate::filesystem_write_guard().await?;
     ensure_mounted_target(std::path::Path::new(&dest_dir))?;
-    write_device_manifest_for_migration(
+    write_device_manifest_payload(DeviceManifestWrite {
         dest_dir,
         owner_server_index_key,
         sources,
         canonical_id_version,
-    )
+        layout_mode,
+        playlist_path_mode,
+        files,
+        playlists,
+    })
 }
 
 /// Migration-only manifest writer. The caller must own the active filesystem generation.
@@ -74,6 +84,40 @@ pub fn write_device_manifest_for_migration(
     sources: serde_json::Value,
     canonical_id_version: Option<u8>,
 ) -> Result<(), String> {
+    write_device_manifest_payload(DeviceManifestWrite {
+        dest_dir,
+        owner_server_index_key,
+        sources,
+        canonical_id_version,
+        layout_mode: None,
+        playlist_path_mode: None,
+        files: None,
+        playlists: None,
+    })
+}
+
+struct DeviceManifestWrite {
+    dest_dir: String,
+    owner_server_index_key: String,
+    sources: serde_json::Value,
+    canonical_id_version: Option<u8>,
+    layout_mode: Option<String>,
+    playlist_path_mode: Option<String>,
+    files: Option<serde_json::Value>,
+    playlists: Option<serde_json::Value>,
+}
+
+fn write_device_manifest_payload(input: DeviceManifestWrite) -> Result<(), String> {
+    let DeviceManifestWrite {
+        dest_dir,
+        owner_server_index_key,
+        sources,
+        canonical_id_version,
+        layout_mode,
+        playlist_path_mode,
+        files,
+        playlists,
+    } = input;
     if owner_server_index_key.trim().is_empty() {
         return Err("DEVICE_SYNC_SERVER_OWNER_MISSING".to_string());
     }
@@ -90,13 +134,66 @@ pub fn write_device_manifest_for_migration(
     }
     let root = std::path::Path::new(&dest_dir);
     let path = root.join("psysonic-sync.json");
-    // Manifest v3 pins raw Subsonic IDs to one durable URL-derived server owner.
-    let mut payload = serde_json::json!({
-        "version": 3,
-        "schema": "fixed-v1",
-        "ownerServerIndexKey": owner_server_index_key,
-        "sources": sources
+    let previous = std::fs::read_to_string(&path)
+        .ok()
+        .and_then(|content| serde_json::from_str::<serde_json::Value>(&content).ok());
+    let layout_mode = layout_mode
+        .or_else(|| {
+            previous
+                .as_ref()
+                .and_then(|value| value.get("layoutMode"))
+                .and_then(|value| value.as_str())
+                .map(str::to_string)
+        })
+        .unwrap_or_else(|| "self-contained".to_string());
+    if layout_mode != "self-contained" && layout_mode != "shared-album-tree" {
+        return Err("DEVICE_SYNC_LAYOUT_MODE_INVALID".to_string());
+    }
+    let playlist_path_mode = playlist_path_mode
+        .or_else(|| {
+            previous
+                .as_ref()
+                .and_then(|value| value.get("playlistPathMode"))
+                .and_then(|value| value.as_str())
+                .map(str::to_string)
+        })
+        .unwrap_or_else(|| "playlist-relative".to_string());
+    if playlist_path_mode != "playlist-relative" && playlist_path_mode != "device-rooted" {
+        return Err("DEVICE_SYNC_PLAYLIST_PATH_MODE_INVALID".to_string());
+    }
+    let files = files.or_else(|| {
+        previous
+            .as_ref()
+            .and_then(|value| value.get("files"))
+            .cloned()
     });
+    let playlists = playlists.or_else(|| {
+        previous
+            .as_ref()
+            .and_then(|value| value.get("playlists"))
+            .cloned()
+    });
+    if files.as_ref().is_some_and(|value| !value.is_array())
+        || playlists.as_ref().is_some_and(|value| !value.is_array())
+        || files.is_some() != playlists.is_some()
+    {
+        return Err("DEVICE_SYNC_MANIFEST_PLAN_INVALID".to_string());
+    }
+
+    // Manifest v4 records the materialized file graph so shared paths can be
+    // removed only after their final source reference disappears.
+    let mut payload = serde_json::json!({
+        "version": 4,
+        "schema": "fixed-v2",
+        "ownerServerIndexKey": owner_server_index_key,
+        "sources": sources,
+        "layoutMode": layout_mode,
+        "playlistPathMode": playlist_path_mode,
+    });
+    if let (Some(files), Some(playlists)) = (files, playlists) {
+        payload["files"] = files;
+        payload["playlists"] = playlists;
+    }
     if let Some(version) = canonical_id_version {
         payload["canonicalIdVersion"] = serde_json::json!(version);
     }
@@ -141,8 +238,8 @@ fn replace_device_text_file(
         Err(error) => return Err(error.to_string()),
     }
 
-    let sequence = device_metadata_temp_counter()
-        .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let sequence =
+        device_metadata_temp_counter().fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     let temporary = parent.join(format!(
         ".psysonic-write.{}.{}.tmp",
         std::process::id(),
@@ -159,7 +256,8 @@ fn replace_device_text_file(
             .create_new(true)
             .open(&temporary)
             .map_err(|error| error.to_string())?;
-        file.write_all(contents).map_err(|error| error.to_string())?;
+        file.write_all(contents)
+            .map_err(|error| error.to_string())?;
         file.sync_all().map_err(|error| error.to_string())?;
 
         match std::fs::rename(&temporary, path) {
@@ -224,9 +322,8 @@ pub fn rename_device_files(
 }
 
 /// Writes an Extended-M3U playlist at `{dest_dir}/Playlists/{name}/{name}.m3u8`.
-/// References are sibling filenames (just `01 - Artist - Title.ext`) so the
-/// playlist is self-contained — moving/copying the folder anywhere keeps it
-/// working. Tracks are expected to be in playlist order (index starts at 1).
+/// Explicit references allow shared album-tree files; omitted references keep
+/// the legacy self-contained sibling-filename behavior.
 #[tauri::command]
 #[specta::specta]
 pub fn write_playlist_m3u8(
@@ -234,11 +331,18 @@ pub fn write_playlist_m3u8(
     playlist_name: String,
     playlist_id: Option<String>,
     tracks: Vec<TrackSyncInfo>,
+    references: Option<Vec<String>>,
 ) -> Result<(), String> {
     let _filesystem_write_guard = crate::filesystem_write_guard_now()?;
     let root = std::path::Path::new(&dest_dir);
     ensure_mounted_target(root)?;
-    write_playlist_m3u8_within_root(root, &playlist_name, playlist_id.as_deref(), &tracks)
+    write_playlist_m3u8_within_root(
+        root,
+        &playlist_name,
+        playlist_id.as_deref(),
+        &tracks,
+        references.as_deref(),
+    )
 }
 
 fn write_playlist_m3u8_within_root(
@@ -246,7 +350,11 @@ fn write_playlist_m3u8_within_root(
     playlist_name: &str,
     playlist_id: Option<&str>,
     tracks: &[TrackSyncInfo],
+    references: Option<&[String]>,
 ) -> Result<(), String> {
+    if references.is_some_and(|values| values.len() != tracks.len()) {
+        return Err("DEVICE_SYNC_PLAYLIST_REFERENCES_INVALID".to_string());
+    }
     let directory_name = playlist_directory_name(playlist_name, playlist_id);
     let playlist_dir = root.join("Playlists").join(&directory_name);
     let file_path = playlist_dir.join(format!("{}.m3u8", directory_name));
@@ -267,13 +375,22 @@ fn write_playlist_m3u8_within_root(
             display_artist.trim(),
             title
         ));
-        // Sibling filename — same shape as build_track_path's playlist branch.
-        let artist_safe = sanitize_or(display_artist, "Unknown Artist");
-        let title_safe = sanitize_or(title, "Unknown Title");
-        body.push_str(&format!(
-            "{:02} - {} - {}.{}\n",
-            idx, artist_safe, title_safe, track.suffix
-        ));
+        let reference = references
+            .and_then(|values| values.get(i))
+            .cloned()
+            .unwrap_or_else(|| {
+                let artist_safe = sanitize_or(display_artist, "Unknown Artist");
+                let title_safe = sanitize_or(title, "Unknown Title");
+                format!(
+                    "{:02} - {} - {}.{}",
+                    idx, artist_safe, title_safe, track.suffix
+                )
+            });
+        if reference.contains(['\r', '\n']) {
+            return Err("DEVICE_SYNC_PLAYLIST_REFERENCE_INVALID".to_string());
+        }
+        body.push_str(&reference);
+        body.push('\n');
     }
     replace_device_text_file(root, &file_path, body.as_bytes())
 }
@@ -312,7 +429,7 @@ pub fn is_path_on_mounted_volume(path: &std::path::Path) -> bool {
     best_len > 0
 }
 
-fn ensure_mounted_target(path: &std::path::Path) -> Result<(), String> {
+pub(super) fn ensure_mounted_target(path: &std::path::Path) -> Result<(), String> {
     if !path.is_dir() {
         return Err("VOLUME_NOT_FOUND".to_string());
     }
@@ -345,10 +462,8 @@ pub struct TrackSyncInfo {
     /// Duration in seconds — needed for Extended M3U (#EXTINF) playlist entries.
     #[serde(default)]
     pub duration: Option<u32>,
-    /// When set, the track belongs to a playlist source and is placed under
+    /// When set, the self-contained layout places this track under
     /// `Playlists/{name}/` with `playlist_index` as its filename prefix.
-    /// Same track synced from both an album and a playlist source ends up twice
-    /// on the device — once in the album tree, once in the playlist folder.
     #[serde(default, rename = "playlistName")]
     pub playlist_name: Option<String>,
     /// Stable source identity used to disambiguate playlists with the same display name.
@@ -402,7 +517,7 @@ pub fn sanitize_or(s: &str, fallback: &str) -> String {
     }
 }
 
-fn playlist_directory_name(name: &str, playlist_id: Option<&str>) -> String {
+pub(crate) fn playlist_directory_name(name: &str, playlist_id: Option<&str>) -> String {
     let safe_name = sanitize_or(name, "Unnamed Playlist");
     match playlist_id.filter(|id| !id.trim().is_empty()) {
         Some(id) => {

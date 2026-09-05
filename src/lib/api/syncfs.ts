@@ -4,8 +4,8 @@
  * Result-wrapped ones re-throw on error so the call sites keep their existing
  * reject semantics.
  *
- * `calculate_sync_payload` / `write_device_manifest` / `write_playlist_m3u8`
- * stay on raw `invoke` (untypeable — `serde_json::Value` in their signatures).
+ * `calculate_sync_payload` / `write_device_manifest` stay on raw `invoke`
+ * because their signatures still carry `serde_json::Value`.
  */
 import { commands } from '@/generated/bindings';
 import type {
@@ -34,8 +34,8 @@ export async function listDeviceDirFiles(args: { dir: string }): Promise<string[
   return res.data;
 }
 
-export async function deleteDeviceFiles(args: { paths: string[] }): Promise<number> {
-  const res = await commands.deleteDeviceFiles(args.paths);
+export async function deleteDeviceFiles(args: { destDir: string; paths: string[] }): Promise<number> {
+  const res = await commands.deleteDeviceFiles(args.destDir, args.paths);
   if (res.status === 'error') throw new Error(res.error);
   return res.data;
 }
@@ -56,6 +56,23 @@ export async function syncBatchToDevice(args: {
   );
   if (res.status === 'error') throw new Error(res.error);
   return res.data;
+}
+
+export async function writePlaylistM3u8(args: {
+  destDir: string;
+  playlistName: string;
+  playlistId: string | null;
+  tracks: TrackSyncInfo[];
+  references: string[] | null;
+}): Promise<void> {
+  const res = await commands.writePlaylistM3u8(
+    args.destDir,
+    args.playlistName,
+    args.playlistId,
+    args.tracks,
+    args.references,
+  );
+  if (res.status === 'error') throw new Error(res.error);
 }
 
 // --- media-tier / offline-cache (same syncfs crate) ---

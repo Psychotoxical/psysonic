@@ -3,12 +3,17 @@ use std::sync::Arc;
 use tauri::Manager;
 
 use super::{
-    estimate_track_size_bytes, fetch_subsonic_songs, inject_playlist_context,
-    track_sync_info_from_subsonic_json, DeviceSyncSourcePayload, SubsonicAuthPayload,
-    SyncDeltaResult,
+    fetch_subsonic_songs, subsonic_response_root, DeviceSyncLayoutMode, DeviceSyncPlaylistPathMode,
+    DeviceSyncSourcePayload, SubsonicAuthPayload, SyncDeltaResult,
 };
+
+type SourceFetchHandle = (
+    DeviceSyncSourcePayload,
+    tokio::task::JoinHandle<Result<Vec<serde_json::Value>, String>>,
+);
+use super::planner::{build_sync_plan, FetchedDeviceSyncSource};
 use crate::file_transfer::{apply_server_http_get, subsonic_http_client};
-use crate::sync::device::{build_track_path, get_removable_drives, playlist_collision_key};
+use crate::sync::device::{get_removable_drives, playlist_collision_key};
 
 pub(super) fn device_sync_source_key(source: &DeviceSyncSourcePayload) -> String {
     serde_json::to_string(&(&source.server_index_key, &source.source_type, &source.id))
@@ -44,7 +49,9 @@ pub(super) fn playlist_collision_source_keys(
         .filter(|source| {
             source.source_type == "playlist"
                 && name_counts
-                    .get(&playlist_collision_key(source.name.as_deref().unwrap_or("")))
+                    .get(&playlist_collision_key(
+                        source.name.as_deref().unwrap_or(""),
+                    ))
                     .copied()
                     .unwrap_or_default()
                     > 1
@@ -58,61 +65,37 @@ pub(super) async fn calculate_sync_payload_impl(
     deletion_ids: Vec<String>,
     auth: SubsonicAuthPayload,
     target_dir: String,
+    layout_mode: DeviceSyncLayoutMode,
+    playlist_path_mode: DeviceSyncPlaylistPathMode,
     app: tauri::AppHandle,
 ) -> Result<SyncDeltaResult, String> {
     validate_device_sync_source_owners(&sources, &auth.server_index_key)?;
+    let deletion_keys = deletion_ids
+        .iter()
+        .cloned()
+        .collect::<std::collections::HashSet<_>>();
     let client = subsonic_http_client(std::time::Duration::from_secs(30))?;
     let http_registry = app
         .try_state::<Arc<psysonic_core::server_http::ServerHttpRegistry>>()
         .map(|s| Arc::clone(&*s));
 
-    let mut add_bytes = 0;
-    let mut add_count = 0;
-    let mut del_bytes = 0;
-    let mut del_count = 0;
-
-    let mut sync_tracks = Vec::new();
-    let (mut del_sources, mut add_sources) = (Vec::new(), Vec::new());
+    let mut handles: Vec<SourceFetchHandle> = Vec::new();
     for source in sources {
-        if deletion_ids.contains(&device_sync_source_key(&source)) {
-            del_sources.push(source);
-        } else {
-            add_sources.push(source);
+        if deletion_keys.contains(&device_sync_source_key(&source)) {
+            handles.push((source, tokio::spawn(async { Ok(Vec::new()) })));
+            continue;
         }
-    }
-    let playlist_collision_sources = playlist_collision_source_keys(&add_sources);
-
-    let mut handles: Vec<(
-        DeviceSyncSourcePayload,
-        tokio::task::JoinHandle<Vec<serde_json::Value>>,
-    )> = Vec::new();
-    for source in add_sources {
         let auth_clone = auth.clone();
         let cli = client.clone();
         let reg_for_task = http_registry.clone();
         let source_snapshot = source.clone();
         let handle = tokio::spawn(async move {
             let registry = reg_for_task.as_deref();
-            let mut res_tracks = Vec::new();
             if source.source_type == "album" {
-                if let Ok(tracks) =
-                    fetch_subsonic_songs(&cli, registry, &auth_clone, "getAlbum.view", &source.id)
-                        .await
-                {
-                    res_tracks.extend(tracks);
-                }
+                fetch_subsonic_songs(&cli, registry, &auth_clone, "getAlbum.view", &source.id).await
             } else if source.source_type == "playlist" {
-                if let Ok(tracks) = fetch_subsonic_songs(
-                    &cli,
-                    registry,
-                    &auth_clone,
-                    "getPlaylist.view",
-                    &source.id,
-                )
-                .await
-                {
-                    res_tracks.extend(tracks);
-                }
+                fetch_subsonic_songs(&cli, registry, &auth_clone, "getPlaylist.view", &source.id)
+                    .await
             } else if source.source_type == "artist" {
                 let url = format!("{}/getArtist.view", auth_clone.base_url);
                 let query = vec![
@@ -124,166 +107,82 @@ pub(super) async fn calculate_sync_payload_impl(
                     ("f", auth_clone.f.as_str()),
                     ("id", &source.id),
                 ];
-                if let Ok(response) =
+                let response =
                     apply_server_http_get(&cli, registry, Some(&auth_clone.server_id), &url)
                         .query(&query)
                         .send()
                         .await
-                {
-                    if let Ok(json) = response.json::<serde_json::Value>().await {
-                        if let Some(root) = json
-                            .get("subsonic-response")
-                            .and_then(|response| response.get("artist"))
-                            .and_then(|artist| artist.get("album"))
-                        {
-                            let albums = root.as_array().cloned().unwrap_or_else(|| {
-                                root.as_object()
-                                    .map(|album| vec![serde_json::Value::Object(album.clone())])
-                                    .unwrap_or_default()
-                            });
-                            for album in albums {
-                                if let Some(album_id) = album.get("id").and_then(|id| id.as_str()) {
-                                    if let Ok(tracks) = fetch_subsonic_songs(
-                                        &cli,
-                                        registry,
-                                        &auth_clone,
-                                        "getAlbum.view",
-                                        album_id,
-                                    )
-                                    .await
-                                    {
-                                        res_tracks.extend(tracks);
-                                    }
-                                }
-                            }
-                        }
+                        .map_err(|error| error.to_string())?;
+                if !response.status().is_success() {
+                    return Err(format!("HTTP {}", response.status().as_u16()));
+                }
+                let json = response
+                    .json::<serde_json::Value>()
+                    .await
+                    .map_err(|error| error.to_string())?;
+                let root = subsonic_response_root(&json)?
+                    .get("artist")
+                    .and_then(|artist| artist.get("album"));
+                let albums = root
+                    .and_then(|value| value.as_array().cloned())
+                    .or_else(|| {
+                        root.and_then(|value| value.as_object().cloned())
+                            .map(|album| vec![serde_json::Value::Object(album)])
+                    })
+                    .unwrap_or_default();
+                let mut tracks = Vec::new();
+                for album in albums {
+                    if let Some(album_id) = album.get("id").and_then(|id| id.as_str()) {
+                        tracks.extend(
+                            fetch_subsonic_songs(
+                                &cli,
+                                registry,
+                                &auth_clone,
+                                "getAlbum.view",
+                                album_id,
+                            )
+                            .await?,
+                        );
                     }
                 }
+                Ok(tracks)
+            } else {
+                Err(format!(
+                    "DEVICE_SYNC_SOURCE_TYPE_INVALID:{}",
+                    source.source_type
+                ))
             }
-            res_tracks
         });
         handles.push((source_snapshot, handle));
     }
 
-    let mut del_handles = Vec::new();
-    for source in del_sources {
-        let auth_clone = auth.clone();
-        let cli = client.clone();
-        let reg_for_task = http_registry.clone();
-        del_handles.push(tokio::spawn(async move {
-            let registry = reg_for_task.as_deref();
-            let mut res_tracks = Vec::new();
-            if source.source_type == "album" {
-                if let Ok(tracks) =
-                    fetch_subsonic_songs(&cli, registry, &auth_clone, "getAlbum.view", &source.id)
-                        .await
-                {
-                    res_tracks.extend(tracks);
-                }
-            } else if source.source_type == "playlist" {
-                if let Ok(tracks) = fetch_subsonic_songs(
-                    &cli,
-                    registry,
-                    &auth_clone,
-                    "getPlaylist.view",
-                    &source.id,
-                )
-                .await
-                {
-                    res_tracks.extend(tracks);
-                }
-            }
-            res_tracks
-        }));
-    }
-
-    // Dedup key is (source_id, track_id) rather than just track_id — a track
-    // appearing in both an album and a playlist needs to end up on the device
-    // in both locations (album tree + playlist folder).
-    let mut seen_by_source: std::collections::HashSet<(String, String)> =
-        std::collections::HashSet::new();
+    let mut fetched = Vec::with_capacity(handles.len());
     for (source, handle) in handles {
-        if let Ok(tracks) = handle.await {
-            let is_playlist = source.source_type == "playlist";
-            let mut playlist_position: u32 = 0;
-            for track in tracks {
-                if let Some(track_id) = track.get("id").and_then(|id| id.as_str()) {
-                    let key = (device_sync_source_key(&source), track_id.to_string());
-                    if seen_by_source.contains(&key) {
-                        continue;
-                    }
-                    seen_by_source.insert(key);
-                    if is_playlist {
-                        playlist_position += 1;
-                    }
-                    let playlist_name = if is_playlist {
-                        source.name.clone()
-                    } else {
-                        None
-                    };
-                    let playlist_index = if is_playlist {
-                        Some(playlist_position)
-                    } else {
-                        None
-                    };
-                    let playlist_id = source.path_id.as_deref().or_else(|| {
-                        playlist_collision_sources
-                            .contains(&device_sync_source_key(&source))
-                            .then_some(source.id.as_str())
-                    });
-
-                    let sync_info = track_sync_info_from_subsonic_json(
-                        &track,
-                        track_id,
-                        playlist_name.as_deref(),
-                        playlist_id,
-                        playlist_index,
-                    );
-                    let already_exists = {
-                        let relative = build_track_path(&sync_info);
-                        let file_name = format!("{}.{}", relative, sync_info.suffix);
-                        std::path::Path::new(&target_dir).join(&file_name).exists()
-                    };
-                    if !already_exists {
-                        add_count += 1;
-                        add_bytes += estimate_track_size_bytes(&track);
-                        let mut track_with_ctx = track.clone();
-                        inject_playlist_context(
-                            &mut track_with_ctx,
-                            playlist_name.as_deref(),
-                            playlist_id,
-                            playlist_index,
-                        );
-                        sync_tracks.push(track_with_ctx);
-                    }
-                }
-            }
-        }
+        let tracks = handle
+            .await
+            .map_err(|error| error.to_string())?
+            .map_err(|error| {
+                format!(
+                    "DEVICE_SYNC_SOURCE_FETCH_FAILED:{}:{error}",
+                    device_sync_source_key(&source)
+                )
+            })?;
+        fetched.push(FetchedDeviceSyncSource { source, tracks });
     }
 
-    for handle in del_handles {
-        if let Ok(tracks) = handle.await {
-            for track in tracks {
-                del_count += 1;
-                del_bytes += estimate_track_size_bytes(&track);
-            }
-        }
-    }
+    let mut result = build_sync_plan(
+        &fetched,
+        &deletion_ids,
+        &target_dir,
+        layout_mode,
+        playlist_path_mode,
+    )?;
 
-    let mut available_bytes = 0;
     for drive in get_removable_drives() {
         if target_dir.starts_with(&drive.mount_point) {
-            available_bytes = drive.available_space;
+            result.available_bytes = drive.available_space;
             break;
         }
     }
-
-    Ok(SyncDeltaResult {
-        add_bytes,
-        add_count,
-        del_bytes,
-        del_count,
-        available_bytes,
-        tracks: sync_tracks,
-    })
+    Ok(result)
 }

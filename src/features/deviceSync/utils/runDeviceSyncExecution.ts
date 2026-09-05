@@ -1,31 +1,45 @@
 import type { TFunction } from 'i18next';
 import { invoke } from '@tauri-apps/api/core';
-import { computeSyncPaths, deleteDeviceFiles, syncBatchToDevice } from '@/lib/api/syncfs';
+import { syncBatchToDevice } from '@/lib/api/syncfs';
 import { buildDownloadUrlForServer } from '@/lib/api/subsonicStreamUrl';
 import type { SubsonicSong } from '@/lib/api/subsonicTypes';
 import {
   deviceSyncOwnerKey,
   deviceSyncSourceKey,
   useDeviceSyncStore,
+  type DeviceSyncLayoutMode,
+  type DeviceSyncManifestFile,
+  type DeviceSyncManifestPlaylist,
+  type DeviceSyncPlaylistPathMode,
   type DeviceSyncSource,
 } from '@/features/deviceSync/store/deviceSyncStore';
-import { useDeviceSyncJobStore, type DeviceSyncJobContext } from '@/features/deviceSync/store/deviceSyncJobStore';
+import {
+  deviceSyncJobIsActive,
+  useDeviceSyncJobStore,
+  type DeviceSyncJobContext,
+  type DeviceSyncPlannedPlaylist,
+} from '@/features/deviceSync/store/deviceSyncJobStore';
 import { showToast } from '@/lib/dom/toast';
-import { playlistPathId, trackToSyncInfo, uuid } from '@/features/deviceSync/utils/deviceSyncHelpers';
-import { fetchTracksForSource } from '@/features/playback/utils/playback/fetchTracksForSource';
+import { trackToSyncInfo, uuid } from '@/features/deviceSync/utils/deviceSyncHelpers';
 import { connectBaseUrlForServer } from '@/lib/server/serverEndpoint';
 import { findServerByIdOrIndexKey } from '@/lib/server/serverLookup';
 import { getAuthParams, restBaseFromUrl } from '@/lib/api/subsonicClient';
-import { writeDeviceSyncManifest } from '@/features/deviceSync/utils/deviceSyncManifest';
+import { finalizeDeviceSyncJob } from '@/features/deviceSync/utils/finalizeDeviceSyncJob';
 
 export interface SyncDelta {
   addBytes: number;
   addCount: number;
   delBytes: number;
   delCount: number;
+  reclaimableBytes: number;
   availableBytes: number;
   tracks: SubsonicSong[];
-  context: (DeviceSyncJobContext & { pendingDeletion: string[] }) | null;
+  deletePaths: string[];
+  deferredDeletePaths: string[];
+  playlists: DeviceSyncPlannedPlaylist[];
+  manifestFiles: DeviceSyncManifestFile[];
+  manifestPlaylists: DeviceSyncManifestPlaylist[];
+  context: DeviceSyncJobContext | null;
 }
 
 function deviceSyncAuth(serverIndexKey: string) {
@@ -43,10 +57,25 @@ function sameStrings(a: readonly string[], b: readonly string[]): boolean {
   return a.length === b.length && a.every((value, index) => value === b[index]);
 }
 
+function contextStillCurrent(context: DeviceSyncJobContext): boolean {
+  if (deviceSyncJobIsActive(useDeviceSyncJobStore.getState().status)) return false;
+  const live = useDeviceSyncStore.getState();
+  const liveSources = live.sources
+    .filter(source => !live.pendingDeletion.includes(deviceSyncSourceKey(source)))
+    .map(deviceSyncSourceKey);
+  return live.targetDir === context.targetDir
+    && live.layoutMode === context.layoutMode
+    && live.playlistPathMode === context.playlistPathMode
+    && sameStrings(liveSources, context.sources.map(deviceSyncSourceKey))
+    && sameStrings(live.pendingDeletion, context.deletionSourceKeys);
+}
+
 export interface RunDeviceSyncSummaryDeps {
   targetDir: string | null;
   sources: DeviceSyncSource[];
   pendingDeletion: string[];
+  layoutMode: DeviceSyncLayoutMode;
+  playlistPathMode: DeviceSyncPlaylistPathMode;
   t: TFunction;
   setPreSyncLoading: (v: boolean) => void;
   setPreSyncOpen: (v: boolean) => void;
@@ -54,7 +83,10 @@ export interface RunDeviceSyncSummaryDeps {
 }
 
 export async function runDeviceSyncSummaryPrompt(deps: RunDeviceSyncSummaryDeps): Promise<void> {
-  const { targetDir, sources, pendingDeletion, t, setPreSyncLoading, setPreSyncOpen, setSyncDelta } = deps;
+  const {
+    targetDir, sources, pendingDeletion, layoutMode, playlistPathMode,
+    t, setPreSyncLoading, setPreSyncOpen, setSyncDelta,
+  } = deps;
 
   if (!targetDir)          { showToast(t('deviceSync.noTargetDir'), 3000, 'error'); return; }
   if (sources.length === 0){ showToast(t('deviceSync.noSources'),   3000, 'error'); return; }
@@ -72,11 +104,15 @@ export async function runDeviceSyncSummaryPrompt(deps: RunDeviceSyncSummaryDeps)
       deletionIds: deletionSnapshot,
       auth: deviceSyncAuth(serverIndexKey),
       targetDir,
+      layoutMode,
+      playlistPathMode,
     });
     const liveState = useDeviceSyncStore.getState();
     const sourceKeys = sourceSnapshot.map(deviceSyncSourceKey);
     if (
       liveState.targetDir !== targetDir ||
+      liveState.layoutMode !== layoutMode ||
+      liveState.playlistPathMode !== playlistPathMode ||
       !sameStrings(liveState.sources.map(deviceSyncSourceKey), sourceKeys) ||
       !sameStrings(liveState.pendingDeletion, deletionSnapshot)
     ) {
@@ -84,13 +120,25 @@ export async function runDeviceSyncSummaryPrompt(deps: RunDeviceSyncSummaryDeps)
       return;
     }
 
+    const resultingSources = sourceSnapshot.filter(
+      source => !deletionSnapshot.includes(deviceSyncSourceKey(source)),
+    );
     setSyncDelta({
       ...payload,
       context: {
         targetDir,
         serverIndexKey,
-        sources: sourceSnapshot,
-        pendingDeletion: deletionSnapshot,
+        sources: resultingSources,
+        deletionSourceKeys: deletionSnapshot,
+        layoutMode,
+        playlistPathMode,
+        deferredDeletePaths: [...new Set([
+          ...payload.deletePaths,
+          ...payload.deferredDeletePaths,
+        ])],
+        playlists: payload.playlists,
+        manifestFiles: payload.manifestFiles,
+        manifestPlaylists: payload.manifestPlaylists,
       },
     });
   } catch {
@@ -105,15 +153,19 @@ export interface RunDeviceSyncExecuteDeps {
   syncDelta: SyncDelta;
   t: TFunction;
   setPreSyncOpen: (v: boolean) => void;
-  removeSources: (ids: string[]) => void;
   scanDevice: () => Promise<void>;
 }
 
 export async function runDeviceSyncExecute(deps: RunDeviceSyncExecuteDeps): Promise<void> {
-  const { syncDelta, t, setPreSyncOpen, removeSources, scanDevice } = deps;
+  const { syncDelta, t, setPreSyncOpen, scanDevice } = deps;
   const { context } = syncDelta;
   if (!context) return;
-  const { targetDir, sources, pendingDeletion, serverIndexKey } = context;
+  const { targetDir, serverIndexKey } = context;
+  if (!contextStillCurrent(context)) {
+    setPreSyncOpen(false);
+    showToast(t('deviceSync.fetchError'), 3000, 'error');
+    return;
+  }
   const runtimeServer = findServerByIdOrIndexKey(serverIndexKey);
   if (!runtimeServer) {
     setPreSyncOpen(false);
@@ -123,90 +175,27 @@ export async function runDeviceSyncExecute(deps: RunDeviceSyncExecuteDeps): Prom
 
   setPreSyncOpen(false);
 
-  // 1. Handle pending deletions first
-  const deletionSources = sources.filter(s => pendingDeletion.includes(deviceSyncSourceKey(s)));
-  const remainingSources = sources.filter(s => !pendingDeletion.includes(deviceSyncSourceKey(s)));
-  let resultingSources = sources;
-  if (deletionSources.length > 0) {
-    try {
-      const allPaths: string[] = [];
-      // Compute paths per source so playlist sources delete from their own
-      // folder (Playlists/{Name}/…) rather than from the album tree.
-      for (const source of deletionSources) {
-        const tracks = await fetchTracksForSource(source);
-        const paths = await computeSyncPaths({
-          tracks: tracks.map((tr, idx) => trackToSyncInfo(
-            tr, '',
-            source.type === 'playlist' ? {
-              id: playlistPathId(source, sources),
-              name: source.name,
-              index: idx + 1,
-            } : undefined,
-          )),
-          destDir: targetDir,
-        });
-        allPaths.push(...paths);
-      }
-
-      await deleteDeviceFiles({ paths: allPaths });
-      removeSources(deletionSources.map(deviceSyncSourceKey));
-      resultingSources = remainingSources;
-      // Update manifest so it stays in sync after deletions
-      await writeDeviceSyncManifest({
-        destDir: targetDir,
-        ownerServerIndexKey: serverIndexKey,
-        sources: remainingSources,
-      });
-      showToast(
-        t('deviceSync.deleteComplete', { count: deletionSources.length }),
-        3000, 'info'
-      );
-    } catch {
-      showToast(t('deviceSync.fetchError'), 3000, 'error');
-    }
-  }
-
   const allTracks = syncDelta.tracks;
+  const jobId = uuid();
+  useDeviceSyncJobStore.getState().startSync(jobId, allTracks.length, context);
   if (allTracks.length === 0) {
-    // No new downloads needed, but the user may still have added a
-    // playlist source — (re)write its .m3u8 against the existing files.
-    if (targetDir) {
-      const playlistSources = resultingSources.filter(s => s.type === 'playlist');
-      await Promise.all(playlistSources.map(async playlist => {
-        try {
-          const tracks = await fetchTracksForSource(playlist);
-          await invoke('write_playlist_m3u8', {
-            destDir: targetDir,
-            playlistName: playlist.name,
-            playlistId: playlistPathId(playlist, resultingSources),
-            tracks: tracks.map((tr, idx) => trackToSyncInfo(
-              tr,
-              '',
-              {
-                id: playlistPathId(playlist, resultingSources),
-                name: playlist.name,
-                index: idx + 1,
-              },
-            )),
-          });
-        } catch { /* non-fatal */ }
-      }));
-      await writeDeviceSyncManifest({
-        destDir: targetDir,
-        ownerServerIndexKey: serverIndexKey,
-        sources: resultingSources,
-      });
+    useDeviceSyncJobStore.getState().beginFinalizing();
+    try {
+      await finalizeDeviceSyncJob(context);
+      useDeviceSyncJobStore.getState().complete(0, 0, 0);
+      if (context.deletionSourceKeys.length > 0) {
+        showToast(
+          t('deviceSync.deleteComplete', { count: context.deletionSourceKeys.length }),
+          3000, 'info',
+        );
+      }
+    } catch {
+      useDeviceSyncJobStore.getState().fail(0, 0, 1);
+      showToast(t('deviceSync.fetchError'), 3000, 'error');
     }
     await scanDevice();
     return;
   }
-
-  const jobId = uuid();
-  useDeviceSyncJobStore.getState().startSync(jobId, allTracks.length, {
-    targetDir,
-    serverIndexKey,
-    sources: resultingSources,
-  });
 
   showToast(t('deviceSync.syncInBackground'), 3000, 'info');
 
@@ -223,7 +212,7 @@ export async function runDeviceSyncExecute(deps: RunDeviceSyncExecuteDeps): Prom
     // The typed facade rejects with an Error whose message is the raw Rust error
     // string (previously invoke rejected with the bare string).
     const msg = err instanceof Error ? err.message : String(err);
-    useDeviceSyncJobStore.getState().complete(0, 0, allTracks.length);
+    useDeviceSyncJobStore.getState().fail(0, 0, allTracks.length);
     if (msg.includes('NOT_ENOUGH_SPACE')) {
       showToast(t('deviceSync.notEnoughSpace'), 5000, 'error');
     } else if (msg === 'NOT_MOUNTED_VOLUME') {
@@ -231,5 +220,6 @@ export async function runDeviceSyncExecute(deps: RunDeviceSyncExecuteDeps): Prom
     } else {
       showToast(t('deviceSync.fetchError'), 3000, 'error');
     }
+    void scanDevice();
   });
 }

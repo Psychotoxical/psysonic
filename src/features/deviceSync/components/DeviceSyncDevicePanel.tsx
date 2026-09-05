@@ -5,7 +5,10 @@ import {
   AlertCircle, CheckCircle2, Clock, HardDriveUpload, Loader2,
   Trash2, Undo2,
 } from 'lucide-react';
-import { useDeviceSyncJobStore } from '@/features/deviceSync/store/deviceSyncJobStore';
+import {
+  useDeviceSyncJobStore,
+  type DeviceSyncJobStatus,
+} from '@/features/deviceSync/store/deviceSyncJobStore';
 import { deviceSyncSourceKey, type DeviceSyncSource } from '@/features/deviceSync/store/deviceSyncStore';
 import type { SyncStatus } from '@/features/deviceSync/utils/deviceSyncHelpers';
 
@@ -29,7 +32,7 @@ interface Props {
   handleToggleSource: (source: DeviceSyncSource) => void;
   markForDeletion: (ids: string[]) => void;
   unmarkDeletion: (id: string) => void;
-  jobStatus: string;
+  jobStatus: DeviceSyncJobStatus;
   jobDone: number;
   jobSkip: number;
   jobFail: number;
@@ -112,7 +115,7 @@ export default function DeviceSyncDevicePanel({
         <>
           <div className="device-sync-list-header">
             <label className="device-sync-check-label">
-              <input type="checkbox" checked={allChecked} onChange={toggleAll} />
+              <input type="checkbox" checked={allChecked} onChange={toggleAll} disabled={isRunning} />
             </label>
             <span className="device-sync-list-col-name">{t('deviceSync.colName')}</span>
             <span className="device-sync-list-col-type">{t('deviceSync.colType')}</span>
@@ -132,7 +135,7 @@ export default function DeviceSyncDevicePanel({
                     type="checkbox"
                     checked={checkedIds.includes(sourceKey)}
                     onChange={() => toggleChecked(sourceKey)}
-                    disabled={status === 'deletion'}
+                    disabled={isRunning || status === 'deletion'}
                   />
                   <span className="device-sync-row-name">
                     {s.name}
@@ -149,6 +152,7 @@ export default function DeviceSyncDevicePanel({
                       <button
                         className="device-sync-action-btn danger"
                         onClick={e => { e.preventDefault(); markForDeletion([sourceKey]); }}
+                        disabled={isRunning}
                         data-tooltip={t('deviceSync.markForDeletion')}
                       >
                         <Trash2 size={12} />
@@ -158,6 +162,7 @@ export default function DeviceSyncDevicePanel({
                       <button
                         className="device-sync-action-btn muted"
                         onClick={e => { e.preventDefault(); handleToggleSource(s); }}
+                        disabled={isRunning}
                         data-tooltip={t('deviceSync.removeSource')}
                       >
                         <Trash2 size={12} />
@@ -167,6 +172,7 @@ export default function DeviceSyncDevicePanel({
                       <button
                         className="device-sync-action-btn undo"
                         onClick={e => { e.preventDefault(); unmarkDeletion(sourceKey); }}
+                        disabled={isRunning}
                         data-tooltip={t('deviceSync.undoDeletion')}
                       >
                         <Undo2 size={12} />
@@ -181,7 +187,7 @@ export default function DeviceSyncDevicePanel({
       )}
 
       {/* Background sync progress (non-blocking) */}
-      {jobStatus === 'running' && (
+      {(jobStatus === 'running' || jobStatus === 'cancelling' || jobStatus === 'finalizing') && (
         <div className="device-sync-bg-progress">
           <div className="device-sync-bg-progress-bar-wrap">
             <div
@@ -196,17 +202,22 @@ export default function DeviceSyncDevicePanel({
             {t('deviceSync.syncInProgress', { done: jobDone + jobSkip, total: jobTotal })}
             {jobFail > 0 && <span className="device-sync-stat-error"><AlertCircle size={11} /> {jobFail}</span>}
           </span>
-          <button
-            className="btn btn-ghost"
-            style={{ fontSize: 12, padding: '2px 10px' }}
-            onClick={() => {
-              const jobId = useDeviceSyncJobStore.getState().jobId;
-              if (jobId) cancelDeviceSync({ jobId });
-              useDeviceSyncJobStore.getState().cancel();
-            }}
-          >
-            {t('deviceSync.cancelSync')}
-          </button>
+          {jobStatus === 'running' && (
+            <button
+              className="btn btn-ghost"
+              style={{ fontSize: 12, padding: '2px 10px' }}
+              onClick={() => {
+                const store = useDeviceSyncJobStore.getState();
+                if (!store.jobId) return;
+                store.requestCancel();
+                void cancelDeviceSync({ jobId: store.jobId }).catch(() => {
+                  useDeviceSyncJobStore.getState().cancelRequestFailed();
+                });
+              }}
+            >
+              {t('deviceSync.cancelSync')}
+            </button>
+          )}
         </div>
       )}
 
@@ -227,6 +238,18 @@ export default function DeviceSyncDevicePanel({
           <span className="device-sync-bg-progress-text">
             <CheckCircle2 size={12} className="color-success" />
             {t('deviceSync.syncResult', { done: jobDone, skipped: jobSkip, total: jobTotal })}
+          </span>
+          <button className="btn btn-ghost" onClick={() => useDeviceSyncJobStore.getState().reset()}>
+            {t('deviceSync.dismiss')}
+          </button>
+        </div>
+      )}
+
+      {jobStatus === 'failed' && (
+        <div className="device-sync-bg-progress done">
+          <span className="device-sync-bg-progress-text">
+            <AlertCircle size={12} className="color-error" />
+            {t('deviceSync.fetchError')}
           </span>
           <button className="btn btn-ghost" onClick={() => useDeviceSyncJobStore.getState().reset()}>
             {t('deviceSync.dismiss')}

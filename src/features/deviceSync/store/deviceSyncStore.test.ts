@@ -92,7 +92,38 @@ describe('deviceSyncStore ownership', () => {
       schema: 'fixed-v1',
       ownerServerIndexKey: sourceA.serverIndexKey,
       sources: [],
-    })).toEqual({ ownerServerIndexKey: sourceA.serverIndexKey, sources: [] });
+    })).toEqual({
+      ownerServerIndexKey: sourceA.serverIndexKey,
+      sources: [],
+      layoutMode: 'self-contained',
+      playlistPathMode: 'playlist-relative',
+      files: [],
+      playlists: [],
+      hasMaterializedPlan: false,
+    });
+  });
+
+  it('imports the shared layout and materialized ownership plan from v4', () => {
+    const sourceKey = deviceSyncSourceKey(sourceA);
+    expect(deviceSyncManifestImport({
+      version: 4,
+      schema: 'fixed-v2',
+      ownerServerIndexKey: sourceA.serverIndexKey,
+      sources: [sourceA],
+      layoutMode: 'shared-album-tree',
+      playlistPathMode: 'device-rooted',
+      files: [{
+        trackId: 'track-1',
+        relativePath: 'Artist/Album/01 - Song.flac',
+        sourceKeys: [sourceKey],
+        sizeBytes: 100,
+      }],
+      playlists: [],
+    })).toEqual(expect.objectContaining({
+      layoutMode: 'shared-album-tree',
+      playlistPathMode: 'device-rooted',
+      hasMaterializedPlan: true,
+    }));
   });
 
   it('rejects a non-empty owned manifest with malformed sources instead of clearing state', () => {
@@ -106,7 +137,7 @@ describe('deviceSyncStore ownership', () => {
 
   it('rejects future and partially understood manifests without dropping entries', () => {
     expect(deviceSyncManifestImport({
-      version: 4,
+      version: 5,
       schema: 'fixed-v2',
       ownerServerIndexKey: sourceA.serverIndexKey,
       sources: [sourceA],

@@ -10,6 +10,7 @@ import { showToast } from '@/lib/dom/toast';
 import { navidromeCanonicalCheckpointStatus } from '@/lib/server/navidromeCanonicalCheckpointStatus';
 import { serverIndexKeyForProfile } from '@/lib/server/serverBaseUrl';
 import { useAuthStore } from '@/store/authStore';
+import { deviceSyncJobIsActive, useDeviceSyncJobStore } from '@/features/deviceSync/store/deviceSyncJobStore';
 
 export default function DeviceSyncLegacyRecovery() {
   const { t } = useTranslation();
@@ -20,6 +21,7 @@ export default function DeviceSyncLegacyRecovery() {
   const servers = useAuthStore(state => state.servers);
   const [selectedOwner, setSelectedOwner] = useState('');
   const [recovering, setRecovering] = useState(false);
+  const syncActive = useDeviceSyncJobStore(state => deviceSyncJobIsActive(state.status));
   const serverOptions = useMemo(() => {
     const unique = new Map<string, string>();
     servers.forEach(server => {
@@ -36,7 +38,7 @@ export default function DeviceSyncLegacyRecovery() {
   const currentOwner = deviceSyncOwnerKey(sources);
   const ownerConflict = Boolean(selectedOwner && currentOwner && currentOwner !== selectedOwner);
   const migrationPending = selectedStatus === 'pending' || selectedStatus === 'invalid';
-  const recoverDisabled = recovering || !selectedOwner || ownerConflict || migrationPending;
+  const recoverDisabled = recovering || syncActive || !selectedOwner || ownerConflict || migrationPending;
 
   const recover = async () => {
     if (recovering) return;
@@ -92,7 +94,7 @@ export default function DeviceSyncLegacyRecovery() {
         <select
           id="device-sync-legacy-owner"
           value={selectedOwner}
-          disabled={recovering}
+          disabled={recovering || syncActive}
           onChange={event => setSelectedOwner(event.target.value)}
         >
           <option value="">{t('deviceSync.legacyRecoveryChooseServer')}</option>
@@ -103,7 +105,7 @@ export default function DeviceSyncLegacyRecovery() {
         <button type="button" className="btn btn-primary" disabled={recoverDisabled} onClick={() => { void recover(); }}>
           {t('deviceSync.legacyRecoveryApply')}
         </button>
-        <button type="button" className="btn btn-surface" disabled={recovering} onClick={discard}>
+        <button type="button" className="btn btn-surface" disabled={recovering || syncActive} onClick={discard}>
           {t('deviceSync.legacyRecoveryDiscard')}
         </button>
       </div>

@@ -30,6 +30,7 @@ interface Props {
   sources: DeviceSyncSource[];
   pendingDeletion: string[];
   handleToggleSource: (source: DeviceSyncSource) => void;
+  disabled: boolean;
 }
 
 export default function DeviceSyncBrowserPanel({
@@ -38,7 +39,7 @@ export default function DeviceSyncBrowserPanel({
   artists, loadingBrowser,
   expandedArtistIds, artistAlbumsMap, loadingArtistIds, toggleArtistExpand,
   serverIndexKey,
-  sources, pendingDeletion, handleToggleSource,
+  sources, pendingDeletion, handleToggleSource, disabled,
 }: Props) {
   const { t } = useTranslation();
 
@@ -91,7 +92,7 @@ export default function DeviceSyncBrowserPanel({
           <BrowserRow key={pl.id} name={pl.name} meta={`${pl.songCount} tracks`}
             selected={serverIndexKey != null && sources.some(s =>
               deviceSyncSourceKey(s) === deviceSyncSourceKey({ serverIndexKey, type: 'playlist', id: pl.id }) &&
-              !pendingDeletion.includes(deviceSyncSourceKey(s)))}
+              !pendingDeletion.includes(deviceSyncSourceKey(s)))} disabled={disabled}
             onToggle={() => serverIndexKey && handleToggleSource({
               type: 'playlist', id: pl.id, name: pl.name, serverIndexKey,
             })} />
@@ -100,7 +101,7 @@ export default function DeviceSyncBrowserPanel({
           <BrowserRow key={al.id} name={al.name} meta={al.artist}
             selected={serverIndexKey != null && sources.some(s =>
               deviceSyncSourceKey(s) === deviceSyncSourceKey({ serverIndexKey, type: 'album', id: al.id }) &&
-              !pendingDeletion.includes(deviceSyncSourceKey(s)))}
+              !pendingDeletion.includes(deviceSyncSourceKey(s)))} disabled={disabled}
             onToggle={() => serverIndexKey && handleToggleSource({
               type: 'album', id: al.id, name: al.name, artist: al.artist, serverIndexKey,
             })} />
@@ -128,7 +129,7 @@ export default function DeviceSyncBrowserPanel({
                   selected={serverIndexKey != null && sources.some(s =>
                     deviceSyncSourceKey(s) === deviceSyncSourceKey({ serverIndexKey, type: 'album', id: al.id }) &&
                     !pendingDeletion.includes(deviceSyncSourceKey(s)))}
-                  indent
+                  indent disabled={disabled}
                   onToggle={() => serverIndexKey && handleToggleSource({
                     type: 'album', id: al.id, name: al.name, artist: al.artist || ar.name, serverIndexKey,
                   })} />

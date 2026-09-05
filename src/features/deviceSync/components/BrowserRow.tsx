@@ -7,11 +7,12 @@ interface Props {
   selected: boolean;
   onToggle: () => void;
   indent?: boolean;
+  disabled?: boolean;
 }
 
-export default function BrowserRow({ name, meta, selected, onToggle, indent }: Props) {
+export default function BrowserRow({ name, meta, selected, onToggle, indent, disabled }: Props) {
   return (
-    <button className={`device-sync-browser-row${selected ? ' selected' : ''}${indent ? ' indent' : ''}`} onClick={onToggle}>
+    <button className={`device-sync-browser-row${selected ? ' selected' : ''}${indent ? ' indent' : ''}`} onClick={onToggle} disabled={disabled}>
       <span className="device-sync-row-check">
         {selected ? <CheckCircle2 size={14} /> : <span className="device-sync-row-circle" />}
       </span>

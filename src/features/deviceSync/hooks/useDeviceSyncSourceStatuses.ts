@@ -6,7 +6,11 @@ import {
   trackToSyncInfo,
   type SyncStatus,
 } from '@/features/deviceSync/utils/deviceSyncHelpers';
-import { deviceSyncSourceKey, type DeviceSyncSource } from '@/features/deviceSync/store/deviceSyncStore';
+import {
+  deviceSyncSourceKey,
+  type DeviceSyncLayoutMode,
+  type DeviceSyncSource,
+} from '@/features/deviceSync/store/deviceSyncStore';
 
 export interface DeviceSyncSourceStatusesResult {
   sourcePathsMap: Map<string, string[]>;
@@ -18,6 +22,8 @@ export function useDeviceSyncSourceStatuses(
   sources: DeviceSyncSource[],
   pendingDeletion: string[],
   deviceFilePaths: string[],
+  layoutMode: DeviceSyncLayoutMode,
+  configurationDirty: boolean,
 ): DeviceSyncSourceStatusesResult {
   // Map source IDs → computed device paths (for status derivation)
   const [sourcePathsMap, setSourcePathsMap] = useState<Map<string, string[]>>(new Map());
@@ -41,7 +47,7 @@ export function useDeviceSyncSourceStatuses(
           const paths = await computeSyncPaths({
             tracks: tracks.map((tr, idx) => trackToSyncInfo(
               tr, '',
-              source.type === 'playlist'
+              source.type === 'playlist' && layoutMode === 'self-contained'
                 ? {
                   id: playlistPathId(source, sources),
                   name: source.name,
@@ -59,7 +65,7 @@ export function useDeviceSyncSourceStatuses(
       if (!cancelled) setSourcePathsMap(map);
     })();
     return () => { cancelled = true; };
-  }, [targetDir, sources]);
+  }, [targetDir, sources, layoutMode]);
 
   // Derive sync status per source
   const sourceStatuses = useMemo(() => {
@@ -69,6 +75,8 @@ export function useDeviceSyncSourceStatuses(
       const sourceKey = deviceSyncSourceKey(source);
       if (pendingDeletion.includes(sourceKey)) {
         statuses.set(sourceKey, 'deletion');
+      } else if (source.type === 'playlist' && configurationDirty) {
+        statuses.set(sourceKey, 'pending');
       } else {
         const paths = sourcePathsMap.get(sourceKey) ?? [];
         const allSynced = paths.length > 0 && paths.every(p => deviceSet.has(p));
@@ -76,7 +84,7 @@ export function useDeviceSyncSourceStatuses(
       }
     }
     return statuses;
-  }, [sources, pendingDeletion, sourcePathsMap, deviceFilePaths]);
+  }, [sources, pendingDeletion, sourcePathsMap, deviceFilePaths, configurationDirty]);
 
   return { sourcePathsMap, sourceStatuses };
 }

@@ -2,6 +2,10 @@ import { invoke } from '@tauri-apps/api/core';
 import {
   deviceSyncOwnerKey,
   deviceSyncSourceKey,
+  type DeviceSyncLayoutMode,
+  type DeviceSyncManifestFile,
+  type DeviceSyncManifestPlaylist,
+  type DeviceSyncPlaylistPathMode,
   type DeviceSyncSource,
 } from '@/features/deviceSync/store/deviceSyncStore';
 import { canonicalNavidromeId } from '@/lib/server/navidromeCanonicalId';
@@ -15,6 +19,10 @@ export async function writeDeviceSyncManifest(args: {
   destDir: string;
   ownerServerIndexKey: string;
   sources: readonly DeviceSyncSource[];
+  layoutMode?: DeviceSyncLayoutMode;
+  playlistPathMode?: DeviceSyncPlaylistPathMode;
+  files?: readonly DeviceSyncManifestFile[];
+  playlists?: readonly DeviceSyncManifestPlaylist[];
 }): Promise<DeviceSyncSource[]> {
   if (navidromeCanonicalBootstrapIsActive()) throw new Error('canonical_migration_active');
   const ownerServerIndexKey = resolveStorageServerIndexKey(args.ownerServerIndexKey);
@@ -39,6 +47,10 @@ export async function writeDeviceSyncManifest(args: {
     ownerServerIndexKey,
     sources,
     canonicalIdVersion: checkpointStatus === 'ready' ? 1 : null,
+    layoutMode: args.layoutMode,
+    playlistPathMode: args.playlistPathMode,
+    files: args.files,
+    playlists: args.playlists,
   });
   return sources;
 }
