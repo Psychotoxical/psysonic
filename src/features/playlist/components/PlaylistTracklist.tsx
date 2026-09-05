@@ -25,6 +25,7 @@ import { useWarmTrackListAlbumCovers } from '@/cover/useWarmTrackListAlbumCovers
 import { useTrackListCoverArtEnabled } from '@/cover/useTrackListCoverArtSettings';
 import { ownedOverrideValue } from '@/lib/util/ownedEntityKey';
 import { navigateToAlbumDetail } from '@/lib/navigation/albumDetailNavigation';
+import { usePlaylistTracklistScrollReset } from '@/features/playlist/hooks/usePlaylistTracklistScrollReset';
 
 const PL_CENTERED = new Set(['favorite', 'rating', 'duration', 'playCount', 'bpm']);
 
@@ -219,13 +220,7 @@ export default function PlaylistTracklist({
     getItemKey: i => `${displayedSongs[i].id}:${i}`,
   });
 
-  const firstRender = useRef(true);
-  useEffect(() => {
-    if (firstRender.current) { firstRender.current = false; return; }
-    const sc = document.getElementById(APP_MAIN_SCROLL_VIEWPORT_ID);
-    if (sc) sc.scrollTop = scrollMargin;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id, hasActiveFilter]);
+  usePlaylistTracklistScrollReset({ id, hasActiveFilter, scrollMargin });
 
   const autoScrollRef = useRef(0);
   const pointerYRef = useRef(0);
