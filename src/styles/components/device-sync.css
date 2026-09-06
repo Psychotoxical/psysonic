@@ -76,11 +76,34 @@
   line-height: 1.5;
   max-width: 520px;
 }
+.device-sync-playlist-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(190px, 1fr));
+  gap: 10px;
+  margin-top: 4px;
+  max-width: 520px;
+}
+.device-sync-playlist-options label {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+.device-sync-layout-select {
+  width: 100%;
+  min-width: 0;
+}
 .device-sync-migrate-btn {
   align-self: flex-start;
   font-size: 11px;
   padding: 4px 10px;
   margin-top: 2px;
+}
+
+@media (max-width: 760px) {
+  .device-sync-playlist-options {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* ── Migration modal ──────────────────────────────────────────────────── */

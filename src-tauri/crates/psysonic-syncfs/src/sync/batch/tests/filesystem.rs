@@ -1,6 +1,37 @@
 use super::*;
 
 #[tokio::test]
+async fn list_device_dir_files_lists_nested_regular_files() {
+    let root = tempfile::tempdir().unwrap();
+    let track = root.path().join("Artist").join("Album").join("track.flac");
+    write_file(&track, b"audio");
+
+    let files = list_device_dir_files_impl(root.path().to_string_lossy().to_string())
+        .await
+        .unwrap();
+
+    assert_eq!(files, vec![track.to_string_lossy().to_string()]);
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn list_device_dir_files_does_not_follow_directory_symlinks() {
+    use std::os::unix::fs::symlink;
+
+    let root = tempfile::tempdir().unwrap();
+    let outside = tempfile::tempdir().unwrap();
+    let outside_track = outside.path().join("private.flac");
+    write_file(&outside_track, b"private");
+    symlink(outside.path(), root.path().join("escaped")).unwrap();
+
+    let files = list_device_dir_files_impl(root.path().to_string_lossy().to_string())
+        .await
+        .unwrap();
+
+    assert!(files.is_empty());
+}
+
+#[tokio::test]
 async fn prune_removes_one_empty_parent_when_levels_is_one() {
     let dir = tempfile::tempdir().unwrap();
     let leaf_dir = dir.path().join("a");
@@ -67,11 +98,14 @@ async fn delete_device_files_returns_count_of_existing_paths_removed() {
     write_file(&a, b"a");
     write_file(&b, b"b");
     let missing = dir.path().join("missing.mp3").to_string_lossy().to_string();
-    let result = delete_device_files(vec![
-        a.to_string_lossy().to_string(),
-        b.to_string_lossy().to_string(),
-        missing,
-    ])
+    let result = delete_device_files_impl(
+        dir.path().to_string_lossy().to_string(),
+        vec![
+            a.to_string_lossy().to_string(),
+            b.to_string_lossy().to_string(),
+            missing,
+        ],
+    )
     .await
     .unwrap();
     assert_eq!(result, 2, "missing paths are silently skipped");
@@ -86,9 +120,12 @@ async fn delete_device_files_prunes_two_levels_of_empty_parents() {
     std::fs::create_dir_all(&nested).unwrap();
     let track = nested.join("01 - track.mp3");
     write_file(&track, b"audio");
-    let _ = delete_device_files(vec![track.to_string_lossy().to_string()])
-        .await
-        .unwrap();
+    let _ = delete_device_files_impl(
+        dir.path().to_string_lossy().to_string(),
+        vec![track.to_string_lossy().to_string()],
+    )
+    .await
+    .unwrap();
     assert!(!track.exists());
     assert!(!nested.exists(), "level 1 (album) pruned");
     assert!(
@@ -99,6 +136,42 @@ async fn delete_device_files_prunes_two_levels_of_empty_parents() {
 
 #[tokio::test]
 async fn delete_device_files_returns_zero_for_empty_input() {
-    let result = delete_device_files(vec![]).await.unwrap();
+    let dir = tempfile::tempdir().unwrap();
+    let result = delete_device_files_impl(dir.path().to_string_lossy().to_string(), vec![])
+        .await
+        .unwrap();
     assert_eq!(result, 0);
+}
+
+#[tokio::test]
+async fn rollback_device_files_removes_only_the_fresh_paths() {
+    let dir = tempfile::tempdir().unwrap();
+    let fresh = dir.path().join("Artist/Album/fresh.flac");
+    let existing = dir.path().join("Artist/Album/existing.flac");
+    write_file(&fresh, b"fresh");
+    write_file(&existing, b"existing");
+
+    rollback_device_files(dir.path(), vec![fresh.clone()])
+        .await
+        .unwrap();
+
+    assert!(!fresh.exists());
+    assert!(existing.exists());
+}
+
+#[tokio::test]
+async fn delete_device_files_rejects_paths_outside_the_selected_root() {
+    let root = tempfile::tempdir().unwrap();
+    let outside = tempfile::tempdir().unwrap();
+    let target = outside.path().join("host-file.txt");
+    write_file(&target, b"keep");
+
+    let result = delete_device_files_impl(
+        root.path().to_string_lossy().to_string(),
+        vec![target.to_string_lossy().to_string()],
+    )
+    .await;
+
+    assert_eq!(result, Err("DEVICE_SYNC_PATH_ESCAPES_ROOT".to_string()));
+    assert!(target.exists());
 }

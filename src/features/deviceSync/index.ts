@@ -8,4 +8,5 @@
  */
 export { useDeviceSyncJobStore } from './store/deviceSyncJobStore';
 export { deviceSyncSourceKey, useDeviceSyncStore } from './store/deviceSyncStore';
+export { useDeviceSyncJobEvents } from './hooks/useDeviceSyncJobEvents';
 export type { DeviceSyncSource } from './store/deviceSyncStore';

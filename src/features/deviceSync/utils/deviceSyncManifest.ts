@@ -2,6 +2,10 @@ import { invoke } from '@tauri-apps/api/core';
 import {
   deviceSyncOwnerKey,
   deviceSyncSourceKey,
+  type DeviceSyncLayoutMode,
+  type DeviceSyncManifestFile,
+  type DeviceSyncManifestPlaylist,
+  type DeviceSyncPlaylistPathMode,
   type DeviceSyncSource,
 } from '@/features/deviceSync/store/deviceSyncStore';
 import { canonicalNavidromeId } from '@/lib/server/navidromeCanonicalId';
@@ -11,11 +15,21 @@ import {
 } from '@/lib/server/navidromeCanonicalCheckpointStatus';
 import { resolveStorageServerIndexKey } from '@/lib/server/serverIndexKey';
 
-export async function writeDeviceSyncManifest(args: {
+interface DeviceSyncManifestInput {
   destDir: string;
   ownerServerIndexKey: string;
   sources: readonly DeviceSyncSource[];
-}): Promise<DeviceSyncSource[]> {
+  layoutMode?: DeviceSyncLayoutMode;
+  playlistPathMode?: DeviceSyncPlaylistPathMode;
+  files?: readonly DeviceSyncManifestFile[];
+  playlists?: readonly DeviceSyncManifestPlaylist[];
+}
+
+export function prepareDeviceSyncManifest(args: DeviceSyncManifestInput): {
+  ownerServerIndexKey: string;
+  sources: DeviceSyncSource[];
+  canonicalIdVersion: number | null;
+} {
   if (navidromeCanonicalBootstrapIsActive()) throw new Error('canonical_migration_active');
   const ownerServerIndexKey = resolveStorageServerIndexKey(args.ownerServerIndexKey);
   const sourceOwner = deviceSyncOwnerKey(args.sources);
@@ -34,11 +48,24 @@ export async function writeDeviceSyncManifest(args: {
     normalized.set(deviceSyncSourceKey(next), next);
   }
   const sources = [...normalized.values()];
-  await invoke('write_device_manifest', {
-    destDir: args.destDir,
+  return {
     ownerServerIndexKey,
     sources,
     canonicalIdVersion: checkpointStatus === 'ready' ? 1 : null,
+  };
+}
+
+export async function writeDeviceSyncManifest(args: DeviceSyncManifestInput): Promise<DeviceSyncSource[]> {
+  const prepared = prepareDeviceSyncManifest(args);
+  await invoke('write_device_manifest', {
+    destDir: args.destDir,
+    ownerServerIndexKey: prepared.ownerServerIndexKey,
+    sources: prepared.sources,
+    canonicalIdVersion: prepared.canonicalIdVersion,
+    layoutMode: args.layoutMode,
+    playlistPathMode: args.playlistPathMode,
+    files: args.files,
+    playlists: args.playlists,
   });
-  return sources;
+  return prepared.sources;
 }

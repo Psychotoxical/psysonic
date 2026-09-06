@@ -344,10 +344,7 @@ export const commands = {
 	deleteHotCacheTrack: (localPath: string, customDir: string | null) => typedError<null, string>(__TAURI_INVOKE("delete_hot_cache_track", { localPath, customDir })),
 	/**  Removes the entire hot cache root (`psysonic-hot-cache` for the active location). */
 	purgeHotCache: (customDir: string | null) => typedError<null, string>(__TAURI_INVOKE("purge_hot_cache", { customDir })),
-	/**
-	 *  Downloads a single track to a USB/SD device using the configured filename template.
-	 *  Emits `device:sync:progress` events with `{ jobId, trackId, status, path? }`.
-	 */
+	/**  Downloads one track through the legacy single-track command. */
 	syncTrackToDevice: (track: TrackSyncInfo, destDir: string, jobId: string) => typedError<SyncTrackResult, string>(__TAURI_INVOKE("sync_track_to_device", { track, destDir, jobId })),
 	/**
 	 *  Downloads a batch of tracks to a USB/SD device with controlled concurrency.
@@ -355,7 +352,7 @@ export const commands = {
 	 *  Emits throttled `device:sync:progress` events (max once per 500ms) and a
 	 *  final `device:sync:complete` event with the summary.
 	 */
-	syncBatchToDevice: (tracks: TrackSyncInfo[], destDir: string, jobId: string, expectedBytes: number, serverId: string | null) => typedError<SyncBatchResult, string>(__TAURI_INVOKE("sync_batch_to_device", { tracks, destDir, jobId, expectedBytes, serverId })),
+	syncBatchToDevice: (tracks: TrackSyncInfo[], destDir: string, jobId: string, expectedBytes: number, expectedDeviceId: string, planId: string, serverId: string | null) => typedError<SyncBatchResult, string>(__TAURI_INVOKE("sync_batch_to_device", { tracks, destDir, jobId, expectedBytes, expectedDeviceId, planId, serverId })),
 	/**  Signals a running `sync_batch_to_device` job to stop after its current tracks finish. */
 	cancelDeviceSync: (jobId: string) => __TAURI_INVOKE<void>("cancel_device_sync", { jobId }),
 	/**
@@ -368,25 +365,28 @@ export const commands = {
 	 *  Deletes a file from the device and prunes empty parent directories
 	 *  (up to 2 levels: album folder, then artist folder).
 	 */
-	deleteDeviceFile: (path: string) => typedError<null, string>(__TAURI_INVOKE("delete_device_file", { path })),
+	deleteDeviceFile: (destDir: string, path: string) => typedError<null, string>(__TAURI_INVOKE("delete_device_file", { destDir, path })),
 	/**
 	 *  Deletes multiple files from the device in one call and prunes empty parent
 	 *  directories. Returns the number of files successfully deleted.
 	 */
-	deleteDeviceFiles: (paths: string[]) => typedError<number, string>(__TAURI_INVOKE("delete_device_files", { paths })),
+	deleteDeviceFiles: (destDir: string, paths: string[]) => typedError<number, string>(__TAURI_INVOKE("delete_device_files", { destDir, paths })),
 	/**
 	 *  Returns all currently mounted removable drives.
 	 *  On Linux these are typically USB sticks / SD cards under /media or /run/media.
 	 *  On macOS they appear under /Volumes. On Windows they are separate drive letters.
 	 */
 	getRemovableDrives: () => __TAURI_INVOKE<RemovableDrive[]>("get_removable_drives"),
+	finalizeDeviceSync: (destDir: string, payload: DeviceSyncFinalizePayload) => typedError<DeviceSyncFinalizeResult, string>(__TAURI_INVOKE("finalize_device_sync", { destDir, payload })),
+	hasPendingDeviceSyncPlan: (destDir: string) => typedError<boolean, string>(__TAURI_INVOKE("has_pending_device_sync_plan", { destDir })),
+	pendingDeviceSyncPlanDeviceId: (destDir: string) => typedError<string | null, string>(__TAURI_INVOKE("pending_device_sync_plan_device_id", { destDir })),
+	deviceSyncDeviceId: (destDir: string) => typedError<string, string>(__TAURI_INVOKE("device_sync_device_id", { destDir })),
 	/**
 	 *  Writes an Extended-M3U playlist at `{dest_dir}/Playlists/{name}/{name}.m3u8`.
-	 *  References are sibling filenames (just `01 - Artist - Title.ext`) so the
-	 *  playlist is self-contained — moving/copying the folder anywhere keeps it
-	 *  working. Tracks are expected to be in playlist order (index starts at 1).
+	 *  Explicit references allow shared album-tree files; omitted references keep
+	 *  the legacy self-contained sibling-filename behavior.
 	 */
-	writePlaylistM3u8: (destDir: string, playlistName: string, playlistId: string | null, tracks: TrackSyncInfo[]) => typedError<null, string>(__TAURI_INVOKE("write_playlist_m3u8", { destDir, playlistName, playlistId, tracks })),
+	writePlaylistM3u8: (destDir: string, playlistName: string, playlistId: string | null, tracks: TrackSyncInfo[], references: string[] | null) => typedError<null, string>(__TAURI_INVOKE("write_playlist_m3u8", { destDir, playlistName, playlistId, tracks, references })),
 	/**
 	 *  Atomically renames files on the device from their old path to the new fixed-
 	 *  schema path. Intended for the migration flow when switching away from the
@@ -1058,6 +1058,53 @@ export type CustomHeaderEntryWire = {
 };
 
 export type CustomHeadersApplyTo = "local" | "public" | "both";
+
+export type DeviceSyncFinalizePayload = {
+	planId: string,
+	expectedDeviceId: string,
+	ownerServerIndexKey: string,
+	sources: DeviceSyncFinalizeSource[],
+	canonicalIdVersion: number | null,
+	layoutMode: string,
+	playlistPathMode: string,
+	files: DeviceSyncManifestFile[],
+	manifestPlaylists: DeviceSyncManifestPlaylist[],
+	playlists: DeviceSyncFinalizePlaylist[],
+	deferredDeletePaths: string[],
+};
+
+export type DeviceSyncFinalizePlaylist = {
+	name: string,
+	pathId: string | null,
+	tracks: TrackSyncInfo[],
+	references: string[],
+};
+
+export type DeviceSyncFinalizeResult = {
+	deleted: number,
+	cleanupFailed: boolean,
+};
+
+export type DeviceSyncFinalizeSource = {
+	type: string,
+	id: string,
+	name: string,
+	pathId: string | null,
+	serverIndexKey: string,
+	artist: string | null,
+};
+
+export type DeviceSyncManifestFile = {
+	trackId: string,
+	relativePath: string,
+	sourceKeys: string[],
+	sizeBytes: number,
+};
+
+export type DeviceSyncManifestPlaylist = {
+	sourceKey: string,
+	relativePath: string,
+};
 
 export type EndpointKind = "local" | "public";
 
@@ -1817,10 +1864,8 @@ export type TrackSyncInfo = {
 	/**  Duration in seconds — needed for Extended M3U (#EXTINF) playlist entries. */
 	duration?: number | null,
 	/**
-	 *  When set, the track belongs to a playlist source and is placed under
+	 *  When set, the self-contained layout places this track under
 	 *  `Playlists/{name}/` with `playlist_index` as its filename prefix.
-	 *  Same track synced from both an album and a playlist source ends up twice
-	 *  on the device — once in the album tree, once in the playlist folder.
 	 */
 	playlistName?: string | null,
 	/**  Stable source identity used to disambiguate playlists with the same display name. */

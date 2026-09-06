@@ -1,17 +1,95 @@
-use tauri::{Emitter, Manager};
-use std::io::Write;
-use std::sync::{Mutex, OnceLock};
+use std::sync::OnceLock;
 
-use crate::file_transfer::{
-    apply_server_http_get, finalize_streamed_download, subsonic_http_client,
-};
-
+pub mod download;
+mod finalize;
+mod identity;
+mod manifest;
 mod rename;
 
-use rename::{planned_path_stays_within, rename_pairs_within_root};
+#[cfg(test)]
+pub(crate) use download::sync_download_one_track;
+
+pub(crate) async fn device_sync_operation_guard() -> tokio::sync::MutexGuard<'static, ()> {
+    static LOCK: OnceLock<tokio::sync::Mutex<()>> = OnceLock::new();
+    LOCK.get_or_init(|| tokio::sync::Mutex::new(()))
+        .lock()
+        .await
+}
+
+pub(crate) fn path_contains_symlink(
+    root: &std::path::Path,
+    path: &std::path::Path,
+) -> Result<bool, String> {
+    let relative = path
+        .strip_prefix(root)
+        .map_err(|_| "DEVICE_SYNC_PATH_ESCAPES_ROOT".to_string())?;
+    let mut current = root.to_path_buf();
+    for component in relative.components() {
+        current.push(component);
+        match std::fs::symlink_metadata(&current) {
+            Ok(metadata) if metadata.file_type().is_symlink() => return Ok(true),
+            Ok(_) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => break,
+            Err(error) => return Err(error.to_string()),
+        }
+    }
+    Ok(false)
+}
+
+pub use finalize::{
+    DeviceSyncFinalizePayload, DeviceSyncFinalizePlaylist, DeviceSyncFinalizeResult,
+    DeviceSyncFinalizeSource,
+};
+pub(crate) use identity::{ensure_device_identity, validate_device_identity};
+pub use manifest::write_device_manifest_for_migration;
+#[cfg(test)]
+use manifest::write_device_manifest_payload;
+use manifest::DeviceManifestWrite;
+pub(crate) use manifest::{replace_device_text_file, sync_device_directory};
+use rename::rename_pairs_within_root;
 pub use rename::RenameResult;
+pub(crate) use rename::{planned_path_stays_within, resolve_within_root};
 
 // ─── Device Sync ─────────────────────────────────────────────────────────────
+
+#[tauri::command]
+#[specta::specta]
+pub async fn finalize_device_sync(
+    dest_dir: String,
+    payload: DeviceSyncFinalizePayload,
+) -> Result<DeviceSyncFinalizeResult, String> {
+    let _device_sync_guard = device_sync_operation_guard().await;
+    let _filesystem_write_guard = crate::filesystem_write_guard().await?;
+    finalize::finalize_device_sync_impl(std::path::Path::new(&dest_dir), payload)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn has_pending_device_sync_plan(dest_dir: String) -> Result<bool, String> {
+    let _device_sync_guard = device_sync_operation_guard().await;
+    let root = std::path::Path::new(&dest_dir);
+    ensure_mounted_target(root)?;
+    crate::sync::batch::plan::has_active_device_sync_plan(root)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn pending_device_sync_plan_device_id(
+    dest_dir: String,
+) -> Result<Option<String>, String> {
+    let _device_sync_guard = device_sync_operation_guard().await;
+    let root = std::path::Path::new(&dest_dir);
+    ensure_mounted_target(root)?;
+    crate::sync::batch::plan::active_device_sync_plan_device_id(root)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn device_sync_device_id(dest_dir: String) -> Result<String, String> {
+    let _device_sync_guard = device_sync_operation_guard().await;
+    let _filesystem_write_guard = crate::filesystem_write_guard().await?;
+    ensure_device_identity(std::path::Path::new(&dest_dir))
+}
 
 /// Information about a single mounted removable drive.
 #[derive(Clone, serde::Serialize, specta::Type)]
@@ -51,150 +129,37 @@ pub fn get_removable_drives() -> Vec<RemovableDrive> {
 /// The file records which sources (albums/playlists/artists) are synced to this
 /// device so that another machine can pick them up without relying on localStorage.
 #[tauri::command]
+#[allow(clippy::too_many_arguments)] // Tauri IPC fields map directly to the frontend payload.
 pub async fn write_device_manifest(
     dest_dir: String,
     owner_server_index_key: String,
     sources: serde_json::Value,
     canonical_id_version: Option<u8>,
+    layout_mode: Option<String>,
+    playlist_path_mode: Option<String>,
+    files: Option<serde_json::Value>,
+    playlists: Option<serde_json::Value>,
 ) -> Result<(), String> {
+    let _device_sync_guard = device_sync_operation_guard().await;
     let _filesystem_write_guard = crate::filesystem_write_guard().await?;
     ensure_mounted_target(std::path::Path::new(&dest_dir))?;
-    write_device_manifest_for_migration(
+    manifest::write_device_manifest_payload(DeviceManifestWrite {
         dest_dir,
         owner_server_index_key,
         sources,
         canonical_id_version,
-    )
-}
-
-/// Migration-only manifest writer. The caller must own the active filesystem generation.
-pub fn write_device_manifest_for_migration(
-    dest_dir: String,
-    owner_server_index_key: String,
-    sources: serde_json::Value,
-    canonical_id_version: Option<u8>,
-) -> Result<(), String> {
-    if owner_server_index_key.trim().is_empty() {
-        return Err("DEVICE_SYNC_SERVER_OWNER_MISSING".to_string());
-    }
-    let source_list = sources
-        .as_array()
-        .ok_or_else(|| "DEVICE_SYNC_SOURCES_INVALID".to_string())?;
-    if source_list.iter().any(|source| {
-        source
-            .get("serverIndexKey")
-            .and_then(|value| value.as_str())
-            != Some(owner_server_index_key.as_str())
-    }) {
-        return Err("DEVICE_SYNC_SERVER_OWNER_MISMATCH".to_string());
-    }
-    let root = std::path::Path::new(&dest_dir);
-    let path = root.join("psysonic-sync.json");
-    // Manifest v3 pins raw Subsonic IDs to one durable URL-derived server owner.
-    let mut payload = serde_json::json!({
-        "version": 3,
-        "schema": "fixed-v1",
-        "ownerServerIndexKey": owner_server_index_key,
-        "sources": sources
-    });
-    if let Some(version) = canonical_id_version {
-        payload["canonicalIdVersion"] = serde_json::json!(version);
-    }
-    let json = serde_json::to_string_pretty(&payload).map_err(|e| e.to_string())?;
-    replace_device_text_file(root, &path, json.as_bytes())
-}
-
-fn device_metadata_write_lock() -> &'static Mutex<()> {
-    static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
-    LOCK.get_or_init(|| Mutex::new(()))
-}
-
-fn device_metadata_temp_counter() -> &'static std::sync::atomic::AtomicU64 {
-    static COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
-    &COUNTER
-}
-
-fn replace_device_text_file(
-    root: &std::path::Path,
-    path: &std::path::Path,
-    contents: &[u8],
-) -> Result<(), String> {
-    if !root.is_dir() {
-        return Err("VOLUME_NOT_FOUND".to_string());
-    }
-    let parent = path
-        .parent()
-        .ok_or_else(|| "DEVICE_SYNC_PATH_INVALID".to_string())?;
-    match planned_path_stays_within(root, path) {
-        Ok(true) => {}
-        Ok(false) => return Err("DEVICE_SYNC_PATH_ESCAPES_ROOT".to_string()),
-        Err(error) => return Err(error.to_string()),
-    }
-
-    let _write_guard = device_metadata_write_lock()
-        .lock()
-        .map_err(|_| "device metadata write lock poisoned".to_string())?;
-    std::fs::create_dir_all(parent).map_err(|error| error.to_string())?;
-    match planned_path_stays_within(root, path) {
-        Ok(true) => {}
-        Ok(false) => return Err("DEVICE_SYNC_PATH_ESCAPES_ROOT".to_string()),
-        Err(error) => return Err(error.to_string()),
-    }
-
-    let sequence = device_metadata_temp_counter()
-        .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-    let temporary = parent.join(format!(
-        ".psysonic-write.{}.{}.tmp",
-        std::process::id(),
-        sequence,
-    ));
-    let backup = parent.join(format!(
-        ".psysonic-write.{}.{}.backup",
-        std::process::id(),
-        sequence,
-    ));
-    let write_result = (|| -> Result<(), String> {
-        let mut file = std::fs::OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .open(&temporary)
-            .map_err(|error| error.to_string())?;
-        file.write_all(contents).map_err(|error| error.to_string())?;
-        file.sync_all().map_err(|error| error.to_string())?;
-
-        match std::fs::rename(&temporary, path) {
-            Ok(()) => Ok(()),
-            Err(error) if path.exists() => {
-                std::fs::rename(path, &backup).map_err(|backup_error| {
-                    format!("{error}; could not preserve old device metadata: {backup_error}")
-                })?;
-                if let Err(replace_error) = std::fs::rename(&temporary, path) {
-                    let rollback = std::fs::rename(&backup, path);
-                    return match rollback {
-                        Ok(()) => Err(replace_error.to_string()),
-                        Err(rollback_error) => Err(format!(
-                            "device metadata replacement failed: {replace_error}; rollback failed: {rollback_error}"
-                        )),
-                    };
-                }
-                std::fs::remove_file(&backup).map_err(|error| error.to_string())
-            }
-            Err(error) => Err(error.to_string()),
-        }
-    })();
-    if write_result.is_err() {
-        let _ = std::fs::remove_file(&temporary);
-    }
-    write_result
+        layout_mode,
+        playlist_path_mode,
+        files,
+        playlists,
+    })
 }
 
 /// Reads `psysonic-sync.json` from the target directory.
 /// Returns the parsed JSON value, or null if the file doesn't exist.
 #[tauri::command]
 pub fn read_device_manifest(dest_dir: String) -> Option<serde_json::Value> {
-    let path = std::path::Path::new(&dest_dir).join("psysonic-sync.json");
-    let content = std::fs::read_to_string(&path).ok()?;
-    serde_json::from_str(&content).ok()
+    manifest::read_device_manifest(dest_dir)
 }
 
 /// Atomically renames files on the device from their old path to the new fixed-
@@ -209,10 +174,11 @@ pub fn read_device_manifest(dest_dir: String) -> Option<serde_json::Value> {
 /// is atomic, so nothing can be half-renamed.
 #[tauri::command]
 #[specta::specta]
-pub fn rename_device_files(
+pub async fn rename_device_files(
     target_dir: String,
     pairs: Vec<(String, String)>,
 ) -> Result<Vec<RenameResult>, String> {
+    let _device_sync_guard = device_sync_operation_guard().await;
     let root = std::path::PathBuf::from(&target_dir);
     if !root.exists() {
         return Err("VOLUME_NOT_FOUND".to_string());
@@ -224,32 +190,46 @@ pub fn rename_device_files(
 }
 
 /// Writes an Extended-M3U playlist at `{dest_dir}/Playlists/{name}/{name}.m3u8`.
-/// References are sibling filenames (just `01 - Artist - Title.ext`) so the
-/// playlist is self-contained — moving/copying the folder anywhere keeps it
-/// working. Tracks are expected to be in playlist order (index starts at 1).
+/// Explicit references allow shared album-tree files; omitted references keep
+/// the legacy self-contained sibling-filename behavior.
 #[tauri::command]
 #[specta::specta]
-pub fn write_playlist_m3u8(
+pub async fn write_playlist_m3u8(
     dest_dir: String,
     playlist_name: String,
     playlist_id: Option<String>,
     tracks: Vec<TrackSyncInfo>,
+    references: Option<Vec<String>>,
 ) -> Result<(), String> {
+    let _device_sync_guard = device_sync_operation_guard().await;
     let _filesystem_write_guard = crate::filesystem_write_guard_now()?;
     let root = std::path::Path::new(&dest_dir);
     ensure_mounted_target(root)?;
-    write_playlist_m3u8_within_root(root, &playlist_name, playlist_id.as_deref(), &tracks)
+    write_playlist_m3u8_within_root(
+        root,
+        &playlist_name,
+        playlist_id.as_deref(),
+        &tracks,
+        references.as_deref(),
+    )
 }
 
-fn write_playlist_m3u8_within_root(
+pub(super) fn write_playlist_m3u8_within_root(
     root: &std::path::Path,
     playlist_name: &str,
     playlist_id: Option<&str>,
     tracks: &[TrackSyncInfo],
+    references: Option<&[String]>,
 ) -> Result<(), String> {
+    if references.is_some_and(|values| values.len() != tracks.len()) {
+        return Err("DEVICE_SYNC_PLAYLIST_REFERENCES_INVALID".to_string());
+    }
     let directory_name = playlist_directory_name(playlist_name, playlist_id);
     let playlist_dir = root.join("Playlists").join(&directory_name);
     let file_path = playlist_dir.join(format!("{}.m3u8", directory_name));
+    if path_contains_symlink(root, &file_path)? {
+        return Err("DEVICE_SYNC_PATH_ESCAPES_ROOT".to_string());
+    }
 
     let mut body = String::from("#EXTM3U\n");
     for (i, track) in tracks.iter().enumerate() {
@@ -267,13 +247,22 @@ fn write_playlist_m3u8_within_root(
             display_artist.trim(),
             title
         ));
-        // Sibling filename — same shape as build_track_path's playlist branch.
-        let artist_safe = sanitize_or(display_artist, "Unknown Artist");
-        let title_safe = sanitize_or(title, "Unknown Title");
-        body.push_str(&format!(
-            "{:02} - {} - {}.{}\n",
-            idx, artist_safe, title_safe, track.suffix
-        ));
+        let reference = references
+            .and_then(|values| values.get(i))
+            .cloned()
+            .unwrap_or_else(|| {
+                let artist_safe = sanitize_or(display_artist, "Unknown Artist");
+                let title_safe = sanitize_or(title, "Unknown Title");
+                format!(
+                    "{:02} - {} - {}.{}",
+                    idx, artist_safe, title_safe, track.suffix
+                )
+            });
+        if reference.contains(['\r', '\n']) {
+            return Err("DEVICE_SYNC_PLAYLIST_REFERENCE_INVALID".to_string());
+        }
+        body.push_str(&reference);
+        body.push('\n');
     }
     replace_device_text_file(root, &file_path, body.as_bytes())
 }
@@ -312,7 +301,7 @@ pub fn is_path_on_mounted_volume(path: &std::path::Path) -> bool {
     best_len > 0
 }
 
-fn ensure_mounted_target(path: &std::path::Path) -> Result<(), String> {
+pub(super) fn ensure_mounted_target(path: &std::path::Path) -> Result<(), String> {
     if !path.is_dir() {
         return Err("VOLUME_NOT_FOUND".to_string());
     }
@@ -326,7 +315,7 @@ fn path_is_within_mount(path: &std::path::Path, mount_point: &std::path::Path) -
     path.starts_with(mount_point)
 }
 
-#[derive(serde::Deserialize, Clone, specta::Type)]
+#[derive(serde::Deserialize, serde::Serialize, Clone, specta::Type)]
 pub struct TrackSyncInfo {
     pub id: String,
     pub url: String,
@@ -345,10 +334,8 @@ pub struct TrackSyncInfo {
     /// Duration in seconds — needed for Extended M3U (#EXTINF) playlist entries.
     #[serde(default)]
     pub duration: Option<u32>,
-    /// When set, the track belongs to a playlist source and is placed under
+    /// When set, the self-contained layout places this track under
     /// `Playlists/{name}/` with `playlist_index` as its filename prefix.
-    /// Same track synced from both an album and a playlist source ends up twice
-    /// on the device — once in the album tree, once in the playlist folder.
     #[serde(default, rename = "playlistName")]
     pub playlist_name: Option<String>,
     /// Stable source identity used to disambiguate playlists with the same display name.
@@ -402,7 +389,7 @@ pub fn sanitize_or(s: &str, fallback: &str) -> String {
     }
 }
 
-fn playlist_directory_name(name: &str, playlist_id: Option<&str>) -> String {
+pub(crate) fn playlist_directory_name(name: &str, playlist_id: Option<&str>) -> String {
     let safe_name = sanitize_or(name, "Unnamed Playlist");
     match playlist_id.filter(|id| !id.trim().is_empty()) {
         Some(id) => {
@@ -444,108 +431,6 @@ pub fn build_track_path(track: &TrackSyncInfo) -> String {
     #[cfg(target_os = "windows")]
     let relative = relative.replace('/', "\\");
     relative
-}
-
-/// AppHandle-free download primitive used by [`sync_track_to_device`]. Streams
-/// the response body to `dest_path` (via a `.part` file) when the file isn't
-/// already there.
-///
-/// Returns:
-/// - `Ok(false)` — pre-existing file, skipped.
-/// - `Ok(true)` — fresh download landed at `dest_path`.
-/// - `Err(_)` — HTTP non-success or stream/rename failure.
-pub(crate) async fn sync_download_one_track(
-    dest_path: &std::path::Path,
-    suffix: &str,
-    url: &str,
-    client: &reqwest::Client,
-    registry: Option<&psysonic_core::server_http::ServerHttpRegistry>,
-    server_ref: Option<&str>,
-) -> Result<bool, String> {
-    if dest_path.exists() {
-        return Ok(false);
-    }
-    if let Some(parent) = dest_path.parent() {
-        tokio::fs::create_dir_all(parent)
-            .await
-            .map_err(|e| e.to_string())?;
-    }
-    let response = apply_server_http_get(client, registry, server_ref, url)
-        .send()
-        .await
-        .map_err(|e| e.to_string())?;
-    if !response.status().is_success() {
-        return Err(format!("HTTP {}", response.status().as_u16()));
-    }
-    let part_path = dest_path.with_extension(format!("{}.part", suffix));
-    finalize_streamed_download(response, dest_path, &part_path, None).await?;
-    Ok(true)
-}
-
-/// Downloads a single track to a USB/SD device using the configured filename template.
-/// Emits `device:sync:progress` events with `{ jobId, trackId, status, path? }`.
-#[tauri::command]
-#[specta::specta]
-pub async fn sync_track_to_device(
-    track: TrackSyncInfo,
-    dest_dir: String,
-    job_id: String,
-    app: tauri::AppHandle,
-) -> Result<SyncTrackResult, String> {
-    let _filesystem_write_guard = crate::filesystem_write_guard().await?;
-    let relative = build_track_path(&track);
-    let file_name = format!("{}.{}", relative, track.suffix);
-    let dest_path = std::path::Path::new(&dest_dir).join(&file_name);
-    let path_str = dest_path.to_string_lossy().to_string();
-
-    let client = subsonic_http_client(std::time::Duration::from_secs(300))?;
-    let http_registry = app
-        .try_state::<std::sync::Arc<psysonic_core::server_http::ServerHttpRegistry>>()
-        .map(|s| std::sync::Arc::clone(&*s));
-    match sync_download_one_track(
-        &dest_path,
-        &track.suffix,
-        &track.url,
-        &client,
-        http_registry.as_deref(),
-        None,
-    )
-    .await
-    {
-        Ok(false) => {
-            let _ = app.emit(
-                "device:sync:progress",
-                serde_json::json!({
-                    "jobId": job_id, "trackId": track.id, "status": "skipped", "path": path_str,
-                }),
-            );
-            Ok(SyncTrackResult {
-                path: path_str,
-                skipped: true,
-            })
-        }
-        Ok(true) => {
-            let _ = app.emit(
-                "device:sync:progress",
-                serde_json::json!({
-                    "jobId": job_id, "trackId": track.id, "status": "done", "path": path_str,
-                }),
-            );
-            Ok(SyncTrackResult {
-                path: path_str,
-                skipped: false,
-            })
-        }
-        Err(e) => {
-            let _ = app.emit(
-                "device:sync:progress",
-                serde_json::json!({
-                    "jobId": job_id, "trackId": track.id, "status": "error", "error": e,
-                }),
-            );
-            Err(e)
-        }
-    }
 }
 
 /// Computes the expected file paths for a batch of tracks under the fixed schema.

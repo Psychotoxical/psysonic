@@ -4,12 +4,14 @@
  * Result-wrapped ones re-throw on error so the call sites keep their existing
  * reject semantics.
  *
- * `calculate_sync_payload` / `write_device_manifest` / `write_playlist_m3u8`
- * stay on raw `invoke` (untypeable — `serde_json::Value` in their signatures).
+ * `calculate_sync_payload` / `write_device_manifest` stay on raw `invoke`
+ * because their signatures still carry `serde_json::Value`.
  */
 import { commands } from '@/generated/bindings';
 import type {
   LegacyOfflineMigrationResult,
+  DeviceSyncFinalizePayload,
+  DeviceSyncFinalizeResult,
   LibraryTierDiskHit,
   RemovableDrive,
   SyncBatchResult,
@@ -34,8 +36,8 @@ export async function listDeviceDirFiles(args: { dir: string }): Promise<string[
   return res.data;
 }
 
-export async function deleteDeviceFiles(args: { paths: string[] }): Promise<number> {
-  const res = await commands.deleteDeviceFiles(args.paths);
+export async function deleteDeviceFiles(args: { destDir: string; paths: string[] }): Promise<number> {
+  const res = await commands.deleteDeviceFiles(args.destDir, args.paths);
   if (res.status === 'error') throw new Error(res.error);
   return res.data;
 }
@@ -45,6 +47,8 @@ export async function syncBatchToDevice(args: {
   destDir: string;
   jobId: string;
   expectedBytes: number;
+  expectedDeviceId: string;
+  planId: string;
   serverId: string;
 }): Promise<SyncBatchResult> {
   const res = await commands.syncBatchToDevice(
@@ -52,10 +56,56 @@ export async function syncBatchToDevice(args: {
     args.destDir,
     args.jobId,
     args.expectedBytes,
+    args.expectedDeviceId,
+    args.planId,
     args.serverId,
   );
   if (res.status === 'error') throw new Error(res.error);
   return res.data;
+}
+
+export async function finalizeDeviceSync(args: {
+  destDir: string;
+  payload: DeviceSyncFinalizePayload;
+}): Promise<DeviceSyncFinalizeResult> {
+  const res = await commands.finalizeDeviceSync(args.destDir, args.payload);
+  if (res.status === 'error') throw new Error(res.error);
+  return res.data;
+}
+
+export async function hasPendingDeviceSyncPlan(args: { destDir: string }): Promise<boolean> {
+  const res = await commands.hasPendingDeviceSyncPlan(args.destDir);
+  if (res.status === 'error') throw new Error(res.error);
+  return res.data;
+}
+
+export async function pendingDeviceSyncPlanDeviceId(args: { destDir: string }): Promise<string | null> {
+  const res = await commands.pendingDeviceSyncPlanDeviceId(args.destDir);
+  if (res.status === 'error') throw new Error(res.error);
+  return res.data;
+}
+
+export async function deviceSyncDeviceId(args: { destDir: string }): Promise<string> {
+  const res = await commands.deviceSyncDeviceId(args.destDir);
+  if (res.status === 'error') throw new Error(res.error);
+  return res.data;
+}
+
+export async function writePlaylistM3u8(args: {
+  destDir: string;
+  playlistName: string;
+  playlistId: string | null;
+  tracks: TrackSyncInfo[];
+  references: string[] | null;
+}): Promise<void> {
+  const res = await commands.writePlaylistM3u8(
+    args.destDir,
+    args.playlistName,
+    args.playlistId,
+    args.tracks,
+    args.references,
+  );
+  if (res.status === 'error') throw new Error(res.error);
 }
 
 // --- media-tier / offline-cache (same syncfs crate) ---

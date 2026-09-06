@@ -640,6 +640,23 @@ function rewriteDeviceSyncState(
     }
     state.sources = [...sources.values()];
   }
+  if (Array.isArray(state.pendingDeletion)) {
+    state.pendingDeletion = [...new Set(state.pendingDeletion.map(value => {
+      if (typeof value !== 'string') return value;
+      try {
+        const key = JSON.parse(value) as unknown;
+        if (!Array.isArray(key) || key.length !== 3 || key.some(part => typeof part !== 'string')) {
+          return value;
+        }
+        const owner = resolveOwnerServerIndexKey(key[0], scope);
+        return owner === scope.serverIndexKey
+          ? JSON.stringify([scope.serverIndexKey, key[1], canonicalNavidromeId(key[2])])
+          : value;
+      } catch {
+        return value;
+      }
+    }))];
+  }
   writeJson(storage, DEVICE_SYNC_KEY, { ...root, state });
 }
 

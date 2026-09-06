@@ -129,6 +129,7 @@ describe('rewriteNavidromeCanonicalFrontendState', () => {
         { type: 'album', id: CANONICAL, name: '', note: 'canonical metadata', serverIndexKey: 'music.test' },
         { type: 'playlist', id: PLAYLIST_LEGACY, name: 'Playlist', serverIndexKey: 'profile-a' },
       ],
+      pendingDeletion: [JSON.stringify(['profile-a', 'playlist', PLAYLIST_LEGACY])],
       legacySources: [{ type: 'artist', id: LEGACY, name: 'Unassigned' }],
     }, 2));
     localStorage.setItem('psysonic_playlists_recent', persisted({
@@ -222,6 +223,9 @@ describe('rewriteNavidromeCanonicalFrontendState', () => {
     expect(device.sources[1]).toMatchObject({
       type: 'playlist', id: PLAYLIST_CANONICAL, serverIndexKey: 'music.test',
     });
+    expect(device.pendingDeletion).toEqual([
+      JSON.stringify(['music.test', 'playlist', PLAYLIST_CANONICAL]),
+    ]);
     expect(device.legacySources[0].id).toBe(LEGACY);
     const playlists = JSON.parse(localStorage.getItem('psysonic_playlists_recent') ?? '{}').state;
     expect(playlists.playlists[0]).toMatchObject({

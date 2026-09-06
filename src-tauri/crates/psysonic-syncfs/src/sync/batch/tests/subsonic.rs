@@ -10,6 +10,20 @@ fn parse_returns_err_when_subsonic_response_missing() {
 }
 
 #[test]
+fn parse_returns_err_for_subsonic_failure_response() {
+    let json = serde_json::json!({
+        "subsonic-response": {
+            "status": "failed",
+            "error": { "code": 70, "message": "Album not found" }
+        }
+    });
+    assert_eq!(
+        parse_subsonic_songs(&json, "getAlbum.view"),
+        Err("Album not found".to_string())
+    );
+}
+
+#[test]
 fn parse_returns_empty_for_unknown_endpoint() {
     let json = serde_json::json!({
         "subsonic-response": { "status": "ok" }

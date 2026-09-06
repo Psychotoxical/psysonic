@@ -12,7 +12,7 @@
 ///   would reach across the network.
 ///
 /// Only `Normal` components — and `.`, which goes nowhere — are accepted.
-pub(super) fn resolve_within_root(root: &std::path::Path, rel: &str) -> Option<std::path::PathBuf> {
+pub(crate) fn resolve_within_root(root: &std::path::Path, rel: &str) -> Option<std::path::PathBuf> {
     use std::path::Component;
     if rel.trim().is_empty() {
         return None;
@@ -51,7 +51,7 @@ fn resolved_path_stays_within(
 /// there. Checking only after `create_dir_all` is too late — the directories
 /// would already exist, outside the root, which is half of what this guards
 /// against even when the rename itself is then refused.
-pub(super) fn planned_path_stays_within(
+pub(crate) fn planned_path_stays_within(
     root: &std::path::Path,
     path: &std::path::Path,
 ) -> std::io::Result<bool> {

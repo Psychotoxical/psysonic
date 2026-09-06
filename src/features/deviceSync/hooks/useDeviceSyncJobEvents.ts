@@ -1,18 +1,33 @@
 import { useEffect } from 'react';
-import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
-import type { TFunction } from 'i18next';
+import i18n from '@/lib/i18n';
+import { listDeviceDirFiles } from '@/lib/api/syncfs';
 import { useDeviceSyncJobStore } from '@/features/deviceSync/store/deviceSyncJobStore';
 import { useDeviceSyncStore } from '@/features/deviceSync/store/deviceSyncStore';
 import { showToast } from '@/lib/dom/toast';
-import { playlistPathId, trackToSyncInfo } from '@/features/deviceSync/utils/deviceSyncHelpers';
-import { fetchTracksForSource } from '@/features/playback/utils/playback/fetchTracksForSource';
-import { writeDeviceSyncManifest } from '@/features/deviceSync/utils/deviceSyncManifest';
+import { finalizeDeviceSyncJob } from '@/features/deviceSync/utils/finalizeDeviceSyncJob';
 
-export function useDeviceSyncJobEvents(
-  t: TFunction,
-  scanDevice: () => Promise<void>,
-): void {
+async function scanCompletedTarget(targetDir: string): Promise<void> {
+  const store = useDeviceSyncStore.getState();
+  if (store.targetDir !== targetDir) return;
+  store.setScanning(true);
+  try {
+    const paths = await listDeviceDirFiles({ dir: targetDir });
+    if (useDeviceSyncStore.getState().targetDir === targetDir) {
+      useDeviceSyncStore.getState().setDeviceFilePaths(paths);
+    }
+  } catch {
+    if (useDeviceSyncStore.getState().targetDir === targetDir) {
+      useDeviceSyncStore.getState().setDeviceFilePaths([]);
+    }
+  } finally {
+    if (useDeviceSyncStore.getState().targetDir === targetDir) {
+      useDeviceSyncStore.getState().setScanning(false);
+    }
+  }
+}
+
+export function useDeviceSyncJobEvents(): void {
   useEffect(() => {
     const jobStore = useDeviceSyncJobStore.getState;
     const unlistenProgress = listen<{
@@ -31,55 +46,37 @@ export function useDeviceSyncJobEvents(
     }>('device:sync:complete', ({ payload }) => {
       const current = jobStore();
       if (current.jobId && payload.jobId === current.jobId) {
+        const context = current.context;
         if (payload.cancelled) {
-          useDeviceSyncJobStore.getState().complete(payload.done, payload.skipped, payload.failed);
-          // status is already 'cancelled' from the button click; complete() would overwrite it — restore it
-          useDeviceSyncJobStore.getState().cancel();
+          useDeviceSyncJobStore.getState().completeCancelled(payload.done, payload.skipped, payload.failed);
+        } else if (payload.failed > 0 || !context) {
+          useDeviceSyncJobStore.getState().fail(payload.done, payload.skipped, payload.failed || 1);
+          showToast(i18n.t('deviceSync.syncResult', {
+            done: payload.done, skipped: payload.skipped, total: payload.total,
+          }), 5000, 'info');
         } else {
-          useDeviceSyncJobStore.getState().complete(payload.done, payload.skipped, payload.failed);
-          showToast(
-            t('deviceSync.syncResult', {
-              done: payload.done, skipped: payload.skipped, total: payload.total
-            }),
-            5000, 'info'
-          );
-          // Write manifest so another machine can read the synced sources from the stick
-          const context = current.context;
-          if (context) {
-            const { targetDir: dir, sources: srcs, serverIndexKey } = context;
-            writeDeviceSyncManifest({
-              destDir: dir,
-              ownerServerIndexKey: serverIndexKey,
-              sources: srcs,
-            }).catch(() => {});
-            // For every playlist source, write an Extended-M3U next to the
-            // playlist-folder tracks. Context carries the playlist name +
-            // per-track index so the filenames match the files we just synced.
-            const playlistSources = srcs.filter(s => s.type === 'playlist');
-            playlistSources.forEach(async playlist => {
-              try {
-                const tracks = await fetchTracksForSource(playlist);
-                await invoke('write_playlist_m3u8', {
-                  destDir: dir,
-                  playlistName: playlist.name,
-                  playlistId: playlistPathId(playlist, srcs),
-                  tracks: tracks.map((tr, idx) => trackToSyncInfo(
-                    tr,
-                    '',
-                    {
-                      id: playlistPathId(playlist, srcs),
-                      name: playlist.name,
-                      index: idx + 1,
-                    },
-                  )),
-                });
-              } catch { /* m3u8 failure is non-fatal — skip silently */ }
-            });
-          }
+          useDeviceSyncJobStore.getState().beginFinalizing();
+          void (async () => {
+            try {
+              await finalizeDeviceSyncJob(context);
+              useDeviceSyncJobStore.getState().complete(payload.done, payload.skipped, payload.failed);
+              showToast(i18n.t('deviceSync.syncResult', {
+                done: payload.done, skipped: payload.skipped, total: payload.total,
+              }), 5000, 'info');
+            } catch {
+              useDeviceSyncJobStore.getState().fail(payload.done, payload.skipped, 1);
+              showToast(i18n.t('deviceSync.fetchError'), 3000, 'error');
+            } finally {
+              if (useDeviceSyncStore.getState().targetDir === context.targetDir) {
+                await scanCompletedTarget(context.targetDir);
+              }
+            }
+          })();
+          return;
         }
         // Re-scan the device after sync completes (cancelled or not)
-        if (useDeviceSyncStore.getState().targetDir === current.context?.targetDir) {
-          scanDevice();
+        if (useDeviceSyncStore.getState().targetDir === context?.targetDir) {
+          void scanCompletedTarget(context.targetDir);
         }
       }
     });
@@ -88,5 +85,5 @@ export function useDeviceSyncJobEvents(
       unlistenProgress.then(f => f());
       unlistenComplete.then(f => f());
     };
-  }, [t, scanDevice]);
+  }, []);
 }
