@@ -106,10 +106,14 @@ windows = { version = "0.62", features = [
     "Win32_UI_WindowsAndMessaging",
 ] }
 
+# Experimental diagnostic for #1466. Pin the minimal Rodio 0.22.2
+# compatibility patch until an upstream release supports CPAL 0.18.
+[patch.crates-io]
+rodio = { git = "https://github.com/cucadmuh/rodio.git", rev = "28aec9140622abf452cf3703669cb8a5dda129e9" }
+
 # NOTE: The local `symphonia-format-isomp4` path patch (0.5-based) was removed for
 # the Symphonia 0.6 migration. Symphonia 0.6 upstream already covers the esds
 # missing-descriptor and SL predefined=null fixes. The malformed-trak skip and
 # moov-at-end tail scan are validated against the fixture corpus on stock 0.6; if a
 # case regresses, re-create the patch from the 0.6 isomp4 source and re-add the
 # [patch.crates-io] entry here. See workdocs task 2026-05-symphonia-0.6-migration.
-
