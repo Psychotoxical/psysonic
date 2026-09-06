@@ -7,6 +7,7 @@ mod connection;
 mod filesystem;
 mod lifecycle;
 mod migrations;
+mod native_strong_keys_reconcile;
 mod open;
 mod reconciles;
 mod track_timestamp_reconcile;
@@ -29,6 +30,9 @@ pub(crate) use migrations::{
 };
 pub use migrations::{LIBRARY_DB_MIN_COMPATIBLE_VERSION, LIBRARY_DB_SCHEMA_VERSION};
 pub use track_timestamp_reconcile::TrackTimestampBackfillStep;
+/// Every idle-scheduler backfill reports the same three steps; the timestamp
+/// name above stays for its existing callers.
+pub use track_timestamp_reconcile::TrackTimestampBackfillStep as LibraryBackfillStep;
 #[allow(unused_imports)]
 pub(crate) use reconciles::{
     ARTIST_NAME_FOLD_RECONCILE_ID, ARTIST_NAME_SORT_RECONCILE_ID,

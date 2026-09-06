@@ -8,7 +8,7 @@ use tauri::{Emitter, Manager};
 const MAX_BACKGROUND_SCHEDULER_CONCURRENCY: usize = 2;
 const BACKGROUND_SCHEDULER_TICK_TIMEOUT: Duration = Duration::from_secs(120);
 
-fn timestamp_repair_is_allowed(runtime: &psysonic_library::LibraryRuntime) -> bool {
+fn background_repair_is_allowed(runtime: &psysonic_library::LibraryRuntime) -> bool {
     use psysonic_library::sync::bandwidth::PlaybackHint;
     use std::sync::atomic::Ordering;
 
@@ -18,37 +18,39 @@ fn timestamp_repair_is_allowed(runtime: &psysonic_library::LibraryRuntime) -> bo
         && runtime.ensure_ordinary_sync_activity_allowed().is_ok()
 }
 
-async fn run_timestamp_repair_batch_if_idle_with<F>(
+async fn run_background_repair_batch_if_idle_with<F>(
     runtime: &psysonic_library::LibraryRuntime,
+    label: &'static str,
     run_batch: F,
 ) where
     F: FnOnce(
             Arc<psysonic_library::LibraryStore>,
-        ) -> Result<psysonic_library::store::TrackTimestampBackfillStep, String>
+        ) -> Result<psysonic_library::store::LibraryBackfillStep, String>
         + Send
         + 'static,
 {
-    if !timestamp_repair_is_allowed(runtime) {
+    if !background_repair_is_allowed(runtime) {
         return;
     }
 
-    run_timestamp_repair_batch_after_initial_check(runtime, run_batch).await;
+    run_background_repair_batch_after_initial_check(runtime, label, run_batch).await;
 }
 
-async fn run_timestamp_repair_batch_after_initial_check<F>(
+async fn run_background_repair_batch_after_initial_check<F>(
     runtime: &psysonic_library::LibraryRuntime,
+    label: &'static str,
     run_batch: F,
 ) where
     F: FnOnce(
             Arc<psysonic_library::LibraryStore>,
-        ) -> Result<psysonic_library::store::TrackTimestampBackfillStep, String>
+        ) -> Result<psysonic_library::store::LibraryBackfillStep, String>
         + Send
         + 'static,
 {
-    use psysonic_library::store::TrackTimestampBackfillStep;
+    use psysonic_library::store::LibraryBackfillStep;
 
     let sync_activity = runtime.sync_activity_guard().await;
-    if !timestamp_repair_is_allowed(runtime) {
+    if !background_repair_is_allowed(runtime) {
         return;
     }
 
@@ -62,32 +64,39 @@ async fn run_timestamp_repair_batch_after_initial_check<F>(
     })
     .await
     {
-        Ok(Ok(TrackTimestampBackfillStep::Deferred | TrackTimestampBackfillStep::Pending)) => {}
-        Ok(Ok(TrackTimestampBackfillStep::Complete)) => {}
+        Ok(Ok(LibraryBackfillStep::Deferred | LibraryBackfillStep::Pending)) => {}
+        Ok(Ok(LibraryBackfillStep::Complete)) => {}
         Ok(Err(error)) => {
-            crate::app_eprintln!("[library-db] background timestamp repair failed: {error}");
+            crate::app_eprintln!("[library-db] background {label} failed: {error}");
         }
         Err(error) => {
-            crate::app_eprintln!("[library-db] background timestamp repair task failed: {error}");
+            crate::app_eprintln!("[library-db] background {label} task failed: {error}");
         }
     }
 }
 
-async fn run_timestamp_repair_batch_if_idle(runtime: &psysonic_library::LibraryRuntime) {
-    run_timestamp_repair_batch_if_idle_with(runtime, |store| {
+/// The idle-only repairs run one bounded batch each per scheduler tick, in a
+/// fixed order, so they never compete for the same tick's write lock. Each
+/// returns immediately once its completion marker is set.
+async fn run_background_repairs_if_idle(runtime: &psysonic_library::LibraryRuntime) {
+    run_background_repair_batch_if_idle_with(runtime, "timestamp repair", |store| {
         store.run_track_timestamp_backfill_batch()
+    })
+    .await;
+    run_background_repair_batch_if_idle_with(runtime, "strong-key backfill", |store| {
+        store.run_native_strong_keys_backfill_batch()
     })
     .await;
 }
 
-async fn run_timestamp_repair_after_startup_grace(
+async fn run_background_repairs_after_startup_grace(
     runtime: &psysonic_library::LibraryRuntime,
     startup_deferred: &mut bool,
 ) {
     if *startup_deferred {
         *startup_deferred = false;
     } else {
-        run_timestamp_repair_batch_if_idle(runtime).await;
+        run_background_repairs_if_idle(runtime).await;
     }
 }
 
@@ -145,7 +154,7 @@ pub(super) fn spawn(app_for_sched: tauri::AppHandle) {
 
         let mut interval = tokio::time::interval(Duration::from_secs(30));
         interval.set_missed_tick_behavior(MissedTickBehavior::Skip);
-        let mut timestamp_repair_startup_deferred = true;
+        let mut background_repair_startup_deferred = true;
         loop {
             interval.tick().await;
             let Some(state) = app_for_sched.try_state::<psysonic_library::LibraryRuntime>() else {
@@ -156,9 +165,9 @@ pub(super) fn spawn(app_for_sched: tauri::AppHandle) {
             }
             let sessions = state.snapshot_sessions();
             if sessions.is_empty() {
-                run_timestamp_repair_after_startup_grace(
+                run_background_repairs_after_startup_grace(
                     &state,
-                    &mut timestamp_repair_startup_deferred,
+                    &mut background_repair_startup_deferred,
                 )
                 .await;
                 continue;
@@ -287,9 +296,9 @@ pub(super) fn spawn(app_for_sched: tauri::AppHandle) {
                 }
             })
             .await;
-            run_timestamp_repair_after_startup_grace(
+            run_background_repairs_after_startup_grace(
                 &state,
-                &mut timestamp_repair_startup_deferred,
+                &mut background_repair_startup_deferred,
             )
             .await;
         }
@@ -332,22 +341,22 @@ mod tests {
         let runtime = psysonic_library::LibraryRuntime::new(Arc::new(
             psysonic_library::LibraryStore::open_in_memory(),
         ));
-        assert!(timestamp_repair_is_allowed(&runtime));
+        assert!(background_repair_is_allowed(&runtime));
 
         runtime.set_playback_hint(PlaybackHint::Playing);
-        assert!(!timestamp_repair_is_allowed(&runtime));
+        assert!(!background_repair_is_allowed(&runtime));
         runtime.set_playback_hint(PlaybackHint::PrefetchActive);
-        assert!(!timestamp_repair_is_allowed(&runtime));
+        assert!(!background_repair_is_allowed(&runtime));
         runtime.set_playback_hint(PlaybackHint::Idle);
 
         runtime
             .install_current_job(foreground_job("s1", "delta_sync"))
             .unwrap();
-        assert!(!timestamp_repair_is_allowed(&runtime));
+        assert!(!background_repair_is_allowed(&runtime));
         runtime.clear_current_job_if_matches("s1-delta_sync");
 
         runtime.scheduler_cancel.store(true, Ordering::SeqCst);
-        assert!(!timestamp_repair_is_allowed(&runtime));
+        assert!(!background_repair_is_allowed(&runtime));
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -362,11 +371,15 @@ mod tests {
         let (release_tx, release_rx) = mpsc::channel();
         let runtime_for_repair = Arc::clone(&runtime);
         let repair = tokio::spawn(async move {
-            run_timestamp_repair_batch_if_idle_with(&runtime_for_repair, move |_| {
-                started_tx.send(()).unwrap();
-                release_rx.recv().unwrap();
-                Ok(TrackTimestampBackfillStep::Complete)
-            })
+            run_background_repair_batch_if_idle_with(
+                &runtime_for_repair,
+                "timestamp repair",
+                move |_| {
+                    started_tx.send(()).unwrap();
+                    release_rx.recv().unwrap();
+                    Ok(TrackTimestampBackfillStep::Complete)
+                },
+            )
             .await;
         });
 
@@ -408,10 +421,14 @@ mod tests {
         let barrier = runtime.cancel_and_drain_sync(None, None).await.unwrap();
         let batch_called = Arc::new(AtomicBool::new(false));
         let batch_called_for_task = Arc::clone(&batch_called);
-        let repair = run_timestamp_repair_batch_after_initial_check(&runtime, move |_| {
-            batch_called_for_task.store(true, Ordering::SeqCst);
-            Ok(TrackTimestampBackfillStep::Complete)
-        });
+        let repair = run_background_repair_batch_after_initial_check(
+            &runtime,
+            "timestamp repair",
+            move |_| {
+                batch_called_for_task.store(true, Ordering::SeqCst);
+                Ok(TrackTimestampBackfillStep::Complete)
+            },
+        );
         tokio::pin!(repair);
 
         tokio::select! {

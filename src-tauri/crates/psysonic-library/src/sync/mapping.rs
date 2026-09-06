@@ -371,9 +371,8 @@ pub fn navidrome_song_to_track_row(
         played_at: parse_raw_iso_ms(raw, &["playDate", "played", "playedAt"]),
         server_path: string_field(raw, "path"),
         library_id,
-        isrc: string_field(raw, "isrc"),
-        mbid_recording: string_field(raw, "mbzTrackId")
-            .or_else(|| string_field(raw, "musicBrainzId")),
+        isrc: navidrome_isrc_from_raw(raw),
+        mbid_recording: navidrome_mbid_recording_from_raw(raw),
         bpm: raw.get("bpm").and_then(|v| v.as_i64()),
         replay_gain_track_db: raw.get("rgTrackGain").and_then(|v| v.as_f64()),
         replay_gain_album_db: raw.get("rgAlbumGain").and_then(|v| v.as_f64()),
@@ -397,6 +396,47 @@ fn json_string_field(raw: &Value, key: &str) -> Option<String> {
 
 fn string_field(raw: &Value, key: &str) -> Option<String> {
     json_string_field(raw, key)
+}
+
+/// MusicBrainz recording id as Navidrome's native `/api/song` row carries it.
+/// `MediaFile` (`model/mediafile.go`, verified at v0.62.0 and master) serializes
+/// it as `mbzRecordingID`; there is no top-level `mbzTrackId` or `musicBrainzId`
+/// in that struct. Reading only those two names left `mbid_recording` NULL on
+/// every natively ingested row — measured on a 27k-track library: 0 rows with
+/// either strong-key column set, 8,854 rows with `mbzRecordingID` in `raw_json`
+/// (issue #1434). The old names stay as fallbacks for Subsonic-flavoured
+/// payloads handed to this mapper.
+pub(crate) fn navidrome_mbid_recording_from_raw(raw: &Value) -> Option<String> {
+    ["mbzRecordingID", "mbzTrackId", "musicBrainzId"]
+        .iter()
+        .find_map(|key| first_non_empty_string(raw.get(*key)))
+}
+
+/// ISRC from a native row. Navidrome has no top-level `isrc` field; the codes
+/// arrive inside `tags`, which `model/tag.go` (v0.62.0) declares as
+/// `type Tags map[TagName][]string` with `TagISRC TagName = "isrc"` — so always
+/// a string array (8,956 rows in the same library, all arrays). A top-level
+/// `isrc` — string or array, the OpenSubsonic shape — is still honoured first.
+/// The first non-empty entry wins, matching what the typed Subsonic `Song` does
+/// with its `isrc` array.
+pub(crate) fn navidrome_isrc_from_raw(raw: &Value) -> Option<String> {
+    first_non_empty_string(raw.get("isrc"))
+        .or_else(|| first_non_empty_string(raw.pointer("/tags/isrc")))
+}
+
+/// A string, or the first usable entry of a string array. Blank strings are
+/// "absent": the canonical layer keys identities on these values, and an empty
+/// key must never become an identity.
+fn first_non_empty_string(value: Option<&Value>) -> Option<String> {
+    match value? {
+        Value::String(text) => Some(text.clone()).filter(|text| !text.trim().is_empty()),
+        Value::Array(items) => items.iter().find_map(|item| {
+            item.as_str()
+                .filter(|text| !text.trim().is_empty())
+                .map(str::to_string)
+        }),
+        _ => None,
+    }
 }
 
 /// Navidrome's native API reports seconds as either an integer or a decimal.
