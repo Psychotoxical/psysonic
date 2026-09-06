@@ -3,7 +3,7 @@ use super::*;
 #[tokio::test]
 async fn list_device_dir_files_lists_nested_regular_files() {
     let root = tempfile::tempdir().unwrap();
-    let track = root.path().join("Artist/Album/track.flac");
+    let track = root.path().join("Artist").join("Album").join("track.flac");
     write_file(&track, b"audio");
 
     let files = list_device_dir_files_impl(root.path().to_string_lossy().to_string())
