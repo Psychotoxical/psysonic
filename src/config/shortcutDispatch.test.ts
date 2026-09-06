@@ -8,7 +8,7 @@ const hoisted = vi.hoisted(() => {
       player.volume = v;
     }),
   };
-  return { player, queueSongRating: vi.fn() };
+  return { player, queueSongRating: vi.fn(), queueSongStar: vi.fn() };
 });
 
 vi.mock('@/features/playback/store/playerStore', () => ({
@@ -16,9 +16,16 @@ vi.mock('@/features/playback/store/playerStore', () => ({
 }));
 vi.mock('@/features/playback/store/pendingStarSync', () => ({
   queueSongRating: hoisted.queueSongRating,
+  queueSongStar: hoisted.queueSongStar,
 }));
 
-import { executeCliPlayerCommand } from '@/config/shortcutDispatch';
+import {
+  DEFAULT_GLOBAL_SHORTCUTS,
+  GLOBAL_SHORTCUT_ACTIONS,
+  executeCliPlayerCommand,
+  executeRuntimeAction,
+  type GlobalAction,
+} from '@/config/shortcutActions';
 
 const navigate = vi.fn();
 
@@ -69,5 +76,30 @@ describe('executeCliPlayerCommand set-rating-current', () => {
     });
 
     expect(hoisted.queueSongRating).toHaveBeenCalledWith('shared', 4, 'srv-b');
+  });
+});
+
+const CURRENT_TRACK_RATING_ACTIONS = [1, 2, 3, 4, 5].map(
+  rating => [`rate-current-track-${rating}` as GlobalAction, rating] as const,
+);
+
+describe('current track rating shortcut actions', () => {
+  it.each(CURRENT_TRACK_RATING_ACTIONS)('routes %s to the current track owner', (action, rating) => {
+    hoisted.player.currentTrack = { id: 'shared', serverId: 'srv-b' };
+
+    executeRuntimeAction(action, { navigate, previewPolicy: 'ignore' });
+
+    expect(hoisted.queueSongRating).toHaveBeenCalledWith('shared', rating, 'srv-b');
+  });
+
+  it('exposes every rating as an unbound global shortcut', () => {
+    const ratingActions = GLOBAL_SHORTCUT_ACTIONS
+      .filter(({ id }) => id.startsWith('rate-current-track-'))
+      .map(({ id, defaultBinding }) => [id, defaultBinding]);
+
+    expect(ratingActions).toEqual(CURRENT_TRACK_RATING_ACTIONS.map(([id]) => [id, null]));
+    for (const [id] of CURRENT_TRACK_RATING_ACTIONS) {
+      expect(DEFAULT_GLOBAL_SHORTCUTS).not.toHaveProperty(id);
+    }
   });
 });

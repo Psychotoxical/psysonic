@@ -677,6 +677,7 @@ export const settings = {
   shortcutOpenNowPlaying: 'Apri "In riproduzione"',
   shortcutShowLyrics: 'Mostra testi',
   shortcutFavoriteCurrentTrack: 'Aggiungi il brano corrente ai preferiti',
+  shortcutRateCurrentTrack: 'Valuta il brano corrente: {{rating}}★',
   shortcutOpenHelp: 'Guida',
   playbackTitle: 'Riproduzione',
   replayGain: 'Replay Gain',

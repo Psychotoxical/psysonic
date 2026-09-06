@@ -680,6 +680,7 @@ export const settings = {
   shortcutOpenNowPlaying: 'Відкрити «Хто слухає»',
   shortcutShowLyrics: 'Показати текст пісні',
   shortcutFavoriteCurrentTrack: 'Додати поточний трек до улюблених',
+  shortcutRateCurrentTrack: 'Оцінити поточний трек: {{rating}}★',
   shortcutOpenHelp: 'Довідка',
   playbackTitle: 'Відтворення',
   replayGain: 'ReplayGain',

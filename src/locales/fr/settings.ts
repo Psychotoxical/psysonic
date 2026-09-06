@@ -565,6 +565,7 @@ export const settings = {
   shortcutOpenNowPlaying: 'Ouvrir « En cours »',
   shortcutShowLyrics: 'Afficher les paroles',
   shortcutFavoriteCurrentTrack: 'Ajouter la piste actuelle aux favoris',
+  shortcutRateCurrentTrack: 'Noter la piste actuelle : {{rating}}★',
   shortcutOpenHelp: 'Aide',
   tabSystem: 'Système',
   loggingTitle: 'Journalisation',

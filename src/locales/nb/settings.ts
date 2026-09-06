@@ -596,6 +596,7 @@ export const settings = {
   shortcutOpenNowPlaying: 'Åpne "Spilles nå"',
   shortcutShowLyrics: 'Vis sangtekst',
   shortcutFavoriteCurrentTrack: 'Legg gjeldende spor til favoritter',
+  shortcutRateCurrentTrack: 'Vurder gjeldende spor: {{rating}}★',
   shortcutOpenHelp: 'Hjelp',
   playbackTitle: 'Avspilling',
   replayGain: 'Replay Gain',

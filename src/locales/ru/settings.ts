@@ -699,6 +699,7 @@ export const settings = {
   shortcutOpenNowPlaying: 'Открыть «Сейчас играет»',
   shortcutShowLyrics: 'Показать текст песни',
   shortcutFavoriteCurrentTrack: 'Добавить текущий трек в избранное',
+  shortcutRateCurrentTrack: 'Оценить текущий трек: {{rating}}★',
   shortcutOpenHelp: 'Справка',
   playbackTitle: 'Воспроизведение',
   replayGain: 'Replay Gain',

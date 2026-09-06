@@ -677,6 +677,7 @@ export const settings = {
   shortcutOpenNowPlaying: 'A „Most szól" megnyitása',
   shortcutShowLyrics: 'Dalszöveg megjelenítése',
   shortcutFavoriteCurrentTrack: 'Aktuális szám hozzáadása a kedvencekhez',
+  shortcutRateCurrentTrack: 'Aktuális szám értékelése: {{rating}}★',
   shortcutOpenHelp: 'Súgó',
   playbackTitle: 'Lejátszás',
   replayGain: 'Replay Gain',
