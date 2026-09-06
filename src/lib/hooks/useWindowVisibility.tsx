@@ -8,6 +8,7 @@ import {
 } from 'react';
 
 const WindowVisibilityContext = createContext(false);
+const WindowBlurredContext = createContext(false);
 
 /**
  * Tracks whether the Tauri window is hidden.
@@ -23,14 +24,32 @@ function isWindowHidden() {
   return document.hidden || !!window.__psyHidden;
 }
 
+function isWindowBlurred() {
+  return !document.hasFocus();
+}
+
 export function WindowVisibilityProvider({ children }: { children: ReactNode }) {
   const [hidden, setHidden] = useState(isWindowHidden);
+  const [blurred, setBlurred] = useState(isWindowBlurred);
   const hiddenRef = useRef(hidden);
+  const blurredRef = useRef(blurred);
 
   useEffect(() => {
-    hiddenRef.current = isWindowHidden();
     let cancelled = false;
     let timeoutId: ReturnType<typeof setTimeout> | null = null;
+
+    const update = () => {
+      const currentHidden = isWindowHidden();
+      if (currentHidden !== hiddenRef.current) {
+        hiddenRef.current = currentHidden;
+        setHidden(currentHidden);
+      }
+      const currentBlurred = isWindowBlurred();
+      if (currentBlurred !== blurredRef.current) {
+        blurredRef.current = currentBlurred;
+        setBlurred(currentBlurred);
+      }
+    };
 
     const schedule = () => {
       if (cancelled) return;
@@ -38,25 +57,30 @@ export function WindowVisibilityProvider({ children }: { children: ReactNode }) 
       timeoutId = setTimeout(() => {
         timeoutId = null;
         if (cancelled) return;
-        const current = isWindowHidden();
-        if (current !== hiddenRef.current) {
-          hiddenRef.current = current;
-          setHidden(current);
-        }
+        update();
         schedule();
       }, interval);
     };
 
+    window.addEventListener('focus', update);
+    window.addEventListener('blur', update);
+    document.addEventListener('visibilitychange', update);
+    update();
     schedule();
     return () => {
       cancelled = true;
+      window.removeEventListener('focus', update);
+      window.removeEventListener('blur', update);
+      document.removeEventListener('visibilitychange', update);
       if (timeoutId !== null) clearTimeout(timeoutId);
     };
   }, []);
 
   return (
     <WindowVisibilityContext.Provider value={hidden}>
-      {children}
+      <WindowBlurredContext.Provider value={blurred}>
+        {children}
+      </WindowBlurredContext.Provider>
     </WindowVisibilityContext.Provider>
   );
 }
@@ -66,4 +90,9 @@ export function WindowVisibilityProvider({ children }: { children: ReactNode }) 
 // eslint-disable-next-line react-refresh/only-export-components
 export function useWindowVisibility() {
   return useContext(WindowVisibilityContext);
+}
+
+// eslint-disable-next-line react-refresh/only-export-components
+export function useWindowBlurred() {
+  return useContext(WindowBlurredContext);
 }

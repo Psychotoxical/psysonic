@@ -8,6 +8,14 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+const mocks = vi.hoisted(() => ({
+  drawSeekbar: vi.fn(),
+}));
+
+vi.mock('@/features/waveform/utils/waveformSeekRenderers', () => ({
+  drawSeekbar: mocks.drawSeekbar,
+}));
+
 vi.mock('@/lib/api/subsonic', () => ({
   savePlayQueue: vi.fn(async () => undefined),
   getPlayQueue: vi.fn(async () => ({ songs: [], current: undefined, position: 0 })),
@@ -32,11 +40,15 @@ import { useAuthStore } from '@/store/authStore';
 import { resetAllStores } from '@/test/helpers/storeReset';
 import { makeTrack } from '@/test/helpers/factories';
 import { onInvoke } from '@/test/mocks/tauri';
-import { fireEvent } from '@testing-library/react';
+import { act, fireEvent } from '@testing-library/react';
+import { emitPlaybackProgress } from '@/features/playback/store/playbackProgress';
 
 beforeEach(() => {
   vi.useFakeTimers();
   resetAllStores();
+  mocks.drawSeekbar.mockClear();
+  window.__psyBlurred = false;
+  window.__psyHidden = false;
   // Seed an active server so any downstream invokes are valid.
   const id = useAuthStore.getState().addServer({
     name: 'T', url: 'https://x.test', username: 'u', password: 'p',
@@ -50,6 +62,8 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  window.__psyBlurred = false;
+  window.__psyHidden = false;
   vi.runOnlyPendingTimers();
   vi.useRealTimers();
 });
@@ -142,5 +156,45 @@ describe('WaveformSeek — listener lifecycle', () => {
   it('mount + unmount completes without throwing', () => {
     const { unmount } = renderWithProviders(<WaveformSeek trackId="t1" />);
     expect(() => unmount()).not.toThrow();
+  });
+});
+
+describe('WaveformSeek — background rendering', () => {
+  it('continues drawing progress while the window is visible but unfocused', () => {
+    const track = makeTrack({ id: 't1', duration: 200 });
+    usePlayerStore.setState({ currentTrack: track, isPlaying: false });
+    renderWithProviders(<WaveformSeek trackId="t1" />);
+    mocks.drawSeekbar.mockClear();
+    window.__psyBlurred = true;
+
+    act(() => emitPlaybackProgress({
+      currentTime: 40,
+      progress: 0.2,
+      buffered: 0.5,
+    }));
+
+    expect(mocks.drawSeekbar).toHaveBeenCalledWith(
+      expect.any(HTMLCanvasElement),
+      expect.any(String),
+      expect.anything(),
+      0.2,
+      0.5,
+    );
+  });
+
+  it('skips canvas paints while the native window is hidden', () => {
+    const track = makeTrack({ id: 't1', duration: 200 });
+    usePlayerStore.setState({ currentTrack: track, isPlaying: false });
+    renderWithProviders(<WaveformSeek trackId="t1" />);
+    mocks.drawSeekbar.mockClear();
+    window.__psyHidden = true;
+
+    act(() => emitPlaybackProgress({
+      currentTime: 80,
+      progress: 0.4,
+      buffered: 0.6,
+    }));
+
+    expect(mocks.drawSeekbar).not.toHaveBeenCalled();
   });
 });

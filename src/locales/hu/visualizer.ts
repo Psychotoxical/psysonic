@@ -18,6 +18,9 @@ export const visualizer = {
     enableNowPlayingHint: 'Kártyaként adja hozzá a vizualizálót a Most szól oldalhoz.',
     enableFullscreen: 'Megjelenítés a teljes képernyős lejátszóban',
     enableFullscreenHint: 'Hozzáadja a vizualizálót az összes teljes képernyős lejátszóstílushoz.',
+    pauseWhenUnfocused: 'Szüneteltetés, amikor nem a Psysonic az aktív ablak',
+    pauseWhenUnfocusedHint:
+      'Leállítja a vizualizáló kirajzolását, amíg másik ablak aktív, így csökkenti a CPU és a GPU használatát.',
     mode: 'Alapértelmezett mód',
     sensitivity: 'Érzékenység',
     sensitivityHint: 'Kiemeli a halk részeket a hangos részek levágása nélkül.',

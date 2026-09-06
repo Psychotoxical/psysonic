@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useWindowVisibility } from '@/lib/hooks/useWindowVisibility';
+import { useWindowBlurred, useWindowVisibility } from '@/lib/hooks/useWindowVisibility';
 import { useSpectrumFeed } from '@/features/visualizer/hooks/useSpectrumFeed';
 import { useVisualizerPalette } from '@/features/visualizer/hooks/useVisualizerPalette';
 import { useVisualizerStore } from '@/features/visualizer/store/visualizerStore';
@@ -25,7 +25,7 @@ interface VisualizerCanvasProps {
 
 /**
  * Canvas rendering stays outside React state. React only tracks low-rate
- * visibility changes so hidden/offscreen surfaces release their feed lease;
+ * activity changes so inactive surfaces release their feed lease;
  * fresh audio wakes the otherwise quiescent RAF loop through `feed.subscribe`.
  */
 export default function VisualizerCanvas({
@@ -41,6 +41,7 @@ export default function VisualizerCanvas({
   );
   const [intersecting, setIntersecting] = useState(true);
   const windowHidden = useWindowVisibility();
+  const windowBlurred = useWindowBlurred();
 
   const storedMode = useVisualizerStore(s => s.mode);
   const sensitivity = useVisualizerStore(s => s.sensitivity);
@@ -48,11 +49,16 @@ export default function VisualizerCanvas({
   const colorSource = useVisualizerStore(s => s.colorSource);
   const fps = useVisualizerStore(s => s.fps);
   const responsiveness = useVisualizerStore(s => s.responsiveness);
+  const pauseWhenUnfocused = useVisualizerStore(s => s.pauseWhenUnfocused);
 
   const activeMode = mode ?? storedMode;
   const palette = useVisualizerPalette(artUrl, artKey, colorSource);
   const feedParams = useMemo(() => ({ fps, responsiveness }), [fps, responsiveness]);
-  const feedActive = !paused && documentVisible && intersecting && !windowHidden;
+  const feedActive = !paused
+    && documentVisible
+    && intersecting
+    && !windowHidden
+    && (!pauseWhenUnfocused || !windowBlurred);
   const feedRef = useSpectrumFeed(feedActive, feedParams);
 
   useEffect(() => {

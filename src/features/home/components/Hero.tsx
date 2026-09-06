@@ -14,7 +14,7 @@ import { useCachedUrl } from '@/ui/CachedImage';
 import { usePlayerStore } from '@/features/playback/store/playerStore';
 import { useTranslation } from 'react-i18next';
 import { useIsMobile } from '@/lib/hooks/useIsMobile';
-import { useWindowVisibility } from '@/lib/hooks/useWindowVisibility';
+import { useWindowBlurred, useWindowVisibility } from '@/lib/hooks/useWindowVisibility';
 import { useAuthStore } from '@/store/authStore';
 import { useThemeStore } from '@/store/themeStore';
 import { filterAlbumsByMixRatings, getMixMinRatingsConfigFromAuth } from '@/features/playback/utils/mixRatingFilter';
@@ -139,7 +139,7 @@ export default function Hero({ albums: albumsProp }: HeroProps = {}) {
   const [activeIdx, setActiveIdx] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const windowHidden = useWindowVisibility();
-  const [windowBlurred, setWindowBlurred] = useState<boolean>(() => Boolean(window.__psyBlurred));
+  const windowBlurred = useWindowBlurred();
   const heroRef = useRef<HTMLDivElement | null>(null);
   const heroScrollRootRef = useRef<HTMLElement | null>(null);
   const visibilityRafRef = useRef<number | null>(null);
@@ -216,20 +216,6 @@ export default function Hero({ albums: albumsProp }: HeroProps = {}) {
       window.cancelAnimationFrame(layoutRaf);
     };
   }, [updateHeroVisibility, albums.length]);
-
-  useEffect(() => {
-    const updateBlurState = () => {
-      setWindowBlurred(Boolean(window.__psyBlurred));
-    };
-    window.addEventListener('focus', updateBlurState);
-    window.addEventListener('blur', updateBlurState);
-    updateBlurState();
-    return () => {
-      window.removeEventListener('focus', updateBlurState);
-      window.removeEventListener('blur', updateBlurState);
-    };
-  }, []);
-
 
   useEffect(() => {
     if (heroInView || windowHidden) return;

@@ -58,6 +58,8 @@ interface VisualizerState {
   showPeaks: boolean;
   /** Cover art colours, or the active theme's accent ramp. */
   colorSource: VisualizerColorSource;
+  /** Stop rendering while another application has focus. */
+  pauseWhenUnfocused: boolean;
 
   /**
    * Which surface is expanded to fill the window. Runtime-only — an expanded
@@ -74,6 +76,7 @@ interface VisualizerState {
   setFps: (v: number) => void;
   setShowPeaks: (v: boolean) => void;
   setColorSource: (v: VisualizerColorSource) => void;
+  setPauseWhenUnfocused: (v: boolean) => void;
   setExpandedSurface: (surface: VisualizerSurface | null) => void;
   toggleExpanded: (surface: VisualizerSurface) => void;
 }
@@ -89,6 +92,7 @@ export const useVisualizerStore = create<VisualizerState>()(
       fps: 60,
       showPeaks: true,
       colorSource: 'album',
+      pauseWhenUnfocused: true,
       expandedSurface: null,
 
       setSurfaceEnabled: (surface, v) => set((s) => ({
@@ -108,6 +112,7 @@ export const useVisualizerStore = create<VisualizerState>()(
       setFps: (v) => set({ fps: clampFps(v) }),
       setShowPeaks: (v) => set({ showPeaks: v }),
       setColorSource: (v) => set({ colorSource: v }),
+      setPauseWhenUnfocused: (v) => set({ pauseWhenUnfocused: v }),
       setExpandedSurface: (surface) => set({ expandedSurface: surface }),
       toggleExpanded: (surface) => set((s) => ({
         expandedSurface: s.expandedSurface === surface ? null : surface,
@@ -124,6 +129,7 @@ export const useVisualizerStore = create<VisualizerState>()(
         fps: s.fps,
         showPeaks: s.showPeaks,
         colorSource: s.colorSource,
+        pauseWhenUnfocused: s.pauseWhenUnfocused,
       }),
       onRehydrateStorage: () => (state) => {
         if (!state) return;
@@ -154,6 +160,7 @@ export const useVisualizerStore = create<VisualizerState>()(
         delete (state as unknown as { enabled?: boolean }).enabled;
         if (typeof state.enabledNowPlaying !== 'boolean') state.enabledNowPlaying = true;
         if (typeof state.enabledFullscreen !== 'boolean') state.enabledFullscreen = true;
+        if (typeof state.pauseWhenUnfocused !== 'boolean') state.pauseWhenUnfocused = true;
         state.expandedSurface = null;
       },
     },

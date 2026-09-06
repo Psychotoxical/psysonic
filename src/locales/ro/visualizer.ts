@@ -18,6 +18,9 @@ export const visualizer = {
     enableNowPlayingHint: 'Adaugă vizualizatorul ca un card în pagina Se Redă Acum.',
     enableFullscreen: 'Afișează în playerul pe ecran complet',
     enableFullscreenHint: 'Adaugă vizualizatorul în toate stilurile playerului pe ecran complet.',
+    pauseWhenUnfocused: 'Întrerupe când Psysonic nu este activ',
+    pauseWhenUnfocusedHint:
+      'Oprește redarea vizualizatorului cât timp este activă altă fereastră, pentru a reduce utilizarea procesorului și a plăcii grafice.',
     mode: 'Mod implicit',
     sensitivity: 'Sensibilitate',
     sensitivityHint: 'Ridică pasajele silențioase fără a tăia pasajele puternice.',

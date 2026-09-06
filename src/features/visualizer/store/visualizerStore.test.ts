@@ -31,6 +31,7 @@ function reset(): void {
     fps: 60,
     showPeaks: true,
     colorSource: 'album',
+    pauseWhenUnfocused: true,
     expandedSurface: null,
   });
 }
@@ -116,6 +117,18 @@ describe('visualizerStore', () => {
       ) ?? {}) as Record<string, unknown>,
     );
     expect(persisted).toContain('responsiveness');
+  });
+
+  it('persists and updates the unfocused pause preference', () => {
+    useVisualizerStore.getState().setPauseWhenUnfocused(false);
+    expect(useVisualizerStore.getState().pauseWhenUnfocused).toBe(false);
+
+    const persisted = Object.keys(
+      (useVisualizerStore.persist.getOptions().partialize?.(
+        useVisualizerStore.getState(),
+      ) ?? {}) as Record<string, unknown>,
+    );
+    expect(persisted).toContain('pauseWhenUnfocused');
   });
 
   it('clamps sensitivity and fps through the setters', () => {
@@ -204,5 +217,14 @@ describe('visualizerStore', () => {
 
     expect(stored.enabledNowPlaying).toBe(true);
     expect(stored.enabledFullscreen).toBe(true);
+  });
+
+  it('keeps background pausing on for older persisted settings', () => {
+    const stored: Record<string, unknown> = { ...useVisualizerStore.getState() };
+    delete stored.pauseWhenUnfocused;
+
+    rehydratePersisted(stored);
+
+    expect(stored.pauseWhenUnfocused).toBe(true);
   });
 });

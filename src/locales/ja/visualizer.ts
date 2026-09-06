@@ -18,6 +18,9 @@ export const visualizer = {
     enableNowPlayingHint: 'Now Playing ページにビジュアライザーをカードとして追加します。',
     enableFullscreen: '全画面プレーヤーに表示',
     enableFullscreenHint: 'すべての全画面プレーヤースタイルにビジュアライザーを追加します。',
+    pauseWhenUnfocused: 'Psysonic が非アクティブのとき一時停止',
+    pauseWhenUnfocusedHint:
+      '別のウィンドウがアクティブな間はビジュアライザーの描画を停止し、CPU と GPU の使用量を抑えます。',
     mode: '既定のモード',
     sensitivity: '感度',
     sensitivityHint: '大きな音をクリップせずに静かな部分を持ち上げます。',
