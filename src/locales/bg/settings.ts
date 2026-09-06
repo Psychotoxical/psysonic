@@ -677,6 +677,7 @@ export const settings = {
   shortcutOpenNowPlaying: 'Отвори „В момента звучи“',
   shortcutShowLyrics: 'Покажи текста',
   shortcutFavoriteCurrentTrack: 'Добави текущата песен в любими',
+  shortcutRateCurrentTrack: 'Оцени текущата песен: {{rating}}★',
   shortcutOpenHelp: 'Помощ',
   playbackTitle: 'Възпроизвеждане',
   replayGain: 'Replay Gain',

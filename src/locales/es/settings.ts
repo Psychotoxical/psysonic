@@ -609,6 +609,7 @@ export const settings = {
   shortcutOpenNowPlaying: 'Abrir "Reproduciendo ahora"',
   shortcutShowLyrics: 'Mostrar letra',
   shortcutFavoriteCurrentTrack: 'Añadir pista actual a favoritos',
+  shortcutRateCurrentTrack: 'Puntuar pista actual: {{rating}}★',
   shortcutOpenHelp: 'Ayuda',
   playbackTitle: 'Reproducción',
   replayGain: 'Replay Gain',

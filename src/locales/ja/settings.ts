@@ -671,6 +671,7 @@ export const settings = {
   shortcutOpenNowPlaying: '"Now Playing" を開く',
   shortcutShowLyrics: '歌詞を表示',
   shortcutFavoriteCurrentTrack: '現在のトラックをお気に入りに追加',
+  shortcutRateCurrentTrack: '現在のトラックを評価: {{rating}}★',
   shortcutOpenHelp: 'ヘルプ',
   playbackTitle: '再生',
   replayGain: 'Replay Gain',

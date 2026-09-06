@@ -1,4 +1,4 @@
-import { queueSongStar } from '@/features/playback/store/pendingStarSync';
+import { queueSongRating, queueSongStar } from '@/features/playback/store/pendingStarSync';
 import { getSong } from '@/lib/api/subsonicLibrary';
 import { songToTrack } from '@/lib/media/songToTrack';
 import { openMiniPlayer } from '@/lib/api/miniPlayer';
@@ -32,6 +32,15 @@ function focusLiveSearchInput(): boolean {
   input.focus();
   input.select();
   return true;
+}
+
+function rateCurrentTrack(rating: number): void {
+  const track = usePlayerStore.getState().currentTrack;
+  if (!track) {
+    showToast(i18n.t('contextMenu.cliMixNeedsTrack', { defaultValue: 'Load a track first.' }), 5000, 'error');
+    return;
+  }
+  queueSongRating(track.id, rating, track.serverId);
 }
 
 
@@ -264,6 +273,36 @@ export const SHORTCUT_ACTION_REGISTRY = {
       }
       queueSongStar(track.id, true, track.serverId);
     },
+  },
+  'rate-current-track-1': {
+    getLabel: t => t('settings.shortcutRateCurrentTrack', { rating: 1 }),
+    global: { defaultBinding: null },
+    runInMiniWindow: false,
+    run: () => rateCurrentTrack(1),
+  },
+  'rate-current-track-2': {
+    getLabel: t => t('settings.shortcutRateCurrentTrack', { rating: 2 }),
+    global: { defaultBinding: null },
+    runInMiniWindow: false,
+    run: () => rateCurrentTrack(2),
+  },
+  'rate-current-track-3': {
+    getLabel: t => t('settings.shortcutRateCurrentTrack', { rating: 3 }),
+    global: { defaultBinding: null },
+    runInMiniWindow: false,
+    run: () => rateCurrentTrack(3),
+  },
+  'rate-current-track-4': {
+    getLabel: t => t('settings.shortcutRateCurrentTrack', { rating: 4 }),
+    global: { defaultBinding: null },
+    runInMiniWindow: false,
+    run: () => rateCurrentTrack(4),
+  },
+  'rate-current-track-5': {
+    getLabel: t => t('settings.shortcutRateCurrentTrack', { rating: 5 }),
+    global: { defaultBinding: null },
+    runInMiniWindow: false,
+    run: () => rateCurrentTrack(5),
   },
   'open-help': {
     getLabel: t => t('settings.shortcutOpenHelp', { defaultValue: 'Help' }),

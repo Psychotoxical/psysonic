@@ -677,6 +677,7 @@ export const settings = {
   shortcutOpenNowPlaying: 'Open "Now Playing"',
   shortcutShowLyrics: 'Show Lyrics',
   shortcutFavoriteCurrentTrack: 'Add current track to favorites',
+  shortcutRateCurrentTrack: 'Rate current track: {{rating}}★',
   shortcutOpenHelp: 'Help',
   playbackTitle: 'Playback',
   replayGain: 'Replay Gain',

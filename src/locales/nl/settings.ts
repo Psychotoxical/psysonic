@@ -565,6 +565,7 @@ export const settings = {
   shortcutOpenNowPlaying: '"Nu speelt" openen',
   shortcutShowLyrics: 'Songtekst tonen',
   shortcutFavoriteCurrentTrack: 'Huidig nummer aan favorieten toevoegen',
+  shortcutRateCurrentTrack: 'Huidig nummer beoordelen: {{rating}}★',
   shortcutOpenHelp: 'Help',
   tabSystem: 'Systeem',
   loggingTitle: 'Logboek',

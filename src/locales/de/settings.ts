@@ -578,6 +578,7 @@ export const settings = {
   shortcutOpenNowPlaying: '„Now Playing" öffnen',
   shortcutShowLyrics: 'Songtexte anzeigen',
   shortcutFavoriteCurrentTrack: 'Aktuellen Titel zu Favoriten hinzufügen',
+  shortcutRateCurrentTrack: 'Aktuellen Titel bewerten: {{rating}}★',
   shortcutOpenHelp: 'Hilfe',
   tabSystem: 'System',
   loggingTitle: 'Protokollierung',
