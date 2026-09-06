@@ -27,6 +27,8 @@ async fn scoped_s1_resync_preserves_other_library_on_same_server() {
         .mount(&server)
         .await;
     mount_minimal_artists(&server).await;
+    mount_song_not_found(&server, "a-stale").await;
+    mount_song_present(&server, "a-present").await;
 
     let store = LibraryStore::open_in_memory();
     seed_two_library_resync(&store, "lib-a");
@@ -43,7 +45,7 @@ async fn scoped_s1_resync_preserves_other_library_on_same_server() {
     .await
     .unwrap();
     assert_eq!(report.strategy.as_deref(), Some("s1"));
-    assert_scoped_resync_kept_unconfirmed_rows(&store, "a-new");
+    assert_scoped_resync_deleted_confirmed_missing_row(&store, "a-new");
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -86,6 +88,8 @@ async fn scoped_s2_resync_preserves_other_library_on_same_server() {
         .mount(&server)
         .await;
     mount_minimal_artists(&server).await;
+    mount_song_not_found(&server, "a-stale").await;
+    mount_song_present(&server, "a-present").await;
 
     let store = LibraryStore::open_in_memory();
     seed_two_library_resync(&store, "lib-a");
@@ -102,7 +106,7 @@ async fn scoped_s2_resync_preserves_other_library_on_same_server() {
     .await
     .unwrap();
     assert_eq!(report.strategy.as_deref(), Some("s2"));
-    assert_scoped_resync_kept_unconfirmed_rows(&store, "a-new");
+    assert_scoped_resync_deleted_confirmed_missing_row(&store, "a-new");
 }
 
 #[tokio::test(flavor = "multi_thread")]

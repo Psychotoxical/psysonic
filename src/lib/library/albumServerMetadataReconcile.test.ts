@@ -39,6 +39,22 @@ describe('albumServerMetadataReconcile', () => {
     expect(diffAlbumServerMetadata(local, server)).toEqual({ userRating: 5 });
   });
 
+  it('applies disc subtitles returned by a fresh getAlbum response', () => {
+    const discTitles = [
+      { disc: 3, title: 'The demos' },
+      { disc: 4, title: 'The demos' },
+    ];
+    const patch = diffAlbumServerMetadata(base, { ...base, discTitles });
+
+    expect(patch).toEqual({ userRating: 0, discTitles });
+    expect(applyAlbumServerMetadataPatch(base, patch!)).toMatchObject({ discTitles });
+  });
+
+  it('does not clear cached disc subtitles when the server omits the field', () => {
+    const local = { ...base, discTitles: [{ disc: 2, title: 'Bonus tracks' }] };
+    expect(diffAlbumServerMetadata(local, base)).toBeNull();
+  });
+
   it('applyAlbumServerMetadataPatch clears unrated stars', () => {
     const patched = applyAlbumServerMetadataPatch(
       { ...base, userRating: 2, starred: 'x' },

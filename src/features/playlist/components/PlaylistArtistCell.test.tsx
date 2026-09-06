@@ -71,6 +71,7 @@ describe('PlaylistArtistCell', () => {
       <PlaylistArtistCell song={song({
         artist: 'Primary feat. Guest', artistId: 'a1', serverId: 'srv-owner',
       })} />,
+      { route: '/playlists/pl-1?server=srv-owner' },
     );
 
     await waitFor(() => expect(resolveArtistIds).toHaveBeenCalledWith('srv-owner', ['Guest']));
@@ -78,10 +79,14 @@ describe('PlaylistArtistCell', () => {
     expect(guest).toHaveAttribute('tabindex', '0');
 
     fireEvent.keyDown(guest, { key: 'Enter' });
-    expect(navigate).toHaveBeenCalledWith('/artist/ar-guest?server=srv-owner');
+    expect(navigate).toHaveBeenCalledWith('/artist/ar-guest?server=srv-owner', {
+      state: { returnTo: '/playlists/pl-1?server=srv-owner', playlistDetailScrollTop: 0 },
+    });
 
     navigate.mockClear();
     fireEvent.keyDown(guest, { key: ' ' });
-    expect(navigate).toHaveBeenCalledWith('/artist/ar-guest?server=srv-owner');
+    expect(navigate).toHaveBeenCalledWith('/artist/ar-guest?server=srv-owner', {
+      state: { returnTo: '/playlists/pl-1?server=srv-owner', playlistDetailScrollTop: 0 },
+    });
   });
 });

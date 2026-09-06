@@ -5,7 +5,7 @@ import { TracklistColumnPicker } from '@/ui/TracklistColumnPicker';
 import { useTranslation } from 'react-i18next';
 import { APP_MAIN_SCROLL_VIEWPORT_ID } from '@/constants/appScroll';
 import { useElementClientHeightById } from '@/lib/hooks/useResizeClientHeight';
-import { useNavigate } from 'react-router';
+import { useLocation, useNavigate } from 'react-router';
 import {
   ListPlus, Search, Trash2, X,
 } from 'lucide-react';
@@ -24,7 +24,8 @@ import { COVER_ARTIST_TOP_TRACK_CSS_PX } from '@/cover/layoutSizes';
 import { useWarmTrackListAlbumCovers } from '@/cover/useWarmTrackListAlbumCovers';
 import { useTrackListCoverArtEnabled } from '@/cover/useTrackListCoverArtSettings';
 import { ownedOverrideValue } from '@/lib/util/ownedEntityKey';
-import { appendServerQuery } from '@/lib/navigation/detailServerScope';
+import { navigateToAlbumDetail } from '@/lib/navigation/albumDetailNavigation';
+import { usePlaylistTracklistScrollReset } from '@/features/playlist/hooks/usePlaylistTracklistScrollReset';
 
 const PL_CENTERED = new Set(['favorite', 'rating', 'duration', 'playCount', 'bpm']);
 
@@ -105,6 +106,7 @@ export default function PlaylistTracklist({
 }: Props) {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const location = useLocation();
   const currentTrack = usePlayerStore(s => s.currentTrack);
   const isPlaying = usePlayerStore(s => s.isPlaying);
   const playTrack = usePlayerStore(s => s.playTrack);
@@ -122,7 +124,7 @@ export default function PlaylistTracklist({
     selectedIds, orbitActive, displayedTracks, isFiltered, id, songs, serverId,
     toggleSelect, handleRowMouseDown, handleRowMouseEnter, handleToggleStar,
     handleRate, removeSong, playTrack, openContextMenu, setContextMenuSongId,
-    navigate, queueHint, addTrackToOrbit,
+    navigate, location, queueHint, addTrackToOrbit,
   };
   const latest = useRef(latestVals);
   latest.current = latestVals;
@@ -178,8 +180,8 @@ export default function PlaylistTracklist({
     rate: (songId, r) => latest.current.handleRate(songId, r),
     remove: (rIdx) => latest.current.removeSong(rIdx),
     navAlbum: (albumId) => {
-      const query = appendServerQuery(undefined, latest.current.serverId);
-      latest.current.navigate(`/album/${albumId}${query ? `?${query}` : ''}`);
+      const L = latest.current;
+      navigateToAlbumDetail(L.navigate, L.location, albumId, { serverId: L.serverId });
     },
   }), []);
 
@@ -218,13 +220,7 @@ export default function PlaylistTracklist({
     getItemKey: i => `${displayedSongs[i].id}:${i}`,
   });
 
-  const firstRender = useRef(true);
-  useEffect(() => {
-    if (firstRender.current) { firstRender.current = false; return; }
-    const sc = document.getElementById(APP_MAIN_SCROLL_VIEWPORT_ID);
-    if (sc) sc.scrollTop = scrollMargin;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id, hasActiveFilter]);
+  usePlaylistTracklistScrollReset({ id, hasActiveFilter, scrollMargin });
 
   const autoScrollRef = useRef(0);
   const pointerYRef = useRef(0);

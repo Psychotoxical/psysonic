@@ -47,6 +47,7 @@ import { offlineActionPolicy } from '@/features/offline';
 import { readDetailServerId } from '@/lib/navigation/detailServerScope';
 import { ownedEntityKey } from '@/lib/util/ownedEntityKey';
 import { useResolvedTracklistBpm } from '@/lib/hooks/useResolvedTracklistBpm';
+import { usePlaylistDetailScrollRestore } from '@/features/playlist/hooks/usePlaylistDetailScrollRestore';
 
 // ── Column configuration ──────────────────────────────────────────────────────
 const PL_COLUMNS: readonly ColDef[] = [
@@ -309,6 +310,8 @@ export default function PlaylistDetail() {
   const { handlePlayAll, handleShuffleAll, handleEnqueueAll } = usePlaylistBulkPlayCallbacks({
     songsLength: songs.length, id, tracks, playTrack, enqueue,
   });
+
+  usePlaylistDetailScrollRestore(!loading && playlist !== null);
 
   // ── Render ────────────────────────────────────────────────────
   if (loading) {

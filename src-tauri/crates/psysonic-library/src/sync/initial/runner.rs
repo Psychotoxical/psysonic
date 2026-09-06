@@ -11,6 +11,7 @@ use crate::repos::{SyncStateRepository, TrackRepository};
 use crate::store::LibraryStore;
 use crate::sync::artist_index;
 use crate::sync::bandwidth::{ParallelismBudget, PlaybackHint};
+use crate::sync::budget::RequestBudget;
 use crate::sync::capability::{CapabilityFlags, NavidromeProbeCredentials};
 use crate::sync::cursor::{CursorPhase, InitialSyncCursor};
 use crate::sync::error::SyncError;
@@ -18,6 +19,7 @@ use crate::sync::now_unix_ms;
 use crate::sync::poll_stats::{ResyncSweepSkip, ResyncSweepSkipReason};
 use crate::sync::progress::{NoopProgress, Progress, ProgressEvent};
 use crate::sync::strategy::IngestStrategy;
+use crate::sync::tombstone::{TombstoneReconciler, TombstoneReport};
 
 /// Summary returned from `InitialSyncRunner::run`. Caller emits a
 /// completion event with these numbers (PR-3d).
@@ -238,18 +240,37 @@ impl<'a> InitialSyncRunner<'a> {
                 .count_resync_generation(&self.server_id, &self.library_scope, gen)
                 .map_err(SyncError::Storage)?;
             // `getScanStatus.count` is server-wide, so it cannot authorise a
-            // scoped sweep. Without a scope-visible count the safe result is to
-            // keep unconfirmed rows and let direct verification retire them.
+            // scoped sweep. Verify only the rows this scoped ingest did not
+            // re-stamp, and retire them solely after direct NotFound responses.
             let server_count = self
                 .library_scope
                 .is_empty()
                 .then_some(fresh_server_track_count)
                 .flatten();
-            let swept = if resync_sweep_is_safe(stamped, server_count) {
+            let tombstones = if !self.library_scope.is_empty() {
+                let mut reconciler =
+                    TombstoneReconciler::new(self.store, self.subsonic, &self.server_id)
+                        .with_library_scope(&self.library_scope);
+                if !self.sleep_enabled {
+                    reconciler = reconciler.with_sleep_disabled();
+                }
+                if let Some(flag) = &self.cancel {
+                    reconciler = reconciler.with_cancellation(Arc::clone(flag));
+                }
+                let report = reconciler
+                    .reconcile_resync_orphans(gen, RequestBudget::VERIFY_CHUNK_SIZE)
+                    .await?;
                 self.persist_resync_sweep_skip(&sync_state, None)?;
-                tracks
+                report
+            } else if resync_sweep_is_safe(stamped, server_count) {
+                self.persist_resync_sweep_skip(&sync_state, None)?;
+                let swept = tracks
                     .sweep_resync_orphans(&self.server_id, &self.library_scope, gen)
-                    .map_err(SyncError::Storage)?
+                    .map_err(SyncError::Storage)?;
+                TombstoneReport {
+                    checked: swept,
+                    deleted: swept,
+                }
             } else {
                 let reason = if server_count.is_some() {
                     ResyncSweepSkipReason::IncompleteIngest
@@ -273,12 +294,12 @@ impl<'a> InitialSyncRunner<'a> {
                     stamped,
                     server_count
                 );
-                0
+                TombstoneReport::default()
             };
-            if swept > 0 {
+            if tombstones.deleted > 0 {
                 self.progress.emit(ProgressEvent::Tombstoned {
-                    deleted_count: swept,
-                    checked_count: swept,
+                    deleted_count: tombstones.deleted,
+                    checked_count: tombstones.checked,
                 });
             }
             // Prune orphaned artist browse rows once, here — after the sweep has

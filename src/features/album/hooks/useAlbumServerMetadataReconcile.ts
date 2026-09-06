@@ -26,7 +26,7 @@ interface Args {
 
 /**
  * After album detail paints from the local index, reconcile album-level
- * favorite + rating against the server in the background.
+ * album metadata against the server in the background.
  */
 export function useAlbumServerMetadataReconcile({
   serverId,
@@ -89,7 +89,12 @@ export function useAlbumServerMetadataReconcile({
 
         patchAlbumStarToIndexFromReconcile(serverId, albumId, patch);
 
-        onReconcileApplied?.(albumId);
+        if (
+          patch.userRating !== albumUserRating(current)
+          || 'starred' in patch
+        ) {
+          onReconcileApplied?.(albumId);
+        }
         reconciledKeyRef.current = reconcileKey;
       } catch {
         /* offline / transient — keep local; allow retry */

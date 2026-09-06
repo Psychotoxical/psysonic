@@ -95,13 +95,49 @@ impl<'a> TombstoneReconciler<'a> {
         if batch_size == 0 {
             return Ok(TombstoneReport::default());
         }
-        let Some(cutoff_id) = self.capture_cutoff_id()? else {
+        let Some(cutoff_id) = self.capture_cutoff_id(None)? else {
             return Ok(TombstoneReport::default());
         };
         let mut report = TombstoneReport::default();
         let mut after_id: Option<String> = None;
         loop {
-            let ids = self.next_candidates_after(after_id.as_deref(), &cutoff_id, batch_size)?;
+            let ids =
+                self.next_candidates_after(after_id.as_deref(), &cutoff_id, batch_size, None)?;
+            if ids.is_empty() {
+                break;
+            }
+            after_id = ids.last().cloned();
+            let chunk = self.reconcile_ids(ids).await?;
+            report.checked = report.checked.saturating_add(chunk.checked);
+            report.deleted = report.deleted.saturating_add(chunk.deleted);
+        }
+        Ok(report)
+    }
+
+    /// Verify only rows a completed resync did not re-stamp. This is the
+    /// scope-safe counterpart to the generation sweep: `getSong` NotFound is
+    /// authoritative for deletion, while a row omitted by a partial ingest is
+    /// confirmed alive and retained.
+    pub async fn reconcile_resync_orphans(
+        &self,
+        resync_gen: i64,
+        batch_size: u32,
+    ) -> Result<TombstoneReport, SyncError> {
+        if batch_size == 0 {
+            return Ok(TombstoneReport::default());
+        }
+        let Some(cutoff_id) = self.capture_cutoff_id(Some(resync_gen))? else {
+            return Ok(TombstoneReport::default());
+        };
+        let mut report = TombstoneReport::default();
+        let mut after_id: Option<String> = None;
+        loop {
+            let ids = self.next_candidates_after(
+                after_id.as_deref(),
+                &cutoff_id,
+                batch_size,
+                Some(resync_gen),
+            )?;
             if ids.is_empty() {
                 break;
             }
@@ -190,13 +226,31 @@ impl<'a> TombstoneReconciler<'a> {
             .map_err(SyncError::Storage)
     }
 
-    fn capture_cutoff_id(&self) -> Result<Option<String>, SyncError> {
+    fn capture_cutoff_id(&self, resync_gen: Option<i64>) -> Result<Option<String>, SyncError> {
         self.store
             .with_conn("tombstone.capture_cutoff", |c| {
                 if self.library_scope.is_empty() {
+                    if let Some(resync_gen) = resync_gen {
+                        c.query_row(
+                            "SELECT MAX(id) FROM track \
+                             WHERE server_id = ?1 AND deleted = 0 \
+                               AND COALESCE(resync_gen, 0) != ?2",
+                            rusqlite::params![self.server_id, resync_gen],
+                            |row| row.get(0),
+                        )
+                    } else {
+                        c.query_row(
+                            "SELECT MAX(id) FROM track WHERE server_id = ?1 AND deleted = 0",
+                            rusqlite::params![self.server_id],
+                            |row| row.get(0),
+                        )
+                    }
+                } else if let Some(resync_gen) = resync_gen {
                     c.query_row(
-                        "SELECT MAX(id) FROM track WHERE server_id = ?1 AND deleted = 0",
-                        rusqlite::params![self.server_id],
+                        "SELECT MAX(id) FROM track \
+                         WHERE server_id = ?1 AND library_id = ?2 AND deleted = 0 \
+                           AND COALESCE(resync_gen, 0) != ?3",
+                        rusqlite::params![self.server_id, self.library_scope, resync_gen],
                         |row| row.get(0),
                     )
                 } else {
@@ -216,19 +270,70 @@ impl<'a> TombstoneReconciler<'a> {
         after_id: Option<&str>,
         cutoff_id: &str,
         budget: u32,
+        resync_gen: Option<i64>,
     ) -> Result<Vec<String>, SyncError> {
         self.store
             .with_conn("tombstone.next_candidates_after", |c| {
                 if self.library_scope.is_empty() {
+                    if let Some(resync_gen) = resync_gen {
+                        let mut statement = c.prepare(
+                            "SELECT id FROM track \
+                             WHERE server_id = ?1 AND deleted = 0 \
+                               AND COALESCE(resync_gen, 0) != ?2 AND id <= ?3 \
+                               AND (?4 IS NULL OR id > ?4) \
+                             ORDER BY id ASC LIMIT ?5",
+                        )?;
+                        let rows = statement
+                            .query_map(
+                                rusqlite::params![
+                                    self.server_id,
+                                    resync_gen,
+                                    cutoff_id,
+                                    after_id,
+                                    budget as i64
+                                ],
+                                |row| row.get::<_, String>(0),
+                            )?
+                            .collect();
+                        rows
+                    } else {
+                        let mut statement = c.prepare(
+                            "SELECT id FROM track \
+                             WHERE server_id = ?1 AND deleted = 0 AND id <= ?2 \
+                               AND (?3 IS NULL OR id > ?3) \
+                             ORDER BY id ASC LIMIT ?4",
+                        )?;
+                        let rows = statement
+                            .query_map(
+                                rusqlite::params![
+                                    self.server_id,
+                                    cutoff_id,
+                                    after_id,
+                                    budget as i64
+                                ],
+                                |row| row.get::<_, String>(0),
+                            )?
+                            .collect();
+                        rows
+                    }
+                } else if let Some(resync_gen) = resync_gen {
                     let mut statement = c.prepare(
                         "SELECT id FROM track \
-                         WHERE server_id = ?1 AND deleted = 0 AND id <= ?2 \
-                           AND (?3 IS NULL OR id > ?3) \
-                         ORDER BY id ASC LIMIT ?4",
+                         WHERE server_id = ?1 AND library_id = ?2 AND deleted = 0 \
+                           AND COALESCE(resync_gen, 0) != ?3 AND id <= ?4 \
+                           AND (?5 IS NULL OR id > ?5) \
+                         ORDER BY id ASC LIMIT ?6",
                     )?;
                     let rows = statement
                         .query_map(
-                            rusqlite::params![self.server_id, cutoff_id, after_id, budget as i64],
+                            rusqlite::params![
+                                self.server_id,
+                                self.library_scope,
+                                resync_gen,
+                                cutoff_id,
+                                after_id,
+                                budget as i64
+                            ],
                             |row| row.get::<_, String>(0),
                         )?
                         .collect();

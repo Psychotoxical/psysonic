@@ -55,7 +55,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 **By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1490](https://github.com/Psysonic/psysonic/pull/1490)**
 
 * Libraries indexed from Navidrome's native API kept the ISRC and MusicBrainz recording id of every track out of the local index, because the importer looked for field names Navidrome does not send. Both are read under their real names now, and a one-time background pass fills them in for existing libraries and links the tracks that were never linked, in small batches while Psysonic is idle.
-* Since 1.51.0 the audio analysis could write its results under a server key the library index did not know, and every attempt then failed with a foreign-key error in the log. Keys that are really a server-profile id are rejected before the write, so analysis is skipped for that track instead of failing.
+* Since 1.51.0 the audio analysis could write its results under a server key the library index did not know, and every attempt then failed with a foreign-key error in the log. An unresolved generated server-profile id is now rejected at the analysis boundary, so analysis is skipped for that track instead of failing without rejecting valid keys used by other storage features.
+
+### Library rebuilds remove tracks deleted from Navidrome again
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1497](https://github.com/Psysonic/psysonic/pull/1497)**
+
+* Albums and tracks deleted from a Navidrome server no longer remain as fragmented ghost entries after rebuilding a selected library.
+
+### Multi-disc album subtitles appear again
+
+**By [@cucadmuh](https://github.com/cucadmuh), reported by [@BjarneMJ](https://github.com/BjarneMJ), PR [#1498](https://github.com/Psysonic/psysonic/pull/1498)**
+
+* Album Detail now shows OpenSubsonic per-disc subtitles returned by Navidrome, such as "The demos", instead of falling back to only "Disc 3" and "Disc 4" after loading the album from the local library index.
+
+### Playlist pages return to where you left off
+
+**By [@cucadmuh](https://github.com/cucadmuh), reported by MrMiniblock on Discord, PR [#1499](https://github.com/Psysonic/psysonic/pull/1499)**
+
+* Opening an album or artist from a long playlist and then going back now restores the previous scroll position instead of returning to the top.
 
 ## [1.52.0]
 

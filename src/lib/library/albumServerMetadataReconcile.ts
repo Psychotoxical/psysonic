@@ -1,12 +1,23 @@
 import { getAlbumForServer } from '@/lib/api/subsonicLibrary';
 import { parseSubsonicEntityStarRating } from '@/lib/api/subsonicRatings';
-import type { SubsonicAlbum } from '@/lib/api/subsonicTypes';
+import type { SubsonicAlbum, SubsonicDiscTitle } from '@/lib/api/subsonicTypes';
 import { patchLibraryAlbumOnUse } from '@/lib/library/patchOnUse';
 
 export type AlbumServerMetadataPatch = {
   userRating: number;
   starred?: string;
+  discTitles?: SubsonicDiscTitle[];
 };
+
+function discTitlesEqual(
+  local: SubsonicDiscTitle[] | undefined,
+  server: SubsonicDiscTitle[],
+): boolean {
+  const localTitles = local ?? [];
+  return localTitles.length === server.length && localTitles.every((entry, index) => (
+    entry.disc === server[index]?.disc && entry.title === server[index]?.title
+  ));
+}
 
 export function albumIsStarred(album: SubsonicAlbum): boolean {
   return !!album.starred;
@@ -25,10 +36,19 @@ export function diffAlbumServerMetadata(
   const localRating = albumUserRating(local);
   const serverStarred = albumIsStarred(server);
   const localStarred = albumIsStarred(local);
-  if (serverRating === localRating && serverStarred === localStarred) return null;
+  const discTitlesChanged = server.discTitles !== undefined
+    && !discTitlesEqual(local.discTitles, server.discTitles);
+  if (
+    serverRating === localRating
+    && serverStarred === localStarred
+    && !discTitlesChanged
+  ) return null;
   const patch: AlbumServerMetadataPatch = { userRating: serverRating };
   if (serverStarred !== localStarred) {
     patch.starred = server.starred;
+  }
+  if (discTitlesChanged) {
+    patch.discTitles = server.discTitles;
   }
   return patch;
 }
@@ -41,6 +61,7 @@ export function applyAlbumServerMetadataPatch(
     ...album,
     userRating: patch.userRating > 0 ? patch.userRating : undefined,
     ...('starred' in patch ? { starred: patch.starred } : {}),
+    ...('discTitles' in patch ? { discTitles: patch.discTitles } : {}),
   };
 }
 

@@ -19,3 +19,8 @@ export function isArtistDetailPath(pathname: string): boolean {
 export function isComposerDetailPath(pathname: string): boolean {
   return /^\/composer\/[^/]+\/?$/.test(pathname);
 }
+
+/** True when pathname is a single playlist detail route (`/playlists/:id`). */
+export function isPlaylistDetailPath(pathname: string): boolean {
+  return /^\/playlists\/[^/]+\/?$/.test(pathname.split('?')[0]?.replace(/\/$/, '') || pathname);
+}
