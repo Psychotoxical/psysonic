@@ -19,9 +19,9 @@ interface Props {
 export function VisualizerSection({ t }: Props) {
   const {
     enabledNowPlaying, enabledFullscreen,
-    mode, sensitivity, responsiveness, fps, showPeaks, colorSource,
+    mode, sensitivity, responsiveness, fps, showPeaks, colorSource, pauseWhenUnfocused,
     setSurfaceEnabled, setMode, setSensitivity, setResponsiveness, setFps,
-    setShowPeaks, setColorSource,
+    setShowPeaks, setColorSource, setPauseWhenUnfocused,
   } = useVisualizerStore();
 
   // The settings below apply to every surface, so one switched-on surface is
@@ -108,6 +108,12 @@ export function VisualizerSection({ t }: Props) {
               </SettingsSubCard>
 
               <SettingsSubCard>
+                <SettingsToggle
+                  label={t('visualizer.settings.pauseWhenUnfocused')}
+                  desc={t('visualizer.settings.pauseWhenUnfocusedHint')}
+                  checked={pauseWhenUnfocused}
+                  onChange={setPauseWhenUnfocused}
+                />
                 <SettingsField
                   label={t('visualizer.settings.sensitivity')}
                   desc={t('visualizer.settings.sensitivityHint')}

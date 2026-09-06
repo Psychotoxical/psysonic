@@ -31,6 +31,7 @@ const hoisted = vi.hoisted(() => {
     colorSource: 'album',
     fps: 60,
     responsiveness: 0.65,
+    pauseWhenUnfocused: true,
   };
 
   return {
@@ -38,6 +39,7 @@ const hoisted = vi.hoisted(() => {
     feed,
     feedRef,
     visualizerState,
+    windowActivity: { hidden: false, blurred: false },
     palette: { current: { background: '#000', bars: ['#fff'] } },
     useSpectrumFeedMock: vi.fn(() => feedRef),
     renderFrameMock: vi.fn(),
@@ -48,6 +50,10 @@ const hoisted = vi.hoisted(() => {
 
 vi.mock('@/features/visualizer/hooks/useSpectrumFeed', () => ({
   useSpectrumFeed: hoisted.useSpectrumFeedMock,
+}));
+vi.mock('@/lib/hooks/useWindowVisibility', () => ({
+  useWindowVisibility: () => hoisted.windowActivity.hidden,
+  useWindowBlurred: () => hoisted.windowActivity.blurred,
 }));
 vi.mock('@/features/visualizer/hooks/useVisualizerPalette', () => ({
   useVisualizerPalette: () => hoisted.palette.current,
@@ -95,6 +101,9 @@ describe('VisualizerCanvas lifecycle', () => {
     hoisted.visualizerState.mode = 'bars';
     hoisted.visualizerState.sensitivity = 1;
     hoisted.visualizerState.showPeaks = true;
+    hoisted.visualizerState.pauseWhenUnfocused = true;
+    hoisted.windowActivity.hidden = false;
+    hoisted.windowActivity.blurred = false;
     hoisted.feed.sample.mockReset();
     hoisted.feed.subscribe.mockClear();
     hoisted.useSpectrumFeedMock.mockClear();
@@ -203,6 +212,49 @@ describe('VisualizerCanvas lifecycle', () => {
       responsiveness: 0.65,
     });
     expect(callbacks.size).toBe(1);
+  });
+
+  it('releases the feed while the window is unfocused', () => {
+    const { rerender } = render(<VisualizerCanvas artUrl="" artKey="" />);
+    expect(hoisted.useSpectrumFeedMock).toHaveBeenLastCalledWith(true, {
+      fps: 60,
+      responsiveness: 0.65,
+    });
+
+    hoisted.windowActivity.blurred = true;
+    rerender(<VisualizerCanvas artUrl="" artKey="" />);
+
+    expect(hoisted.useSpectrumFeedMock).toHaveBeenLastCalledWith(false, {
+      fps: 60,
+      responsiveness: 0.65,
+    });
+    expect(callbacks.size).toBe(0);
+  });
+
+  it('keeps the feed active while unfocused when background pausing is off', () => {
+    hoisted.windowActivity.blurred = true;
+    hoisted.visualizerState.pauseWhenUnfocused = false;
+
+    render(<VisualizerCanvas artUrl="" artKey="" />);
+
+    expect(hoisted.useSpectrumFeedMock).toHaveBeenLastCalledWith(true, {
+      fps: 60,
+      responsiveness: 0.65,
+    });
+    expect(callbacks.size).toBe(1);
+  });
+
+  it('still releases the feed while hidden when background pausing is off', () => {
+    hoisted.windowActivity.hidden = true;
+    hoisted.visualizerState.pauseWhenUnfocused = false;
+
+    render(<VisualizerCanvas artUrl="" artKey="" />);
+
+    expect(hoisted.useSpectrumFeedMock).toHaveBeenLastCalledWith(false, {
+      fps: 60,
+      responsiveness: 0.65,
+    });
+    expect(callbacks.size).toBe(0);
   });
 
   it('repaints once when mode, palette, or render settings change while idle', () => {

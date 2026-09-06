@@ -18,6 +18,9 @@ export const visualizer = {
     enableNowPlayingHint: 'Voegt de visualizer als kaart toe aan de pagina Nu bezig.',
     enableFullscreen: 'Tonen in de speler op volledig scherm',
     enableFullscreenHint: 'Voegt de visualizer toe aan alle stijlen van de speler op volledig scherm.',
+    pauseWhenUnfocused: 'Pauzeren wanneer Psysonic niet actief is',
+    pauseWhenUnfocusedHint:
+      'Stopt het tekenen van de visualizer terwijl een ander venster actief is om CPU- en GPU-gebruik te verminderen.',
     mode: 'Standaardmodus',
     sensitivity: 'Gevoeligheid',
     sensitivityHint: 'Versterkt stille passages zonder luide passages af te kappen.',

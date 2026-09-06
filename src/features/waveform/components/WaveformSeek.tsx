@@ -115,7 +115,7 @@ export default function WaveformSeek({ trackId }: Props) {
       // Static styles always redraw on progress; animated styles let the rAF
       // loop drive paints.
       const drawNow = !ANIMATED_STYLES.has(styleRef.current);
-      if (drawNow) {
+      if (drawNow && !document.hidden && !window.__psyHidden) {
         const canvas = canvasRef.current;
         if (!canvas) return;
         if (!ANIMATED_STYLES.has(styleRef.current) && !isDragging.current) {

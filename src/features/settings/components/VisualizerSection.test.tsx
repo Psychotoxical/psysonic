@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import i18n from '@/lib/i18n';
 import { renderWithProviders } from '@/test/helpers/renderWithProviders';
 import { useVisualizerStore } from '@/features/visualizer';
@@ -15,6 +16,7 @@ beforeEach(() => {
     fps: 60,
     showPeaks: true,
     colorSource: 'album',
+    pauseWhenUnfocused: true,
     expandedSurface: null,
   });
 });
@@ -48,11 +50,21 @@ describe('VisualizerSection accessibility', () => {
       .not.toHaveClass('settings-segmented-auto');
   });
 
-  it('offers one switch per surface', () => {
+  it('offers switches for both surfaces and background pausing', () => {
     renderWithProviders(<VisualizerSection t={i18n.t} />);
 
     expect(screen.getByRole('checkbox', { name: 'Show on Now Playing' })).toBeChecked();
     expect(screen.getByRole('checkbox', { name: 'Show in the fullscreen player' })).toBeChecked();
+    expect(screen.getByRole('checkbox', { name: 'Pause when Psysonic is unfocused' })).toBeChecked();
+  });
+
+  it('updates the background pause preference', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<VisualizerSection t={i18n.t} />);
+
+    await user.click(screen.getByRole('checkbox', { name: 'Pause when Psysonic is unfocused' }));
+
+    expect(useVisualizerStore.getState().pauseWhenUnfocused).toBe(false);
   });
 
   it('keeps the shared settings while one surface is still on', () => {

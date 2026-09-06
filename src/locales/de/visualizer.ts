@@ -18,6 +18,9 @@ export const visualizer = {
     enableNowPlayingHint: 'Fügt den Visualizer als Karte auf der Seite „Now Playing“ hinzu.',
     enableFullscreen: 'Im Vollbild-Player anzeigen',
     enableFullscreenHint: 'Fügt den Visualizer in allen Vollbild-Player-Stilen hinzu.',
+    pauseWhenUnfocused: 'Pausieren, wenn Psysonic nicht fokussiert ist',
+    pauseWhenUnfocusedHint:
+      'Stoppt die Darstellung des Visualizers, während ein anderes Fenster aktiv ist, um CPU und GPU zu entlasten.',
     mode: 'Standardmodus',
     sensitivity: 'Empfindlichkeit',
     sensitivityHint: 'Hebt leise Passagen an, ohne laute zu übersteuern.',
