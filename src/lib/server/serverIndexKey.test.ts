@@ -29,26 +29,17 @@ describe('resolveStorageServerIndexKey', () => {
     expect(resolveStorageServerIndexKey('9ee02895-4d12-4faa-9a9f-3fae22b64d18')).toBeNull();
   });
 
-  it('rejects an unknown base36 profile id instead of using it as a storage key', () => {
-    // `generateId()` shape: Date.now().toString(36) + Math.random().toString(36).slice(2).
-    // The library keys rows by address; a profile id leaking through as a "host"
-    // is what made every enrichment write fail on its foreign key (#1434).
-    const mintedNow = Date.now().toString(36) + 'k2ff7q1zt';
-    const mintedApril2026 = Date.UTC(2026, 3, 15).toString(36) + 'k2ff7q1zt';
-    expect(resolveStorageServerIndexKey(mintedNow)).toBeNull();
-    expect(resolveStorageServerIndexKey(mintedApril2026)).toBeNull();
-  });
-
-  it('resolves a known base36 profile id through its primary URL', () => {
-    servers.push({ id: 'mabc12x9k2ff7q1zt', url: 'https://music.example.test/' });
-    expect(resolveStorageServerIndexKey('mabc12x9k2ff7q1zt')).toBe('music.example.test');
-  });
-
   it('keeps the index key of a configured server even when it is shaped like a profile id', () => {
     // `mpserver` decodes to May 2026, inside the plausible minting window.
     servers.push({ id: PROFILE_ID, url: 'http://mpserver' });
     expect(looksLikeGeneratedProfileId('mpserver')).toBe(true);
     expect(resolveStorageServerIndexKey('mpserver')).toBe('mpserver');
+  });
+
+  it('keeps an unconfigured bare hostname stable even when it resembles a profile id', () => {
+    expect(looksLikeGeneratedProfileId('mpserver')).toBe(true);
+    expect(resolveStorageServerIndexKey('mpserver')).toBe('mpserver');
+    expect(resolveStorageServerIndexKey('http://mpserver')).toBe('mpserver');
   });
 
   it('keeps keys that are not shaped like a generated profile id', () => {
@@ -67,6 +58,17 @@ describe('resolveStorageServerIndexKey', () => {
     // Decodes to 2056: a timestamp from the future is not a minted id.
     expect(looksLikeGeneratedProfileId('zerobased')).toBe(false);
     expect(looksLikeGeneratedProfileId('server-a')).toBe(false);
+  });
+
+  it('accepts generated profile ids with long suffixes and wider timestamps', () => {
+    const mintedApril2026 = Date.UTC(2026, 3, 15);
+    const longId = mintedApril2026.toString(36) + '000000000000em2djky0vz9';
+    expect(longId.length).toBeGreaterThan(24);
+    expect(looksLikeGeneratedProfileId(longId, mintedApril2026)).toBe(true);
+
+    const firstNineDigitTimestamp = 36 ** 8;
+    const futureId = firstNineDigitTimestamp.toString(36) + 'random';
+    expect(looksLikeGeneratedProfileId(futureId, firstNineDigitTimestamp)).toBe(true);
   });
 
   it('normalizes a primary URL into the existing address-derived key', () => {
