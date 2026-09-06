@@ -62,10 +62,22 @@ export default function FullscreenPlayer({ onClose }: FullscreenPlayerProps) {
   const playbackCoverRef =
     useAlbumCoverRef(currentTrack?.albumId, undefined, undefined, { libraryResolve: false }) ?? undefined;
 
-  const artCover = usePlaybackCoverArt(playbackCoverRef, 300);
+  const artCover = usePlaybackCoverArt(playbackCoverRef, 300, {
+    ensureOpts: {
+      artistName: currentTrack?.artist ?? '',
+      albumTitle: currentTrack?.album ?? '',
+      allowExternalAlbum: true,
+    },
+  });
   const artUrl = artCover.src;
   const artKey = artCover.cacheKey;
-  const portraitCover = usePlaybackCoverArt(playbackCoverRef, 500);
+  const portraitCover = usePlaybackCoverArt(playbackCoverRef, 500, {
+    ensureOpts: {
+      artistName: currentTrack?.artist ?? '',
+      albumTitle: currentTrack?.album ?? '',
+      allowExternalAlbum: true,
+    },
+  });
   const coverUrl = portraitCover.src;
   const coverKey = portraitCover.cacheKey;
   const directCover = currentTrack?.directCoverArtUrl;

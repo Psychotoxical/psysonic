@@ -458,7 +458,26 @@ const handleShuffleAll = () => {
     albumCoverServerScope,
     { libraryResolve: true },
   );
-  const albumCover = useCoverArt(albumCoverRefResolved, 400, { surface: 'sparse' });
+  // §5 external album-chain context for the blurred-background cover, matching
+  // the hero's `heroCoverEnsureOpts` (AlbumHeader). Memoized on the
+  // artist/album identity so the background hook's ensure effect doesn't
+  // re-fire on every parent render. With `allowExternalAlbum` set, hero and
+  // background ask the same 400px tier for the same ref, so `ensureQueue`
+  // dedupes them into one queued flight: a first visit to a coverless album
+  // runs the external chain once instead of racing a parallel opts-less
+  // vinyl download.
+  const albumCoverEnsureOpts = useMemo(
+    () => ({
+      artistName: album?.album.artist,
+      albumTitle: album?.album.name,
+      allowExternalAlbum: true,
+    }),
+    [album?.album.artist, album?.album.name],
+  );
+  const albumCover = useCoverArt(albumCoverRefResolved, 400, {
+    surface: 'sparse',
+    ensureOpts: albumCoverEnsureOpts,
+  });
   const resolvedCoverUrl = albumCover.src || null;
 
   useEffect(() => {

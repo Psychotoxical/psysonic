@@ -46,7 +46,7 @@ pub(super) fn normalize(s: &str) -> String {
 /// can be redirected at a wiremock instance in tests.
 const ITUNES_SEARCH_URL: &str = "https://itunes.apple.com/search";
 
-pub(super) fn search_itunes_artwork(
+pub fn search_itunes_artwork(
     client: &Client,
     cache: &Mutex<HashMap<String, ArtworkCacheEntry>>,
     artist: &str,

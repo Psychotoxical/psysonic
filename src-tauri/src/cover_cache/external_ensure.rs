@@ -8,10 +8,13 @@
 use super::encode::write_webp_tier;
 use super::{decode_image_bytes, disk, external, fetch, peek_fallback_tiers, peek_tier_path};
 use super::CoverCacheEnsureArgs;
+use psysonic_integration::discord::ArtworkCacheEntry;
 use psysonic_library::LibraryRuntime;
 use reqwest::Client;
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use std::sync::Mutex;
 use std::time::Duration;
 use tauri::{AppHandle, Manager};
 use tokio::sync::Semaphore;
@@ -67,6 +70,19 @@ fn write_marker(path: &Path) {
         let _ = std::fs::create_dir_all(parent);
     }
     let _ = std::fs::write(path, b"1");
+}
+
+/// Permanent "external chain already found real art for this album" sentinel.
+/// Written on a HIT so the coverless-album path (which runs the provider chain
+/// before trusting a cached placeholder) stops re-querying apple/lastfm on every
+/// re-ensure once real art is on disk — the normal peek then finds it. Unlike
+/// `.miss-album-ext` (30-min cooldown), a HIT is never re-checked: the album now
+/// has art, so the chain has nothing more to do until the cache is cleared.
+const ALBUM_EXT_HIT_MARKER: &str = ".album-ext-hit";
+
+/// True when this album has already been resolved by the external chain (HIT).
+pub(super) fn album_ext_hit(dir: &Path) -> bool {
+    dir.join(ALBUM_EXT_HIT_MARKER).is_file()
 }
 
 /// §11: do these pixel dimensions satisfy the fanart (16:9) surface?
@@ -400,6 +416,157 @@ pub(super) async fn try_external_fanart(
     // fallback) even with the scraper off. The external hooks read the path from
     // this function's return value, so no event is needed.
     Some(disk::provider_tier_path(dir, requested, surface))
+}
+
+/// Try an external album cover for a server that returned no art. Walks the
+/// ordered `external_album_sources` chain (apple → lastfm), takes the first
+/// provider that yields a real image URL, fetches it, and writes the deduped
+/// `{requested,800}.webp` tiers under the PLAIN tier names (Task 5.2 fallback
+/// surface wiring) so the normal `ensure_peek` finds them on later ensures —
+/// the album ensure carries `surface_kind: None`, so a `-album.webp` suffix
+/// would be invisible to the peek. Returns the requested-tier path on success.
+///
+/// `None` = "no image — record the miss". Never writes the `COVER_FETCH_FAIL_MARKER`
+/// (the orchestrator's miss branch does that on the fall-through); the negative
+/// cache here is the `.miss-album-ext` marker (30 min), written only for a
+/// definitive provider miss (404 / `error:6`), never for a transient error.
+///
+/// Gated by `args.external_album_sources` non-empty (NOT `external_artwork_enabled`,
+/// which is the fanart master toggle) and `!library_bulk` (off during backfill).
+#[allow(clippy::too_many_arguments)]
+pub(super) async fn try_external_album_cover(
+    args: &CoverCacheEnsureArgs,
+    dir: &Path,
+    client: &Client,
+    sem: &Arc<Semaphore>,
+    requested: u32,
+) -> Option<PathBuf> {
+    // None = feature off; empty array = no enabled sources.
+    let sources = args.external_album_sources.as_deref()?;
+    if sources.is_empty() {
+        return None;
+    }
+    let artist = args.artist_name.as_deref()?;
+    let album = args.album_title.as_deref()?;
+
+    let miss_marker = dir.join(".miss-album-ext");
+    if marker_recent(&miss_marker, Duration::from_secs(30 * 60)) {
+        return None;
+    }
+    // `sem` is the shared album_http_sem — a low-concurrency gate so the external
+    // fallback can never starve Navidrome cover / getArtistInfo2 fetches (§26).
+    let _permit = sem.clone().acquire_owned().await.ok()?;
+
+    let mut img_url: Option<String> = None;
+    let mut had_definitive_miss = false;
+    for source in sources {
+        let outcome = match source.as_str() {
+            "lastfm" => psysonic_integration::album_art::fetch_lastfm_album_image(
+                client,
+                &psysonic_integration::album_art::lastfm_api_key(),
+                artist,
+                album,
+            )
+            .await,
+            "apple" => {
+                // iTunes is blocking + lives in psysonic-integration; bridge via
+                // spawn_blocking so the existing fuzzy 3-strategy matching + the
+                // 100→600px upscale are reused rather than re-implemented.
+                // Build the blocking client INSIDE the closure so its internal
+                // tokio runtime is created, used, and dropped entirely on the
+                // blocking pool. Building it in the async context panics Tokio:
+                // "Cannot drop a runtime in a context where blocking is not
+                // allowed."
+                async {
+                    let artist = artist.to_string();
+                    let album = album.to_string();
+                    // Fresh per-call cache is harmless: the file write + negative
+                    // marker below already de-dupe across ensures.
+                    let cache: Mutex<HashMap<String, ArtworkCacheEntry>> =
+                        Mutex::new(HashMap::new());
+                    tauri::async_runtime::spawn_blocking(move || -> Result<Option<String>, String> {
+                        let blocking_client = reqwest::blocking::Client::builder()
+                            .timeout(Duration::from_secs(5))
+                            .build()
+                            .map_err(|e| e.to_string())?;
+                        Ok(psysonic_integration::discord::search_itunes_artwork(
+                            &blocking_client,
+                            &cache,
+                            &artist,
+                            &album,
+                            &album,
+                        ))
+                    })
+                    .await
+                    .map_err(|e| e.to_string())?
+                }
+                .await
+            }
+            _ => continue,
+        };
+        match outcome {
+            Ok(Some(u)) => {
+                img_url = Some(u);
+                break;
+            }
+            Ok(None) => {
+                had_definitive_miss = true;
+            }
+            Err(_e) => {} // transient, don't cache
+        }
+    }
+
+    let url = match img_url {
+        Some(u) => u,
+        None => {
+            // Negative-cache only definitive misses; a pure transient error
+            // (429 / network) must not poison the chain for 30 min.
+            if had_definitive_miss {
+                write_marker(&miss_marker);
+            }
+            return None;
+        }
+    };
+
+    let bytes = match fetch::fetch_cover_bytes(client, &url, None, None).await {
+        Ok(b) => b,
+        Err(_e) => return None,
+    };
+
+    let dir_owned = dir.to_path_buf();
+    let encoded = tauri::async_runtime::spawn_blocking(move || -> Result<(), String> {
+        let img = decode_image_bytes(&bytes)?;
+        std::fs::create_dir_all(&dir_owned).map_err(|e| e.to_string())?;
+        // Album covers are square: write the deduped {requested, 800} tiers under
+        // the plain tier names (fallback surface wiring) so `ensure_peek` finds
+        // them on later ensures. Do NOT write the fanart {2000,512} pair.
+        // Overwrite EVERY display tier so any non-chain surface (grid, row,
+        // "More by" card) finds real art via its exact-tier peek. A stale
+        // placeholder at a lower tier (e.g. a leftover 128.webp) would otherwise
+        // win, because `peek_tier_path` checks the exact tier before the ladder.
+        // Mirrors the normal cover path, which derives the whole ladder from one
+        // source image. `requested` may be 2000 (hero full-res) and is kept too.
+        let mut tiers: Vec<u32> = disk::DERIVE_TIERS.to_vec();
+        tiers.push(requested);
+        tiers.sort_unstable();
+        tiers.dedup();
+        for t in tiers {
+            write_webp_tier(&img, t, &disk::tier_path(&dir_owned, t))?;
+        }
+        Ok(())
+    })
+    .await;
+    if !matches!(encoded, Ok(Ok(()))) {
+        return None;
+    }
+
+    // HIT: real art is now on disk. Record it so the coverless-album path stops
+    // re-running the provider chain on every re-ensure (a HIT writes no
+    // `.miss-album-ext` cooldown, so without this the chain would re-query
+    // apple/lastfm on each mount). The normal peek finds the written tier.
+    write_marker(&dir.join(ALBUM_EXT_HIT_MARKER));
+
+    Some(disk::tier_path(dir, requested))
 }
 
 #[cfg(test)]

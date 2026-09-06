@@ -77,6 +77,11 @@ const Hero = memo(function Hero({ track, artistRefs, genre, playCount, userRatin
             displayCssPx={280}
             surface="sparse"
             ensurePriority="high"
+            ensureOpts={{
+              artistName: track.artist,
+              albumTitle: track.album,
+              allowExternalAlbum: true,
+            }}
             alt=""
           />
         ) : (

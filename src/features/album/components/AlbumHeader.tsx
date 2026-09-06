@@ -1,5 +1,5 @@
 import type { EntityRatingSupportLevel, SubsonicItemGenre, SubsonicOpenArtistRef, SubsonicSong } from '@/lib/api/subsonicTypes';
-import { type CSSProperties, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { type CSSProperties, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useLocation, useNavigate } from 'react-router';
 import { Play, Heart, X, ChevronLeft, Download, ListPlus, HardDriveDownload, Share2, Highlighter, Loader2, Shuffle } from 'lucide-react';
@@ -242,6 +242,15 @@ export default function AlbumHeader({
   const genreTags = deriveAlbumGenreTags(info, songs);
   const [genreMenuPos, setGenreMenuPos] = useState<{ x: number; y: number } | null>(null);
   const genreMoreRef = useRef<HTMLButtonElement>(null);
+  // §5 external album-chain context for the hero cover. Memoized on the
+  // artist/album identity: an inline object would get a new identity every
+  // parent render, re-firing the hero's ensure effect (its `allowExternalAlbum`
+  // deliberately skips the cached-src short-circuit, so every re-fire means a
+  // peek + ensure round-trip and a potential re-render churn loop).
+  const heroCoverEnsureOpts = useMemo(
+    () => ({ artistName: info.artist, albumTitle: info.name, allowExternalAlbum: true }),
+    [info.artist, info.name],
+  );
   const goToGenre = (genre: string) => {
     setGenreMenuPos(null);
     navigate(`/genres/${encodeURIComponent(genre)}`, {
@@ -305,6 +314,7 @@ export default function AlbumHeader({
                   coverRef={coverRef}
                   displayCssPx={400}
                   surface="sparse"
+                  ensureOpts={heroCoverEnsureOpts}
                   alt={`${info.name} Cover`}
                 />
               </button>

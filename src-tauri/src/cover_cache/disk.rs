@@ -39,6 +39,20 @@ pub fn tier_exists(dir: &Path, tier: u32) -> Option<PathBuf> {
     if p.is_file() { Some(p) } else { None }
 }
 
+/// Version stamp for a tier file: mtime in epoch seconds, `0` when the file is
+/// unreadable. The webview appends it to the asset URL (`?v=`) so a tier that
+/// was overwritten IN PLACE (chain art replacing backfill vinyl) gets a fresh
+/// URL — otherwise the webview image cache keeps serving the old bytes for the
+/// unchanged path, which was the observed queue/playbar vinyl flash.
+pub(super) fn tier_version(path: &Path) -> u64 {
+    std::fs::metadata(path)
+        .and_then(|m| m.modified())
+        .ok()
+        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+        .map(|d| d.as_secs())
+        .unwrap_or(0)
+}
+
 /// Write missing WebP tiers up to `max_tier` (used by library bulk backfill).
 pub fn write_derived_webp_tiers(
     dir: &Path,

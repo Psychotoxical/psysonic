@@ -1,15 +1,13 @@
-import type { BackdropSourcePref } from '@/cover/artistBackdrop';
-
 /**
  * Move the source at `from` so it lands at exactly index `to` — the ↑/↓ buttons,
  * i.e. a swap with the neighbour. Returns a new array, or `null` for an
  * out-of-range or no-op move (so the caller can skip a redundant update).
  */
-export function moveSourceTo(
-  sources: BackdropSourcePref[],
+export function moveSourceTo<T extends { source: string }>(
+  sources: T[],
   from: number,
   to: number,
-): BackdropSourcePref[] | null {
+): T[] | null {
   if (from === to || from < 0 || to < 0 || from >= sources.length || to >= sources.length) return null;
   const next = sources.slice();
   const [item] = next.splice(from, 1);
@@ -23,11 +21,11 @@ export function moveSourceTo(
  * dragging downward accounts for the slot the dragged item vacated. Returns a
  * new array, or `null` for an out-of-range or no-op move.
  */
-export function dropSourceBefore(
-  sources: BackdropSourcePref[],
+export function dropSourceBefore<T extends { source: string }>(
+  sources: T[],
   from: number,
   beforeIndex: number,
-): BackdropSourcePref[] | null {
+): T[] | null {
   if (from === beforeIndex || from < 0 || from >= sources.length) return null;
   const next = sources.slice();
   const [item] = next.splice(from, 1);

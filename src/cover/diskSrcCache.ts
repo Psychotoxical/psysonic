@@ -61,20 +61,41 @@ function isRawFsPath(url: string, fsPath: string): boolean {
 /**
  * Turn a Rust disk path into a webview-loadable URL.
  * Returns empty when not in Tauri or path is outside asset scope (never put raw paths in `<img src>`).
+ *
+ * Callers may pass `fsPath` as `path|version` (mtime epoch secs). The version is
+ * appended as `?v=`: the webview image cache keys on the full URL, so a tier file
+ * overwritten IN PLACE (external chain art replacing backfill vinyl) must get a
+ * new URL or the old bytes keep winning — the observed queue/playbar flash.
  */
 function tryCoverDiskUrl(fsPath: string): string {
-  const paths = fsPath.includes('\\')
-    ? [normalizePathForConvert(fsPath), fsPath]
-    : [fsPath, normalizePathForConvert(fsPath)];
+  const { path: rawPath, version } = splitPathVersion(fsPath);
+  const paths = rawPath.includes('\\')
+    ? [normalizePathForConvert(rawPath), rawPath]
+    : [rawPath, normalizePathForConvert(rawPath)];
   const seen = new Set<string>();
   for (const p of paths) {
     if (!p || seen.has(p)) continue;
     seen.add(p);
     const src = convertFileSrc(p);
-    if (!src || isRawFsPath(src, p) || isRawFsPath(src, fsPath)) continue;
-    return src;
+    if (!src || isRawFsPath(src, p) || isRawFsPath(src, rawPath)) continue;
+    return version ? `${src}?v=${version}` : src;
   }
   return '';
+}
+
+/**
+ * Split a Rust `path|mtimeVersion` wire value (ensure results, peek batch
+ * values, `cover:tier-ready` payloads). Single owner for the wire format:
+ * every seeder imports this so the versioned URL survives to the webview
+ * (the image cache keys on the full URL and must never serve stale bytes
+ * for a tier overwritten in place).
+ */
+export function splitPathVersion(fsPath: string): { path: string; version: string } {
+  const sep = fsPath.lastIndexOf('|');
+  if (sep < 0 || !/^\d+$/.test(fsPath.slice(sep + 1))) {
+    return { path: fsPath, version: '' };
+  }
+  return { path: fsPath.slice(0, sep), version: fsPath.slice(sep + 1) };
 }
 
 export function coverDiskUrl(fsPath: string): string {

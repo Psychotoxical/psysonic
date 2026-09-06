@@ -328,6 +328,8 @@ async fn ensure_one(
         artist_name: None,
         album_title: None,
         external_artwork_byok: None,
+        // Library backfill never runs the external album fallback (§5).
+        external_album_sources: None,
     };
     let _ = CoverCacheState::ensure_inner(&st, &app, &args, Some(http_sem)).await;
 }

@@ -128,6 +128,7 @@ function AlbumTableRow({
             displayCssPx={COVER_TRACK_ROW_CSS_PX}
             surface="dense"
             className="album-table__cover"
+            ensureOpts={{ artistName: artistLabel, albumTitle: album.name }}
             alt=""
             loading="lazy"
             decoding="async"

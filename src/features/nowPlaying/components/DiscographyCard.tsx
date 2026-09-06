@@ -59,6 +59,7 @@ const DiscographyCard = memo(function DiscographyCard({ artistId, serverId, albu
                       coverArt={a.coverArt}
                       displayCssPx={COVER_DENSE_RAIL_CELL_CSS_PX}
                       surface="dense"
+                      album={a}
                       alt={a.name}
                       className="np-dash-disc-img"
                     />

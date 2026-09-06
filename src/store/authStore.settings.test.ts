@@ -31,6 +31,7 @@ import { useAuthStore } from './authStore';
 import { resetAuthStore, resetPlayerStore } from '@/test/helpers/storeReset';
 import { onInvoke } from '@/test/mocks/tauri';
 import {
+  DEFAULT_COVER_SOURCES,
   LIBRARY_GRID_MAX_COLUMNS_MAX,
   LIBRARY_GRID_MAX_COLUMNS_MIN,
 } from './authStoreDefaults';
@@ -227,12 +228,10 @@ describe('replay-gain related setters (write through to player store)', () => {
   });
 });
 
-describe('discord cover source setters', () => {
-  it('setDiscordCoverSource accepts none / server / apple', () => {
-    for (const src of ['none', 'server', 'apple'] as const) {
-      useAuthStore.getState().setDiscordCoverSource(src);
-      expect(useAuthStore.getState().discordCoverSource).toBe(src);
-    }
+describe('cover source chain setters', () => {
+  it('setCoverSources stores the ordered chain', () => {
+    useAuthStore.getState().setCoverSources(DEFAULT_COVER_SOURCES);
+    expect(useAuthStore.getState().coverSources).toEqual(DEFAULT_COVER_SOURCES);
   });
 
   it('setLoggingMode accepts off / normal / debug', () => {

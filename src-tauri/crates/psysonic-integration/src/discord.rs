@@ -18,8 +18,8 @@ use std::sync::{Arc, Mutex};
 mod artwork;
 mod presence;
 
-use artwork::search_itunes_artwork;
 pub use artwork::ArtworkCacheEntry;
+pub use artwork::search_itunes_artwork;
 #[cfg(test)]
 use presence::apply_template;
 use presence::{
@@ -81,9 +81,6 @@ fn try_connect() -> Option<DiscordIpcClient> {
 /// - `elapsed_secs`: seconds already played. `None` when paused — no timestamp is sent so
 ///   Discord stops any running timer.
 /// - `cover_art_url`: optional direct URL to album artwork.
-/// - `fetch_itunes_covers`: if true, fetch artwork from the iTunes Search API when no
-///   `cover_art_url` is provided. If false (default), fall back to the Psysonic app icon
-///   without making any external request — required for privacy opt-in.
 /// - `details_template`: template string for the "details" field. Default: "{artist} - {title}".
 ///   Supported placeholders: {title}, {artist}, {album}
 /// - `state_template`: template string for the "state" field. Default: "{album}".
@@ -105,36 +102,15 @@ pub async fn discord_update_presence(
     is_playing: bool,
     elapsed_secs: Option<f64>,
     cover_art_url: Option<String>,
-    fetch_itunes_covers: bool,
     details_template: Option<String>,
     state_template: Option<String>,
     large_text_template: Option<String>,
     name_template: Option<String>,
 ) -> Result<(), String> {
-    // Resolve artwork on a dedicated blocking thread — reqwest::blocking must not
-    // run on the Tokio async executor directly.
-    // Only hit the iTunes API if the user has explicitly opted in.
-    let artwork_url: Option<String> = if let Some(url) = cover_art_url {
-        Some(url)
-    } else if fetch_itunes_covers {
-        if let Some(ref album_name) = album {
-            let http_client = state.http_client.clone();
-            let cache = Arc::clone(&state.artwork_cache);
-            let artist_c = artist.clone();
-            let album_c = album_name.clone();
-            let title_c = title.clone();
-            tokio::task::spawn_blocking(move || {
-                search_itunes_artwork(&http_client, &cache, &artist_c, &album_c, &title_c)
-            })
-            .await
-            .ok()
-            .flatten()
-        } else {
-            None
-        }
-    } else {
-        None
-    };
+    // The frontend resolves the cover chain (server/apple/lastfm) and passes a
+    // publishable URL; this command only validates it. The iTunes fetch now
+    // lives in `resolve_apple_cover` (called by the chain walker).
+    let artwork_url: Option<String> = cover_art_url;
 
     // Backstop: reject any URL that isn't safe to publish, no matter which
     // path above produced it. Falls back to the app icon on rejection.
@@ -245,6 +221,28 @@ pub fn discord_clear_presence(state: tauri::State<DiscordState>) -> Result<(), S
         }
     }
     Ok(())
+}
+
+/// Resolve an iTunes artwork URL directly (Discord chain step). Reuses the
+/// blocking `search_itunes_artwork` + the managed client/cache so the 1h TTL
+/// is shared with the old `discord_update_presence` path.
+#[tauri::command]
+#[specta::specta]
+pub async fn resolve_apple_cover(
+    state: tauri::State<'_, DiscordState>,
+    artist: String,
+    album: String,
+    title: String,
+) -> Result<Option<String>, String> {
+    let http_client = state.http_client.clone();
+    let cache = Arc::clone(&state.artwork_cache);
+    let url = tokio::task::spawn_blocking(move || {
+        search_itunes_artwork(&http_client, &cache, &artist, &album, &title)
+    })
+    .await
+    .ok()
+    .flatten();
+    Ok(url)
 }
 
 #[cfg(test)]

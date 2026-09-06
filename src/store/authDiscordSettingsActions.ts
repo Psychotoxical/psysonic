@@ -1,4 +1,5 @@
 import type { AuthState } from './authStoreTypes';
+import type { CoverSourcePref } from '@/cover/coverSources';
 
 type SetState = (
   partial: Partial<AuthState> | ((state: AuthState) => Partial<AuthState>),
@@ -7,7 +8,7 @@ type SetState = (
 export function createDiscordSettingsActions(set: SetState): Pick<
   AuthState,
   | 'setDiscordRichPresence'
-  | 'setDiscordCoverSource'
+  | 'setCoverSources'
   | 'setEnableBandsintown'
   | 'setDiscordTemplateDetails'
   | 'setDiscordTemplateState'
@@ -16,7 +17,7 @@ export function createDiscordSettingsActions(set: SetState): Pick<
 > {
   return {
     setDiscordRichPresence: (v) => set({ discordRichPresence: v }),
-    setDiscordCoverSource: (v) => set({ discordCoverSource: v }),
+    setCoverSources: (v: CoverSourcePref[]) => set({ coverSources: v }),
     setEnableBandsintown: (v) => set({ enableBandsintown: v }),
     setDiscordTemplateDetails: (v) => set({ discordTemplateDetails: v }),
     setDiscordTemplateState: (v) => set({ discordTemplateState: v }),

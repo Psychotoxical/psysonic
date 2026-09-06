@@ -23,8 +23,11 @@ export function coverCacheRestHost(serverUrl: string): string {
 
 export type CoverCacheEnsureResult = {
   hit: boolean;
+  /** Absolute tier path; carries `|mtimeVersion` on hits (cache-bust suffix). */
   path: string;
   tier: CoverArtTier;
+  /** mtime (epoch secs) of the tier file; 0 on miss. Rides inside `path`. */
+  pathVersion: number;
 };
 
 export type CoverCacheStats = {
@@ -60,12 +63,22 @@ export type CoverEnsureOpts = {
   /** §19 name→MusicBrainz context: the artist display name + the album in context. */
   artistName?: string;
   albumTitle?: string;
+  /** §5 deferral gate: when `true`, an album ensure may run the external
+   *  apple/lastfm chain on a server-miss. ONLY the album detail page and the
+   *  current-track cover set this; browse surfaces (grid cards, table rows,
+   *  disc headers, list track covers) leave it off, so a collection/startup
+   *  flood never fans out to the providers or holds queue slots. */
+  allowExternalAlbum?: boolean;
 };
 
 /**
  * External-artwork ensure fields (§28). `externalArtworkEnabled` is gated by the
  * master toggle AND restricted to the external artist surfaces (`fanart` /
  * `banner`), so plain album/artist cover ensures are never affected.
+ *
+ * `externalAlbumSources` (§5) carries the enabled `apple`/`lastfm` chain the
+ * server-miss fallback should try, for album ensures only. Server-first
+ * precedence is preserved server-side; this list is the fallback order.
  */
 function externalEnsureFields(ref: CoverArtRef, opts?: CoverEnsureOpts) {
   const surfaceKind = opts?.surfaceKind;
@@ -73,6 +86,12 @@ function externalEnsureFields(ref: CoverArtRef, opts?: CoverEnsureOpts) {
   const theme = useThemeStore.getState();
   const externalArtworkEnabled =
     isExternalSurface && ref.cacheKind === 'artist' && theme.externalArtworkEnabled;
+  const albumSources =
+    ref.cacheKind === 'album' && opts?.allowExternalAlbum
+      ? (useAuthStore.getState().coverSources ?? []).filter(
+          (s) => s.enabled && (s.source === 'apple' || s.source === 'lastfm'),
+        )
+      : [];
   return {
     externalArtworkEnabled,
     surfaceKind,
@@ -80,6 +99,7 @@ function externalEnsureFields(ref: CoverArtRef, opts?: CoverEnsureOpts) {
     albumTitle: opts?.albumTitle,
     // BYOK personal fanart.tv key (§22), only when the external branch will run.
     externalArtworkByok: externalArtworkEnabled ? theme.externalArtworkByok : undefined,
+    externalAlbumSources: albumSources.length ? albumSources.map((s) => s.source) : undefined,
   };
 }
 

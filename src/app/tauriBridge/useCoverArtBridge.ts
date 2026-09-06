@@ -17,6 +17,7 @@ type CoverTierReadyPayload = {
   cacheEntityId: string;
   tier: CoverArtTier;
   path: string;
+  pathVersion?: number;
 };
 
 type CoverEvictedPayload = {
@@ -37,11 +38,12 @@ export function useCoverArtBridge(): void {
     void (async () => {
       unsubs.push(
         await listen<CoverTierReadyPayload>('cover:tier-ready', ev => {
-          const { serverIndexKey, cacheKind, cacheEntityId, tier, path } = ev.payload;
+          const { serverIndexKey, cacheKind, cacheEntityId, tier, path, pathVersion } = ev.payload;
           if (!path) return;
+          const versioned = pathVersion ? `${path}|${pathVersion}` : path;
           const key = `${serverIndexKey}:cover:${cacheKind}:${cacheEntityId}:${tier}`;
-          rememberDiskSrcLadder(serverIndexKey, { cacheKind, cacheEntityId }, tier, path);
-          notifyCoverDiskReady(key, path);
+          rememberDiskSrcLadder(serverIndexKey, { cacheKind, cacheEntityId }, tier, versioned);
+          notifyCoverDiskReady(key, versioned);
           void invalidateCacheKey(key);
         }),
       );

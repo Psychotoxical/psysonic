@@ -244,7 +244,19 @@ export default function MobilePlayerView() {
   const duration = currentTrack?.duration ?? 0;
 
   const playbackCoverRef = usePlaybackTrackCoverRef(currentTrack ?? undefined);
-  const { src: coverFetchUrl, cacheKey: coverKey } = usePlaybackCoverArt(playbackCoverRef, 800);
+  const { src: coverFetchUrl, cacheKey: coverKey } = usePlaybackCoverArt(
+    playbackCoverRef,
+    800,
+    {
+      // Playback must arm the chain (see FullscreenPlayerStatic): an album
+      // playing without a page visit has only the backfill vinyl ladder.
+      ensureOpts: {
+        artistName: currentTrack?.artist ?? '',
+        albumTitle: currentTrack?.album ?? '',
+        allowExternalAlbum: true,
+      },
+    },
+  );
   const resolvedCover = useCachedUrl(coverFetchUrl, coverKey);
   const directCover = currentTrack?.directCoverArtUrl;
   const displayCover = directCover ?? resolvedCover;

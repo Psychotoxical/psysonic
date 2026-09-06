@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::path::Path;
 
 #[derive(Debug, Clone, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
@@ -6,6 +7,33 @@ pub struct CoverCacheEnsureResult {
     pub hit: bool,
     pub path: String,
     pub tier: u32,
+    /// mtime (epoch secs) of the returned tier file — the webview appends it as
+    /// `?v=` to the asset URL so overwritten tiers bust the webview image
+    /// cache. `0` on miss / unreadable file (versioning degrades gracefully).
+    #[serde(default)]
+    pub path_version: u64,
+}
+
+impl CoverCacheEnsureResult {
+    /// Hit whose `path` is a file on disk — stamps the current mtime.
+    pub fn hit_at(tier: u32, path: &Path) -> Self {
+        Self {
+            hit: true,
+            path: path.to_string_lossy().into_owned(),
+            tier,
+            path_version: super::disk::tier_version(path),
+        }
+    }
+
+    /// Miss — no path, no version.
+    pub fn miss(tier: u32) -> Self {
+        Self {
+            hit: false,
+            path: String::new(),
+            tier,
+            path_version: 0,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, specta::Type)]
@@ -76,6 +104,13 @@ pub struct CoverCacheEnsureArgs {
     /// the project key (§22). Falls back to the `PSYSONIC_FANART_CLIENT_KEY` env.
     #[serde(default)]
     pub external_artwork_byok: Option<String>,
+    /// Ordered external album chain (§5, cover provider chain): the enabled
+    /// `apple`/`lastfm` sources the server-miss fallback should try when the
+    /// Navidrome/Subsonic server returns no cover art. `None`/empty = external
+    /// album fallback off. This keys the album external branch (NOT
+    /// `external_artwork_enabled`, which is the fanart master toggle).
+    #[serde(default)]
+    pub external_album_sources: Option<Vec<String>>,
 }
 
 #[derive(Debug, Clone, Deserialize, specta::Type)]

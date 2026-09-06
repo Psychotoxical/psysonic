@@ -1,4 +1,4 @@
-import { getDiskSrc, rememberDiskSrc } from './diskSrcCache';
+import { getDiskSrc, rememberDiskSrc, splitPathVersion } from './diskSrcCache';
 import { hasCoverDiskReadyListeners, notifyCoverDiskReady } from './diskHandoff';
 import { coverStorageKeyFromRef } from './storageKeys';
 import type { CoverArtRef, CoverArtTier } from './types';
@@ -7,6 +7,11 @@ import type { CoverArtRef, CoverArtTier } from './types';
 function coverPathTier(fsPath: string): number | null {
   const m = /(\d+)(?:-[a-z0-9]+)?\.webp$/i.exec(fsPath);
   return m ? Number(m[1]) : null;
+}
+
+/** Re-join a (possibly version-stripped) path back into the wire format. */
+function joinPathVersion(path: string, version: string): string {
+  return version ? `${path}|${version}` : path;
 }
 
 /**
@@ -18,8 +23,24 @@ function coverPathTier(fsPath: string): number | null {
  */
 function skipFullResSeedTier(tier: CoverArtTier, fsPath: string): boolean {
   if (tier < 2000) return false;
-  const src = coverPathTier(fsPath);
+  const src = coverPathTier(splitPathVersion(fsPath).path);
   return src == null || src < 2000;
+}
+
+/**
+ * Never seed a display (<2000) key from a full-res (≥2000) file — the mirror
+ * direction of {@link skipFullResSeedTier}. A tier-2000 file can be the
+ * Navidrome vinyl placeholder (the lightbox's full-res download writes it for a
+ * coverless album even after an external-chain HIT, because the chain never
+ * writes 2000), and a placeholder pinned under `:800` is exactly the
+ * single-frame hero flash: the hero renders vinyl, its next re-ensure peeks the
+ * real on-disk 800 and reseeds, flipping back. Seeding only the 2000 key keeps
+ * the lightbox's full-res behavior intact while display surfaces never see the
+ * placeholder.
+ */
+function isFullResSeedFile(fsPath: string): boolean {
+  const src = coverPathTier(splitPathVersion(fsPath).path);
+  return src != null && src >= 2000;
 }
 
 /** Dense grids: prefer a larger on-disk tier (800) before tiny thumbs when the ideal tier is missing. */
@@ -46,15 +67,32 @@ export function getDiskSrcForGrid(ref: CoverArtRef, wantTier: CoverArtTier): str
   return '';
 }
 
+/**
+ * Seed every grid lookup-order key for a path. A full-res (≥2000) file seeds
+ * ONLY its own key (see isFullResSeedFile) — a tier-2000 path must never
+ * poison display keys. Shared by the peek/ensure seeder and the
+ * `cover:tier-ready` seeder, which differ only in how keys are built.
+ */
+function seedLadderKeys(
+  wantTier: CoverArtTier,
+  fsPath: string,
+  keyFor: (tier: CoverArtTier) => string,
+): boolean {
+  const { path, version } = splitPathVersion(fsPath);
+  const fullResFile = isFullResSeedFile(fsPath);
+  let hit = false;
+  for (const tier of gridDiskSrcLookupOrder(wantTier)) {
+    if (fullResFile && tier < 2000) continue;
+    if (skipFullResSeedTier(tier, fsPath)) continue;
+    if (rememberDiskSrc(keyFor(tier), joinPathVersion(path, version))) hit = true;
+  }
+  return hit;
+}
+
 /** Seed lookup-order tier keys (512 + 800 fallback path, etc.) — no subscriber wakeups. */
 export function seedGridDiskSrcCache(ref: CoverArtRef, wantTier: CoverArtTier, fsPath: string): boolean {
   if (!fsPath) return false;
-  let hit = false;
-  for (const tier of gridDiskSrcLookupOrder(wantTier)) {
-    if (skipFullResSeedTier(tier, fsPath)) continue;
-    if (rememberDiskSrc(coverStorageKeyFromRef(ref, tier), fsPath)) hit = true;
-  }
-  return hit;
+  return seedLadderKeys(wantTier, fsPath, (tier) => coverStorageKeyFromRef(ref, tier));
 }
 
 /**
@@ -78,11 +116,7 @@ export function rememberDiskSrcLadder(
   fsPath: string,
 ): boolean {
   if (!serverIndexKey || !ref.cacheEntityId || !fsPath) return false;
-  let hit = false;
-  for (const tier of gridDiskSrcLookupOrder(wantTier)) {
-    if (skipFullResSeedTier(tier, fsPath)) continue;
-    const key = `${serverIndexKey}:cover:${ref.cacheKind}:${ref.cacheEntityId}:${tier}`;
-    if (rememberDiskSrc(key, fsPath)) hit = true;
-  }
-  return hit;
+  return seedLadderKeys(wantTier, fsPath, (tier) =>
+    `${serverIndexKey}:cover:${ref.cacheKind}:${ref.cacheEntityId}:${tier}`,
+  );
 }

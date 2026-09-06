@@ -190,7 +190,7 @@ export default function LiveSearchDropdown({
                     }}
                     role="option" aria-selected={activeIndex === i}>
                     {a.coverArt ? (
-                      <LiveSearchAlbumThumb albumId={a.id} coverArt={a.coverArt} serverId={a.serverId} />
+                      <LiveSearchAlbumThumb albumId={a.id} coverArt={a.coverArt} serverId={a.serverId} album={a} />
                     ) : (
                       <div className="search-result-icon"><Disc3 size={14} /></div>
                     )}

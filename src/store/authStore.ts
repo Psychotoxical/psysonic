@@ -14,6 +14,7 @@ import { createSkipStarActions } from './authSkipStarActions';
 import { createTrackPreviewActions } from './authTrackPreviewActions';
 import { createUiAppearanceActions } from './authUiAppearanceActions';
 import {
+  DEFAULT_COVER_SOURCES,
   DEFAULT_LOUDNESS_PRE_ANALYSIS_ATTENUATION_DB,
   DEFAULT_LYRICS_SOURCES,
   DEFAULT_TRACK_PREVIEW_LOCATIONS,
@@ -96,7 +97,7 @@ export const useAuthStore = create<AuthState>()(
       clockFormat: 'auto',
       showOrbitTrigger: true,
       discordRichPresence: false,
-      discordCoverSource: 'none',
+      coverSources: DEFAULT_COVER_SOURCES,
       enableBandsintown: false,
       discordTemplateDetails: '{artist}',
       discordTemplateState: '{title}',

@@ -351,6 +351,8 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             // the nd_list_*/nd_create_*/nd_update_* + scrobbler (audioscrobbler/listenbrainz/
             // maloja) + radio-browser + fetch_json_url raw-JSON commands (serde_json::Value /
             // passthrough), and discord_update_presence (>10 args) — noted at their defs.
+            // resolve_apple_cover / resolve_lastfm_cover are the new cover-chain steps
+            // (Option<String> — collected here, not excluded).
             psysonic_integration::bandsintown::fetch_bandsintown_events,
             psysonic_integration::navidrome::covers::upload_playlist_cover,
             psysonic_integration::navidrome::covers::upload_radio_cover,
@@ -365,6 +367,8 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             psysonic_integration::remote::fetch_icy_metadata,
             psysonic_integration::remote::resolve_stream_url,
             psysonic_integration::discord::discord_clear_presence,
+            psysonic_integration::discord::resolve_apple_cover,
+            psysonic_integration::album_art::resolve_lastfm_cover,
         ])
 }
 
@@ -635,6 +639,8 @@ pub fn run() {
             audio::commands::audio_chain_preload,
             psysonic_integration::discord::discord_update_presence,
             psysonic_integration::discord::discord_clear_presence,
+            psysonic_integration::discord::resolve_apple_cover,
+            psysonic_integration::album_art::resolve_lastfm_cover,
             psysonic_integration::remote::audioscrobbler_request,
             psysonic_integration::remote::listenbrainz_request,
             psysonic_integration::remote::maloja_request,
