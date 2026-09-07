@@ -450,6 +450,8 @@ export const settings = {
   tabAppearance: 'Aspetto',
   tabThemes: 'Temi',
   themesYourThemesTitle: 'I tuoi temi',
+  followDesktopTheme: 'Segui il tema del desktop',
+  followDesktopThemeSub: 'Usa la tavolozza pubblicata dal desktop e ricolora automaticamente quando cambi tema del desktop',
   themesCvdTooltip: 'Sicuro per il daltonismo — deuteranopia, protanopia, tritanopia',
   themeAnimationWarning: 'Questo tema utilizza animazioni che potrebbero aumentare l\'uso della CPU sul tuo sistema (Nvidia/Linux o compositing disattivato).',
   themeStoreTitle: 'Store dei temi',

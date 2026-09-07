@@ -67,9 +67,12 @@ export function validateThemeCss(css: string, id: string): string | null {
   return css;
 }
 
-export function injectTheme(theme: InstalledTheme): void {
+/** Returns whether the injected CSS actually changed (a new style element, or
+ *  new text in an existing one) — the caller uses that to decide whether the
+ *  colours canvases cached are now stale. */
+export function injectTheme(theme: InstalledTheme): boolean {
   const clean = validateThemeCss(theme.css, theme.id);
-  if (clean == null) return;
+  if (clean == null) return false;
   // Rewrite relative `url("assets/…")` to the theme's on-disk asset directory.
   // No-op for themes without assets (no base, or no asset urls). Runs after
   // validation, so we never validate a url() we produced ourselves. A dev
@@ -84,7 +87,9 @@ export function injectTheme(theme: InstalledTheme): void {
     el.setAttribute(ATTR, theme.id);
     document.head.appendChild(el);
   }
-  if (el.textContent !== css) el.textContent = css;
+  if (el.textContent === css) return false;
+  el.textContent = css;
+  return true;
 }
 
 export function removeInjectedTheme(id: string): void {
@@ -94,17 +99,24 @@ export function removeInjectedTheme(id: string): void {
 /**
  * Reconcile the injected <style> elements with the given installed set: drop
  * styles for themes no longer installed, add/update the rest. Idempotent —
- * safe to call on every change and at startup.
+ * safe to call on every change and at startup. Returns whether anything about
+ * the injected CSS changed, so the caller can bump the theme revision that
+ * canvas surfaces key their cached colours on.
  */
-export function syncInjectedThemes(themes: InstalledTheme[]): void {
+export function syncInjectedThemes(themes: InstalledTheme[]): boolean {
   const wanted = new Set(themes.map((t) => t.id));
+  let changed = false;
   document.head
     .querySelectorAll<HTMLStyleElement>(`style[${ATTR}]`)
     .forEach((el) => {
       const id = el.getAttribute(ATTR);
-      if (id && !wanted.has(id)) el.remove();
+      if (id && !wanted.has(id)) {
+        el.remove();
+        changed = true;
+      }
     });
-  for (const theme of themes) injectTheme(theme);
+  for (const theme of themes) changed = injectTheme(theme) || changed;
+  return changed;
 }
 
 /**

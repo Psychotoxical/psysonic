@@ -392,6 +392,8 @@ export const settings = {
   tabAppearance: 'Apparence',
   tabThemes: 'Thèmes',
   themesYourThemesTitle: 'Vos thèmes',
+  followDesktopTheme: 'Suivre le thème du bureau',
+  followDesktopThemeSub: 'Utiliser la palette publiée par votre bureau et changer de thème automatiquement quand vous changez celui du bureau',
   themesCvdTooltip: 'Adapté au daltonisme — deutéranopie, protanopie, tritanopie',
   themeAnimationWarning: 'Ce thème utilise des animations qui peuvent augmenter l’utilisation du processeur sur votre configuration (Nvidia/Linux ou compositing désactivé).',
   themeStoreTitle: 'Boutique de thèmes',

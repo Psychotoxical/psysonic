@@ -749,6 +749,23 @@ export const commands = {
 	 */
 	setTrayMenuLabels: (playPause: string, next: string, previous: string, showHide: string, quit: string, nothingPlaying: string) => typedError<null, string>(__TAURI_INVOKE("set_tray_menu_labels", { playPause, next, previous, showHide, quit, nothingPlaying })),
 	importThemeZip: (path: string) => typedError<ImportedThemeFiles, string>(__TAURI_INVOKE("import_theme_zip", { path })),
+	/**  Current desktop palette, or `None` when this machine publishes none. */
+	readDesktopPalette: () => typedError<{
+	/**
+	 *  Absolute path the palette was read from — shown in settings so the user
+	 *  can see which file is driving the theme.
+	 */
+	source: string,
+	/**  Human-readable name of the desktop theme, when the source publishes one. */
+	name: string | null,
+	/**  `"dark"` or `"light"` when the source declares it; `None` otherwise. */
+	mode: string | null,
+	/**
+	 *  Colour name → `#rrggbb`. Keys are lowercased verbatim from the file, so
+	 *  the frontend can map whatever vocabulary a given desktop uses.
+	 */
+	colors: { [key in string]: string },
+} | null, string>(__TAURI_INVOKE("read_desktop_palette")),
 	libraryAnalysisBackfillConfigure: (enabled: boolean, serverIndexKey: string, libraryServerId: string, serverUrl: string, username: string, password: string, workers: number) => typedError<null, string>(__TAURI_INVOKE("library_analysis_backfill_configure", { enabled, serverIndexKey, libraryServerId, serverUrl, username, password, workers })),
 	/**
 	 *  Fetch upcoming Bandsintown events for an artist by name.
@@ -1058,6 +1075,24 @@ export type CustomHeaderEntryWire = {
 };
 
 export type CustomHeadersApplyTo = "local" | "public" | "both";
+
+/**  The desktop's active palette, as read off disk. */
+export type DesktopPalette = {
+	/**
+	 *  Absolute path the palette was read from — shown in settings so the user
+	 *  can see which file is driving the theme.
+	 */
+	source: string,
+	/**  Human-readable name of the desktop theme, when the source publishes one. */
+	name: string | null,
+	/**  `"dark"` or `"light"` when the source declares it; `None` otherwise. */
+	mode: string | null,
+	/**
+	 *  Colour name → `#rrggbb`. Keys are lowercased verbatim from the file, so
+	 *  the frontend can map whatever vocabulary a given desktop uses.
+	 */
+	colors: { [key in string]: string },
+};
 
 export type EndpointKind = "local" | "public";
 

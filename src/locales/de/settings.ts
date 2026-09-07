@@ -406,6 +406,8 @@ export const settings = {
   tabAppearance: 'Darstellung',
   tabThemes: 'Themes',
   themesYourThemesTitle: 'Deine Themes',
+  followDesktopTheme: 'Desktop-Theme folgen',
+  followDesktopThemeSub: 'Die vom Desktop bereitgestellte Farbpalette verwenden und beim Wechsel des Desktop-Themes automatisch mitwechseln',
   themesCvdTooltip: 'Farbfehlsichtigkeits-sicher – Deuteranopie, Protanopie, Tritanopie',
   themeAnimationWarning: 'Dieses Theme nutzt Animationen, die auf deinem Setup (Nvidia/Linux oder Compositing aus) die CPU-Last erhöhen können.',
   themeStoreTitle: 'Theme-Store',

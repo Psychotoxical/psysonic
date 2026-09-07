@@ -444,6 +444,8 @@ export const settings = {
   tabAppearance: '外観',
   tabThemes: 'テーマ',
   themesYourThemesTitle: 'あなたのテーマ',
+  followDesktopTheme: 'デスクトップのテーマに追従',
+  followDesktopThemeSub: 'デスクトップが公開するパレットを使用し、デスクトップのテーマを切り替えると自動的に配色を変更します',
   themesCvdTooltip: '色覚バリアフリー: 2 型色覚、1 型色覚、3 型色覚',
   themeAnimationWarning: 'このテーマは、環境によって CPU 使用率を上げる可能性のあるアニメーションを使用しています (Nvidia/Linux またはコンポジット無効時)。',
   themeStoreTitle: 'テーマストア',

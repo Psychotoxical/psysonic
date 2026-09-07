@@ -450,6 +450,8 @@ export const settings = {
   tabAppearance: 'Megjelenés',
   tabThemes: 'Témák',
   themesYourThemesTitle: 'Saját témáid',
+  followDesktopTheme: 'Asztali téma követése',
+  followDesktopThemeSub: 'Az asztali környezet által közzétett paletta használata, és automatikus átszínezés az asztali téma váltásakor',
   themesCvdTooltip: 'Színtévesztőknek biztonságos — deuteranópia, protanópia, tritanópia',
   themeAnimationWarning: 'Ez a téma olyan animációkat használ, amelyek megnövelhetik a CPU-használatot a beállításodon (Nvidia/Linux vagy kikapcsolt kompozitálás).',
   themeStoreTitle: 'Témabolt',

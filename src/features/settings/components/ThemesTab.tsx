@@ -7,6 +7,8 @@ import CustomSelect from '@/ui/CustomSelect';
 import BackToTopButton from '@/ui/BackToTopButton';
 import { FIXED_THEMES } from '@/lib/themes/fixedThemes';
 import { InstalledThemes } from '@/features/settings/components/InstalledThemes';
+import { SettingsToggle } from '@/features/settings/components/SettingsToggle';
+import { DESKTOP_THEME_ID } from '@/lib/themes/desktopPalette';
 import { ThemeImportSection } from '@/features/settings/components/ThemeImportSection';
 import { ThemeStoreSection } from '@/features/settings/components/ThemeStoreSection';
 import { SettingsGroup } from '@/features/settings/components/SettingsGroup';
@@ -47,6 +49,10 @@ export function ThemesTab() {
   const { t, i18n } = useTranslation();
   const theme = useThemeStore();
   const installed = useInstalledThemesStore(s => s.themes);
+  // The desktop theme only exists once the palette bridge has found a palette
+  // file, so its presence is the signal that this machine has one at all. No
+  // palette (every non-Linux install, and most Linux ones) → no dead toggle.
+  const hasDesktopPalette = installed.some(it => it.id === DESKTOP_THEME_ID);
 
   return (
     <>
@@ -55,6 +61,22 @@ export function ThemesTab() {
           <div className="settings-hint settings-hint-info" style={{ marginBottom: '0.75rem' }}>
             {t('settings.themeSchedulerActiveHint')}
           </div>
+        )}
+        {hasDesktopPalette && (
+          <>
+            <SettingsToggle
+              label={t('settings.followDesktopTheme')}
+              desc={t('settings.followDesktopThemeSub')}
+              // The scheduler already decides the active theme, so following
+              // would have no visible effect — dimmed rather than silently
+              // ignored, with the hint above saying who is in charge.
+              disabled={theme.enableThemeScheduler}
+              checked={theme.followDesktopTheme}
+              onChange={theme.setFollowDesktopTheme}
+              searchText={t('settings.followDesktopTheme')}
+            />
+            <div className="settings-section-divider" />
+          </>
         )}
         <InstalledThemes />
       </ThemesSection>

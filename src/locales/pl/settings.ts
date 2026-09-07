@@ -450,6 +450,8 @@ export const settings = {
   tabAppearance: 'Wygląd',
   tabThemes: 'Motywy',
   themesYourThemesTitle: 'Twoje motywy',
+  followDesktopTheme: 'Podążaj za motywem pulpitu',
+  followDesktopThemeSub: 'Używa palety publikowanej przez pulpit i automatycznie zmienia motyw po zmianie motywu pulpitu',
   themesCvdTooltip: 'Bezpieczny dla osób z zaburzeniami widzenia barw — deuteranopia, protanopia, tritanopia',
   themeAnimationWarning: 'Ten motyw używa animacji, które w Twojej konfiguracji mogą zwiększać użycie procesora (Nvidia/Linux lub wyłączone kompozycjonowanie).',
   themeStoreTitle: 'Sklep z motywami',

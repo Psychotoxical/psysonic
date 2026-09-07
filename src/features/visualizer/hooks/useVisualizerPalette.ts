@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { getCachedBlob } from '@/cover/imageCache';
 import { useThemeStore } from '@/store/themeStore';
+import { useThemeRevision } from '@/lib/themes/themeRevision';
 import {
   swatchesFromObjectUrl,
   type CoverSwatches,
@@ -73,6 +74,8 @@ export function useVisualizerPalette(
   // theme changes. Subscribing to the store is what makes a theme switch
   // repaint the visualizer instead of stranding it on the old colours.
   const theme = useThemeStore(s => s.theme);
+  // Re-read on a same-id CSS rewrite too — see themeRevision.
+  const themeRev = useThemeRevision();
   const [themeColors, setThemeColors] = useState<ThemeColors>(readThemeColors);
 
   useEffect(() => {
@@ -81,7 +84,7 @@ export function useVisualizerPalette(
     // reading synchronously here would sample the *previous* theme's variables.
     const raf = requestAnimationFrame(() => setThemeColors(readThemeColors()));
     return () => cancelAnimationFrame(raf);
-  }, [theme]);
+  }, [theme, themeRev]);
 
   useEffect(() => {
     if (!wantsCover || !artKey || !artUrl || swatchCache.has(artKey)) return;

@@ -161,6 +161,7 @@ Features that go well beyond the basics. Not all of these are unique to Psysonic
 * Font customization and zoom controls
 * Keybind remapping
 * Colorblind-friendly theme options
+* Follows your Linux desktop's palette, when it publishes one (Omarchy out of the box; point `PSYSONIC_PALETTE_FILE` at any `key = "#rrggbb"` file otherwise) — switching the desktop theme re-themes the app live, and Settings → Themes has a switch to turn it off
 * Keyboard-friendly navigation
 
 ## Power-User Extras
