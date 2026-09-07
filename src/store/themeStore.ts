@@ -49,6 +49,13 @@ export type ThemeSchedulerMode = 'time' | 'system';
 interface ThemeState {
   theme: Theme;
   setTheme: (theme: Theme) => void;
+  /** Keep the `desktop` theme selected and re-applied as the desktop's palette
+   *  changes. Only ever has an effect on a machine that publishes a palette —
+   *  everywhere else no `desktop` theme is installed and this is inert. Picking
+   *  any other theme by hand turns it off; picking the desktop card turns it
+   *  back on. See `src/app/tauriBridge/useDesktopPaletteBridge.ts`. */
+  followDesktopTheme: boolean;
+  setFollowDesktopTheme: (v: boolean) => void;
   enableThemeScheduler: boolean;
   setEnableThemeScheduler: (v: boolean) => void;
   /** What drives the day/night switch: a clock schedule or the OS theme. */
@@ -124,11 +131,32 @@ export function getScheduledTheme(
   return isDay ? state.themeDay : state.themeNight;
 }
 
+/**
+ * Persisted-state migration. Identity for everything except `followDesktopTheme`
+ * (added in v3): a stored state means an existing install, which already has a
+ * theme the user picked, so following starts **off** for them — an update must
+ * never swap their theme for their desktop's palette. A fresh profile has no
+ * stored state, never reaches this, and gets the `true` default instead.
+ *
+ * Exported for the tests; `persist` is the only caller.
+ */
+export function migrateThemeState(persistedState: unknown, version: number): unknown {
+  if (version < 3 && persistedState && typeof persistedState === 'object') {
+    (persistedState as { followDesktopTheme?: boolean }).followDesktopTheme = false;
+  }
+  return persistedState;
+}
+
 export const useThemeStore = create<ThemeState>()(
   persist(
     (set) => ({
       theme: 'mocha',
       setTheme: (theme) => set({ theme }),
+      // On by default so a desktop that publishes a palette themes the app out
+      // of the box. Existing installs are migrated to `false` (see `migrate`)
+      // rather than having a theme they already chose replaced under them.
+      followDesktopTheme: true,
+      setFollowDesktopTheme: (v) => set({ followDesktopTheme: v }),
       enableThemeScheduler: false,
       setEnableThemeScheduler: (v) => set({ enableThemeScheduler: v }),
       schedulerMode: 'time',
@@ -173,13 +201,18 @@ export const useThemeStore = create<ThemeState>()(
     }),
     {
       name: 'psysonic_theme',
-      version: 2,
-      // Identity migrate: preserve persisted state from older versions as-is.
+      version: 3,
       // v2 adds `backdrops`; a v1 state simply lacks the key, so the default
       // merge seeds it (every surface enabled, legacy source order) — no
       // transform needed. Theme-id repair for removed / store-only themes still
       // happens in the pre-React bootstrap migration (see utils/themes/themeMigration).
-      migrate: (persistedState) => persistedState,
+      //
+      // v3 adds `followDesktopTheme`, which defaults to `true` for a fresh
+      // profile. Anyone with persisted state predates the feature and already
+      // has a theme they picked, so they migrate to `false` — an update must
+      // not swap the theme they chose for their desktop's palette. The toggle
+      // in Settings → Themes is how they opt in.
+      migrate: migrateThemeState,
     }
   )
 );

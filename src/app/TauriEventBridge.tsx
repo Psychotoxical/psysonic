@@ -9,6 +9,7 @@ import { useMediaAndWindowBridge } from '@/app/tauriBridge/useMediaAndWindowBrid
 import { usePlayerSnapshotPublisher } from '@/app/tauriBridge/usePlayerSnapshotPublisher';
 import { useLibraryDevSyncLog } from '@/app/tauriBridge/useLibraryDevSyncLog';
 import { useCoverArtBridge } from '@/app/tauriBridge/useCoverArtBridge';
+import { useDesktopPaletteBridge } from '@/app/tauriBridge/useDesktopPaletteBridge';
 import { useWebviewFocusRecovery } from '@/app/tauriBridge/useWebviewFocusRecovery';
 
 /**
@@ -16,8 +17,9 @@ import { useWebviewFocusRecovery } from '@/app/tauriBridge/useWebviewFocusRecove
  * webview: ZIP download progress, track-preview lifecycle, audio output device
  * switches, the full `cli:*` listener surface (instant-mix, library / server
  * resolution, search, player commands), tray-icon visibility, in-app
- * keybindings, media keys + tray actions + window-close / force-quit flow, and
- * the `psysonic --info` snapshot publisher. Renders null — pure side effects.
+ * keybindings, media keys + tray actions + window-close / force-quit flow, the
+ * `psysonic --info` snapshot publisher, and the desktop palette the `desktop`
+ * theme follows. Renders null — pure side effects.
  *
  * Each concern lives in its own hook under `hooks/tauriBridge/`; this component
  * just composes them.
@@ -39,6 +41,7 @@ export function TauriEventBridge() {
   usePlayerSnapshotPublisher();
   useLibraryDevSyncLog();
   useCoverArtBridge();
+  useDesktopPaletteBridge();
 
   return null;
 }

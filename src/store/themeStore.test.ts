@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { getScheduledTheme, useThemeStore } from './themeStore';
+import { getScheduledTheme, migrateThemeState, useThemeStore } from './themeStore';
 
 type SchedState = Parameters<typeof getScheduledTheme>[0];
 
@@ -92,5 +92,30 @@ describe('buttonSize', () => {
     expect(useThemeStore.getState().buttonSize).toBe('small');
     useThemeStore.getState().setButtonSize('large');
     expect(useThemeStore.getState().buttonSize).toBe('large');
+  });
+});
+
+describe('followDesktopTheme', () => {
+  it('defaults to on, so a desktop that publishes a palette themes the app', () => {
+    expect(useThemeStore.getState().followDesktopTheme).toBe(true);
+  });
+
+  it('starts off for an install that predates the feature', () => {
+    // Someone upgrading already picked a theme; the update must not replace it.
+    const migrated = migrateThemeState({ theme: 'latte' }, 2) as Record<string, unknown>;
+
+    expect(migrated.followDesktopTheme).toBe(false);
+    expect(migrated.theme).toBe('latte');
+  });
+
+  it('leaves a v3 state alone', () => {
+    const migrated = migrateThemeState({ theme: 'desktop', followDesktopTheme: true }, 3) as Record<string, unknown>;
+
+    expect(migrated.followDesktopTheme).toBe(true);
+  });
+
+  it('tolerates a malformed persisted state', () => {
+    expect(migrateThemeState(null, 1)).toBeNull();
+    expect(migrateThemeState('nonsense', 1)).toBe('nonsense');
   });
 });

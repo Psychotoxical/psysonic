@@ -6,6 +6,7 @@ import { getWindowKind } from './windowKind';
 import { migrateThemeSelection } from '@/lib/themes/themeMigration';
 import { getScheduledTheme, useThemeStore } from '../store/themeStore';
 import { gateInjectedThemes, syncInjectedThemes } from '@/lib/themes/themeInjection';
+import { bumpThemeRevision } from '@/lib/themes/themeRevision';
 import { useInstalledThemesStore, type InstalledTheme } from '../store/installedThemesStore';
 import { initializePsyLabDebugTraces } from '@/lib/perf/psyLabDebugTraces';
 import { setupWindowLifecycleBridge } from './tauriBridge/windowLifecycleBridge';
@@ -70,7 +71,7 @@ export function applyThemeAtStartup(): void {
     const parsed = JSON.parse(raw) as { state?: Record<string, unknown> };
     const s = parsed.state;
     if (!s) return;
-    syncInjectedThemes(readInstalledThemes());
+    if (syncInjectedThemes(readInstalledThemes())) bumpThemeRevision();
     // Gate to the active slots right away so the first style recalcs don't
     // walk every installed theme's rules (App's effect re-gates after mount).
     gateInjectedThemes([

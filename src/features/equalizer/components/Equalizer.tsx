@@ -4,6 +4,7 @@ import { Save, Trash2, RotateCcw } from 'lucide-react';
 import CustomSelect from '@/ui/CustomSelect';
 import { useEqStore, EQ_BANDS, BUILTIN_PRESETS } from '@/store/eqStore';
 import { useThemeStore } from '@/store/themeStore';
+import { useThemeRevision } from '@/lib/themes/themeRevision';
 import { drawCurve } from '@/features/playback/utils/audio/eqCurve';
 import VerticalFader from '@/features/equalizer/components/VerticalFader';
 import AutoEqSection from '@/features/equalizer/components/AutoEqSection';
@@ -22,6 +23,7 @@ export default function Equalizer() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   const theme = useThemeStore(s => s.theme);
+  const themeRev = useThemeRevision();
 
   const redraw = useCallback(() => {
     const canvas = canvasRef.current;
@@ -33,9 +35,11 @@ export default function Equalizer() {
     drawCurve(canvas, gains, accent, bg, text);
     // theme is an intentional re-create trigger: redraw reads the live CSS custom
     // properties via getComputedStyle, so it must re-run when the theme changes
-    // even though the `theme` value itself is not referenced here.
+    // even though the `theme` value itself is not referenced here. `themeRev`
+    // covers the case the id misses — the `desktop` theme's CSS being rewritten
+    // under a constant id (see lib/themes/themeRevision).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [gains, theme]);
+  }, [gains, theme, themeRev]);
 
   useEffect(() => { redraw(); }, [redraw]);
 

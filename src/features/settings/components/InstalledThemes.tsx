@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useThemeStore } from '@/store/themeStore';
 import { useInstalledThemesStore } from '@/store/installedThemesStore';
 import { uninstallTheme } from '@/lib/themes/uninstallTheme';
+import { DESKTOP_THEME_ID } from '@/lib/themes/desktopPalette';
 import { installThemeFromRegistry } from '@/lib/themes/installThemeFromRegistry';
 import { useThemeUpdates } from '@/features/settings/hooks/useThemeUpdates';
 import { useThemeAnimationRisk } from '@/features/settings/hooks/useThemeAnimationRisk';
@@ -47,6 +48,15 @@ export function InstalledThemes() {
   const { t } = useTranslation();
   const active = useThemeStore(s => s.theme);
   const setTheme = useThemeStore(s => s.setTheme);
+  const setFollowDesktopTheme = useThemeStore(s => s.setFollowDesktopTheme);
+  // Picking a card is the user taking over the selection, so it owns the follow
+  // flag too: any other theme turns following off (otherwise the next palette
+  // change would quietly undo the click), and the desktop card turns it back on
+  // — the card and the Settings toggle stay two views of one state.
+  const choose = (id: string) => {
+    setFollowDesktopTheme(id === DESKTOP_THEME_ID);
+    setTheme(id);
+  };
   const installed = useInstalledThemesStore(s => s.themes);
   const animRisk = useThemeAnimationRisk();
   const updates = useThemeUpdates();
@@ -66,7 +76,9 @@ export function InstalledThemes() {
     ...FIXED_THEMES.map(f => ({ id: f.id, label: f.label, bg: f.bg, card: f.card, accent: f.accent, fixed: true, accessibility: !!f.accessibility, animated: false })),
     ...installed.map(it => {
       const s = swatch(it.css);
-      return { id: it.id, label: it.name, bg: s.bg, card: s.card, accent: s.accent, fixed: false, accessibility: (it.tags || []).includes('accessibility'), animated: /@(?:-[a-z]+-)?keyframes\b/i.test(it.css), version: it.version };
+      // The desktop theme is regenerated from the desktop's own palette, so it
+      // is not the user's to uninstall — `fixed` also hides that control.
+      return { id: it.id, label: it.name, bg: s.bg, card: s.card, accent: s.accent, fixed: it.id === DESKTOP_THEME_ID, accessibility: (it.tags || []).includes('accessibility'), animated: /@(?:-[a-z]+-)?keyframes\b/i.test(it.css), version: it.version };
     }),
   ];
 
@@ -77,7 +89,7 @@ export function InstalledThemes() {
           const isActive = active === c.id;
           return (
             <div key={c.id} style={{ position: 'relative' }}>
-              <button className="theme-card-btn" style={{ width: '100%' }} aria-pressed={isActive} onClick={() => setTheme(c.id)}>
+              <button className="theme-card-btn" style={{ width: '100%' }} aria-pressed={isActive} onClick={() => choose(c.id)}>
                 <div className={`theme-card-preview${isActive ? ' is-active' : ''}`}>
                   <div style={{ background: c.bg, height: '55%' }} />
                   <div style={{ background: c.card, height: '20%' }} />

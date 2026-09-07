@@ -5,6 +5,7 @@ import { useLyricsStore } from './store/lyricsStore';
 import { useThemeStore } from './store/themeStore';
 import { useInstalledThemesStore } from './store/installedThemesStore';
 import { gateInjectedThemes, syncInjectedThemes } from '@/lib/themes/themeInjection';
+import { bumpThemeRevision } from '@/lib/themes/themeRevision';
 import { reconcileThemeAssetsOnStartup } from '@/app/themeAssetStartup';
 import { useThemeScheduler } from '@/app/hooks/useThemeScheduler';
 import { useFontStore } from './store/fontStore';
@@ -32,7 +33,10 @@ export default function App() {
   // when the attribute is applied. The store hydrates synchronously, so an
   // active community theme is painted without a network round-trip.
   useEffect(() => {
-    syncInjectedThemes(installedThemes);
+    // A rewrite of the active theme's CSS (the `desktop` theme tracking the
+    // desktop's palette) keeps the same id, so canvas surfaces caching colours
+    // by theme id need this to know their cache is stale.
+    if (syncInjectedThemes(installedThemes)) bumpThemeRevision();
     // Only the active slots participate in style matching (inactive styles
     // get media="not all" — see gateInjectedThemes). Runs in the same effects
     // flush as the data-theme attribute below, so a switch paints with both

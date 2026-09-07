@@ -391,6 +391,8 @@ export const settings = {
   tabAppearance: '外观',
   tabThemes: '主题',
   themesYourThemesTitle: '你的主题',
+  followDesktopTheme: '跟随桌面主题',
+  followDesktopThemeSub: '使用桌面发布的配色方案，并在切换桌面主题时自动重新配色',
   themesCvdTooltip: '色觉障碍友好 — 绿色盲、红色盲、蓝色盲',
   themeAnimationWarning: '此主题使用动画，在你的环境（Nvidia/Linux 或关闭合成）下可能会增加 CPU 占用。',
   themeStoreTitle: '主题商店',

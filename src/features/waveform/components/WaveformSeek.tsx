@@ -223,6 +223,12 @@ export default function WaveformSeek({ trackId }: Props) {
   }, [seekbarStyle]);
 
   // Theme change observer — redraw canvas when theme changes.
+  //
+  // `data-theme-rev` covers what `data-theme` alone misses: the `desktop` theme
+  // keeps one id while its CSS is rewritten on every desktop palette switch, so
+  // without it the canvas holds the previous palette's pixels until something
+  // else forces a draw (a click, or the next progress tick — and a paused track
+  // has none). Same production case the dev-only HMR repaint below handles.
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -230,7 +236,10 @@ export default function WaveformSeek({ trackId }: Props) {
       invalidateColorCache();
       drawSeekbar(canvas, seekbarStyle, heightsRef.current, progressRef.current, bufferedRef.current, animStateRef.current);
     });
-    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['data-theme', 'data-theme-rev'],
+    });
     return () => observer.disconnect();
   }, [seekbarStyle]);
 

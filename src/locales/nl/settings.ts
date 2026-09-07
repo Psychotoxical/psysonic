@@ -392,6 +392,8 @@ export const settings = {
   tabAppearance: 'Weergave',
   tabThemes: "Thema's",
   themesYourThemesTitle: "Jouw thema's",
+  followDesktopTheme: 'Bureaubladthema volgen',
+  followDesktopThemeSub: 'Gebruik het kleurenpalet dat je bureaublad publiceert en pas het thema automatisch aan als je van bureaubladthema wisselt',
   themesCvdTooltip: 'Kleurenblind-veilig – deuteranopie, protanopie, tritanopie',
   themeAnimationWarning: 'Dit thema gebruikt animaties die het CPU-gebruik op jouw systeem kunnen verhogen (Nvidia/Linux of compositing uit).',
   themeStoreTitle: 'Themawinkel',

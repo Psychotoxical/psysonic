@@ -408,6 +408,8 @@ export const settings = {
   tabAppearance: 'Aparență',
   tabThemes: 'Teme',
   themesYourThemesTitle: 'Temele tale',
+  followDesktopTheme: 'Urmează tema desktopului',
+  followDesktopThemeSub: 'Folosește paleta publicată de desktop și schimbă tema automat când schimbi tema desktopului',
   themesCvdTooltip: 'Sigur pentru daltonism – deuteranopie, protanopie, tritanopie',
   themeAnimationWarning: 'Această temă folosește animații care pot crește utilizarea procesorului pe configurația ta (Nvidia/Linux sau compositing dezactivat).',
   themeStoreTitle: 'Magazin de teme',

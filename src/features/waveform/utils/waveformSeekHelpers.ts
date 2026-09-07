@@ -56,6 +56,9 @@ export function getColors(): SeekbarColors {
   const style = root.style;
   const key = [
     root.getAttribute('data-theme') ?? '',
+    // The `desktop` theme keeps one id while its CSS is rewritten on every
+    // desktop theme switch, so the id alone would pin this to stale colours.
+    root.getAttribute('data-theme-rev') ?? '',
     style.getPropertyValue('--accent'),
     style.getPropertyValue('--waveform-played'),
     style.getPropertyValue('--waveform-buffered'),

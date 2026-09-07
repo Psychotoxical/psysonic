@@ -450,6 +450,8 @@ export const settings = {
   tabAppearance: 'Appearance',
   tabThemes: 'Themes',
   themesYourThemesTitle: 'Your Themes',
+  followDesktopTheme: 'Follow desktop theme',
+  followDesktopThemeSub: 'Use the palette your desktop publishes, and re-theme automatically when you switch desktop themes',
   themesCvdTooltip: 'Colour-blind safe — deuteranopia, protanopia, tritanopia',
   themeAnimationWarning: 'This theme uses animations that may raise CPU usage on your setup (Nvidia/Linux or compositing off).',
   themeStoreTitle: 'Theme Store',

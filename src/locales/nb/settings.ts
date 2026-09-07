@@ -395,6 +395,8 @@ export const settings = {
   tabAppearance: 'Utseende',
   tabThemes: 'Temaer',
   themesYourThemesTitle: 'Dine temaer',
+  followDesktopTheme: 'Følg skrivebordstemaet',
+  followDesktopThemeSub: 'Bruk paletten skrivebordet publiserer, og bytt tema automatisk når du bytter skrivebordstema',
   themesCvdTooltip: 'Fargeblind-sikker – deuteranopi, protanopi, tritanopi',
   themeAnimationWarning: 'Dette temaet bruker animasjoner som kan øke CPU-bruken på oppsettet ditt (Nvidia/Linux eller compositing av).',
   themeStoreTitle: 'Temabutikk',

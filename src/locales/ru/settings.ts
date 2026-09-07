@@ -460,6 +460,8 @@ export const settings = {
   tabAppearance: 'Внешний вид',
   tabThemes: 'Темы',
   themesYourThemesTitle: 'Ваши темы',
+  followDesktopTheme: 'Следовать теме рабочего стола',
+  followDesktopThemeSub: 'Использует палитру, публикуемую рабочим столом, и автоматически меняет тему при смене темы рабочего стола',
   themesCvdTooltip: 'Безопасно при дальтонизме — дейтеранопия, протанопия, тританопия',
   themeAnimationWarning: 'Эта тема использует анимации, которые могут повысить нагрузку на процессор в вашей конфигурации (Nvidia/Linux или композитинг выключен).',
   themeStoreTitle: 'Магазин тем',

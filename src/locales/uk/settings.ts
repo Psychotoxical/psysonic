@@ -450,6 +450,8 @@ export const settings = {
   tabAppearance: 'Вигляд',
   tabThemes: 'Теми',
   themesYourThemesTitle: 'Ваші теми',
+  followDesktopTheme: 'Стежити за темою стільниці',
+  followDesktopThemeSub: 'Використовує палітру, яку публікує стільниця, і автоматично змінює тему після зміни теми стільниці',
   themesCvdTooltip: 'Безпечно для людей із порушенням колірного сприйняття (дейтеранопія, протанопія, тританопія)',
   themeAnimationWarning: 'Ця тема використовує анімації, які можуть збільшити навантаження на процесор.',
   themeStoreTitle: 'Магазин тем',

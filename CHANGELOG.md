@@ -35,6 +35,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * On Windows the update dialog now installs the new version itself, the way it already does on macOS: the installer is downloaded, its signature is checked against the key built into the app, and it runs in the background. Psysonic closes and reopens by itself when it is done.
 * Until now Windows only offered the installer as a download to run by hand. Installs of this version and later update in place; an older install still downloads the next installer once.
 
+### Psysonic follows your desktop's theme
+
+**By [@Manwe-777](https://github.com/Manwe-777), PR [#1507](https://github.com/Psysonic/psysonic/pull/1507)**
+
+* On a Linux desktop that publishes its colours — Omarchy does out of the box — Psysonic now themes itself to match, and re-themes itself within a couple of seconds when you switch your desktop theme. No restart, and nothing to keep in sync by hand.
+* The generated theme appears in Settings → Themes as `Desktop — <your theme's name>`, alongside a **Follow desktop theme** switch. Turn it off and the theme stays there as an ordinary one you can pick; pick a different theme by hand and following turns itself off, so your choice sticks.
+* Any other desktop works too: point `PSYSONIC_PALETTE_FILE` at a file of `name = "#rrggbb"` lines and Psysonic follows that instead. A palette naming only a background, a foreground and an accent is enough — the rest of the theme is derived from those three.
+* If you already had a theme selected, Psysonic keeps it. Following starts switched off for existing installs, so an update never replaces the theme you chose; turn it on when you want it.
+* Desktops that publish no palette — every non-Linux install, and most Linux ones — see no change at all, not even the new switch.
+
 ## Fixed
 
 ### Shared Top Albums pictures show their covers again

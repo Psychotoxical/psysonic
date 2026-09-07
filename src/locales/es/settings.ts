@@ -404,6 +404,8 @@ export const settings = {
   tabAppearance: 'Apariencia',
   tabThemes: 'Temas',
   themesYourThemesTitle: 'Tus temas',
+  followDesktopTheme: 'Seguir el tema del escritorio',
+  followDesktopThemeSub: 'Usa la paleta que publica tu escritorio y cambia el tema automáticamente cuando cambias el del escritorio',
   themesCvdTooltip: 'Apto para daltonismo: deuteranopía, protanopía, tritanopía',
   themeAnimationWarning: 'Este tema usa animaciones que pueden aumentar el uso de CPU en tu sistema (Nvidia/Linux o compositing desactivado).',
   themeStoreTitle: 'Tienda de temas',
